@@ -34,7 +34,7 @@ namespace dmGraphics
      * @typedef
      * @name HContext
      */
-    typedef struct Context* HContext;
+    typedef void* HContext;
 
     /*#
      * Texture handle

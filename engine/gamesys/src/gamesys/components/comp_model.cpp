@@ -660,8 +660,7 @@ namespace dmGameSystem
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            TextureResource* texture_res = GetTextureResource(component, component->m_Resource, i);
-            ro.m_Textures[i] = GetTexture(texture_res);
+            ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
         }
 
         if (component->m_RenderConstants) {

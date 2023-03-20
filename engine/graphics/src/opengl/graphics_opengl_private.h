@@ -74,9 +74,9 @@ namespace dmGraphics
         AssetType m_Type;
     };
 
-    struct Context
+    struct OpenGLContext
     {
-        Context(const ContextParams& params);
+        OpenGLContext(const ContextParams& params);
 
         // Async queue data and synchronization objects
         dmMutex::HMutex         m_AsyncMutex;

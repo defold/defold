@@ -353,9 +353,9 @@ namespace dmGraphics
         VulkanResourceType m_Type;
     };
 
-    struct Context
+    struct VulkanContext
     {
-        Context(const ContextParams& params, const VkInstance vk_instance);
+        VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
         HTexture                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         dmOpaqueHandleContainer<VulkanSharedAsset> m_AssetHandleContainer;
@@ -430,9 +430,9 @@ namespace dmGraphics
     void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan.cpp
-    VkResult CreateMainFrameBuffers(HContext context);
-    VkResult DestroyMainFrameBuffers(HContext context);
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+    VkResult CreateMainFrameBuffers(VulkanContext* context);
+    VkResult DestroyMainFrameBuffers(VulkanContext* context);
+    void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
@@ -501,7 +501,7 @@ namespace dmGraphics
         uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
-    void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value);
+    void DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
@@ -545,29 +545,29 @@ namespace dmGraphics
     void NativeBeginFrame(HContext context);
 
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
-    void VulkanCloseWindow(HContext context);
-    uint32_t VulkanGetDisplayDpi(HContext context);
-    uint32_t VulkanGetWidth(HContext context);
-    uint32_t VulkanGetHeight(HContext context);
-    uint32_t VulkanGetWindowWidth(HContext context);
-    uint32_t VulkanGetWindowHeight(HContext context);
-    float VulkanGetDisplayScaleFactor(HContext context);
-    uint32_t VulkanGetWindowRefreshRate(HContext context);
-    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
-    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
-    void VulkanIconifyWindow(HContext context);
-    uint32_t VulkanGetWindowState(HContext context, WindowState state);
+    void         VulkanCloseWindow(HContext context);
+    uint32_t     VulkanGetDisplayDpi(HContext context);
+    uint32_t     VulkanGetWidth(HContext context);
+    uint32_t     VulkanGetHeight(HContext context);
+    uint32_t     VulkanGetWindowWidth(HContext context);
+    uint32_t     VulkanGetWindowHeight(HContext context);
+    float        VulkanGetDisplayScaleFactor(HContext context);
+    uint32_t     VulkanGetWindowRefreshRate(HContext context);
+    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
+    void         VulkanIconifyWindow(HContext context);
+    uint32_t     VulkanGetWindowState(HContext context, WindowState state);
 
-    static inline Texture* VulkanTextureFromhandle(HContext context, HTexture texture)
+    static inline Texture* VulkanTextureFromhandle(VulkanContext* context, HTexture texture)
     {
         VulkanSharedAsset* asset = context->m_AssetHandleContainer.Get(texture);
         assert(asset->m_Type == RESOURCE_TYPE_TEXTURE);
         return (Texture*) asset->m_Asset;
     }
 
-    static inline RenderTarget* VulkanRenderTargetFromhandle(HContext context, HRenderTarget render_target)
+    static inline RenderTarget* VulkanRenderTargetFromhandle(VulkanContext* context, HRenderTarget render_target)
     {
         VulkanSharedAsset* asset = context->m_AssetHandleContainer.Get(render_target);
         assert(asset->m_Type == RESOURCE_TYPE_RENDER_TARGET);

@@ -84,6 +84,7 @@ namespace dmGraphics
 
     static HContext NullNewContext(const ContextParams& params)
     {
+        /*
         if (!g_ContextCreated)
         {
             g_ContextCreated = true;
@@ -93,6 +94,8 @@ namespace dmGraphics
         {
             return 0x0;
         }
+        */
+        return 0;
     }
 
     static bool NullIsSupported()
@@ -102,19 +105,22 @@ namespace dmGraphics
 
     static void NullDeleteContext(HContext context)
     {
+        /*
         assert(context);
         if (g_ContextCreated)
         {
             delete context;
             g_ContextCreated = false;
         }
+        */
     }
 
     static WindowResult NullOpenWindow(HContext context, WindowParams* params)
     {
+        /*
         assert(context);
         assert(params);
-        if (context->m_WindowOpened)
+        // if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
@@ -141,6 +147,7 @@ namespace dmGraphics
         {
             dmLogInfo("Device: null");
         }
+        */
         return WINDOW_RESULT_OK;
     }
 
@@ -152,6 +159,7 @@ namespace dmGraphics
 
     static void NullCloseWindow(HContext context)
     {
+        /*
         assert(context);
         if (context->m_WindowOpened)
         {
@@ -165,6 +173,7 @@ namespace dmGraphics
             context->m_WindowWidth = 0;
             context->m_WindowHeight = 0;
         }
+        */
     }
 
     static void NullIconifyWindow(HContext context)
@@ -182,6 +191,7 @@ namespace dmGraphics
 
     static uint32_t NullGetWindowState(HContext context, WindowState state)
     {
+        /*
         switch (state)
         {
             case WINDOW_STATE_OPENED:
@@ -189,27 +199,30 @@ namespace dmGraphics
             default:
                 return 0;
         }
+        */
+        return 0;
     }
 
     static uint32_t NullGetDisplayDpi(HContext context)
     {
         assert(context);
-        return context->m_Dpi;
+        // return context->m_Dpi;
+        return 0;
     }
 
     static uint32_t NullGetWidth(HContext context)
     {
-        return context->m_Width;
+        return 0; // return context->m_Width;
     }
 
     static uint32_t NullGetHeight(HContext context)
     {
-        return context->m_Height;
+        return 0; // return context->m_Height;
     }
 
     static uint32_t NullGetWindowWidth(HContext context)
     {
-        return context->m_WindowWidth;
+        return 0; // return context->m_WindowWidth;
     }
 
     static float NullGetDisplayScaleFactor(HContext context)
@@ -219,11 +232,12 @@ namespace dmGraphics
 
     static uint32_t NullGetWindowHeight(HContext context)
     {
-        return context->m_WindowHeight;
+        return 0; // return context->m_WindowHeight;
     }
 
     static void NullSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
+        /*
         assert(context);
         if (context->m_WindowOpened)
         {
@@ -246,10 +260,12 @@ namespace dmGraphics
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
+        */
     }
 
     static void NullResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
+        /*
         assert(context);
         if (context->m_WindowOpened)
         {
@@ -259,16 +275,18 @@ namespace dmGraphics
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
+        */
     }
 
     static void NullGetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
-        out_min_filter = context->m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_DefaultTextureMagFilter;
+        // out_min_filter = context->m_DefaultTextureMinFilter;
+        // out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
     static void NullClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
+        /*
         assert(context);
 
         BufferType color_buffer_flags[] = {
@@ -304,6 +322,7 @@ namespace dmGraphics
             for (uint32_t i = 0; i < count; ++i)
                 buffer[i] = stencil;
         }
+        */
     }
 
     static void NullBeginFrame(HContext context)
@@ -313,6 +332,7 @@ namespace dmGraphics
 
     static void NullFlip(HContext context)
     {
+        /*
         // Mimick glfw
         if (context->m_RequestWindowClose)
         {
@@ -323,6 +343,7 @@ namespace dmGraphics
         }
 
         g_Flipped = 1;
+        */
     }
 
     static void NullSetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
@@ -509,18 +530,19 @@ namespace dmGraphics
 
     static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
-        assert(context);
-        assert(vertex_buffer);
-        VertexStreamBuffer& s = context->m_VertexStreams[stream];
-        assert(s.m_Source == 0x0);
-        assert(s.m_Buffer == 0x0);
-        s.m_Source = vertex_buffer;
-        s.m_Size   = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
-        s.m_Stride = stride;
+        // assert(context);
+        // assert(vertex_buffer);
+        // VertexStreamBuffer& s = context->m_VertexStreams[stream];
+        // assert(s.m_Source == 0x0);
+        // assert(s.m_Buffer == 0x0);
+        // s.m_Source = vertex_buffer;
+        // s.m_Size   = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
+        // s.m_Stride = stride;
     }
 
     static void DisableVertexStream(HContext context, uint16_t stream)
     {
+        /*
         assert(context);
         VertexStreamBuffer& s = context->m_VertexStreams[stream];
         s.m_Size = 0;
@@ -530,10 +552,12 @@ namespace dmGraphics
             s.m_Buffer = 0x0;
         }
         s.m_Source = 0x0;
+        */
     }
 
     static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
+        /*
         assert(context);
         assert(vertex_declaration);
         assert(vertex_buffer);
@@ -555,6 +579,7 @@ namespace dmGraphics
                 offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
         }
+        */
     }
 
     static void NullEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
@@ -603,6 +628,7 @@ namespace dmGraphics
 
     static void NullDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
+        /*
         assert(context);
         assert(index_buffer);
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
@@ -623,6 +649,7 @@ namespace dmGraphics
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
         }
+        */
 
         if (g_Flipped)
         {
@@ -796,13 +823,13 @@ namespace dmGraphics
     static void NullEnableProgram(HContext context, HProgram program)
     {
         assert(context);
-        context->m_Program = (void*)program;
+        // context->m_Program = (void*)program;
     }
 
     static void NullDisableProgram(HContext context)
     {
         assert(context);
-        context->m_Program = 0x0;
+        // context->m_Program = 0x0;
     }
 
     static bool NullReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
@@ -853,23 +880,28 @@ namespace dmGraphics
     // Tests Only
     const Vector4& GetConstantV4Ptr(HContext context, int base_register)
     {
+        Vector4 nullv4;
+        return nullv4;
+
+        /*
         assert(context);
         assert(context->m_Program != 0x0);
         return context->m_ProgramRegisters[base_register];
+        */
     }
 
     static void NullSetConstantV4(HContext context, const Vector4* data, int count, int base_register)
     {
-        assert(context);
-        assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * count);
+        // assert(context);
+        // assert(context->m_Program != 0x0);
+        // memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * count);
     }
 
     static void NullSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
-        assert(context);
-        assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
+        // assert(context);
+        // assert(context->m_Program != 0x0);
+        // memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, int32_t location, int32_t unit)
@@ -1036,7 +1068,8 @@ namespace dmGraphics
 
     static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return (context->m_TextureFormatSupport & (1 << format)) != 0;
+        return true;
+        // return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     static uint32_t NullGetMaxTextureSize(HContext context)
@@ -1177,7 +1210,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
-        context->m_Textures[unit] = 0;
+        // context->m_Textures[unit] = 0;
     }
 
     static void NullReadPixels(HContext context, void* buffer, uint32_t buffer_size)
@@ -1191,20 +1224,20 @@ namespace dmGraphics
     static void NullEnableState(HContext context, State state)
     {
         assert(context);
-        SetPipelineStateValue(context->m_PipelineState, state, 1);
+        // SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void NullDisableState(HContext context, State state)
     {
         assert(context);
-        SetPipelineStateValue(context->m_PipelineState, state, 0);
+        // SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void NullSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
-        context->m_PipelineState.m_BlendSrcFactor = source_factor;
-        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+        // context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        // context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
@@ -1214,89 +1247,89 @@ namespace dmGraphics
         write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
         write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
         write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
-        context->m_PipelineState.m_WriteColorMask = write_mask;
+        // context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     static void NullSetDepthMask(HContext context, bool mask)
     {
         assert(context);
-        context->m_PipelineState.m_WriteDepth = mask;
+        // context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static void NullSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
-        context->m_PipelineState.m_DepthTestFunc = func;
+//         context->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void NullSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
-        context->m_ScissorRect[0] = (int32_t) x;
-        context->m_ScissorRect[1] = (int32_t) y;
-        context->m_ScissorRect[2] = (int32_t) x+width;
-        context->m_ScissorRect[3] = (int32_t) y+height;
+        // context->m_ScissorRect[0] = (int32_t) x;
+        // context->m_ScissorRect[1] = (int32_t) y;
+        // context->m_ScissorRect[2] = (int32_t) x+width;
+        // context->m_ScissorRect[3] = (int32_t) y+height;
     }
 
     static void NullSetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
-        context->m_PipelineState.m_StencilWriteMask = mask;
+        // context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void NullSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
-        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
+        // context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        // context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        // context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        // context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void NullSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
-        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
-        context->m_PipelineState.m_StencilBackOpFail       = sfail;
-        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
-        context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        // context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        // context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        // context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        // context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        // context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        // context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void NullSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         if (face_type == FACE_TYPE_BACK)
         {
-            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+            // context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
         }
         else
         {
-            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+            // context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
         }
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        // context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        // context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
     static void NullSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         if (face_type == FACE_TYPE_BACK)
         {
-            context->m_PipelineState.m_StencilBackOpFail       = sfail;
-            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
-            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+            // context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            // context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            // context->m_PipelineState.m_StencilBackOpPass       = dppass;
         }
         else
         {
-            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
-            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+            // context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            // context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            // context->m_PipelineState.m_StencilFrontOpPass      = dppass;
         }
     }
 
     static void NullSetFaceWinding(HContext context, FaceWinding face_winding)
     {
-        context->m_PipelineState.m_FaceWinding = face_winding;
+        // context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void NullSetCullFace(HContext context, FaceType face_type)
@@ -1311,7 +1344,7 @@ namespace dmGraphics
 
     static PipelineState NullGetPipelineState(HContext context)
     {
-        return context->m_PipelineState;
+        // return context->m_PipelineState;
     }
 
     static void NullSetTextureAsync(HTexture texture, const TextureParams& params)
