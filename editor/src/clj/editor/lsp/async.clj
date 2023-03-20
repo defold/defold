@@ -14,9 +14,13 @@
 
 (ns editor.lsp.async
   (:require [clojure.core.async :as a :refer [<! >!]]
-            [editor.ui :as ui]))
+            [editor.ui :as ui])
+  (:import [clojure.core.async.impl.channels ManyToManyChannel]))
 
 (set! *warn-on-reflection* true)
+
+(defn chan? [x]
+  (instance? ManyToManyChannel x))
 
 (defn reduce-async
   "Reduce a channel ch with async function af
