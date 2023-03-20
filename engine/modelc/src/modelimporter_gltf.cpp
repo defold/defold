@@ -40,6 +40,7 @@ namespace dmModelImporter
 struct GltfData
 {
     cgltf_data* m_Data;
+    uint8_t     m_Finalized : 1;
 };
 
 static void OutputTransform(const dmTransform::Transform& transform)
@@ -988,7 +989,11 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
-    LoadScene(scene, data->m_Data);
+    if (data->m_Finalized == 0)
+    {
+        LoadScene(scene, data->m_Data);
+        data->m_Finalized = 1;
+    }
     return true;
 }
 
@@ -1035,6 +1040,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     Scene* scene = new Scene;
     memset(scene, 0, sizeof(Scene));
     GltfData* scenedata = new GltfData;
+    scenedata->m_Finalized = 0;
     scenedata->m_Data = data;
 
     scene->m_OpaqueSceneData = scenedata;
