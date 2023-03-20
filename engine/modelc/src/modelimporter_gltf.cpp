@@ -994,7 +994,6 @@ static bool LoadFinalizeGltf(Scene* scene)
 
 static bool ValidateGltf(Scene* scene)
 {
-    printf("ValidateGltf\n");
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
     cgltf_result result = cgltf_validate(data->m_Data);
     if (result != cgltf_result_success)
