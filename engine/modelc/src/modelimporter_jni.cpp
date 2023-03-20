@@ -943,6 +943,7 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
         return 0;
     }
 
+    bool resolved = false;
     if (data_resolver != 0 && dmModelImporter::NeedsResolve(scene))
     {
         jclass cls_resolver = env->GetObjectClass(data_resolver);
@@ -964,6 +965,7 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
                 jsize buffer_size = env->GetArrayLength(bytes);
                 jbyte* buffer_data = env->GetByteArrayElements(bytes, 0);
                 dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, buffer_data, buffer_size);
+                resolved = true;
 
                 env->ReleaseByteArrayElements(bytes, buffer_data, JNI_ABORT);
             }
@@ -979,7 +981,7 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
         }
     }
 
-    if (!dmModelImporter::NeedsResolve(scene))
+    if (resolved && !dmModelImporter::NeedsResolve(scene))
     {
         dmModelImporter::LoadFinalize(scene);
         dmModelImporter::Validate(scene);
