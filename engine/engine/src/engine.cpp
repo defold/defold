@@ -715,7 +715,6 @@ namespace dmEngine
 
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
 
         // Accelerometer
         int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
@@ -952,8 +951,6 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        dmHID::Init(engine->m_HidContext);
-
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
 #if defined(__EMSCRIPTEN__)
@@ -1004,6 +1001,11 @@ namespace dmEngine
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
+
+        dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
+
+        // Any connected devices are registered here.
+        dmHID::Init(engine->m_HidContext);
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
@@ -1542,6 +1544,7 @@ bail:
                     return;
                 }
 
+                dmInput::UpdateContext(engine->m_InputContext);
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
                 engine->m_InputBuffer.SetSize(0);

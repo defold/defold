@@ -65,7 +65,7 @@ namespace dmHID
         TextPacket         m_TextPacket;
         MarkedTextPacket   m_MarkedTextPacket;
         AccelerationPacket m_AccelerationPacket;
-        DMHIDGamepadFunc   m_GamepadConnectivityCallback;
+        FHIDGamepadFunc    m_GamepadConnectivityCallback;
         void*              m_GamepadConnectivityUserdata;
         void*              m_NativeContext;
         void*              m_NativeContextUserData;
