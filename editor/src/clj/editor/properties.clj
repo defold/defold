@@ -469,7 +469,7 @@
         prop-kws (:prop-kws property)
         old-values (:values property)
         new-values (if-some [from-fn (-> property :edit-type :from-type)]
-                     (mapv from-fn values)
+                     (map from-fn values) ; The values might be an infinite sequence, so we can't use mapv here.
                      values)]
     (mapv vector node-ids prop-kws old-values new-values)))
 
