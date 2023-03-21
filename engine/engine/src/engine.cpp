@@ -1544,7 +1544,7 @@ bail:
                     return;
                 }
 
-                dmInput::Update(engine->m_InputContext, dt);
+                dmInput::Update(engine->m_InputContext);
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
                 engine->m_InputBuffer.SetSize(0);
