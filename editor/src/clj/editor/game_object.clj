@@ -140,7 +140,7 @@
       (update :display-order (fn [display-order]
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
-(g/defnk produce-component-build-targets [_node-id build-resource ddf-message transform resource-property-build-targets source-build-targets]
+(g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced or embedded component. Also tag on
   ;; :instance-data with the overrides for this instance. This will later be
   ;; extracted and compiled into the GameObject - the overrides do not end up in
@@ -157,9 +157,9 @@
                              (wrap-if-raw-sound _node-id))
             build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
             instance-data (if is-embedded
-                            (game-object-common/embedded-component-instance-data build-resource ddf-message transform)
+                            (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
                             (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-                              (game-object-common/referenced-component-instance-data build-resource ddf-message transform proj-path->resource-property-build-target)))
+                              (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
             build-target (assoc build-target :instance-data instance-data)]
         [(bt/with-content-hash build-target)]))))
 
