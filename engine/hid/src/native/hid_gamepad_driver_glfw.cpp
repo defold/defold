@@ -147,7 +147,6 @@ namespace dmHID
     {
         int id                = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
         int glfw_joystick     = GLFW_JOYSTICKS[id];
-        bool prev_connected   = gamepad->m_Connected;
         GamepadPacket& packet = gamepad->m_Packet;
 
         gamepad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
