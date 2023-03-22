@@ -388,9 +388,9 @@ public:
     }
 
     /*#
+     * Iterator to the key/value pairs of a hash table
      * @struct
      * @name Iterator
-     * @member GetKey()
      */
     struct Iterator
     {
@@ -434,7 +434,17 @@ public:
     };
 
     /*#
+     * Get an iterator for the key/value pairs
      * @name GetIterator
+     * @return iterator [type: dmHashTable<T>::Iterator] the iterator
+     * @examples
+     * ```cpp
+     * dmHashTable<dmhash_t, int>::Iterator iter = ht.GetIterator();
+     * while(iter.Next())
+     * {
+     *     printf("%s: %d\n", dmHashReverseSafe64(iter.GetKey()), iter.GetValue());
+     * }
+     * ```
      */
     Iterator GetIterator()
     {
