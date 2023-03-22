@@ -21,8 +21,8 @@ def build(bld):
     extra_encoder_flags = []
     if bld.env['PLATFORM'] == 'x86_64-macos':
         # SSE4.1 was added in 10.12
-        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.9', 0) )
-        remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.9', 0) )
+        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.13', 0) )
+        remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.13', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
     texc_shared = bld.shlib(features     = 'cxx cshlib skip_asan remove_flags',

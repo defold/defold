@@ -46,7 +46,7 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="9.0"
-VERSION_MACOSX_MIN="10.9"
+VERSION_MACOSX_MIN="10.13"
 
 SWIFT_VERSION="5.5"
 
