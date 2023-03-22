@@ -47,7 +47,7 @@ case $1 in
         ;;
 
     x86_64-macos)
-        EXTRA_FLAGS="-mmacosx-version-min=10.7"
+        EXTRA_FLAGS="-mmacosx-version-min=10.9"
         ;;
 
     arm64-ios)
