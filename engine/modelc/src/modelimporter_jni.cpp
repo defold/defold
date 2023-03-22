@@ -19,6 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dlib/mutex.h>
 
 #define CLASS_SCENE  "com/dynamo/bob/pipeline/ModelImporter$Scene"
 
@@ -77,6 +78,8 @@ static jfieldID GetFieldNode(JNIEnv* env, jclass cls, const char* field_name)
 }
 
 // ******************************************************************************************************************
+
+dmMutex::HMutex g_TypeMutex = 0;
 
 struct SceneJNI
 {
@@ -916,6 +919,8 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 
 JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
+    dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
+
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
 
@@ -992,7 +997,11 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
         dmModelImporter::DebugScene(scene);
     }
 
-    jobject jscene = dmModelImporter::CreateJavaScene(env, scene);
+    jobject jscene = 0;
+    {
+        DM_MUTEX_SCOPED_LOCK(dmModelImporter::g_TypeMutex);
+        jscene = dmModelImporter::CreateJavaScene(env, scene);
+    }
 
     dmModelImporter::DestroyScene(scene);
 
@@ -1030,8 +1039,22 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     if (rc != JNI_OK) return rc;
 
+    dmModelImporter::g_TypeMutex = dmMutex::New();
+
     dmLogDebug("JNI_OnLoad return.\n");
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNI_OnUnload(JavaVM* vm, void* reserved) {
+    dmLogDebug("JNI_OnUnload ->\n");
+
+    JNIEnv* env;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_10) != JNI_OK) {
+        printf("JNI_OnUnload GetEnv error\n");
+        return;
+    }
+
+    dmMutex::Delete(dmModelImporter::g_TypeMutex);
 }
 
 namespace dmModelImporter
