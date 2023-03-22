@@ -519,8 +519,8 @@
   [(g/map->error {:message (str "Failed: " (ex-message ex))
                   :severity :fatal})])
 
-(defn handle-build-error! [render-error! project evaluation-context exception]
-  (render-error!
+(defn exception->error-value [exception project evaluation-context]
+  (g/map->error
     {:causes (cond
                (unsupported-platform-error? exception)
                (unsupported-platform-error-causes project evaluation-context)
