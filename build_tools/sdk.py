@@ -36,6 +36,8 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 ## **********************************************************************************************
 # Darwin
 
+# A list of minimum versions here: https://developer.apple.com/support/xcode/
+
 VERSION_XCODE="14.2" # we also use this to match version on Github Actions
 VERSION_MACOSX="13.1"
 VERSION_IPHONEOS="16.2"
@@ -45,8 +47,8 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-VERSION_IPHONEOS_MIN="9.0"
-VERSION_MACOSX_MIN="10.7"
+VERSION_IPHONEOS_MIN="11.0"
+VERSION_MACOSX_MIN="10.13"
 
 SWIFT_VERSION="5.5"
 
