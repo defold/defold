@@ -178,7 +178,7 @@
         true)
 
     exception
-    (do (engine-build-errors/handle-build-error! render-error! project evaluation-context exception)
+    (do (render-error! (engine-build-errors/exception->error-value exception project evaluation-context))
         true)))
 
 (defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! show-build-log-stream! task-cancelled? render-build-error! bob-commands bob-args build-server-headers project changes-view callback!]
