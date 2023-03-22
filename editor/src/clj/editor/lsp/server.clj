@@ -232,6 +232,9 @@
                               [(str "*." ext) language])))
                     resource-types))
 
+            "files.exclude"
+            ["/build" "/.internal"]
+
             nil))
         items))))
 
@@ -305,7 +308,7 @@
                              "window/workDoneProgress/create" (constantly nil)}
                             base-source
                             base-sink)
-                  on-response (comp #(a/put! out %) on-response)]
+                  on-response #(a/put! out (on-response %1 %2))]
               (a/alt!
                 (a/go
                   (try
@@ -357,10 +360,9 @@
                                        {:uri (resource-uri resource)
                                         :value previous-result-id}))
                                 resource->previous-result-id)})
-    (comp
-      result-converter
-      ;; bound-fn only needed for tests to pick up the test system
-      (bound-fn convert-result [{:keys [items]} project]
+    ;; bound-fn only needed for tests to pick up the test system
+    (bound-fn convert-result [{:keys [items]} project]
+      (result-converter
         (lsp.async/with-auto-evaluation-context evaluation-context
           (into {}
                 (keep
@@ -377,10 +379,8 @@
       (cond-> {:textDocument {:uri (resource-uri resource)}}
               previous-result-id
               (assoc :previousResultId previous-result-id)))
-    (comp
-      result-converter
-      (fn convert-result [result _]
-        (full-or-unchanged-diagnostic-result:lsp->editor result)))))
+    (fn convert-result [result _]
+      (result-converter (full-or-unchanged-diagnostic-result:lsp->editor result)))))
 
 (defn open-text-document
   "See also:

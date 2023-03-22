@@ -1048,7 +1048,7 @@
                   :else (finish-with-result! project-build-results))))))
 
         phase-2-start-all-build-processes!
-        (fn phase-2-start-engine-build! []
+        (fn phase-2-start-all-build-processes! []
           (start-engine-build!)
           (start-lint!)
           (phase-3-build-project!))
