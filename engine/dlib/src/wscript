@@ -251,14 +251,6 @@ def build(bld):
 
     # Basis libraries
 
-    extra_encoder_flags = []
-    if bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos'):
-        # SSE4.1 was added in 10.12
-        if not 'CXXFLAGS' in remove_flags:
-            remove_flags['CXXFLAGS'] = []
-        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.13', 0) )
-        extra_encoder_flags += ['-mmacosx-version-min=10.12']
-
     # For the texture compiler
     basis_flags = ['BASISD_SUPPORT_KTX2_ZSTD=0'] #+ ['BASISU_FORCE_DEVEL_MESSAGES=1']
     if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos'):
@@ -266,15 +258,13 @@ def build(bld):
 
     # for desktop only
     if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos','x86_64-linux'):
-        basis_encoder = bld.stlib(features = 'c cxx skip_asan remove_flags',
+        basis_encoder = bld.stlib(features = 'c cxx skip_asan',
                                     includes = ['basis'],
                                     source = bld.path.ant_glob("basis/encoder/**/*.c") +
                                              bld.path.ant_glob("basis/encoder/**/*.cpp") +
                                              bld.path.ant_glob("basis/transcoder/**/*.cpp"),
                                     target = 'basis_encoder',
-                                    remove_flags = remove_flags,
                                     defines = ['DM_BASIS_ENCODER','MINIZ_NO_STDIO'] + basis_flags)
-        basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
 
         if new_opt_level:
             basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])

@@ -51,11 +51,11 @@ case $1 in
         ;;
 
     arm64-ios)
-        EXTRA_FLAGS="-miphoneos-version-min=6.0"
+        EXTRA_FLAGS="-miphoneos-version-min=11.0"
         ;;
 
     x86_64-ios)
-        EXTRA_FLAGS="-miphoneos-version-min=6.0"
+        EXTRA_FLAGS="-miphoneos-version-min=11.0"
         ;;
 esac
 

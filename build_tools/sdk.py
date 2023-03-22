@@ -36,6 +36,8 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 ## **********************************************************************************************
 # Darwin
 
+# A list of minimum versions here: https://developer.apple.com/support/xcode/
+
 VERSION_XCODE="14.2" # we also use this to match version on Github Actions
 VERSION_MACOSX="13.1"
 VERSION_IPHONEOS="16.2"
