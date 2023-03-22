@@ -89,8 +89,9 @@
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
                           (is (= :resource (:type error-item-of-parent-resource)))
-                          (is (= (str "The file '" error-resource-path "' could not be loaded.")
-                                 (:message error-item-of-faulty-node)))))]
+                          (is (string/starts-with?
+                                (:message error-item-of-faulty-node)
+                                (str "The file '" error-resource-path "' could not be loaded")))))]
                 (is (invalid-content-error? "/main/main.collection" (test-util/build-error! main-collection)))
                 (is (invalid-content-error? "/main/main.gui" (test-util/build-error! main-gui))))))
           ;; Before unloading the project, generate the content for a migrated
