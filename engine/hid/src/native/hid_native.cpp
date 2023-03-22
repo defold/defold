@@ -173,7 +173,6 @@ namespace dmHID
     // Called from gamepad drivers
     void ReleaseGamepad(HContext context, Gamepad* gamepad)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
         uint8_t gamepad_index = GamepadToIndex(context, gamepad);
         assert(context->m_Gamepads[gamepad_index].m_Driver != DRIVER_HANDLE_FREE);
         context->m_Gamepads[gamepad_index].m_Driver = DRIVER_HANDLE_FREE;
