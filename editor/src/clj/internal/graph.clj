@@ -868,7 +868,8 @@
   gt/IBasis
   (node-by-id-at
     [this node-id]
-    (node-id->node (node-id->graph this node-id) node-id))
+    (when node-id
+      (node-id->node (node-id->graph this node-id) node-id)))
 
   (node-by-property
     [_ label value]
