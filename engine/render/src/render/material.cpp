@@ -45,8 +45,10 @@ namespace dmRender
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
             num_attribute_byte_size += dmGraphics::GetTypeSize(type);
 
+        #if 0
             dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
             dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d", (int) type, element_count, num_values, location);
+        #endif
         }
 
         if (num_program_attributes > 0)
@@ -80,74 +82,6 @@ namespace dmRender
                 num_attribute_byte_size += dmGraphics::GetTypeSize(type);
             }
         }
-
-        /*
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-
-        // Do a first pass to gather all attributes we could potentially support (only vec4 atm)
-        for (int i = 0; i < num_program_attributes; ++i)
-        {
-            dmhash_t name_hash     = 0;
-            dmGraphics::Type type  = (dmGraphics::Type) -1;
-            uint32_t num_values    = 0;
-            uint32_t element_count = 0;
-            int32_t location       = -1;
-
-            dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
-
-            // TODO: How to support normalized?
-            dmGraphics::AddVertexStream(stream_declaration, name_hash, element_count, dmGraphics::TYPE_FLOAT, false);
-
-            if (type == dmGraphics::TYPE_FLOAT_VEC4)
-            {
-                num_attributes++;
-                num_attribute_values += num_values;
-            }
-        }
-
-        m->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
-
-        // Potentially do a second pass to actually generate the location entries for the supported attributes
-        if (num_attributes > 0)
-        {
-            m->m_Attributes.SetCapacity(num_attributes);
-            m->m_Attributes.SetSize(num_attributes);
-
-            m->m_AttributeValues.SetCapacity(num_attribute_values);
-            m->m_AttributeValues.SetSize(num_attribute_values);
-
-            memset(m->m_AttributeValues.Begin(), 0, num_attribute_bytes);
-
-            num_attributes = 0;
-            num_attribute_values = 0;
-
-            for (int i = 0; i < num_program_attributes; ++i)
-            {
-                dmhash_t name_hash     = 0;
-                dmGraphics::Type type  = (dmGraphics::Type) -1;
-                uint32_t num_values    = 0;
-                uint32_t element_count = 0;
-                int32_t location       = -1;
-
-                dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
-
-                dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
-                dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d", (int) type, element_count, num_values, location);
-
-                if (type == dmGraphics::TYPE_FLOAT_VEC4)
-                {
-                    VertexAttribute& attribute = m->m_Attributes[num_attributes];
-                    attribute.m_NameHash       = name_hash;
-                    attribute.m_Location       = location;
-                    attribute.m_ValueIndex     = num_attribute_values;
-                    attribute.m_ValueCount     = num_values;
-                    num_attributes++;
-                    num_attribute_values += num_values;
-                }
-            }
-        }
-        */
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
@@ -605,19 +539,6 @@ namespace dmRender
         return material->m_Attributes.Size();
     }
 
-    /*
-    bool GetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, VertexAttribute* vertex_attribute)
-    {
-        int32_t index = FindMaterialAttributeIndex(material, name_hash);
-        if (index < 0)
-        {
-            return false;
-        }
-        *vertex_attribute = material->m_Attributes[index];
-        return true;
-    }
-    */
-
     void GetMaterialProgramAttributeByIndex(HMaterial material, uint32_t index, VertexAttribute* vertex_attribute)
     {
         assert(index < material->m_Attributes.Size());
@@ -631,27 +552,6 @@ namespace dmRender
         *num_values                = attribute.m_ValueCount;
         *value_ptr                 = &material->m_AttributeValues[attribute.m_ValueIndex];
     }
-
-    /*
-    bool GetMaterialProgramAttributeInfo(HMaterial material, uint32_t index, uint8_t** values, uint32_t* num_values)
-    {
-        assert(index < material->m_Attributes.Size());
-        VertexAttribute& attribute = material->m_Attributes[index];
-        *num_values                = attribute.m_ValueCount;
-        *values                    = &material->m_AttributeValues[attribute.m_ValueIndex];
-        return true;
-    }
-
-    bool GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, uint8_t** values, uint32_t* num_values)
-    {
-        int32_t index = FindMaterialAttributeIndex(material, name_hash);
-        if (index < 0)
-        {
-            return false;
-        }
-        return GetMaterialProgramAttributeInfo(material, (uint32_t) index, values, num_values);
-    }
-    */
 
     void SetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, uint8_t* values, uint32_t num_values)
     {

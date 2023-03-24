@@ -221,10 +221,8 @@ namespace dmRender
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     uint32_t                        GetMaterialProgramAttributeCount(HMaterial material);
-    //bool                            GetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, VertexAttribute* vertex_attribute);
     void                            GetMaterialProgramAttributeByIndex(HMaterial material, uint32_t index, VertexAttribute* vertex_attribute);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values);
-    // bool                            GetMaterialProgramAttributeInfo(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, uint8_t* value_ptr, uint32_t num_values);
 
     /** Retrieve info about a hash related to a program constant
