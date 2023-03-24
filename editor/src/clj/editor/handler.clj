@@ -261,7 +261,7 @@
                 (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
                                  (:command handler) (:context handler) fsym (.getMessage e))
                          {:handler handler
-                          :command-context command-context}
+                          :command-context (update command-context :env dissoc :evaluation-context)}
                          e))
               nil)))
         default))))
