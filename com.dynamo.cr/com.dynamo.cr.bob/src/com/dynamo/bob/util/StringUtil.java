@@ -30,7 +30,7 @@ public class StringUtil {
 	/**
 	 * Using String.toLowerCase() with Locale.ROOT
 	 * @param s String to convert to lower-case
-	 * @return The loweer-case version of the string
+	 * @return The lower-case version of the string
 	 */
 	public static String toLowerCase(String s) {
 		return s.toLowerCase(Locale.ROOT);
