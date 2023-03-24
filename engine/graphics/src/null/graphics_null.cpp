@@ -813,9 +813,24 @@ namespace dmGraphics
         return true;
     }
 
+    static uint32_t NullGetAttributeCount(HProgram prog)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
+    static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
     static uint32_t NullGetUniformCount(HProgram prog)
     {
         return ((Program*)prog)->m_Uniforms.Size();
+    }
+
+    static uint32_t NullGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        assert(0 && "Not implemented yet!");
     }
 
     static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)

@@ -115,6 +115,8 @@ namespace dmGraphics
     {
         dmhash_t m_NameHash;
         int32_t  m_Location;
+        GLint    m_Count;
+        GLenum   m_Type;
     };
 
     struct OpenGLProgram

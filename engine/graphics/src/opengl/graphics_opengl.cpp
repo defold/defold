@@ -454,34 +454,63 @@ static void LogFrameBufferError(GLenum status)
         return type_lut[type];
     }
 
+    /*
+    GL_FLOAT
+    GL_FLOAT_VEC2
+    GL_FLOAT_VEC3
+    GL_FLOAT_VEC4
+    GL_FLOAT_MAT2
+    GL_FLOAT_MAT3
+    GL_FLOAT_MAT4
+    GL_FLOAT_MAT2x3
+    GL_FLOAT_MAT2x4
+    GL_FLOAT_MAT3x2
+    GL_FLOAT_MAT3x4
+    GL_FLOAT_MAT4x2
+    GL_FLOAT_MAT4x3
+    GL_INT
+    GL_INT_VEC2
+    GL_INT_VEC3
+    GL_INT_VEC4
+    GL_UNSIGNED_INT
+    GL_UNSIGNED_INT_VEC2
+    GL_UNSIGNED_INT_VEC3
+    GL_UNSIGNED_INT_VEC4
+    GL_DOUBLE
+    GL_DOUBLE_VEC2
+    GL_DOUBLE_VEC3
+    GL_DOUBLE_VEC4
+    GL_DOUBLE_MAT2
+    GL_DOUBLE_MAT3
+    GL_DOUBLE_MAT4
+    GL_DOUBLE_MAT2x3
+    GL_DOUBLE_MAT2x4
+    GL_DOUBLE_MAT3x2
+    GL_DOUBLE_MAT3x4
+    GL_DOUBLE_MAT4x2
+    GL_DOUBLE_MAT4x3
+    */
+
     static Type GetGraphicsType(GLenum type)
     {
         switch(type)
         {
-            case GL_BYTE:
-                return TYPE_BYTE;
-            case GL_UNSIGNED_BYTE:
-                return TYPE_UNSIGNED_BYTE;
-            case GL_SHORT:
-                return TYPE_SHORT;
-            case GL_UNSIGNED_SHORT:
-                return TYPE_UNSIGNED_SHORT;
-            case GL_INT:
-                return TYPE_INT;
-            case GL_UNSIGNED_INT:
-                return TYPE_UNSIGNED_INT;
-            case GL_FLOAT:
-                return TYPE_FLOAT;
-            case GL_FLOAT_VEC4:
-                return TYPE_FLOAT_VEC4;
-            case GL_FLOAT_MAT4:
-                return TYPE_FLOAT_MAT4;
-            case GL_SAMPLER_2D:
-                return TYPE_SAMPLER_2D;
-            case DMGRAPHICS_SAMPLER_2D_ARRAY:
-                return TYPE_SAMPLER_2D_ARRAY;
-            case GL_SAMPLER_CUBE:
-                return TYPE_SAMPLER_CUBE;
+            case GL_BYTE:                     return TYPE_BYTE;
+            case GL_UNSIGNED_BYTE:            return TYPE_UNSIGNED_BYTE;
+            case GL_SHORT:                    return TYPE_SHORT;
+            case GL_UNSIGNED_SHORT:           return TYPE_UNSIGNED_SHORT;
+            case GL_INT:                      return TYPE_INT;
+            case GL_UNSIGNED_INT:             return TYPE_UNSIGNED_INT;
+            case GL_FLOAT:                    return TYPE_FLOAT;
+            case GL_FLOAT_VEC2:               return TYPE_FLOAT_VEC2;
+            case GL_FLOAT_VEC3:               return TYPE_FLOAT_VEC3;
+            case GL_FLOAT_VEC4:               return TYPE_FLOAT_VEC4;
+            case GL_FLOAT_MAT2:               return TYPE_FLOAT_MAT2;
+            case GL_FLOAT_MAT3:               return TYPE_FLOAT_MAT3;
+            case GL_FLOAT_MAT4:               return TYPE_FLOAT_MAT4;
+            case GL_SAMPLER_2D:               return TYPE_SAMPLER_2D;
+            case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
             default:break;
         }
 
@@ -1612,25 +1641,6 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static uint32_t GetTypeSize(dmGraphics::Type type)
-    {
-        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
-        {
-            return 1;
-        }
-        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
-        {
-            return 2;
-        }
-        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
-        {
-             return 4;
-        }
-
-        assert(0);
-        return 0;
-    }
-
     static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         HVertexDeclaration vd = NewVertexDeclaration(context, stream_declaration);
@@ -1662,7 +1672,7 @@ static void LogFrameBufferError(GLenum status)
         return vd;
     }
 
-    bool OpenGLSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    static bool OpenGLSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {
         if (stream_index >= vertex_declaration->m_StreamCount) {
             return false;
@@ -1794,7 +1804,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    void OpenGLHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void OpenGLHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
         uint16_t stream_count = vertex_declaration->m_StreamCount;
         for (int i = 0; i < stream_count; ++i)
@@ -1809,6 +1819,10 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static uint32_t OpenGLGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
+    }
 
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
@@ -1912,6 +1926,8 @@ static void LogFrameBufferError(GLenum status)
 
             attr.m_Location = glGetAttribLocation(program_ptr->m_Id, attribute_name);
             attr.m_NameHash = dmHashString64(attribute_name);
+            attr.m_Count    = attr_size;
+            attr.m_Type     = attr_type;
             CHECK_GL_ERROR;
         }
     }
@@ -2155,6 +2171,72 @@ static void LogFrameBufferError(GLenum status)
 
         BuildAttributes(program_ptr);
         return true;
+    }
+
+    static uint32_t OpenGLGetAttributeCount(HProgram prog)
+    {
+        assert(prog);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        return program_ptr->m_Attributes.Size();
+    }
+
+    static uint32_t GetElementCount(GLenum type)
+    {
+        switch(type)
+        {
+            case GL_FLOAT:             return 1;
+            case GL_FLOAT_VEC2:        return 2;
+            case GL_FLOAT_VEC3:        return 3;
+            case GL_FLOAT_VEC4:        return 4;
+            case GL_FLOAT_MAT2:        return 4;
+            case GL_FLOAT_MAT3:        return 9;
+            case GL_FLOAT_MAT4:        return 16;
+            case GL_FLOAT_MAT2x3:      return 6;
+            case GL_FLOAT_MAT2x4:      return 8;
+            case GL_FLOAT_MAT3x2:      return 6;
+            case GL_FLOAT_MAT3x4:      return 12;
+            case GL_FLOAT_MAT4x2:      return 8;
+            case GL_FLOAT_MAT4x3:      return 12;
+            case GL_INT:               return 1;
+            case GL_INT_VEC2:          return 2;
+            case GL_INT_VEC3:          return 3;
+            case GL_INT_VEC4:          return 4;
+            case GL_UNSIGNED_INT:      return 1;
+            case GL_UNSIGNED_INT_VEC2: return 2;
+            case GL_UNSIGNED_INT_VEC3: return 3;
+            case GL_UNSIGNED_INT_VEC4: return 4;
+            case GL_DOUBLE:            return 1;
+            case GL_DOUBLE_VEC2:       return 2;
+            case GL_DOUBLE_VEC3:       return 3;
+            case GL_DOUBLE_VEC4:       return 4;
+            case GL_DOUBLE_MAT2:       return 4;
+            case GL_DOUBLE_MAT3:       return 9;
+            case GL_DOUBLE_MAT4:       return 16;
+            case GL_DOUBLE_MAT2x3:     return 6;
+            case GL_DOUBLE_MAT2x4:     return 8;
+            case GL_DOUBLE_MAT3x2:     return 6;
+            case GL_DOUBLE_MAT3x4:     return 12;
+            case GL_DOUBLE_MAT4x2:     return 8;
+            case GL_DOUBLE_MAT4x3:     return 12;
+        }
+        return 0;
+    }
+
+    static void OpenGLGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        assert(prog);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        if (index >= program_ptr->m_Attributes.Size())
+        {
+            return;
+        }
+
+        OpenglVertexAttribute& attr = program_ptr->m_Attributes[index];
+        *name_hash                  = attr.m_NameHash;
+        *type                       = GetGraphicsType(attr.m_Type);
+        *num_values                 = attr.m_Count;
+        *location                   = attr.m_Location;
+        *element_count              = GetElementCount(attr.m_Type);
     }
 
     static uint32_t OpenGLGetUniformCount(HProgram prog)

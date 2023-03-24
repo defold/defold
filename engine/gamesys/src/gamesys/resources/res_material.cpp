@@ -158,6 +158,14 @@ namespace dmGameSystem
                 (dmVMath::Vector4*) vertex_constant[i].m_Value.m_Data, vertex_constant[i].m_Value.m_Count);
         }
 
+        // Set vertex attributes
+        dmGraphics::VertexAttribute* attributes = ddf->m_Attributes.m_Data;
+        for (int i = 0; i < ddf->m_Attributes.m_Count; ++i)
+        {
+            dmhash_t attribute_name_hash = dmHashString64(attributes[i].m_Name);
+            dmRender::SetMaterialProgramAttribute(material, attribute_name_hash,
+                (uint8_t*) attributes[i].m_Value.m_Data, attributes[i].m_Value.m_Count);
+        }
 
         const char** textures = ddf->m_Textures.m_Data;
         uint32_t texture_count = ddf->m_Textures.m_Count;

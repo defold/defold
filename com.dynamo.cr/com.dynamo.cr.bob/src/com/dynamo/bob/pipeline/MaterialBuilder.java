@@ -36,6 +36,7 @@ import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -218,6 +219,13 @@ public class MaterialBuilder extends Builder<Void>  {
 
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
+
+        for (int i=0; i < materialBuilder.getAttributesCount(); i++) {
+            VertexAttribute attr = materialBuilder.getAttributes(i);
+            VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
+            attributeBuilder.setNameHash(MurmurHash.hash64(attr.getName()));
+            materialBuilder.setAttributes(i, attributeBuilder.build());
+        }
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());

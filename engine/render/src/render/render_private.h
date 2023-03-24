@@ -67,6 +67,7 @@ namespace dmRender
     {
         Material()
         : m_RenderContext(0)
+        , m_VertexDeclaration(0)
         , m_Program(0)
         , m_VertexProgram(0)
         , m_FragmentProgram(0)
@@ -77,10 +78,13 @@ namespace dmRender
         }
 
         dmRender::HRenderContext                m_RenderContext;
+        dmGraphics::HVertexDeclaration          m_VertexDeclaration;
         dmGraphics::HProgram                    m_Program;
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmHashTable64<int32_t>                  m_NameHashToLocation;
+        dmArray<VertexAttribute>                m_Attributes;
+        dmArray<uint8_t>                        m_AttributeValues;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()

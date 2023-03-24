@@ -2,6 +2,7 @@ syntax = "proto2";
 package dmGraphics;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.graphics.proto";
 option java_outer_classname = "Graphics";
@@ -14,6 +15,13 @@ message Cubemap
     required string bottom      = 4 [(resource)=true];
     required string front       = 5 [(resource)=true];
     required string back        = 6 [(resource)=true];
+}
+
+message VertexAttribute
+{
+    required string name          = 1;
+    optional uint64 name_hash     = 2;
+    repeated dmMath.Vector4 value = 3;
 }
 
 message TextureImage

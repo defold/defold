@@ -20,8 +20,6 @@
 
 namespace dmGraphics
 {
-    const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
-
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -38,11 +36,11 @@ namespace dmGraphics
     };
 
     PipelineState GetDefaultPipelineState();
-    void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    uint64_t GetDrawCount();
-    void SetForceFragmentReloadFail(bool should_fail);
-    void SetForceVertexReloadFail(bool should_fail);
-    bool IsTextureFormatCompressed(TextureFormat format);
+    void          SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    uint64_t      GetDrawCount();
+    void          SetForceFragmentReloadFail(bool should_fail);
+    void          SetForceVertexReloadFail(bool should_fail);
+    bool          IsTextureFormatCompressed(TextureFormat format);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

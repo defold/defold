@@ -245,6 +245,67 @@ namespace dmGraphics
         return ~0u;
     }
 
+    /*
+    enum Type
+    {
+        TYPE_BYTE             = 0,
+        TYPE_UNSIGNED_BYTE    = 1,
+        TYPE_SHORT            = 2,
+        TYPE_UNSIGNED_SHORT   = 3,
+        TYPE_INT              = 4,
+        TYPE_UNSIGNED_INT     = 5,
+        TYPE_FLOAT            = 6,
+        TYPE_FLOAT_VEC4       = 7,
+        TYPE_FLOAT_MAT4       = 8,
+        TYPE_SAMPLER_2D       = 9,
+        TYPE_SAMPLER_CUBE     = 10,
+        TYPE_SAMPLER_2D_ARRAY = 11,
+    };
+    */
+
+    uint32_t GetTypeSize(dmGraphics::Type type)
+    {
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
+        {
+             return 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC2)
+        {
+            return 2 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC3)
+        {
+            return 3 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC4)
+        {
+            return 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT2)
+        {
+            return 2 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT3)
+        {
+            return 3 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT4)
+        {
+            return 4 * 4 * 4;
+        }
+
+        assert(0);
+        return 0;
+    }
+
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
@@ -725,6 +786,10 @@ namespace dmGraphics
     {
         g_functions.m_HashVertexDeclaration(state, vertex_declaration);
     }
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
@@ -780,6 +845,14 @@ namespace dmGraphics
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
+    }
+    uint32_t GetAttributeCount(HProgram prog)
+    {
+        return g_functions.m_GetAttributeCount(prog);
+    }
+    void GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        return g_functions.m_GetAttribute(prog, index, name_hash, type, element_count, num_values, location);
     }
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {

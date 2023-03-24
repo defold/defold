@@ -3665,6 +3665,15 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
     dmGameSystem::DestroyRenderConstants(constants);
 }
 
+TEST_F(MaterialTest, CustomVertexAttributes)
+{
+    dmRender::HMaterial material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/custom_vertex_attributes.materialc", (void**)&material));
+    ASSERT_NE((void*)0, material);
+
+    dmResource::Release(m_Factory, material);
+}
+
 
 int main(int argc, char **argv)
 {

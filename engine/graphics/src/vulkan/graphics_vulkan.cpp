@@ -1738,6 +1738,11 @@ bail:
         context->m_CurrentVertexDeclaration = 0;
     }
 
+    static uint32_t VulkanGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
+    }
+
     static inline bool IsUniformTextureSampler(ShaderResourceBinding uniform)
     {
         return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
@@ -2152,6 +2157,7 @@ bail:
                 res.m_Binding              = ddf->m_Attributes[i].m_Binding;
                 res.m_Set                  = ddf->m_Attributes[i].m_Set;
                 res.m_Type                 = ddf->m_Attributes[i].m_Type;
+                res.m_ElementCount         = ddf->m_Attributes[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Attributes[i].m_Name);
                 res.m_NameHash             = dmHashString64(res.m_Name);
 
@@ -2446,23 +2452,25 @@ bail:
         return true;
     }
 
-    static uint32_t VulkanGetUniformCount(HProgram prog)
+    static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
-        assert(prog);
         Program* program_ptr = (Program*) prog;
-        assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
-        return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+        return program_ptr->m_VertexModule->m_AttributeCount;
     }
 
     // TODO: Move to graphics.cpp
-    static Type shaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
+    static Type ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
     {
         switch(shader_type)
         {
             case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
             case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
             case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
+            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
             case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
+            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
@@ -2472,6 +2480,27 @@ bail:
 
         // Not supported
         return (Type) 0xffffffff;
+    }
+
+    static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        Program* program_ptr = (Program*) prog;
+        assert(index < program_ptr->m_VertexModule->m_AttributeCount);
+        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Attributes[index];
+
+        *name_hash     = attr.m_NameHash;
+        *type          = ShaderDataTypeToGraphicsType(attr.m_Type);
+        *num_values    = attr.m_ElementCount;
+        *location      = attr.m_Binding;
+        *element_count = GetShaderTypeSize(attr.m_Type) / sizeof(float);
+    }
+
+    static uint32_t VulkanGetUniformCount(HProgram prog)
+    {
+        assert(prog);
+        Program* program_ptr = (Program*) prog;
+        assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
+        return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
     }
 
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
@@ -2492,7 +2521,7 @@ bail:
         }
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
-        *type = shaderDataTypeToGraphicsType(res->m_Type);
+        *type = ShaderDataTypeToGraphicsType(res->m_Type);
         *size = res->m_ElementCount;
 
         return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);

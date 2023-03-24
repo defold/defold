@@ -988,7 +988,7 @@ bail:
 
         for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
         {
-            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i]; 
+            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
             blend_attachment.colorWriteMask      = vk_color_write_mask;
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];

@@ -98,7 +98,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
-
     bld.install_files('${PREFIX}/share/proto/graphics', '../proto/graphics/graphics_ddf.proto')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

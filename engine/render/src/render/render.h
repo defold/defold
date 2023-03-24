@@ -209,6 +209,24 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
+    struct VertexAttribute
+    {
+        dmhash_t         m_NameHash;
+        dmGraphics::Type m_Type;
+        int32_t          m_Location;
+        uint16_t         m_ValueIndex;
+        uint16_t         m_ValueCount;
+        uint8_t          m_ElementCount;
+    };
+
+    dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
+    uint32_t                        GetMaterialProgramAttributeCount(HMaterial material);
+    //bool                            GetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, VertexAttribute* vertex_attribute);
+    void                            GetMaterialProgramAttributeByIndex(HMaterial material, uint32_t index, VertexAttribute* vertex_attribute);
+    void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values);
+    // bool                            GetMaterialProgramAttributeInfo(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values);
+    void                            SetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, uint8_t* value_ptr, uint32_t num_values);
+
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
      * In the former case, the available element ids are returned.

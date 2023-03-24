@@ -33,10 +33,12 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -326,6 +328,14 @@ public class ProtoBuilders {
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+
+            for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
+                VertexAttribute attr = messageBuilder.getAttributes(i);
+                VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
+                attributeBuilder.setNameHash(MurmurHash.hash64(attr.getName()));
+                messageBuilder.setAttributes(i, attributeBuilder.build());
+            }
+
             return messageBuilder;
         }
     }

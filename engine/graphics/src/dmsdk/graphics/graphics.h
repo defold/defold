@@ -348,8 +348,11 @@ namespace dmGraphics
         TYPE_SAMPLER_2D       = 9,
         TYPE_SAMPLER_CUBE     = 10,
         TYPE_SAMPLER_2D_ARRAY = 11,
+        TYPE_FLOAT_VEC2       = 12,
+        TYPE_FLOAT_VEC3       = 13,
+        TYPE_FLOAT_MAT2       = 14,
+        TYPE_FLOAT_MAT3       = 15,
     };
-
 
     /*#
      * Blend factor

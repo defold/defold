@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,13 +19,136 @@
 #include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/math.h> // min
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/graphics/graphics.h>
 #include "render.h"
 #include "render_private.h"
 
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static void CreateAttributes(dmGraphics::HContext graphics_context, Material* m)
+    {
+        uint32_t num_program_attributes  = dmGraphics::GetAttributeCount(m->m_Program);
+        uint32_t num_attribute_byte_size = 0;
+
+        for (int i = 0; i < num_program_attributes; ++i)
+        {
+            dmhash_t name_hash     = 0;
+            dmGraphics::Type type  = (dmGraphics::Type) -1;
+            uint32_t num_values    = 0;
+            uint32_t element_count = 0;
+            int32_t location       = -1;
+
+            dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
+            num_attribute_byte_size += dmGraphics::GetTypeSize(type);
+
+            dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
+            dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d", (int) type, element_count, num_values, location);
+        }
+
+        if (num_program_attributes > 0)
+        {
+            m->m_Attributes.SetCapacity(num_program_attributes);
+            m->m_Attributes.SetSize(num_program_attributes);
+
+            m->m_AttributeValues.SetCapacity(num_attribute_byte_size);
+            m->m_AttributeValues.SetSize(num_attribute_byte_size);
+
+            uint32_t num_attribute_byte_size = 0;
+
+            for (int i = 0; i < num_program_attributes; ++i)
+            {
+                dmhash_t name_hash     = 0;
+                dmGraphics::Type type  = (dmGraphics::Type) -1;
+                uint32_t num_values    = 0;
+                uint32_t element_count = 0;
+                int32_t location       = -1;
+
+                dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
+
+                VertexAttribute& attribute = m->m_Attributes[i];
+                attribute.m_NameHash       = name_hash;
+                attribute.m_Location       = location;
+                attribute.m_ValueIndex     = num_attribute_byte_size;
+                attribute.m_ValueCount     = num_values;
+                attribute.m_Type           = type;
+                attribute.m_ElementCount   = element_count;
+
+                num_attribute_byte_size += dmGraphics::GetTypeSize(type);
+            }
+        }
+
+        /*
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+
+        // Do a first pass to gather all attributes we could potentially support (only vec4 atm)
+        for (int i = 0; i < num_program_attributes; ++i)
+        {
+            dmhash_t name_hash     = 0;
+            dmGraphics::Type type  = (dmGraphics::Type) -1;
+            uint32_t num_values    = 0;
+            uint32_t element_count = 0;
+            int32_t location       = -1;
+
+            dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
+
+            // TODO: How to support normalized?
+            dmGraphics::AddVertexStream(stream_declaration, name_hash, element_count, dmGraphics::TYPE_FLOAT, false);
+
+            if (type == dmGraphics::TYPE_FLOAT_VEC4)
+            {
+                num_attributes++;
+                num_attribute_values += num_values;
+            }
+        }
+
+        m->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
+        // Potentially do a second pass to actually generate the location entries for the supported attributes
+        if (num_attributes > 0)
+        {
+            m->m_Attributes.SetCapacity(num_attributes);
+            m->m_Attributes.SetSize(num_attributes);
+
+            m->m_AttributeValues.SetCapacity(num_attribute_values);
+            m->m_AttributeValues.SetSize(num_attribute_values);
+
+            memset(m->m_AttributeValues.Begin(), 0, num_attribute_bytes);
+
+            num_attributes = 0;
+            num_attribute_values = 0;
+
+            for (int i = 0; i < num_program_attributes; ++i)
+            {
+                dmhash_t name_hash     = 0;
+                dmGraphics::Type type  = (dmGraphics::Type) -1;
+                uint32_t num_values    = 0;
+                uint32_t element_count = 0;
+                int32_t location       = -1;
+
+                dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
+
+                dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
+                dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d", (int) type, element_count, num_values, location);
+
+                if (type == dmGraphics::TYPE_FLOAT_VEC4)
+                {
+                    VertexAttribute& attribute = m->m_Attributes[num_attributes];
+                    attribute.m_NameHash       = name_hash;
+                    attribute.m_Location       = location;
+                    attribute.m_ValueIndex     = num_attribute_values;
+                    attribute.m_ValueCount     = num_values;
+                    num_attributes++;
+                    num_attribute_values += num_values;
+                }
+            }
+        }
+        */
+    }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
@@ -35,6 +158,9 @@ namespace dmRender
         m->m_FragmentProgram = fragment_program;
         m->m_Program         = dmGraphics::NewProgram(dmRender::GetGraphicsContext(render_context), vertex_program, fragment_program);
 
+        CreateAttributes(dmRender::GetGraphicsContext(render_context), m);
+
+        // JG: This should probably be broken out into a separate fn..
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
         const uint32_t buffer_size = 128;
         char buffer[buffer_size];
@@ -43,7 +169,6 @@ namespace dmRender
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
-        uint32_t samplers_value_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             type = (dmGraphics::Type) -1;
@@ -56,7 +181,6 @@ namespace dmRender
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
                 samplers_count++;
-                samplers_value_count += num_values;
             }
             else
             {
@@ -394,6 +518,19 @@ namespace dmRender
         return material->m_FragmentProgram;
     }
 
+    static inline int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
+    {
+        dmArray<VertexAttribute>& attributes = material->m_Attributes;
+        for (int i = 0; i < attributes.Size(); ++i)
+        {
+            if (attributes[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     static inline int32_t FindMaterialConstantIndex(HMaterial material, dmhash_t name_hash)
     {
         dmArray<MaterialConstant>& constants = material->m_Constants;
@@ -463,11 +600,80 @@ namespace dmRender
         return false;
     }
 
+    uint32_t GetMaterialProgramAttributeCount(HMaterial material)
+    {
+        return material->m_Attributes.Size();
+    }
+
+    /*
+    bool GetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, VertexAttribute* vertex_attribute)
+    {
+        int32_t index = FindMaterialAttributeIndex(material, name_hash);
+        if (index < 0)
+        {
+            return false;
+        }
+        *vertex_attribute = material->m_Attributes[index];
+        return true;
+    }
+    */
+
+    void GetMaterialProgramAttributeByIndex(HMaterial material, uint32_t index, VertexAttribute* vertex_attribute)
+    {
+        assert(index < material->m_Attributes.Size());
+        *vertex_attribute = material->m_Attributes[index];
+    }
+
+    void GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values)
+    {
+        assert(index < material->m_Attributes.Size());
+        VertexAttribute& attribute = material->m_Attributes[index];
+        *num_values                = attribute.m_ValueCount;
+        *value_ptr                 = &material->m_AttributeValues[attribute.m_ValueIndex];
+    }
+
+    /*
+    bool GetMaterialProgramAttributeInfo(HMaterial material, uint32_t index, uint8_t** values, uint32_t* num_values)
+    {
+        assert(index < material->m_Attributes.Size());
+        VertexAttribute& attribute = material->m_Attributes[index];
+        *num_values                = attribute.m_ValueCount;
+        *values                    = &material->m_AttributeValues[attribute.m_ValueIndex];
+        return true;
+    }
+
+    bool GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, uint8_t** values, uint32_t* num_values)
+    {
+        int32_t index = FindMaterialAttributeIndex(material, name_hash);
+        if (index < 0)
+        {
+            return false;
+        }
+        return GetMaterialProgramAttributeInfo(material, (uint32_t) index, values, num_values);
+    }
+    */
+
+    void SetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, uint8_t* values, uint32_t num_values)
+    {
+        int32_t index = FindMaterialAttributeIndex(material, name_hash);
+        if (index < 0)
+        {
+            return;
+        }
+
+        VertexAttribute& attribute = material->m_Attributes[index];
+        num_values                 = dmMath::Min((uint16_t) num_values, attribute.m_ValueCount);
+        uint32_t value_byte_size   = dmGraphics::GetTypeSize(attribute.m_Type) * num_values;
+        memcpy(&material->m_AttributeValues[attribute.m_ValueIndex], values, value_byte_size);
+    }
+
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
         int32_t index = FindMaterialConstantIndex(material, name_hash);
         if (index < 0)
+        {
             return;
+        }
 
         MaterialConstant& mc = material->m_Constants[index];
 
@@ -517,6 +723,11 @@ namespace dmRender
             }
         }
         return false;
+    }
+
+    dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)
+    {
+        return material->m_VertexDeclaration;
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)

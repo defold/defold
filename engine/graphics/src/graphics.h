@@ -83,6 +83,7 @@ namespace dmGraphics
 
     static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
     static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t MAX_VERTEX_STREAM_COUNT      = 8;
 
     // render states
     enum State
@@ -527,6 +528,8 @@ namespace dmGraphics
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
 
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
@@ -545,6 +548,10 @@ namespace dmGraphics
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+
+    // Attributes
+    uint32_t GetAttributeCount(HProgram prog);
+    void     GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
 
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t GetUniformCount(HProgram prog);
@@ -656,6 +663,8 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
+    uint32_t GetTypeSize(dmGraphics::Type type);
 }
 
 #endif // DM_GRAPHICS_H
