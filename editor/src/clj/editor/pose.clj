@@ -27,27 +27,21 @@
 (def ^:private mat4-identity (doto (Matrix4d.) (.setIdentity)))
 (def ^:private num4-zero (vector-of :double 0.0 0.0 0.0 0.0))
 
-(defn- significant-translation? [value]
-  (if-some [[^double x ^double y ^double z] value]
-    (not (and (zero? x)
-              (zero? y)
-              (zero? z)))
-    false))
+(defn- significant-translation? [[^double x ^double y ^double z]]
+  (not (and (zero? x)
+            (zero? y)
+            (zero? z))))
 
-(defn- significant-rotation? [value]
-  (if-some [[^double x ^double y ^double z ^double w] value]
-    (not (and (zero? x)
-              (zero? y)
-              (zero? z)
-              (== 1.0 w)))
-    false))
+(defn- significant-rotation? [[^double x ^double y ^double z ^double w]]
+  (not (and (zero? x)
+            (zero? y)
+            (zero? z)
+            (== 1.0 w))))
 
-(defn- significant-scale? [value]
-  (if-some [[^double x ^double y ^double z] value]
-    (not (and (== 1.0 x)
-              (== 1.0 y)
-              (== 1.0 z)))
-    false))
+(defn- significant-scale? [[^double x ^double y ^double z]]
+  (not (and (== 1.0 x)
+            (== 1.0 y)
+            (== 1.0 z))))
 
 (defn- add-vector [[^double ax ^double ay ^double az] [^double bx ^double by ^double bz]]
   (vector-of
@@ -176,9 +170,9 @@
   {:pre [(or (nil? translation) (s/valid? ::translation translation))
          (or (nil? rotation) (s/valid? ::rotation rotation))
          (or (nil? scale) (s/valid? ::scale scale))]}
-  (let [translated (significant-translation? translation)
-        rotated (significant-rotation? rotation)
-        scaled (significant-scale? scale)]
+  (let [translated (and translation (significant-translation? translation))
+        rotated (and rotation (significant-rotation? rotation))
+        scaled (and scale (significant-scale? scale))]
     (if (or translated rotated scaled)
       (->Pose (if translated translation default-translation)
               (if rotated rotation default-rotation)
