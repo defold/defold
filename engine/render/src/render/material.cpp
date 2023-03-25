@@ -58,6 +58,7 @@ namespace dmRender
 
             m->m_AttributeValues.SetCapacity(num_attribute_byte_size);
             m->m_AttributeValues.SetSize(num_attribute_byte_size);
+            memset(m->m_AttributeValues.Begin(), 0, num_attribute_byte_size);
 
             uint32_t num_attribute_byte_size = 0;
 
@@ -534,15 +535,10 @@ namespace dmRender
         return false;
     }
 
-    uint32_t GetMaterialProgramAttributeCount(HMaterial material)
+    void GetMaterialProgramAttributes(HMaterial material, VertexAttribute** attributes, uint32_t* attribute_count)
     {
-        return material->m_Attributes.Size();
-    }
-
-    void GetMaterialProgramAttributeByIndex(HMaterial material, uint32_t index, VertexAttribute* vertex_attribute)
-    {
-        assert(index < material->m_Attributes.Size());
-        *vertex_attribute = material->m_Attributes[index];
+        *attributes      = material->m_Attributes.Begin();
+        *attribute_count = material->m_Attributes.Size();
     }
 
     void GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values)

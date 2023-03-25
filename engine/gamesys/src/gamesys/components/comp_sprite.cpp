@@ -340,16 +340,11 @@ namespace dmGameSystem
         HashState32 state;
         dmHashInit32(&state, false);
 
-        dmRender::VertexAttribute attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT] = {};
+        dmRender::VertexAttribute* attributes;
+        uint32_t attributes_count;
+        dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
 
-        const uint32_t num_streams = dmMath::Min((uint8_t) dmRender::GetMaterialProgramAttributeCount(material), dmGraphics::MAX_VERTEX_STREAM_COUNT);
-
-        for (uint32_t i = 0; i < num_streams; ++i)
-        {
-            dmRender::GetMaterialProgramAttributeByIndex(material, i, &attributes[i]);
-        }
-
-        dmHashUpdateBuffer32(&state, &attributes, sizeof(dmRender::VertexAttribute) * num_streams);
+        dmHashUpdateBuffer32(&state, attributes, sizeof(dmRender::VertexAttribute) * attributes_count);
 
         uint32_t vx_decl_hash                       = dmHashFinal32(&state);
         dmGraphics::HVertexDeclaration vx_decl      = 0;
@@ -359,7 +354,7 @@ namespace dmGameSystem
         if (vx_decl_ptr == 0x0)
         {
             dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-            for (uint32_t i = 0; i < num_streams; ++i)
+            for (uint32_t i = 0; i < attributes_count; ++i)
             {
                 dmRender::VertexAttribute& attr = attributes[i];
                 if (attr.m_NameHash == SPRITE_STREAM_POSITION)
@@ -628,6 +623,10 @@ namespace dmGameSystem
             dmGraphics::VertexAttribute* sprite_attributes      = component->m_Resource->m_DDF->m_Attributes.m_Data;
             uint32_t sprite_attribute_count                     = component->m_Resource->m_DDF->m_Attributes.m_Count;
 
+            dmRender::VertexAttribute* attributes;
+            uint32_t attributes_count;
+            dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
+
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             const uint32_t vb_buffer_offset = vertices - sprite_world->m_VertexBufferData;
             if (vb_buffer_offset % vertex_stride != 0)
@@ -766,10 +765,9 @@ namespace dmGameSystem
                     {
                         uint8_t* vertices_write_ptr = vertices;
 
-                        for (int k = 0; k < dmRender::GetMaterialProgramAttributeCount(material); ++k)
+                        for (int k = 0; k < attributes_count; ++k)
                         {
-                            dmRender::VertexAttribute attr;
-                            dmRender::GetMaterialProgramAttributeByIndex(material, k, &attr);
+                            dmRender::VertexAttribute& attr = attributes[k];
 
                             if (attr.m_NameHash == SPRITE_STREAM_POSITION)
                             {
