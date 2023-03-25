@@ -2205,20 +2205,8 @@ static void LogFrameBufferError(GLenum status)
             case GL_UNSIGNED_INT_VEC2: return 2;
             case GL_UNSIGNED_INT_VEC3: return 3;
             case GL_UNSIGNED_INT_VEC4: return 4;
-            case GL_DOUBLE:            return 1;
-            case GL_DOUBLE_VEC2:       return 2;
-            case GL_DOUBLE_VEC3:       return 3;
-            case GL_DOUBLE_VEC4:       return 4;
-            case GL_DOUBLE_MAT2:       return 4;
-            case GL_DOUBLE_MAT3:       return 9;
-            case GL_DOUBLE_MAT4:       return 16;
-            case GL_DOUBLE_MAT2x3:     return 6;
-            case GL_DOUBLE_MAT2x4:     return 8;
-            case GL_DOUBLE_MAT3x2:     return 6;
-            case GL_DOUBLE_MAT3x4:     return 12;
-            case GL_DOUBLE_MAT4x2:     return 8;
-            case GL_DOUBLE_MAT4x3:     return 12;
         }
+        assert(0);
         return 0;
     }
 

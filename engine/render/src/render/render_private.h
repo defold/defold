@@ -67,7 +67,6 @@ namespace dmRender
     {
         Material()
         : m_RenderContext(0)
-        , m_VertexDeclaration(0)
         , m_Program(0)
         , m_VertexProgram(0)
         , m_FragmentProgram(0)
@@ -78,7 +77,6 @@ namespace dmRender
         }
 
         dmRender::HRenderContext                m_RenderContext;
-        dmGraphics::HVertexDeclaration          m_VertexDeclaration;
         dmGraphics::HProgram                    m_Program;
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;

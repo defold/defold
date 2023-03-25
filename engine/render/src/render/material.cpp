@@ -621,11 +621,6 @@ namespace dmRender
         return false;
     }
 
-    dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)
-    {
-        return material->m_VertexDeclaration;
-    }
-
     HRenderContext GetMaterialRenderContext(HMaterial material)
     {
         return material->m_RenderContext;
