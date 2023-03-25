@@ -100,6 +100,7 @@ namespace dmGameSystem
         dmObjectPool<SpriteComponent>   m_Components;
         dmArray<dmRender::RenderObject*> m_RenderObjects;
         dmArray<float>                  m_BoundingVolumes;
+        dmHashTable32<dmGraphics::HVertexDeclaration> m_VertexDeclarations; // TODO: move to a central location (renderer? gamesys?)
         uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         uint8_t*                        m_VertexBufferData;
@@ -247,8 +248,8 @@ namespace dmGameSystem
 
         uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
         uint32_t frame_count = interval;
-        if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+        if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG ||
+            animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
         {
             frame_count = dmMath::Max(1u, frame_count * 2 - 2);
         }
@@ -276,9 +277,11 @@ namespace dmGameSystem
             component->m_CurrentAnimation = animation;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             uint32_t frame_count = animation->m_End - animation->m_Start;
-            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                    || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG ||
+                animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+            {
                 frame_count = dmMath::Max(1u, frame_count * 2 - 2);
+            }
             component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
             component->m_AnimPingPong = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG;
             component->m_AnimBackwards = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
@@ -322,7 +325,8 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        if (component->m_RenderConstants) {
+        if (component->m_RenderConstants)
+        {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
         component->m_MixedHash = dmHashFinal32(&state);
@@ -331,35 +335,63 @@ namespace dmGameSystem
 
     static void SetVertexDeclaration(SpriteWorld* sprite_world, SpriteComponent* component, dmGraphics::HContext graphics_context)
     {
-        dmRender::HMaterial material                            = GetMaterial(component, component->m_Resource);
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
 
-        for (uint32_t j = 0; j < dmRender::GetMaterialProgramAttributeCount(material); ++j)
+        HashState32 state;
+        dmHashInit32(&state, false);
+
+        dmRender::VertexAttribute attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT] = {};
+
+        const uint32_t num_streams = dmMath::Min((uint8_t) dmRender::GetMaterialProgramAttributeCount(material), dmGraphics::MAX_VERTEX_STREAM_COUNT);
+
+        for (uint32_t i = 0; i < num_streams; ++i)
         {
-            dmRender::VertexAttribute attr;
-            dmRender::GetMaterialProgramAttributeByIndex(material, j, &attr);
-
-            if (attr.m_NameHash == SPRITE_STREAM_POSITION)
-            {
-                dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_POSITION, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-            }
-            else if (attr.m_NameHash == SPRITE_STREAM_TEXCOORD0)
-            {
-                dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_TEXCOORD0, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-            }
-            else if (attr.m_NameHash == SPRITE_STREAM_PAGE_INDEX)
-            {
-                dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_PAGE_INDEX, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-            }
-            else
-            {
-                dmGraphics::AddVertexStream(stream_declaration, attr.m_NameHash, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-            }
+            dmRender::GetMaterialProgramAttributeByIndex(material, i, &attributes[i]);
         }
 
-        component->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-        component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(component->m_VertexDeclaration);
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+        dmHashUpdateBuffer32(&state, &attributes, sizeof(dmRender::VertexAttribute) * num_streams);
+
+        uint32_t vx_decl_hash                       = dmHashFinal32(&state);
+        dmGraphics::HVertexDeclaration vx_decl      = 0;
+        dmGraphics::HVertexDeclaration* vx_decl_ptr = sprite_world->m_VertexDeclarations.Get(vx_decl_hash);
+
+        // Create a new vertex declaration for this component if the combination of attributes hasn't been seen yet
+        if (vx_decl_ptr == 0x0)
+        {
+            dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+            for (uint32_t i = 0; i < num_streams; ++i)
+            {
+                dmRender::VertexAttribute& attr = attributes[i];
+                if (attr.m_NameHash == SPRITE_STREAM_POSITION)
+                {
+                    dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_POSITION, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
+                }
+                else if (attr.m_NameHash == SPRITE_STREAM_TEXCOORD0)
+                {
+                    dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_TEXCOORD0, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
+                }
+                else if (attr.m_NameHash == SPRITE_STREAM_PAGE_INDEX)
+                {
+                    dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_PAGE_INDEX, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
+                }
+                else
+                {
+                    dmGraphics::AddVertexStream(stream_declaration, attr.m_NameHash, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
+                }
+            }
+
+            vx_decl = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+            sprite_world->m_VertexDeclarations.SetCapacity(16, dmMath::Max((uint32_t) 8, sprite_world->m_VertexDeclarations.Size() * 2));
+            sprite_world->m_VertexDeclarations.Put(vx_decl_hash, vx_decl);
+            dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+        }
+        else
+        {
+            vx_decl = *vx_decl_ptr;
+        }
+
+        component->m_VertexDeclaration = vx_decl;
+        component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(vx_decl);
     }
 
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
@@ -729,6 +761,7 @@ namespace dmGameSystem
 
                     uint32_t uv_indices[] = {0, 1, 2, 4};
 
+                    // We need to optimize this!
                     for (int j = 0; j < 4; ++j)
                     {
                         uint8_t* vertices_write_ptr = vertices;
@@ -742,18 +775,15 @@ namespace dmGameSystem
                             {
                                 const uint32_t stream_byte_size = sizeof(float) * dmMath::Min((uint8_t) 3, attr.m_ElementCount);
                                 memcpy(vertices_write_ptr, &points[j], stream_byte_size);
-                                vertices_write_ptr += stream_byte_size;
                             }
                             else if (attr.m_NameHash == SPRITE_STREAM_TEXCOORD0)
                             {
                                 const uint32_t stream_byte_size = sizeof(float) * dmMath::Min((uint8_t) 2, attr.m_ElementCount);
                                 memcpy(vertices_write_ptr, &tc[tex_lookup[uv_indices[j]] * 2], stream_byte_size);
-                                vertices_write_ptr += stream_byte_size;
                             }
                             else if (attr.m_NameHash == SPRITE_STREAM_PAGE_INDEX)
                             {
                                 memcpy(vertices_write_ptr, &page_index, sizeof(float));
-                                vertices_write_ptr += sizeof(float);
                             }
                             else
                             {
@@ -763,8 +793,9 @@ namespace dmGameSystem
 
                                 const uint32_t stream_byte_size = sizeof(float) * attr.m_ElementCount * num_values;
                                 memcpy(vertices_write_ptr, value_ptr, stream_byte_size);
-                                vertices_write_ptr += stream_byte_size;
                             }
+
+                            vertices_write_ptr += sizeof(float) * attr.m_ElementCount;
                         }
 
                         vertices += vertex_stride;
