@@ -660,15 +660,16 @@ namespace dmGraphics
         char* m_Data;
     };
 
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
+    static void NullShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
 
-    struct Uniform
+    struct ShaderBinding
     {
-        Uniform() : m_Name(0) {};
-        char* m_Name;
+        ShaderBinding() : m_Name(0) {};
+        char*    m_Name;
         uint32_t m_Index;
         uint32_t m_Size;
-        Type m_Type;
+        uint32_t m_Stride;
+        Type     m_Type;
     };
 
     struct Program
@@ -679,9 +680,14 @@ namespace dmGraphics
             m_VP = vp;
             m_FP = fp;
             if (m_VP != 0x0)
-                GLSLUniformParse(m_VP->m_Data, NullUniformCallback, (uintptr_t)this);
+            {
+                GLSLAttributeParse(m_VP->m_Data, NullShaderResourceCallback,(uintptr_t)this);
+                GLSLUniformParse(m_VP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+            }
             if (m_FP != 0x0)
-                GLSLUniformParse(m_FP->m_Data, NullUniformCallback, (uintptr_t)this);
+            {
+                GLSLUniformParse(m_FP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+            }
         }
 
         ~Program()
@@ -690,24 +696,39 @@ namespace dmGraphics
                 delete[] m_Uniforms[i].m_Name;
         }
 
-        VertexProgram* m_VP;
-        FragmentProgram* m_FP;
-        dmArray<Uniform> m_Uniforms;
+        VertexProgram*         m_VP;
+        FragmentProgram*       m_FP;
+        dmArray<ShaderBinding> m_Uniforms;
+        dmArray<ShaderBinding> m_Attributes;
     };
 
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
+    static void NullShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
     {
         Program* program = (Program*) userdata;
-        if(program->m_Uniforms.Full())
-            program->m_Uniforms.OffsetCapacity(16);
-        Uniform uniform;
+
+        dmArray<ShaderBinding>* binding_array = binding_type == GLSLUniformParserBindingType::UNIFORM ?
+            &program->m_Uniforms : &program->m_Attributes;
+
+        if(binding_array->Full())
+        {
+            binding_array->OffsetCapacity(16);
+        }
+
+        ShaderBinding binding;
         name_length++;
-        uniform.m_Name = new char[name_length];
-        dmStrlCpy(uniform.m_Name, name, name_length);
-        uniform.m_Index = program->m_Uniforms.Size();
-        uniform.m_Type = type;
-        uniform.m_Size = size;
-        program->m_Uniforms.Push(uniform);
+        binding.m_Name   = new char[name_length];
+        binding.m_Index  = binding_array->Size();
+        binding.m_Type   = type;
+        binding.m_Size   = size;
+        binding.m_Stride = GetTypeSize(type);
+
+        dmStrlCpy(binding.m_Name, name, name_length);
+        binding_array->Push(binding);
+
+        if (binding_type == GLSLUniformParserBindingType::ATTRIBUTE)
+        {
+            printf("Adding attr: %s\n", binding.m_Name);
+        }
     }
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -815,13 +836,45 @@ namespace dmGraphics
 
     static uint32_t NullGetAttributeCount(HProgram prog)
     {
-        assert(0 && "Not implemented yet!");
+        return ((Program*) prog)->m_Attributes.Size();
+    }
+
+    static uint32_t GetElementCount(Type type)
+    {
+        switch(type)
+        {
+            case TYPE_BYTE:
+            case TYPE_UNSIGNED_BYTE:
+            case TYPE_SHORT:
+            case TYPE_UNSIGNED_SHORT:
+            case TYPE_INT:
+            case TYPE_UNSIGNED_INT:
+            case TYPE_FLOAT:
+                return 1;
+                break;
+            case TYPE_FLOAT_VEC4:       return 4;
+            case TYPE_FLOAT_MAT4:       return 16;
+            case TYPE_SAMPLER_2D:       return 1;
+            case TYPE_SAMPLER_CUBE:     return 1;
+            case TYPE_SAMPLER_2D_ARRAY: return 1;
+            case TYPE_FLOAT_VEC2:       return 2;
+            case TYPE_FLOAT_VEC3:       return 3;
+            case TYPE_FLOAT_MAT2:       return 4;
+            case TYPE_FLOAT_MAT3:       return 9;
+        }
+        assert(0);
         return 0;
     }
 
     static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        assert(0 && "Not implemented yet!");
+        Program* program       = (Program*) prog;
+        ShaderBinding& binding = program->m_Attributes[index];
+        *name_hash             = dmHashString64(binding.m_Name);
+        *type                  = binding.m_Type;
+        *element_count         = GetElementCount(binding.m_Type);
+        *num_values            = binding.m_Size;
+        *location              = binding.m_Index;
     }
 
     static uint32_t NullGetUniformCount(HProgram prog)
@@ -831,15 +884,20 @@ namespace dmGraphics
 
     static uint32_t NullGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
-        assert(0 && "Not implemented yet!");
-        return 0;
+        uint32_t stride = 0;
+        for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+        {
+            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
+            stride += GetTypeSize(stream.m_Type) * stream.m_Size;
+        }
+        return stride;
     }
 
     static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
-        Uniform& uniform = program->m_Uniforms[index];
+        ShaderBinding& uniform = program->m_Uniforms[index];
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
@@ -853,7 +911,7 @@ namespace dmGraphics
         uint32_t count = program->m_Uniforms.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
-            Uniform& uniform = program->m_Uniforms[i];
+            ShaderBinding& uniform = program->m_Uniforms[i];
             if (dmStrCaseCmp(uniform.m_Name, name)==0)
             {
                 return (int32_t)uniform.m_Index;

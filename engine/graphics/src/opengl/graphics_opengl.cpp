@@ -2206,7 +2206,7 @@ static void LogFrameBufferError(GLenum status)
             case GL_UNSIGNED_INT_VEC3: return 3;
             case GL_UNSIGNED_INT_VEC4: return 4;
         }
-        assert(0);
+        assert(0 && "Unsupported type");
         return 0;
     }
 

@@ -295,6 +295,9 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
 
     #undef TEST_STREAM
 
+    uint32_t vx_stride = dmGraphics::GetVertexDeclarationStride(vertex_declaration);
+    ASSERT_EQ(2 + 4 * sizeof(float), vx_stride);
+
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
@@ -427,6 +430,31 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::GetUniformName(program, 3, buffer, 64, &type, &size);
     ASSERT_STREQ("tint", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+
+    uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
+    ASSERT_EQ(2, attribute_count);
+    {
+        dmhash_t         name_hash;
+        dmGraphics::Type type;
+        uint32_t         element_count;
+        uint32_t         num_values;
+        int32_t          location;
+        dmGraphics::GetAttribute(program, 0, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("position"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(0, location);
+
+        dmGraphics::GetAttribute(program, 1, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("texcoord0"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC2, type);
+        ASSERT_EQ(2, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(1, location);
+    }
 
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);

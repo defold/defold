@@ -20,9 +20,16 @@
 
 namespace dmGraphics
 {
-    typedef void (*UniformCallback)(const char* name, uint32_t name_length, Type type, uint32_t size, uintptr_t userdata);
+    enum GLSLUniformParserBindingType
+    {
+        UNIFORM   = 0,
+        ATTRIBUTE = 1,
+    };
 
-    bool GLSLUniformParse(const char* buffer, UniformCallback cb, uintptr_t userdata);
+    typedef void (*ShaderBindingCallback)(GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, Type type, uint32_t size, uintptr_t userdata);
+
+    bool GLSLUniformParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata);
+    bool GLSLAttributeParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata);
 }
 
 #endif // DMGRAPHICS_GLSL_UNIFORM_PARSER_H

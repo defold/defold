@@ -82,6 +82,16 @@ namespace dmGraphics
             *out_type = TYPE_FLOAT;
             return true;
         }
+        else if (STRNCMP("vec2", string, count))
+        {
+            *out_type = TYPE_FLOAT_VEC2;
+            return true;
+        }
+        else if (STRNCMP("vec3", string, count))
+        {
+            *out_type = TYPE_FLOAT_VEC3;
+            return true;
+        }
         else if (STRNCMP("vec4", string, count))
         {
             *out_type = TYPE_FLOAT_VEC4;
@@ -129,10 +139,19 @@ namespace dmGraphics
         return false;
     }
 
-    bool GLSLUniformParse(const char* buffer, UniformCallback cb, uintptr_t userdata)
+    static bool ShaderBindingParse(GLSLUniformParserBindingType binding_type, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
     {
         if (buffer == 0x0)
+        {
             return true;
+        }
+
+        if (binding_type == GLSLUniformParserBindingType::ATTRIBUTE)
+        {
+            printf("%s", buffer);
+        }
+
+        const char* keyword = binding_type == GLSLUniformParserBindingType::UNIFORM ? "uniform" : "attribute";
         const char* word_end = buffer;
         const char* word_start = buffer;
         uint32_t size = 0;
@@ -142,7 +161,7 @@ namespace dmGraphics
 
             if (size > 0)
             {
-                if (STRNCMP("uniform", word_start, size))
+                if (STRNCMP(keyword, word_start, size))
                 {
                     Type type;
 
@@ -169,7 +188,7 @@ namespace dmGraphics
                             size = array_begin - word_start + 1;
                         }
 
-                        cb(word_start, size-1, type, uniform_size, userdata);
+                        cb(binding_type, word_start, size-1, type, uniform_size, userdata);
                     }
                     else
                     {
@@ -184,6 +203,16 @@ namespace dmGraphics
             }
         }
         return true;
+    }
+
+    bool GLSLAttributeParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
+    {
+        return ShaderBindingParse(GLSLUniformParserBindingType::ATTRIBUTE, buffer, cb, userdata);
+    }
+
+    bool GLSLUniformParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
+    {
+        return ShaderBindingParse(GLSLUniformParserBindingType::UNIFORM, buffer, cb, userdata);
     }
 
 #undef STRNCMP
