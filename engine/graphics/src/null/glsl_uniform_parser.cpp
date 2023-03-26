@@ -145,16 +145,16 @@ namespace dmGraphics
         {
             return "uniform";
         }
-        else if (language == ShaderDesc::LANGUAGE_GLSL_SM120 || language == ShaderDesc::LANGUAGE_GLES_SM100)
+        else if (binding_type == GLSLUniformParserBindingType::ATTRIBUTE)
         {
+            if (language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLES_SM300)
+            {
+                return "in";
+            }
             return "attribute";
         }
-        else if (language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLES_SM300)
-        {
-            return "in";
-        }
         assert(0);
-        return "";
+        return 0;
     }
 
     static bool ShaderBindingParse(ShaderDesc::Language language, GLSLUniformParserBindingType binding_type, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
