@@ -365,6 +365,12 @@ public:
     virtual ~RenderConstantsTest() {}
 };
 
+class MaterialTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~MaterialTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
