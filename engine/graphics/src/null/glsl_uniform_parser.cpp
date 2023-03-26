@@ -139,19 +139,32 @@ namespace dmGraphics
         return false;
     }
 
-    static bool ShaderBindingParse(GLSLUniformParserBindingType binding_type, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
+    static const char* GetKeyword(ShaderDesc::Language language, GLSLUniformParserBindingType binding_type)
+    {
+        if (binding_type == GLSLUniformParserBindingType::UNIFORM)
+        {
+            return "uniform";
+        }
+        else if (language == ShaderDesc::LANGUAGE_GLSL_SM120 || language == ShaderDesc::LANGUAGE_GLES_SM100)
+        {
+            return "attribute";
+        }
+        else if (language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLES_SM300)
+        {
+            return "in";
+        }
+        assert(0);
+        return "";
+    }
+
+    static bool ShaderBindingParse(ShaderDesc::Language language, GLSLUniformParserBindingType binding_type, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
     {
         if (buffer == 0x0)
         {
             return true;
         }
 
-        if (binding_type == GLSLUniformParserBindingType::ATTRIBUTE)
-        {
-            printf("%s", buffer);
-        }
-
-        const char* keyword = binding_type == GLSLUniformParserBindingType::UNIFORM ? "uniform" : "attribute";
+        const char* keyword = GetKeyword(language, binding_type);
         const char* word_end = buffer;
         const char* word_start = buffer;
         uint32_t size = 0;
@@ -205,14 +218,14 @@ namespace dmGraphics
         return true;
     }
 
-    bool GLSLAttributeParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
+    bool GLSLAttributeParse(ShaderDesc::Language language, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
     {
-        return ShaderBindingParse(GLSLUniformParserBindingType::ATTRIBUTE, buffer, cb, userdata);
+        return ShaderBindingParse(language, GLSLUniformParserBindingType::ATTRIBUTE, buffer, cb, userdata);
     }
 
-    bool GLSLUniformParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
+    bool GLSLUniformParse(ShaderDesc::Language language, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata)
     {
-        return ShaderBindingParse(GLSLUniformParserBindingType::UNIFORM, buffer, cb, userdata);
+        return ShaderBindingParse(language, GLSLUniformParserBindingType::UNIFORM, buffer, cb, userdata);
     }
 
 #undef STRNCMP

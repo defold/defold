@@ -28,8 +28,8 @@ namespace dmGraphics
 
     typedef void (*ShaderBindingCallback)(GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, Type type, uint32_t size, uintptr_t userdata);
 
-    bool GLSLUniformParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata);
-    bool GLSLAttributeParse(const char* buffer, ShaderBindingCallback cb, uintptr_t userdata);
+    bool GLSLUniformParse(ShaderDesc::Language language, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata);
+    bool GLSLAttributeParse(ShaderDesc::Language language, const char* buffer, ShaderBindingCallback cb, uintptr_t userdata);
 }
 
 #endif // DMGRAPHICS_GLSL_UNIFORM_PARSER_H

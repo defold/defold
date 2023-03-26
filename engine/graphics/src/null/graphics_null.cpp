@@ -652,12 +652,14 @@ namespace dmGraphics
 
     struct VertexProgram
     {
-        char* m_Data;
+        char*                m_Data;
+        ShaderDesc::Language m_Language;
     };
 
     struct FragmentProgram
     {
-        char* m_Data;
+        char*                m_Data;
+        ShaderDesc::Language m_Language;
     };
 
     static void NullShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
@@ -681,12 +683,12 @@ namespace dmGraphics
             m_FP = fp;
             if (m_VP != 0x0)
             {
-                GLSLAttributeParse(m_VP->m_Data, NullShaderResourceCallback,(uintptr_t)this);
-                GLSLUniformParse(m_VP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+                GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+                GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
             }
             if (m_FP != 0x0)
             {
-                GLSLUniformParse(m_FP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+                GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
             }
         }
 
@@ -724,11 +726,6 @@ namespace dmGraphics
 
         dmStrlCpy(binding.m_Name, name, name_length);
         binding_array->Push(binding);
-
-        if (binding_type == GLSLUniformParserBindingType::ATTRIBUTE)
-        {
-            printf("Adding attr: %s\n", binding.m_Name);
-        }
     }
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -758,6 +755,7 @@ namespace dmGraphics
         p->m_Data = new char[ddf->m_Source.m_Count+1];
         memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         p->m_Data[ddf->m_Source.m_Count] = '\0';
+        p->m_Language = ddf->m_Language;
         return (uintptr_t)p;
     }
 
@@ -768,6 +766,7 @@ namespace dmGraphics
         p->m_Data = new char[ddf->m_Source.m_Count+1];
         memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         p->m_Data[ddf->m_Source.m_Count] = '\0';
+        p->m_Language = ddf->m_Language;
         return (uintptr_t)p;
     }
 
