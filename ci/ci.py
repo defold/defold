@@ -452,11 +452,9 @@ def main(argv):
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
-        release_channel = "editor-stable"
+        release_channel = "stable"
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
-        if is_repo_private():
-            release_channel = "stable"
     elif branch == "beta":
         engine_channel = "beta"
         editor_channel = "beta"
