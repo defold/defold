@@ -34,11 +34,13 @@
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include "../resources/res_animationset.h"
+#include "../resources/res_material.h"
+#include "../resources/res_meshset.h"
 #include "../resources/res_model.h"
 #include "../resources/res_rig_scene.h"
 #include "../resources/res_skeleton.h"
-#include "../resources/res_animationset.h"
-#include "../resources/res_meshset.h"
+#include "../resources/res_texture.h"
 #include "comp_private.h"
 
 #include <gamesys/gamesys_ddf.h>
@@ -80,8 +82,8 @@ namespace dmGameSystem
         dmMessage::URL              m_Listener;
         int                         m_FunctionRef;
         HComponentRenderConstants   m_RenderConstants;
-        dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmRender::HMaterial         m_Material; // Override material
+        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        MaterialResource*           m_Material; // Override material
 
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
@@ -267,15 +269,53 @@ namespace dmGameSystem
         }
     }
 
-    static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
-        if (component->m_Material)
-            return component->m_Material; // TODO: Add support for setting material on different indices
-        return resource->m_Materials[index].m_Material;
+    static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
+        // TODO: Add support for setting material on different indices
+        return component->m_Material ? component->m_Material : resource->m_Materials[index].m_Material;;
     }
 
-    static inline dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, const ModelResource* resource, uint32_t material_index, uint32_t index) {
-        assert(index < MAX_TEXTURE_COUNT);
-        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Materials[material_index].m_Textures[index];
+    static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
+        return GetMaterialResource(component, resource, index)->m_Material;
+    }
+
+    TextureResource* GetTextureResource(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    {
+        assert(texture_unit < MAX_TEXTURE_COUNT);
+        TextureResource* texture;
+
+        // Overridden textures
+        texture = component->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // Overridden material
+        MaterialResource* material = component->m_Material;
+        if (material)
+            texture = material->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        texture = component->m_Resource->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+
+        material = component->m_Resource->m_Materials[material_index].m_Material;
+        if (material)
+            texture = material->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+
+        return 0;
+    }
+
+    dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    {
+        TextureResource* texture = GetTextureResource(component, material_index, texture_unit);
+        return texture ? texture->m_Texture : 0;
+    }
+
+    static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
+    {
+        dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
+        dmHashUpdateBuffer32(state, material->m_Textures, DM_ARRAY_SIZE(material->m_Textures));
     }
 
     static void ReHash(ModelComponent* component)
@@ -286,14 +326,28 @@ namespace dmGameSystem
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
 
-        // The state of the static model
-        // Could be optimized by doing the state init/calc in the resource
-        dmHashUpdateBuffer32(&state, resource->m_Materials.Begin(), resource->m_Materials.Size()*sizeof(dmGameSystem::MaterialInfo));
+        // TODO: We need to create a hash for each mesh entry!
+        // TODO: Each skinned instance has its own state (pose is determined by animation, play rate, blending, time)
+        //  If they _do_ have the same state, we might use that fact so that they can batch together,
+        //  and we can later use instancing?
+
+        for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
+        {
+            HashMaterial(&state, resource->m_Materials[i].m_Material);
+        }
+
+        // The unused slots should be 0
+        // Note: In the future, we want the textures so be set on a per-material basis
+        dmHashUpdateBuffer32(&state, resource->m_Textures, DM_ARRAY_SIZE(resource->m_Textures));
+        dmHashUpdateBuffer32(&state, component->m_Textures, DM_ARRAY_SIZE(component->m_Textures));
 
         if (component->m_Material)
-            dmHashUpdateBuffer32(&state, &component->m_Material, sizeof(component->m_Material));
+        {
+            HashMaterial(&state, component->m_Material);
+        }
 
-        if (component->m_RenderConstants) {
+        if (component->m_RenderConstants)
+        {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
         component->m_MixedHash = dmHashFinal32(&state);
@@ -566,7 +620,7 @@ namespace dmGameSystem
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
-                ro.m_Textures[i] = GetMaterialTexture(component, component->m_Resource, material_index, i);
+                ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
             }
 
             if (component->m_RenderConstants) {
@@ -647,7 +701,7 @@ namespace dmGameSystem
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            ro.m_Textures[i] = GetMaterialTexture(component, component->m_Resource, material_index, i);
+            ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
         }
 
         if (component->m_RenderConstants) {
@@ -1053,13 +1107,13 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource, 0), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource, 0), out_value);
         }
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialTexture(component, component->m_Resource, 0, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, 0, i), out_value);
             }
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompModelGetConstantCallback, component);

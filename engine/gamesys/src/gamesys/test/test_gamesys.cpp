@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,7 @@
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../resource/src/resource_private.h"
 
+#include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
@@ -183,8 +184,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_set_path_a, (void**) &resource));
     ASSERT_NE((void*)0, resource);
 
-    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture);
-    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture);
+    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture);
+    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture);
 
     // Swap compiled resources to simulate an atlas update
     ASSERT_TRUE(CopyResource(texture_set_path_a, texture_set_path_tmp));
@@ -194,8 +195,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, texture_set_path_a, 0));
 
     // If the load truly was successful, we should have a new width/height for the internal image
-    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture));
-    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture));
+    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture));
+    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture));
 
     dmResource::Release(m_Factory, (void**) resource);
 }
@@ -225,6 +226,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     void* resource = 0x0;
     dmhash_t res_hash = dmHashString64("/test_simple.texturec");
     dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
+    ASSERT_NE((void*)0, rd);
     ASSERT_EQ(2, rd->m_ReferenceCount);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
@@ -263,13 +265,14 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     // If the transcode function failed, the texture will be 1x1
-    dmGraphics::HTexture compressed_texture = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &compressed_texture));
-    ASSERT_EQ(32, dmGraphics::GetTextureWidth(compressed_texture));
-    ASSERT_EQ(32, dmGraphics::GetTextureHeight(compressed_texture));
+
+    dmGameSystem::TextureResource* texture_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &texture_res));
+    ASSERT_EQ(32, dmGraphics::GetTextureWidth(texture_res->m_Texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureHeight(texture_res->m_Texture));
 
     // Release the dmResource::Get call above
-    dmResource::Release(m_Factory, compressed_texture);
+    dmResource::Release(m_Factory, texture_res);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 7: fail by using an empty buffer
@@ -277,12 +280,12 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     // res_texture will make an empty texture here if the test "worked", i.e coulnd't create a valid transcoded texture
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &compressed_texture));
-    ASSERT_EQ(1, dmGraphics::GetTextureWidth(compressed_texture));
-    ASSERT_EQ(1, dmGraphics::GetTextureHeight(compressed_texture));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &texture_res));
+    ASSERT_EQ(1, dmGraphics::GetTextureWidth(texture_res->m_Texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureHeight(texture_res->m_Texture));
 
     // Release the dmResource::Get call again
-    dmResource::Release(m_Factory, compressed_texture);
+    dmResource::Release(m_Factory, texture_res);
 
     // cleanup
     DeleteInstance(m_Collection, go);
@@ -353,7 +356,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     dmGameSystem::TextureSetResource* texture_set_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
 
-    dmGraphics::HTexture backing_texture = texture_set_res->m_Texture;
+    dmGraphics::HTexture backing_texture = texture_set_res->m_Texture->m_Texture;
     ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 64);
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 64);
 
@@ -372,7 +375,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail 
+    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail
     //      -> set_texture.script::test_fail_out_of_bounds
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -651,7 +654,10 @@ static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_
     dmGameObject::PropertyDesc desc;
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc));
+
+    dmGameObject::PropertyResult r = dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     dmGameObject::PropertyType type = desc.m_Variant.m_Type;
     ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type);
     *out_val = desc.m_Variant.m_Hash;
@@ -3529,15 +3535,15 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     dmhash_t name_hash1 = dmHashString64("user_var1");
     dmhash_t name_hash2 = dmHashString64("user_var2");
 
-    dmRender::HMaterial material = 0;
+    dmGameSystem::MaterialResource* material = 0;
     {
         const char path_material[] = "/material/valid.materialc";
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
         ASSERT_NE((void*)0, material);
 
         dmRender::HConstant rconstant;
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash1, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash2, rconstant));
     }
 
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
@@ -3549,7 +3555,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -3558,7 +3564,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 

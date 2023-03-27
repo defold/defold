@@ -227,11 +227,19 @@ void DebugScene(Scene* scene)
     printf("Output model importer scene:\n");
 
     printf("------------------------------\n");
+    printf("Buffers\n");
+    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    {
+        OutputIndent(1);
+        printf("Buffer '%.48s' sz: %u  %p\n", scene->m_Buffers[i].m_Uri, scene->m_Buffers[i].m_BufferSize, scene->m_Buffers[i].m_Buffer);
+    }
+
+    printf("------------------------------\n");
+
     for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
     {
         OutputMaterial(&scene->m_Materials[i], 0);
     }
-    printf("------------------------------\n");
 
     printf("------------------------------\n");
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)

@@ -68,6 +68,7 @@ message MaterialDesc
         required FilterModeMag filter_mag = 5;
         optional float max_anisotropy     = 6 [default = 1.0];
         repeated uint64 name_indirections = 7; // sampler name -> list of shader uniform hashes
+        optional string texture           = 8 [(resource)=true];
     }
 
     required string name = 1;

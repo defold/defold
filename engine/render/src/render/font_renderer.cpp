@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -91,7 +91,8 @@ namespace dmRender
     struct FontMap
     {
         FontMap()
-        : m_Texture(0)
+        : m_UserData(0)
+        , m_Texture(0)
         , m_Material(0)
         , m_Glyphs()
         , m_ShadowX(0.0f)
@@ -129,6 +130,7 @@ namespace dmRender
             dmGraphics::DeleteTexture(m_Texture);
         }
 
+        void*                   m_UserData;
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
         dmHashTable32<Glyph>    m_Glyphs;
@@ -374,6 +376,16 @@ namespace dmRender
         InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
+    }
+
+    void SetFontMapUserData(HFontMap font_map, void* user_data)
+    {
+        font_map->m_UserData = user_data;
+    }
+
+    void* GetFontMapUserData(HFontMap font_map)
+    {
+        return font_map->m_UserData;
     }
 
     dmGraphics::HTexture GetFontMapTexture(HFontMap font_map)
@@ -664,9 +676,9 @@ namespace dmRender
 
                 uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
                 uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
-                uint8_t compression_type = *glyph_data++;
+                uint8_t is_compressed = *glyph_data++;
 
-                if (compression_type) {
+                if (is_compressed) {
 
                     // When if came to choosing between the different algorithms, here are some speed/compression tests
                     // Decoding 100 glyphs

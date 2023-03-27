@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -43,6 +43,7 @@
 #include <gamesys/label_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/resources/res_material.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Label, 0, FrameReset, "# components", &rmtp_Components);
@@ -70,7 +71,7 @@ namespace dmGameSystem
         dmhash_t                    m_ListenerComponent;
         LabelResource*              m_Resource;
         HComponentRenderConstants   m_RenderConstants;
-        dmRender::HMaterial         m_Material;
+        MaterialResource*           m_Material;
         dmRender::HFontMap          m_FontMap;
 
         const char*                 m_Text;
@@ -125,8 +126,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline dmRender::HMaterial GetMaterial(LabelComponent* component, LabelResource* resource) {
+    static inline MaterialResource* GetMaterialResource(LabelComponent* component, LabelResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
+    static inline dmRender::HMaterial GetMaterial(LabelComponent* component, LabelResource* resource) {
+        return GetMaterialResource(component, resource)->m_Material;
     }
 
     static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
@@ -585,7 +590,7 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource), out_value);
         }
         else if (get_property == PROP_FONT)
         {

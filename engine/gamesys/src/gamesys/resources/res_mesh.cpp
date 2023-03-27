@@ -187,22 +187,30 @@ namespace dmGameSystem
             return result;
         }
 
-        dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
+        TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
+
         for (uint32_t i = 0; i < resource->m_MeshDDF->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             const char* texture_path = resource->m_MeshDDF->m_Textures[i];
             if (*texture_path != 0)
             {
-                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
+                TextureResource* texture_res;
+                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &texture_res);
+                textures[i] = texture_res;
+
                 if (r != dmResource::RESULT_OK)
                 {
-                    if (result == dmResource::RESULT_OK) {
+                    if (result == dmResource::RESULT_OK)
+                    {
                         result = r;
                     }
-                } else {
+                }
+                else
+                {
                     r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
-                    if (r != dmResource::RESULT_OK) {
+                    if (r != dmResource::RESULT_OK)
+                    {
                        result = r;
                     }
                 }
@@ -216,7 +224,7 @@ namespace dmGameSystem
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
             return result;
         }
-        memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+        memcpy(resource->m_Textures, textures, sizeof(TextureResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         // Buffer resources can be created with zero elements, in such case
         // the buffer will be null and we cannot create vertices.

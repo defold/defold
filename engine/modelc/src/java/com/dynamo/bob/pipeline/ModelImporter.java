@@ -17,7 +17,10 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
+import java.lang.reflect.Method;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 
 public class ModelImporter {
@@ -68,7 +71,7 @@ public class ModelImporter {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Scene LoadFromBufferInternal(String path, byte[] buffer);
+    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
 
     public static class ModelException extends Exception {
@@ -239,6 +242,10 @@ public class ModelImporter {
         public float            duration;
     }
 
+    public static class Buffer {
+        public String           uri;
+        public byte[]           buffer;
+    }
     public static class Scene {
 
         public Node[]         nodes;
@@ -247,21 +254,16 @@ public class ModelImporter {
         public Node[]         rootNodes;
         public Animation[]    animations;
         public Material[]     materials;
+        public Buffer[]       buffers;
     }
 
-    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
-    {
-        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes);
-        return scene;
+    public interface DataResolver {
+        public byte[] getData(String path, String uri);
     }
 
-    public static Scene LoadFromPath(Options options, String path) throws FileNotFoundException, IOException
+    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, DataResolver data_resolver)
     {
-        InputStream inputStream = new FileInputStream(new File(path));
-        byte[] bytes = new byte[inputStream.available()];
-        inputStream.read(bytes);
-
-        return LoadFromBuffer(options, path, bytes);
+        return ModelImporter.LoadFromBufferInternal(path, bytes, data_resolver);
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -439,6 +441,44 @@ public class ModelImporter {
         }
     }
 
+    public static byte[] ReadFile(File file) throws IOException
+    {
+        InputStream inputStream = new FileInputStream(file);
+        byte[] bytes = new byte[inputStream.available()];
+        inputStream.read(bytes);
+        return bytes;
+    }
+
+    public static byte[] ReadFile(String path) throws IOException
+    {
+        return ReadFile(new File(path));
+    }
+
+    public static class FileDataResolver implements DataResolver
+    {
+        File cwd = null;
+
+        FileDataResolver() {}
+        FileDataResolver(File _cwd) {
+            cwd = _cwd;
+        }
+
+        public byte[] getData(String path, String uri) {
+            File file;
+            if (cwd != null)
+                file = new File(cwd, path);
+            else
+                file = new File(path);
+            File bufferFile = new File(file.getParentFile(), uri);
+            try {
+                return ReadFile(bufferFile);
+            } catch (Exception e) {
+                System.out.printf("Failed to read file '%s': %s\n", uri, e);
+                return null;
+            }
+        }
+    };
+
     // Used for testing the importer. Usage:
     //   ./src/com/dynamo/bob/pipeline/test_model_importer.sh <model path>
     public static void main(String[] args) throws IOException {
@@ -449,18 +489,22 @@ public class ModelImporter {
             return;
         }
 
-        String path = args[0];       // .glb
-
-        System.out.printf("Testing\n");
-
+        String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
-        Scene scene = LoadFromPath(new Options(), path);
+        FileDataResolver buffer_resolver = new FileDataResolver();
+        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);
 
         long timeEnd = System.currentTimeMillis();
 
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        System.out.printf("--------------------------------\n");
+
+        for (Buffer buffer : scene.buffers) {
+            System.out.printf("Buffer: uri: %s  data: %s\n", buffer.uri, buffer.buffer);
+        }
 
         System.out.printf("--------------------------------\n");
 

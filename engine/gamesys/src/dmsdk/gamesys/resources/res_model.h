@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,11 +21,25 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
-#include <dmsdk/gamesys/resources/res_rig_scene.h>
-#include <gamesys/model_ddf.h>
+
+namespace dmRigDDF
+{
+    struct RigScene;
+    struct Mesh;
+    struct Model;
+}
+
+namespace dmModelDDF
+{
+    struct Model;
+}
 
 namespace dmGameSystem
 {
+    struct MaterialResource;
+    struct RigSceneResource;
+    struct TextureResource;
+
     struct ModelResourceBuffers
     {
         dmGraphics::HVertexBuffer   m_VertexBuffer;
@@ -47,9 +61,7 @@ namespace dmGameSystem
     struct MaterialInfo
     {
         const char*             m_Name;
-        dmRender::HMaterial     m_Material;
-        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        MaterialResource*       m_Material;
     };
 
     struct ModelResource
@@ -60,6 +72,11 @@ namespace dmGameSystem
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+
+        // Deprecated: Currently, the overrides are the same on all materials
+        TextureResource*         m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                 m_TextureSamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                 m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 }
 

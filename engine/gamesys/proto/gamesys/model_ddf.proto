@@ -26,8 +26,8 @@ message Material
 message ModelDesc
 {
     required string mesh        = 2 [(resource)=true];
-    required string material    = 3 [(resource)=true];
-    repeated string textures    = 4 [(resource)=true];
+    required string material    = 3 [(resource)=true]; // Deprecated
+    repeated string textures    = 4 [(resource)=true]; // Deprecated
     optional string skeleton    = 5 [(resource)=true];
     optional string animations  = 6 [(resource)=true];
     optional string default_animation  = 7;
@@ -39,9 +39,10 @@ message ModelDesc
 // The engine format (.modelc)
 message Model
 {
-    required string rig_scene   = 1 [(resource)=true];
-    optional string default_animation  = 3;
-    repeated Material materials = 4;
+    required string rig_scene   = 1;
+    optional string default_animation  = 2;
+    repeated Material materials = 3;
+    repeated Texture textures   = 4;
 }
 
 message ResetConstant

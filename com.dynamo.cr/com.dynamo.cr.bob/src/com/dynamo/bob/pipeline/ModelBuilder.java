@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -130,21 +130,6 @@ public class ModelBuilder extends Builder<Void> {
             Material.Builder materialBuilder = Material.newBuilder();
             materialBuilder.setName("default");
             materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
-
-            List<Texture> texturesList = new ArrayList<>();
-            for (String t : modelDescBuilder.getTexturesList()) {
-                if (t.isEmpty())
-                    continue; // TODO: Perhaps we can check if the material expects textures?
-
-                BuilderUtil.checkResource(this.project, resource, "texture", t);
-
-                Texture.Builder textureBuilder = Texture.newBuilder();
-                textureBuilder.setSampler(""); // If they have no name, then we detect that an treat it as an array
-                textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t));
-                texturesList.add(textureBuilder.build());
-            }
-
-            materialBuilder.addAllTextures(texturesList);
             model.addMaterials(materialBuilder);
         }
 
@@ -168,6 +153,21 @@ public class ModelBuilder extends Builder<Void> {
             model.addMaterials(materialBuilder);
         }
 
+        List<Texture> texturesList = new ArrayList<>();
+        for (String t : modelDescBuilder.getTexturesList()) {
+            if (t.isEmpty())
+                continue; // TODO: Perhaps we can check if the material expects textures?
+
+            BuilderUtil.checkResource(this.project, resource, "texture", t);
+
+            Texture.Builder textureBuilder = Texture.newBuilder();
+            textureBuilder.setSampler(""); // If they have no name, then we detect that an treat it as an array
+            textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t));
+            texturesList.add(textureBuilder.build());
+        }
+
+        model.addAllTextures(texturesList);
+
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
 
         out = new ByteArrayOutputStream(64 * 1024);
@@ -176,7 +176,3 @@ public class ModelBuilder extends Builder<Void> {
         task.output(0).setContent(out.toByteArray());
     }
 }
-
-
-
-

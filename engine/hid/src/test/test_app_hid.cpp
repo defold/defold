@@ -23,6 +23,8 @@
 #include <dlib/time.h>
 #include <hid.h>
 
+#include <graphics/graphics.h>
+
 // From engine_private.h
 
 enum UpdateResult
@@ -101,7 +103,7 @@ static int RunLoop(const RunLoopParams* params)
 }
 
 
-static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata);
+static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata);
 
 
 static void AppCreate(void* _ctx)
@@ -131,6 +133,29 @@ static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = (EngineCtx*)&g_EngineCtx;
     memset(engine, 0, sizeof(EngineCtx));
+
+    dmGraphics::ContextParams graphics_context_params;
+    graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_VerifyGraphicsCalls = false;
+    dmGraphics::Initialize();
+    dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
+    if (graphics_context == 0x0)
+    {
+        dmLogFatal("Unable to create the graphics context.");
+        return 0;
+    }
+
+    dmGraphics::WindowParams window_params;
+    memset(&window_params, 0, sizeof(window_params));
+    window_params.m_Width           = 32;
+    window_params.m_Height          = 32;
+    window_params.m_Samples         = 0;
+    window_params.m_Title           = "hid_test_app";
+    window_params.m_Fullscreen      = 0;
+    window_params.m_PrintDeviceInfo = false;
+    window_params.m_HighDPI         = 0;
+    (void)dmGraphics::OpenWindow(graphics_context, &window_params);
 
     dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
     new_hid_params.m_GamepadConnectivityCallback = GamepadConnectivityCallback;
@@ -193,10 +218,15 @@ static UpdateResult EngineUpdate(void* _engine)
             LOG("%s", pressed ? "*" : "_");
         }
 
+        LOG("HAT: ");
+        for (uint32_t a = 0; a < dmHID::GetGamepadHatCount(pad); ++a)
+        {
+            LOG("%d ", packet.m_Hat[a]);
+        }
+
         LOG("AXIS: ");
 
-        uint32_t numaxis = dmHID::GetGamepadAxisCount(pad);
-        for (uint32_t a = 0; a < numaxis; ++a)
+        for (uint32_t a = 0; a < dmHID::GetGamepadAxisCount(pad); ++a)
         {
             LOG("%1.3f ", packet.m_Axis[a]);
         }
@@ -217,17 +247,22 @@ static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int*
     (void)engine;
 }
 
-static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
 {
     dmHID::HGamepad pad = dmHID::GetGamepad(g_EngineCtx.m_HidContext, gamepad_index);
 
-    if (connected) {
-        const char* name;
-        dmHID::GetGamepadDeviceName(pad, &name);
-        printf("Gamepad %d connected: %s\n", gamepad_index, name);
-    } else {
+    if (connected)
+    {
+        char name_buffer[128];
+        dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, name_buffer, sizeof(name_buffer));
+        printf("Gamepad %d connected: %s\n", gamepad_index, name_buffer);
+    }
+    else
+    {
         printf("Gamepad %d disconnected\n", gamepad_index);
     }
+
+    return true;
 }
 
 int main(int argc, char **argv)
