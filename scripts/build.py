@@ -1490,7 +1490,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    def _get_tag_name(self, version, channel):
+    def compose_tag_name(self, version, channel):
         if channel and channel != 'stable':
             channel = '-' + channel
         else:
@@ -1511,7 +1511,7 @@ class Configuration(object):
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
 
-        tag_name = self._get_tag_name(self.version, self.channel)
+        tag_name = self.compose_tag_name(self.version, self.channel)
 
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
@@ -1595,11 +1595,17 @@ class Configuration(object):
 
         # Create or update the tag for engine releases
         tag_name = None
+        is_editor_branch = False
         if self.channel in ('stable', 'beta', 'alpha'):
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        if tag_name is not None:
+        elif self.channel in ('editor-alpha',):
+            # We update the stable release with new editor builds
+            tag_name = self.compose_tag_name(self.version, 'stable')
+            is_editor_branch = True
+
+        if tag_name is not None and not is_editor_branch:
             # NOTE: Each of the main branches has a channel (stable, beta and alpha)
             #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
             channel_pattern = ''
@@ -1639,14 +1645,14 @@ class Configuration(object):
         # Release to github as well
         if tag_name:
             # only allowed anyways with a github token
-            release_to_github.release(self, tag_name, release_sha1, releases[0])
+            release_to_github.release(self, tag_name, release_sha1, releases[0], editor_only=is_editor_branch)
 
 #
 # END: RELEASE
 # ------------------------------------------------------------
 
     def release_to_github(self):
-        tag_name = self._get_tag_name(self.version, self.channel)
+        tag_name = self.compose_tag_name(self.version, self.channel)
         release_sha1 = self._git_sha1(self.version)
         releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
         release_to_github.release(self, tag_name, release_sha1, releases[0])
