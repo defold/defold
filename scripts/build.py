@@ -1526,13 +1526,6 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        model = {'releases': releases,
-                 'has_releases': True}
-
-        model['release'] = { 'channel': "Unknown", 'version': self.version }
-        if self.channel:
-            model['release']['channel'] = self.channel.capitalize()
-
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         editor_channel = None
@@ -1549,19 +1542,13 @@ class Configuration(object):
 
         release_sha1 = releases[0]['sha1']
 
-        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-macos.dmg'),
-                                        dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
-
-        page = None;
+        html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
-            page = file.read()
+            html = file.read()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
-        html = page % {'model': json.dumps(model)}
 
         key = bucket.new_key('%s/index.html' % self.channel)
         key.content_type = 'text/html'
@@ -1627,7 +1614,7 @@ class Configuration(object):
             #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
             pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
 
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
