@@ -84,7 +84,7 @@
 
 (defprotocol NodeType)
 
-(defn- node-type? [x] (satisfies? NodeType x))
+(defn- node-type-deref? [x] (satisfies? NodeType x))
 
 (defrecord NodeTypeRef [k]
   Ref
@@ -94,8 +94,11 @@
   (deref [this]
     (node-type-resolve k)))
 
-(defn isa-node-type? [t]
+(defn node-type? [t]
   (instance? NodeTypeRef t))
+
+(defn inherits? [^NodeTypeRef node-type ^NodeTypeRef node-supertype]
+  (isa? (:key @node-type) (:key @node-supertype)))
 
 (defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
   NodeType
@@ -186,7 +189,7 @@
 
 (defn register-node-type
   [k node-type]
-  (assert (node-type? node-type))
+  (assert (node-type-deref? node-type))
   (->NodeTypeRef (register-type node-type-registry-ref k node-type)))
 
 ;;; ----------------------------------------

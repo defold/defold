@@ -450,12 +450,14 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn default
   ([^Class cls field]
-   (or (get (default-map cls) field)
+   (let [default-value (get (default-map cls) field ::not-found)]
+     (if (not= ::not-found default-value)
+       default-value
        (throw (ex-info (format "Field '%s' does not have a default in protobuf class '%s'."
                                field
                                (.getName cls))
                        {:pb-class cls
-                        :field field}))))
+                        :field field})))))
   ([^Class cls field not-found]
    (get (default-map cls) field not-found)))
 

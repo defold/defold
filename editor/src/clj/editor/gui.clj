@@ -352,53 +352,29 @@
    {:pb-field :yanchor
     :prop-key :y-anchor}])
 
-(def ^:private pb-field->prop-key+pb->prop
-  (let [conversions (into {}
-                          (map (fn [{:keys [pb-field prop-key pb->prop]
-                                     :or {pb->prop identity}}]
-                                 (pair pb-field (pair prop-key pb->prop))))
-                          property-conversions)]
-    (fn pb-field->prop-key+pb->prop [pb-field]
-      (or (conversions pb-field)
-          (pair pb-field identity)))))
+(def ^:private pb-field-to-node-property-conversions
+  (into {}
+        (map (fn [{:keys [pb-field prop-key pb->prop]
+                   :or {pb->prop identity}}]
+               (pair pb-field (pair prop-key pb->prop))))
+        property-conversions))
 
-(def ^:private prop-key-to-pb-field+prop->pb
-  (let [conversions (into {}
-                          (map (fn [{:keys [prop-key pb-field prop->pb]
-                                     :or {prop->pb identity}}]
-                                 (pair prop-key (pair pb-field prop->pb))))
-                          property-conversions)]
-    (fn prop-key-to-pb-field+prop->pb [prop-key]
-      (or (conversions prop-key)
-          (pair prop-key identity)))))
+(def ^:private field-index->prop-key
+  (let [field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)]
+    (persistent!
+      (reduce-kv (fn [field-index->prop-key field-index pb-field]
+                   (if-some [[prop-key] (pb-field-to-node-property-conversions pb-field)]
+                     (assoc! field-index->prop-key field-index prop-key)
+                     field-index->prop-key))
+                 (transient field-index->pb-field)
+                 field-index->pb-field))))
 
-(def ^:private pb-field->prop-key (comp first pb-field->prop-key+pb->prop))
-(def ^:private prop-key->pb-field (comp first prop-key-to-pb-field+prop->pb))
-
-(def ^:private prop-index->prop-key
-  (let [index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)]
-    (into {}
-          (map (fn [[index pb-field]]
-                 (let [prop-key (pb-field->prop-key pb-field)]
-                   (pair index prop-key))))
-          index->pb-field)))
-
-(def ^:private prop-key->prop-index (set/map-invert prop-index->prop-key))
-
-(def ^:private node-desc-pb-field-key-set (protobuf/field-key-set Gui$NodeDesc))
-
-(defn- node-type-deref->node-desc-fields-raw [node-type-deref]
-  (let [declared-properties (:declared-property node-type-deref)]
-    (assert (not-empty declared-properties))
-    (sort
-      (into [:child-index :overridden-fields :parent :template-node-child]
-            (comp (map prop-key->pb-field)
-                  (keep node-desc-pb-field-key-set))
-            declared-properties))))
-
-(def ^:private node-type->node-desc-fields
-  "Returns the sequence of Gui$NodeDesc fields applicable to the supplied NodeType."
-  (comp (memoize node-type-deref->node-desc-fields-raw) deref))
+(def ^:private prop-key->prop-index
+  (persistent!
+    (reduce-kv (fn [prop-key->prop-index prop-index prop-key]
+                 (assoc! prop-key->prop-index prop-key prop-index))
+               (transient {})
+               field-index->prop-key)))
 
 (declare get-registered-node-type-info get-registered-node-type-infos)
 
@@ -452,6 +428,16 @@
          TextNode TemplateNode ParticleFXNode)
 
 (declare get-registered-node-type-cls)
+
+(def ^:private default-pb-node-type (protobuf/default Gui$NodeDesc :type)) ; E.g. :type-box.
+
+(defn- node-desc->node-type-info [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (let [type (:type node-desc default-pb-node-type)
+        custom-type (:custom-type node-desc 0)]
+    (get-registered-node-type-info type custom-type)))
+
+(def ^:private node-desc->node-type (comp :node-cls node-desc->node-type-info))
 
 (defn- node->node-tree
   ([node]
@@ -614,33 +600,32 @@
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
-  (let [overridden-fields (overridden-fields _this)]
-    (cond-> {:type type
-             :custom-type custom-type
-             :child-index child-index
-             :template-node-child false
-             :position (v3->v4 position)
-             :rotation (clj-quat->euler-v4 rotation)
-             :scale (v3->v4 scale)
-             :id (if (g/node-override? _this) generated-id id)
-             :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
-             :alpha alpha
-             :inherit-alpha inherit-alpha
-             :enabled enabled
-             :layer layer
-             :parent parent}
-
-            (seq overridden-fields)
-            (assoc :overridden-fields overridden-fields))))
+  (-> (protobuf/make-map-without-defaults Gui$NodeDesc
+        :custom-type custom-type
+        :template-node-child false
+        :position (v3->v4 position)
+        :rotation (clj-quat->euler-v4 rotation)
+        :scale (v3->v4 scale)
+        :id (if (g/node-override? _this) generated-id id)
+        :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
+        :alpha alpha
+        :inherit-alpha inherit-alpha
+        :enabled enabled
+        :layer layer
+        :parent parent
+        :overridden-fields (overridden-fields _this))
+      (assoc
+        :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
+        :child-index child-index))) ; Used to sort layers in the SceneDesc.
 
 (g/defnode GuiNode
   (inherits core/Scope)
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
-  (property child-index g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
   (property type g/Keyword (dynamic visible (g/constantly false))) ; Required pb field.
-  (property custom-type g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property custom-type g/Int (dynamic visible (g/constantly false)) (default (protobuf/default Gui$NodeDesc :custom-type)))
 
   (input id-counts NameCounts)
   (input id-prefix g/Str)
@@ -648,7 +633,7 @@
 
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
 
-  (property id g/Str (default "")
+  (property id g/Str (default (protobuf/default Gui$NodeDesc :id))
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts "Id")))
             (dynamic visible not-override-node?))
   (property generated-id g/Str ; Just for presentation.
@@ -656,20 +641,20 @@
             (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
-  (property color types/Color (default [1.0 1.0 1.0 1.0])
+  (property color types/Color (default (protobuf/default Gui$NodeDesc :color))
             (dynamic visible (g/fnk [type] (not= type :type-template)))
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha? true})))
-  (property alpha g/Num (default 1.0)
+  (property alpha g/Num (default (protobuf/default Gui$NodeDesc :alpha))
             (dynamic edit-type (g/constantly {:type :slider
                                               :min 0.0
                                               :max 1.0
                                               :precision 0.01})))
-  (property inherit-alpha g/Bool (default true))
-  (property enabled g/Bool (default true))
+  (property inherit-alpha g/Bool (default (protobuf/default Gui$NodeDesc :inherit-alpha)))
+  (property enabled g/Bool (default (protobuf/default Gui$NodeDesc :enabled)))
 
   (property layer g/Str
-            (default "")
+            (default (protobuf/default Gui$NodeDesc :layer))
             (dynamic edit-type (g/fnk [layer-names] (optional-gui-resource-choicebox layer-names)))
             (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer))))
   (output layer-index g/Any :cached
@@ -818,18 +803,19 @@
                          adjust-mode))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg visible blend-mode adjust-mode pivot x-anchor y-anchor]
-  (assoc gui-base-node-msg
-    :visible visible
-    :blend-mode blend-mode ; TODO: Not used by particlefx (forced to :blend-mode-alpha). Move?
-    :adjust-mode adjust-mode
-    :pivot pivot ; TODO: Not used by particlefx (forced to :pivot-center). Move?
-    :xanchor x-anchor
-    :yanchor y-anchor))
+  (merge gui-base-node-msg
+         (protobuf/make-map-without-defaults Gui$NodeDesc
+           :visible visible
+           :blend-mode blend-mode ; TODO: Not used by particlefx (forced to :blend-mode-alpha). Move?
+           :adjust-mode adjust-mode
+           :pivot pivot ; TODO: Not used by particlefx (forced to :pivot-center). Move?
+           :xanchor x-anchor
+           :yanchor y-anchor)))
 
 (g/defnode VisualNode
   (inherits GuiNode)
 
-  (property visible g/Bool (default true))
+  (property visible g/Bool (default (protobuf/default Gui$NodeDesc :visible)))
 
   (property blend-mode g/Keyword (default (protobuf/default Gui$NodeDesc :blend-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
@@ -909,7 +895,7 @@
 
 (defn- strip-size-from-node-desc [node-desc]
   (-> node-desc
-      (assoc :size [0.0 0.0 0.0 0.0])
+      (dissoc :size)
       (protobuf/sanitize :overridden-fields strip-size-from-overridden-fields)))
 
 (defn- add-size-to-overridden-fields-in-node-desc [node-desc]
@@ -939,18 +925,19 @@
 
 (g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
   (-> visual-base-node-msg
-      (assoc :size (v3->v4 manual-size)
-             :size-mode size-mode
-             :texture texture
-             :clipping-mode clipping-mode
-             :clipping-visible clipping-visible
-             :clipping-inverted clipping-inverted)
+      (merge (protobuf/make-map-without-defaults Gui$NodeDesc
+               :size (v3->v4 manual-size)
+               :size-mode size-mode
+               :texture texture
+               :clipping-mode clipping-mode
+               :clipping-visible clipping-visible
+               :clipping-inverted clipping-inverted))
       (fixup-shape-base-node-size-fields)))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  (property manual-size types/Vec3 (default [200.0 100.0 0.0])
+  (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic visible (g/constantly false)))
   (property size types/Vec3
             (value (g/fnk [manual-size size-mode texture-size]
@@ -960,17 +947,17 @@
             (set (fn [_evaluation-context self _old-value new-value]
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
-  (property size-mode g/Keyword (default :size-mode-auto) ; Overrides pb-default.
+  (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
-            (default "")
+            (default (protobuf/default Gui$NodeDesc :texture))
             (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
             (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
 
   (property clipping-mode g/Keyword (default (protobuf/default Gui$NodeDesc :clipping-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
-  (property clipping-visible g/Bool (default true))
-  (property clipping-inverted g/Bool (default false))
+  (property clipping-visible g/Bool (default (protobuf/default Gui$NodeDesc :clipping-visible)))
+  (property clipping-inverted g/Bool (default (protobuf/default Gui$NodeDesc :clipping-inverted)))
 
   (output shape-base-node-msg g/Any produce-shape-base-node-msg)
   (output aabb g/Any :cached (g/fnk [pivot size] (calc-aabb pivot size)))
@@ -1003,17 +990,19 @@
 ;; Box nodes
 
 (defn- strip-unwanted-box-node-fields [node-desc]
-  (select-keys node-desc (node-type->node-desc-fields BoxNode)))
+  ;; TODO(save-value): Remove.
+  #_(select-keys node-desc (node-type->node-desc-fields BoxNode))
+  node-desc)
 
 (g/defnk produce-box-node-msg [shape-base-node-msg slice9]
-  (-> shape-base-node-msg
-      (strip-unwanted-box-node-fields)
-      (assoc :slice9 slice9)))
+  (merge shape-base-node-msg
+         (protobuf/make-map-without-defaults Gui$NodeDesc
+           :slice9 slice9)))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
 
-  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+  (property slice9 types/Vec4 (default (protobuf/default Gui$NodeDesc :slice9))
             (dynamic read-only? (g/fnk [size-mode] (not= :size-mode-manual size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
@@ -1045,16 +1034,17 @@
   (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
 
 (defn- strip-unwanted-pie-node-fields [node-desc]
-  (select-keys node-desc (node-type->node-desc-fields PieNode)))
+  ;; TODO(save-value): Remove.
+  #_(select-keys node-desc (node-type->node-desc-fields PieNode))
+  node-desc)
 
 (g/defnk produce-pie-node-msg [shape-base-node-msg outer-bounds inner-radius perimeter-vertices pie-fill-angle]
-  (-> shape-base-node-msg
-      (strip-unwanted-pie-node-fields)
-      (assoc
-        :outer-bounds outer-bounds
-        :inner-radius inner-radius
-        :perimeter-vertices perimeter-vertices
-        :pie-fill-angle pie-fill-angle)))
+  (merge shape-base-node-msg
+         (protobuf/make-map-without-defaults Gui$NodeDesc
+           :outer-bounds outer-bounds
+           :inner-radius inner-radius
+           :perimeter-vertices perimeter-vertices
+           :pie-fill-angle pie-fill-angle)))
 
 (g/defnode PieNode
   (inherits ShapeNode)
@@ -1139,52 +1129,53 @@
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
 (defn- strip-unwanted-text-node-fields [node-desc]
-  (select-keys node-desc (node-type->node-desc-fields TextNode)))
+  ;; TODO(save-value): Remove.
+  #_(select-keys node-desc (node-type->node-desc-fields TextNode))
+  node-desc)
 
 (g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
-  (-> visual-base-node-msg
-      (strip-unwanted-text-node-fields)
-      (assoc
-        :size (v3->v4 manual-size)
-        :text text
-        :line-break line-break
-        :font font
-        :text-leading text-leading
-        :text-tracking text-tracking
-        :outline outline
-        :outline-alpha outline-alpha
-        :shadow shadow
-        :shadow-alpha shadow-alpha)))
+  (merge visual-base-node-msg
+         (protobuf/make-map-without-defaults Gui$NodeDesc
+           :size (v3->v4 manual-size)
+           :text text
+           :line-break line-break
+           :font font
+           :text-leading text-leading
+           :text-tracking text-tracking
+           :outline outline
+           :outline-alpha outline-alpha
+           :shadow shadow
+           :shadow-alpha shadow-alpha)))
 
 (g/defnode TextNode
   (inherits VisualNode)
 
   ; Text
-  (property manual-size types/Vec3 (default [200.0 100.0 0.0])
+  (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic label (g/constantly "Size")))
   (property text g/Str
-            (default "<text>")
+            (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
-  (property line-break g/Bool (default false))
+  (property line-break g/Bool (default (protobuf/default Gui$NodeDesc :line-break)))
   (property font g/Str
-    (default "")
+    (default (protobuf/default Gui$NodeDesc :font))
     (dynamic edit-type (g/fnk [font-names] (required-gui-resource-choicebox font-names)))
     (dynamic error (g/fnk [_node-id font-names font]
                      (validate-font _node-id font-names font))))
-  (property text-leading g/Num (default 1.0))
-  (property text-tracking g/Num (default 0.0))
-  (property outline types/Color (default [1.0 1.0 1.0 1.0])
+  (property text-leading g/Num (default (protobuf/default Gui$NodeDesc :text-leading)))
+  (property text-tracking g/Num (default (protobuf/default Gui$NodeDesc :text-tracking)))
+  (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha? true})))
-  (property outline-alpha g/Num (default 1.0)
+  (property outline-alpha g/Num (default (protobuf/default Gui$NodeDesc :outline-alpha))
     (dynamic edit-type (g/constantly {:type :slider
                                       :min 0.0
                                       :max 1.0
                                       :precision 0.01})))
-  (property shadow types/Color (default [1.0 1.0 1.0 1.0])
+  (property shadow types/Color (default (protobuf/default Gui$NodeDesc :shadow))
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha? true})))
-  (property shadow-alpha g/Num (default 1.0)
+  (property shadow-alpha g/Num (default (protobuf/default Gui$NodeDesc :shadow-alpha))
     (dynamic edit-type (g/constantly {:type :slider
                                       :min 0.0
                                       :max 1.0
@@ -1288,17 +1279,19 @@
   (and a b))
 
 (defn- strip-unwanted-template-node-fields [node-desc]
-  (select-keys node-desc (node-type->node-desc-fields TemplateNode)))
+  ;; TODO(save-value): Remove.
+  #_(select-keys node-desc (node-type->node-desc-fields TemplateNode))
+  node-desc)
 
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
-  (-> gui-base-node-msg
-      (strip-unwanted-template-node-fields)
-      (assoc
-        :size [200.0 100.0 0.0 0.0] ; Just here to avoid file format changes. We could remove this.
-        :template (resource/resource->proj-path template-resource)
+  (merge gui-base-node-msg
+         (protobuf/make-map-without-defaults Gui$NodeDesc
+           ;; TODO(save-value): Safe to remove now?
+           :size [200.0 100.0 0.0 0.0] ; Just here to avoid file format changes. We could remove this.
+           :template (resource/resource->proj-path template-resource)
 
-        ;; TODO: We should not have to overwrite the base properties here. Refactor?
-        :color [1.0 1.0 1.0 1.0])))
+           ;; TODO: We should not have to overwrite the base properties here. Refactor?
+           :color [1.0 1.0 1.0 1.0])))
 
 (g/defnode TemplateNode
   (inherits GuiNode)
@@ -1455,27 +1448,29 @@
     (assoc-in [:renderable :topmost?] true)))
 
 (defn- strip-unwanted-particlefx-node-fields [node-desc]
-  (select-keys node-desc (node-type->node-desc-fields ParticleFXNode)))
+  ;; TODO(save-value): Remove.
+  #_(select-keys node-desc (node-type->node-desc-fields ParticleFXNode))
+  node-desc)
 
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
   (-> visual-base-node-msg
       (strip-unwanted-particlefx-node-fields)
-      (assoc
-        :particlefx particlefx
-        :size-mode :size-mode-auto)))
+      (merge (protobuf/make-map-without-defaults Gui$NodeDesc
+               :particlefx particlefx
+               :size-mode :size-mode-auto))))
 
 (g/defnode ParticleFXNode
   (inherits VisualNode)
 
   (property particlefx g/Str
-    (default "")
+    (default (protobuf/default Gui$NodeDesc :particlefx))
     (dynamic edit-type (g/fnk [particlefx-resource-names] (required-gui-resource-choicebox particlefx-resource-names)))
     (dynamic error (g/fnk [_node-id particlefx particlefx-resource-names]
                      (validate-particlefx-resource _node-id particlefx-resource-names particlefx))))
 
-  (property blend-mode g/Keyword (default :blend-mode-alpha)
+  (property blend-mode g/Keyword (default (protobuf/default Gui$NodeDesc :blend-mode))
     (dynamic visible (g/constantly false)))
-  (property pivot g/Keyword (default :pivot-center)
+  (property pivot g/Keyword (default (protobuf/default Gui$NodeDesc :pivot))
     (dynamic visible (g/constantly false)))
 
   (display-order (into base-display-order
@@ -1614,7 +1609,7 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
-                         (protobuf/make-map-with-defaults Gui$SceneDesc$TextureDesc
+                         (protobuf/make-map-without-defaults Gui$SceneDesc$TextureDesc
                            :name name
                            :texture (resource/resource->proj-path texture-resource))))
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
@@ -1661,7 +1656,7 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
-                         (protobuf/make-map-with-defaults Gui$SceneDesc$FontDesc
+                         (protobuf/make-map-without-defaults Gui$SceneDesc$FontDesc
                            :name name
                            :font (resource/resource->proj-path font-resource))))
   (output font-shaders GuiResourceShaders :cached (g/fnk [font-shader name]
@@ -1685,7 +1680,7 @@
   (property name g/Str
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :layer)))
-  (property child-index g/Int (dynamic visible (g/constantly false)) (default 0))
+  (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
   (input name-counts NameCounts)
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
@@ -1697,7 +1692,7 @@
                                                            :child-index child-index
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name child-index]
-                         (-> (protobuf/make-map-with-defaults Gui$SceneDesc$LayerDesc :name name)
+                         (-> (protobuf/make-map-without-defaults Gui$SceneDesc$LayerDesc :name name)
                              (assoc :child-index child-index)))) ; Used to sort layers in the SceneDesc.
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
@@ -1738,7 +1733,7 @@
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
   (output pb-msg g/Any (g/fnk [name resource-path]
-                         (protobuf/make-map-with-defaults Gui$SceneDesc$ResourceDesc
+                         (protobuf/make-map-without-defaults Gui$SceneDesc$ResourceDesc
                            :name name
                            :path resource-path)))
   (output build-errors g/Any (g/fnk [_node-id name name-counts path]
@@ -1779,7 +1774,7 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
-                         (protobuf/make-map-with-defaults Gui$SceneDesc$ParticleFXDesc
+                         (protobuf/make-map-without-defaults Gui$SceneDesc$ParticleFXDesc
                            :name name
                            :particlefx (resource/resource->proj-path particlefx))))
   (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
@@ -1793,11 +1788,11 @@
 (def ^:private non-overridable-fields #{:template :id :parent})
 
 (defn- extract-overrides [node-desc]
-  (select-keys node-desc (remove non-overridable-fields (map prop-index->prop-key (:overridden-fields node-desc)))))
+  (select-keys node-desc (remove non-overridable-fields (map field-index->prop-key (:overridden-fields node-desc)))))
 
 (defn- layout-pb-msg [name node-msgs]
   (let [node-msgs (filterv (comp not-empty :overridden-fields) node-msgs)]
-    (protobuf/make-map-with-defaults Gui$SceneDesc$LayoutDesc
+    (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
       :name name
       :nodes node-msgs)))
 
@@ -1833,7 +1828,6 @@
                                                         [:node-outline :node-tree-node-outline]
                                                         [:scene :node-tree-scene]]]
                                          (g/connect or-node-tree from self to))
-
                                        (for [[from to] [[:id-prefix :id-prefix]]]
                                          (g/connect self from or-node-tree to))
                                        (for [[id data] or-data
@@ -1880,7 +1874,7 @@
   (inherits core/Scope)
   (inherits outline/OutlineNode)
 
-  (property id g/Str (default "")
+  (property id g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
 
   (input child-scenes g/Any :array)
@@ -2249,7 +2243,7 @@
       sort-scene)))
 
 (defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
-  (protobuf/make-map-with-defaults Gui$SceneDesc
+  (protobuf/make-map-without-defaults Gui$SceneDesc
     :script (resource/resource->proj-path script-resource)
     :material (resource/resource->proj-path material-resource)
     :adjust-reference adjust-reference
@@ -2380,9 +2374,9 @@
             (default (protobuf/default Gui$SceneDesc :adjust-reference))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property background-color types/Color
-            (default [1.0 1.0 1.0 1.0])
+            (default (protobuf/default Gui$SceneDesc :background-color))
             (dynamic visible (g/constantly false)))
-  (property visible-layout g/Str (default "")
+  (property visible-layout g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
@@ -2546,21 +2540,28 @@
        (g/connect resources-node :name-counts resource-node :name-counts))))))
 
 (defn add-gui-node! [project scene parent node-type custom-type select-fn]
+  ;; TODO: The project argument is unused. Remove.
   (let [node-tree (g/node-value scene :node-tree)
         taken-ids (g/node-value node-tree :id-counts)
         id (outline/resolve-id (subs (name node-type) 5) taken-ids)
-        def-node-type (get-registered-node-type-cls node-type custom-type)
+        node-type-info (get-registered-node-type-info node-type custom-type)
+        def-node-type (:node-cls node-type-info)
         child-indices (g/node-value parent :child-indices)
-        next-index (next-child-index child-indices)]
+        next-index (next-child-index child-indices)
+        node-properties (assoc (:defaults node-type-info)
+                          :id id
+                          :child-index next-index
+                          :custom-type custom-type
+                          :type node-type)]
     (-> (concat
           (g/operation-label "Add Gui Node")
-          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :child-index next-index :type node-type :custom-type custom-type]]
-                        (attach-gui-node node-tree parent gui-node node-type)
-                        (when select-fn
-                          (select-fn [gui-node]))))
-      g/transact
-      g/tx-nodes-added
-      first)))
+          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
+            (attach-gui-node node-tree parent gui-node node-type)
+            (when select-fn
+              (select-fn [gui-node]))))
+        g/transact
+        g/tx-nodes-added
+        first)))
 
 (defn add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
   (add-gui-node! project scene parent node-type custom-type select-fn))
@@ -2570,6 +2571,7 @@
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
 
 (defn- add-handler-options [node]
+  ;; TODO: We should probably use an evaluation-context here.
   (let [type-infos (get-registered-node-type-infos)
         node (g/override-root node)
         scene (node->gui-scene node)
@@ -2584,7 +2586,7 @@
                                  type-infos))
                          [])
 
-                       (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
+                       (g/node-instance-match node [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
                                       (g/node-value scene :node-tree)
                                       node)]
@@ -2624,21 +2626,25 @@
         (when (:layout user-data)
           (add-layout-options node-id user-data))))))
 
-(defn- convert-node-desc [node-desc]
-  (into {}
-        (map (fn [[key val :as entry]]
-               (if-some [[new-key convert-fn] (pb-field->prop-key+pb->prop key)]
-                 [new-key (convert-fn val)]
-                 entry)))
-        node-desc))
+(defn- node-desc->node-properties [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (persistent!
+    (reduce (fn [node-properties [pb-field pb-value]]
+              (if-some [[prop-key pb-value->prop-value] (pb-field-to-node-property-conversions pb-field)]
+                (let [prop-value (pb-value->prop-value pb-value)]
+                  (-> node-properties
+                      (dissoc! pb-field)
+                      (assoc! prop-key prop-value)))
+                node-properties))
+            (transient node-desc)
+            node-desc)))
 
 (defn- sort-node-descs
   [node-descs]
   (let [parent-id->children (group-by :parent (remove #(str/blank? (:id %)) node-descs))
         parent->children #(parent-id->children (:id %))
-        root {:id ""}]
+        root {:id nil}]
     (rest (tree-seq parent->children parent->children root))))
-
 
 (def ^:private custom-gui-scene-loaders (atom ()))
 
@@ -2655,7 +2661,7 @@
 
 (defn load-gui-scene [project self resource scene]
   (let [graph-id           (g/node-id->graph-id self)
-        node-descs         (map convert-node-desc (:nodes scene))
+        node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
         tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
                                          (filter :template-node-child node-descs)))
         tmpl-node-descs    (into {} (map (fn [[id data]]
@@ -2800,7 +2806,7 @@
                            all-tx-data []
                            child-index 0]
                       (if node-desc
-                        (let [node-type (get-registered-node-type-cls (:type node-desc) (:custom-type node-desc))
+                        (let [node-type (node-desc->node-type node-desc)
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
@@ -2833,7 +2839,7 @@
                                                                          (map (fn [node-desc]
                                                                                 (pair (:id node-desc)
                                                                                       (-> node-desc
-                                                                                          convert-node-desc
+                                                                                          node-desc->node-properties
                                                                                           extract-overrides))))
                                                                          nodes))))]]
                         (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
@@ -2851,7 +2857,8 @@
   ;; color component. This was later moved to a separate alpha field to support
   ;; overriding of the alpha separately from the color.
   (let [color (get node-desc color-field)]
-    (if (= default-pb-read-node-color color)
+    (if (or (nil? color)
+            (= default-pb-read-node-color color))
       ;; The node does not specify color. Return unaltered.
       node-desc
 
@@ -2867,12 +2874,28 @@
           (-> node-desc
               (assoc color-field (assoc color 3 default-pb-read-node-alpha))
               (update alpha-field (fn [node-alpha]
-                                    (if (= default-pb-read-node-alpha node-alpha)
+                                    (if (or (nil? node-alpha)
+                                            (= default-pb-read-node-alpha node-alpha))
                                       (or color-alpha default-pb-read-node-alpha)
                                       node-alpha)))))))))
 
-(defn- sanitize-node-rotation [node]
-  (update node :rotation (comp clj-quat->euler-v4 euler-v4->clj-quat)))
+(defn- sanitize-v4 [v4]
+  (let [v3 (v4->v3 v4)]
+    (when (not-every? zero? v3)
+      (v3->v4 v3))))
+
+(defn- sanitize-euler-v4 [euler-v4]
+  (let [clj-quat (euler-v4->clj-quat euler-v4)
+        euler-v4 (clj-quat->euler-v4 clj-quat)]
+    (when (not-every? zero? (take 3 euler-v4))
+      euler-v4)))
+
+(defn- sanitize-node-geometry [node]
+  (-> node
+      (protobuf/sanitize :position sanitize-v4)
+      (protobuf/sanitize :rotation sanitize-euler-v4)
+      (protobuf/sanitize :scale sanitize-v4)
+      (protobuf/sanitize :size sanitize-v4)))
 
 (defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)
@@ -2904,15 +2927,16 @@
     node-desc))
 
 (defn- sanitize-node [node-desc]
-  (let [node-type (:type node-desc)
+  (let [node-type (:type node-desc default-pb-node-type)
         custom-type (:custom-type node-desc 0)
         node-type-info (get-registered-node-type-info node-type custom-type)
+        node-desc (assoc node-desc :type node-type) ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
         node-desc (if-some [convert-fn (:convert-fn node-type-info)]
                     (convert-fn node-type-info node-desc)
                     node-desc)]
     (-> node-desc
         (sanitize-node-color :color :alpha)
-        (sanitize-node-rotation)
+        (sanitize-node-geometry)
         (sanitize-node-specifics))))
 
 (defn- sanitize-layout [layout]
@@ -3032,31 +3056,55 @@
     :command :set-gui-layout
     :label "Test"}])
 
-(def ^:private base-node-type-infos [{:node-type :type-box
-                                      :node-cls BoxNode
-                                      :display-name "Box"
-                                      :custom-type 0
-                                      :icon box-icon}
-                                     {:node-type :type-pie
-                                      :node-cls PieNode
-                                      :display-name "Pie"
-                                      :custom-type 0
-                                      :icon pie-icon}
-                                     {:node-type :type-text
-                                      :node-cls TextNode
-                                      :display-name "Text"
-                                      :custom-type 0
-                                      :icon text-icon}
-                                     {:node-type :type-template
-                                      :node-cls TemplateNode
-                                      :display-name "Template"
-                                      :custom-type 0
-                                      :icon template-icon}
-                                     {:node-type :type-particlefx
-                                      :node-cls ParticleFXNode
-                                      :display-name "ParticleFX"
-                                      :custom-type 0
-                                      :icon particlefx/particle-fx-icon}])
+;; SDK api
+(def gui-base-node-defaults
+  {:color [1.0 1.0 1.0 1.0]
+   :inherit-alpha true})
+
+;; SDK api
+(def visual-base-node-defaults gui-base-node-defaults)
+
+;; SDK api
+(def shape-base-node-defaults
+  (assoc visual-base-node-defaults
+    :size [200.0 100.0 0.0]
+    :size-mode :size-mode-auto))
+
+(def ^:private base-node-type-infos
+  [{:node-type :type-box
+    :node-cls BoxNode
+    :display-name "Box"
+    :custom-type 0
+    :icon box-icon
+    :defaults shape-base-node-defaults}
+   {:node-type :type-pie
+    :node-cls PieNode
+    :display-name "Pie"
+    :custom-type 0
+    :icon pie-icon
+    :defaults shape-base-node-defaults}
+   {:node-type :type-text
+    :node-cls TextNode
+    :display-name "Text"
+    :custom-type 0
+    :icon text-icon
+    :defaults (assoc visual-base-node-defaults
+                :outline [1.0 1.0 1.0 1.0]
+                :size [200.0 100.0 0.0]
+                :shadow [1.0 1.0 1.0 1.0]
+                :text "<text>")}
+   {:node-type :type-template
+    :node-cls TemplateNode
+    :display-name "Template"
+    :custom-type 0
+    :icon template-icon
+    :defaults gui-base-node-defaults}
+   {:node-type :type-particlefx
+    :node-cls ParticleFXNode
+    :display-name "ParticleFX"
+    :custom-type 0
+    :icon particlefx/particle-fx-icon
+    :defaults visual-base-node-defaults}])
 
 (defonce ^:private custom-node-type-infos (atom []))
 
@@ -3064,6 +3112,8 @@
   (concat base-node-type-infos @custom-node-type-infos))
 
 (defn- get-registered-node-type-info [node-type custom-type]
+  {:pre [(keyword? node-type)
+         (integer? custom-type)]}
   (or (some (fn [info]
               (when (and (= node-type (:node-type info))
                          (= custom-type (:custom-type info)))
@@ -3090,36 +3140,14 @@
                                  (str/join ", ")))
                     {:node-cls node-cls
                      :abstract-output-labels abstract-output-labels})))
+  (when-not (map? (:defaults type-info))
+    (throw (ex-info (format "Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
+                            (:name @node-cls))
+                    {:node-cls node-cls})))
   (swap! custom-node-type-infos conj type-info))
 
-(def ^:private node-desc-pb-defaults (protobuf/default-map Gui$NodeDesc))
-
-(defn- node-defaults->explicit-defaults [node-prop-defaults-by-key]
-  {:pre [(map? node-prop-defaults-by-key)]}
-  (into {}
-        (keep (fn [[prop-key node-prop-default]]
-                (when (some? node-prop-default)
-                  (let [[pb-field prop-value->pb-value] (prop-key-to-pb-field+prop->pb prop-key)]
-                    (when-some [pb-default (node-desc-pb-defaults pb-field)]
-                      (when (and (not= pb-default node-prop-default) ; Early-out optimization.
-                                 (not= pb-default (prop-value->pb-value node-prop-default)))
-                        (pair prop-key node-prop-default)))))))
-        node-prop-defaults-by-key))
-
-(def ^:private node-type->explicit-defaults
-  (memoize (comp node-defaults->explicit-defaults g/node-defaults)))
-
-(defn- node-desc->node-properties [node-desc node-type]
-  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
-  (into (node-type->explicit-defaults node-type)
-        (map (fn [[pb-field pb-value]]
-               (let [[prop-key pb-value->prop-value] (pb-field->prop-key+pb->prop pb-field)
-                     prop-value (pb-value->prop-value pb-value)]
-                 (pair prop-key prop-value))))
-        node-desc))
-
 ;; TODO(save-value) Next steps:
-;; Don't read defaults.
-;; Swap over node loading to use node-desc->node-properties.
-;; Use (merge gui-base-node-msg (protobuf/make-map-without-defaults DerivedGuiNode ...)) in node-msg.
+;; DONE Don't read defaults.
+;; DONE Swap over node loading to use node-desc->node-properties.
+;; DONE Use (merge gui-base-node-msg (protobuf/make-map-without-defaults DerivedGuiNode ...)) in node-msg.
 ;; Clean up unused functions. (convert-node-desc, node-type-deref->node-desc-fields-raw, etc.)

@@ -110,6 +110,7 @@
           size [150.0 50.0 0.0]
           sizes {:ball [64.0 32.0 0.0]
                  :left-hud [200.0 640.0 0.0]}]
+      (is (= :size-mode-manual (g/node-value box :size-mode)))
       (is (= size (g/node-value box :size)))
       (g/set-property! box :texture "atlas_texture/left_hud")
       (is (= size (g/node-value box :size)))
