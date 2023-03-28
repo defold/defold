@@ -1634,9 +1634,11 @@ class Configuration(object):
         is_editor_branch = False
         engine_channel = None
         editor_channel = None
+        prerelease = True
         if self.channel in ('stable', 'beta', 'alpha'):
             engine_channel = self.channel
             editor_channel = self.channel
+            prerelease = self.channel in ('alpha',)
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
@@ -1644,6 +1646,7 @@ class Configuration(object):
             # We update the stable release with new editor builds
             engine_channel = 'stable'
             editor_channel = self.channel
+            prerelease = False
             tag_name = self.compose_tag_name(self.version, engine_channel)
             is_editor_branch = True
 
@@ -1676,7 +1679,7 @@ class Configuration(object):
             # only allowed anyways with a github token
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
-            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, editor_only=is_editor_branch)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
     # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
     # on a branch with the correct sha1 (e.g. beta or editor-dev)
