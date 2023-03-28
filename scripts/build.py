@@ -27,6 +27,7 @@ import sdk
 import release_to_github
 import BuildUtility
 import http_cache
+from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
 from threading import Thread, Event
@@ -1490,7 +1491,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    def _get_tag_name(self, version, channel):
+    def compose_tag_name(self, version, channel):
         if channel and channel != 'stable':
             channel = '-' + channel
         else:
@@ -1511,7 +1512,7 @@ class Configuration(object):
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
 
-        tag_name = self._get_tag_name(self.version, self.channel)
+        tag_name = self.compose_tag_name(self.version, self.channel)
 
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
@@ -1526,13 +1527,6 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        model = {'releases': releases,
-                 'has_releases': True}
-
-        model['release'] = { 'channel': "Unknown", 'version': self.version }
-        if self.channel:
-            model['release']['channel'] = self.channel.capitalize()
-
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         editor_channel = None
@@ -1549,19 +1543,13 @@ class Configuration(object):
 
         release_sha1 = releases[0]['sha1']
 
-        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-macos.dmg'),
-                                        dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
-
-        page = None;
+        html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
-            page = file.read()
+            html = file.read()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
-        html = page % {'model': json.dumps(model)}
 
         key = bucket.new_key('%s/index.html' % self.channel)
         key.content_type = 'text/html'
@@ -1590,6 +1578,41 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
+    def _get_tag_pattern_from_tag_name(channel, tag_name):
+        # NOTE: Each of the main branches has a channel (stable, beta and alpha)
+        #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
+        channel_pattern = ''
+        if channel != 'stable':
+            channel_pattern = '-' + channel
+        platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
+        if platform_pattern:
+            platform_pattern = '-' + platform_pattern
+
+        # Example tags:
+        #   1.2.184, 1.2.184-alpha, 1.2.184-beta
+        #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
+        return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
+
+    def _get_github_release_body(self):
+        engine_channel = None
+        editor_channel = None
+        engine_sha1 = None
+        editor_sha1 = None
+        if self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            editor_sha1 = self._git_sha1()
+
+        engine_sha1 = self._git_sha1(self.version) # engine version
+        if not editor_sha1:
+            editor_sha1 = engine_sha1
+
+        body  = "Defold version %s\n" % self.version
+        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
+        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return body
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -1608,26 +1631,25 @@ class Configuration(object):
 
         # Create or update the tag for engine releases
         tag_name = None
+        is_editor_branch = False
+        engine_channel = None
+        editor_channel = None
         if self.channel in ('stable', 'beta', 'alpha'):
+            engine_channel = self.channel
+            editor_channel = self.channel
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        if tag_name is not None:
-            # NOTE: Each of the main branches has a channel (stable, beta and alpha)
-            #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
-            channel_pattern = ''
-            if self.channel != 'stable':
-                channel_pattern = '-' + self.channel
-            platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
-            if platform_pattern:
-                platform_pattern = '-' + platform_pattern
+        elif self.channel in ('editor-alpha',):
+            # We update the stable release with new editor builds
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            tag_name = self.compose_tag_name(self.version, engine_channel)
+            is_editor_branch = True
 
-            # Example tags:
-            #   1.2.184, 1.2.184-alpha, 1.2.184-beta
-            #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
-            pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
-
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
+        if tag_name is not None and not is_editor_branch:
+            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
@@ -1652,17 +1674,44 @@ class Configuration(object):
         # Release to github as well
         if tag_name:
             # only allowed anyways with a github token
-            release_to_github.release(self, tag_name, release_sha1, releases[0])
+            body = self._get_github_release_body()
+            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, editor_only=is_editor_branch)
+
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
+    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    def release_to_github(self):
+        engine_channel = None
+        release_sha1 = None
+        is_editor_branch = False
+        prerelease = True
+        if self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            is_editor_branch = True
+            prerelease = False
+            release_sha1 = self._git_sha1()
+        else:
+            release_sha1 = self._git_sha1(self.version) # engine version
+            if self.channel in ('stable', 'beta'):
+                prerelease = False
+
+        tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
+
+        if tag_name is not None and not is_editor_branch:
+            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
+        else:
+            # e.g. editor-dev releases
+            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+
+        body = self._get_github_release_body()
+        release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
 #
 # END: RELEASE
 # ------------------------------------------------------------
-
-    def release_to_github(self):
-        tag_name = self._get_tag_name(self.version, self.channel)
-        release_sha1 = self._git_sha1(self.version)
-        releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
-        release_to_github.release(self, tag_name, release_sha1, releases[0])
 
     def sync_archive(self):
         u = urlparse(self.get_archive_path())

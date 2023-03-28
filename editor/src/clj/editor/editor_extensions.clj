@@ -631,11 +631,10 @@
       (when-let [res (or (some-> selection
                                  (handler/adapt-every
                                    resource/ResourceNode
-                                   #(and (some? %)
-                                         (-> %
-                                             (g/node-value :resource evaluation-context)
-                                             resource/proj-path
-                                             some?)))
+                                   #(-> %
+                                        (g/node-value :resource evaluation-context)
+                                        resource/proj-path
+                                        some?))
                                  (node-ids->lua-selection q))
                          (some-> selection
                                  (handler/adapt-every resource/Resource)
