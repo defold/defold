@@ -1596,13 +1596,19 @@ class Configuration(object):
         # Create or update the tag for engine releases
         tag_name = None
         is_editor_branch = False
+        engine_channel = None
+        editor_channel = None
         if self.channel in ('stable', 'beta', 'alpha'):
+            engine_channel = self.channel
+            editor_channel = self.channel
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
         elif self.channel in ('editor-alpha',):
             # We update the stable release with new editor builds
-            tag_name = self.compose_tag_name(self.version, 'stable')
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            tag_name = self.compose_tag_name(self.version, engine_channel)
             is_editor_branch = True
 
         if tag_name is not None and not is_editor_branch:
@@ -1645,7 +1651,7 @@ class Configuration(object):
         # Release to github as well
         if tag_name:
             # only allowed anyways with a github token
-            release_to_github.release(self, tag_name, release_sha1, releases[0], editor_only=is_editor_branch)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], editor_only=is_editor_branch, engine_channel=engine_channel, editor_channel=editor_channel)
 
 #
 # END: RELEASE
