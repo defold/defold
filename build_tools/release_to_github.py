@@ -61,7 +61,7 @@ def get_defold_version_from_file():
         return None
     return out.strip()
 
-def release(config, tag_name, release_sha, s3_release):
+def release(config, tag_name, release_sha, s3_release, editor_only=False):
     log("Releasing Defold %s to GitHub" % tag_name)
     if config.github_token is None:
         log("No GitHub authorization token")
@@ -126,10 +126,9 @@ def release(config, tag_name, release_sha, s3_release):
 
     # remove existing uploaded assets (It's not currently possible to update a release asset
     log("Deleting existing artifacts from the release")
+    prev_assets = {}
     for asset in release.get("assets", []):
-        asset_url = asset.get("url")
-        log("Deleting %s -  %s" % (asset.get("id"), asset.get("name")))
-        github.delete(asset_url, config.github_token)
+        prev_assets[asset.get("name")] = asset
 
     # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
     # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}
@@ -139,11 +138,13 @@ def release(config, tag_name, release_sha, s3_release):
     log("Uploading artifacts to GitHub from S3")
     base_url = "https://" + urlparse(config.archive_path).hostname
 
-    def is_main_file(path):
-        return os.path.basename(path) in ('bob.jar',
-                                          'Defold-x86_64-macos.dmg',
+    def is_editor_file(path):
+        return os.path.basename(path) in ('Defold-x86_64-macos.dmg',
                                           'Defold-x86_64-linux.zip',
                                           'Defold-x86_64-win32.zip')
+
+    def is_main_file(path):
+        return os.path.basename(path) in ('bob.jar',) or is_editor_file(path)
 
     def is_platform_file(path):
         return os.path.basename(path) in ('gdc',
@@ -166,6 +167,9 @@ def release(config, tag_name, release_sha, s3_release):
     for file in s3_release.get("files", None):
         # download file
         path = file.get("path")
+
+        if editor_only and not is_editor_file(path):
+            continue
 
         keep = False
         if is_main_file(path) or is_platform_file(path):
@@ -192,6 +196,13 @@ def release(config, tag_name, release_sha, s3_release):
                 name = basename
             elif is_platform_file(download_url):
                 name = convert_to_platform_name(download_url)
+
+            # Since there is no way to update an asset, we need to remove it first.
+            old_asset = prev_assets.get(name, None)
+            if old_asset is not None:
+                asset_url = old_asset.get("url")
+                log("Deleting %s -  %s" % (old_asset.get("id"), old_asset.get("name")))
+                github.delete(asset_url, config.github_token)
 
             url = upload_url % (name)
             log("Uploading to GitHub " + url)

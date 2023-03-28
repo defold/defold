@@ -164,6 +164,15 @@ namespace dmSys
             return ErrnoToResult(errno);
     }
 
+    Result IsDir(const char* path)
+    {
+        struct stat path_stat;
+        int ret = stat(path, &path_stat);
+        if (ret != 0)
+            return ErrnoToResult(errno);
+        return path_stat.st_mode & S_IFDIR ? RESULT_OK : RESULT_UNKNOWN;
+    }
+
     bool Exists(const char* path)
     {
         struct stat path_stat;

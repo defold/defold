@@ -56,18 +56,22 @@
 ;; anim data
 
 (defn- ->anim-frame
-  [frame-index tex-coords tex-dims tex-coord-order frame-indices]
+  [frame-index page-index tex-coords tex-dims tex-coord-order]
   (let [tex-coords-data (->uv-quad frame-index tex-coords tex-coord-order)
         {:keys [width height]} (->tex-dim frame-index tex-dims)]
-    {:tex-coords tex-coords-data
+    {:page-index page-index
+     :tex-coords tex-coords-data
      :width width
      :height height}))
 
-
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices]
+  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices]
   (let [tex-coord-order (tex-coord-lookup flip-horizontal flip-vertical)
-        frames (mapv #(->anim-frame % tex-coords tex-dims tex-coord-order frame-indices) (range start end))]
+        frames (mapv (fn [i]
+                       (let [frame-index (frame-indices i)
+                             page-index (page-indices frame-index)]
+                         (->anim-frame frame-index page-index tex-coords tex-dims tex-coord-order)))
+                     (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
      :playback playback
@@ -86,33 +90,34 @@
                      (.order ByteOrder/LITTLE_ENDIAN)
                      (.asFloatBuffer))
         animations (:animations texture-set)
-        frame-indices (:frame-indices texture-set)]
+        frame-indices (:frame-indices texture-set)
+        page-indices (:page-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices)))
+          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices)))
           animations)))
 
 
 ;; vertex data
 
 (defn- gen-vertex
-  [^Matrix4d world-transform x y u v]
+  [^Matrix4d world-transform x y u v page-index]
   (let [p (Point3d. x y 0.0)]
     (.transform world-transform p)
-    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v)))
+    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v page-index)))
 
 (defn vertex-data
-  [{:keys [width height tex-coords] :as frame} world-transform]
+  [{:keys [width height tex-coords page-index] :as _frame} world-transform]
   (let [x1 (* 0.5 width)
         y1 (* 0.5 height)
         x0 (- x1)
         y0 (- y1)
         [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] tex-coords]
-    [(gen-vertex world-transform x0 y0 u0 v0)
-     (gen-vertex world-transform x1 y0 u3 v3)
-     (gen-vertex world-transform x0 y1 u1 v1)
-     (gen-vertex world-transform x1 y0 u3 v3)
-     (gen-vertex world-transform x1 y1 u2 v2)
-     (gen-vertex world-transform x0 y1 u1 v1)]))
+    [(gen-vertex world-transform x0 y0 u0 v0 page-index)
+     (gen-vertex world-transform x1 y0 u3 v3 page-index)
+     (gen-vertex world-transform x0 y1 u1 v1 page-index)
+     (gen-vertex world-transform x1 y0 u3 v3 page-index)
+     (gen-vertex world-transform x1 y1 u2 v2 page-index)
+     (gen-vertex world-transform x0 y1 u1 v1 page-index)]))
 
 
 ;; animation
@@ -211,5 +216,5 @@
                 (.glVertex3d gl x1 y0 0)
                 (.glEnd gl)
                 (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-                  (shader/set-uniform shader gl "texture_sampler" 0)
+                  (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* n 6)))))))))))

@@ -181,6 +181,13 @@ namespace dmSys
     Result Rmdir(const char* path);
 
     /**
+     * Check if path exists and is a directory
+     * @param path path to directory
+     * @return RESULT_OK on success
+     */
+    Result IsDir(const char* path);
+
+    /**
      * Remove directory tree structure and files within
      * @param path path to directory to remove
      * @return RESULT_OK on success

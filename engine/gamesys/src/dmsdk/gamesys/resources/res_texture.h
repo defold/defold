@@ -15,6 +15,14 @@
 #ifndef DMSDK_GAMESYS_RES_TEXTURE_H
 #define DMSDK_GAMESYS_RES_TEXTURE_H
 
-// Resource is an instance of mGraphics::HTexture
+#include <dmsdk/graphics/graphics.h>
+
+namespace dmGameSystem
+{
+    struct TextureResource
+    {
+        dmGraphics::HTexture m_Texture;
+    };
+}
 
 #endif

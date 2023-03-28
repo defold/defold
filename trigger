@@ -1,2 +1,1 @@
-trigger build
-trigger
+trigger beta

@@ -26,6 +26,15 @@ import com.google.protobuf.TextFormat;
 public class ProtoUtil {
 
     public static void merge(IResource input, Builder builder) throws IOException, CompileExceptionError {
+        byte[] content = input.getContent();
+        if (content == null) {
+            if (!input.exists()) {
+                throw new CompileExceptionError(input, 0, "Resource does not exist");
+            }
+            else {
+                throw new CompileExceptionError(input, 0, "Resource is empty");
+            }
+        }
         try {
             TextFormat.merge(new String(input.getContent()), builder);
         } catch (TextFormat.ParseException e) {
