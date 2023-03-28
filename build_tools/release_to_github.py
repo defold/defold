@@ -61,27 +61,20 @@ def get_defold_version_from_file():
         return None
     return out.strip()
 
-def release(config, tag_name, release_sha, s3_release, editor_only=False, engine_channel=None, editor_channel=None):
+def release(config, tag_name, release_sha, s3_release, release_name=None, body=None, prerelease=True, editor_only=False):
     log("Releasing Defold %s to GitHub" % tag_name)
     if config.github_token is None:
         log("No GitHub authorization token")
         return
 
-    channel = config.channel or engine_channel or editor_channel
+    channel = config.channel
     if channel is None:
         log("No release channel specified")
         return
 
     log("tag name: %s" % tag_name)
     log("release sha1: %s" % release_sha)
-
-    if engine_channel or editor_channel:
-        if engine_channel:
-            log("engine_channel: %s" % engine_channel)
-        if editor_channel:
-            log("editor_channel: %s" % editor_channel)
-    else:
-        log("channel: %s" % channel)
+    log("channel: %s" % channel)
 
     source_repo = os.environ.get('GITHUB_REPOSITORY', "defold/defold")
     source_repo = "/repos/%s" % source_repo
@@ -97,12 +90,10 @@ def release(config, tag_name, release_sha, s3_release, editor_only=False, engine
 
     log("target repo: %s" % target_repo)
 
-    release_name = 'v%s - %s' % (config.version, channel)
-    draft = False # If true, it won't create a tag
+    if not release_name:
+        release_name = 'v%s - %s' % (config.version, channel)
 
-    pre_release = True # If true, it will be marked as "Pre-release" in the UI
-    if channel in ('stable','beta') or engine_channel in ('stable','beta') or editor_channel in ('editor-alpha',):
-        pre_release = False
+    draft = False # If true, it won't create a tag
 
     if not s3_release.get("files"):
         log("No files found on S3 with sha %s" % release_sha)
@@ -113,17 +104,15 @@ def release(config, tag_name, release_sha, s3_release, editor_only=False, engine
     if response:
         release = response
 
-    body = "Defold version %s<br>channel=%s<br>sha1=%s<br>date=%s" % (config.version, channel, release_sha, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-
-    if engine_channel or editor_channel:
-        body = "Defold version %s<br>engine_channel=%s<br>editor_channel=%s<br>sha1=%s<br>date=%s" % (config.version, engine_channel, editor_channel, release_sha, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    if not body:
+        body = "Defold version %s\nchannel=%s\nsha1=%s\ndate=%s" % (config.version, channel, release_sha, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     data = {
         "tag_name": tag_name,
         "name": release_name,
         "body": body,
         "draft": draft,
-        "prerelease": pre_release
+        "prerelease": prerelease
     }
 
     if not release:
@@ -140,10 +129,10 @@ def release(config, tag_name, release_sha, s3_release, editor_only=False, engine
         exit(1)
 
     # remove existing uploaded assets (It's not currently possible to update a release asset
-    log("Deleting existing artifacts from the release")
     prev_assets = {}
     for asset in release.get("assets", []):
         prev_assets[asset.get("name")] = asset
+        log("Found old asset: %s %s" % (asset.get("name"), asset.get("id")))
 
     # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
     # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}

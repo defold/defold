@@ -27,6 +27,7 @@ import sdk
 import release_to_github
 import BuildUtility
 import http_cache
+from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
 from threading import Thread, Event
@@ -1577,6 +1578,41 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
+    def _get_tag_pattern_from_tag_name(channel, tag_name):
+        # NOTE: Each of the main branches has a channel (stable, beta and alpha)
+        #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
+        channel_pattern = ''
+        if channel != 'stable':
+            channel_pattern = '-' + channel
+        platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
+        if platform_pattern:
+            platform_pattern = '-' + platform_pattern
+
+        # Example tags:
+        #   1.2.184, 1.2.184-alpha, 1.2.184-beta
+        #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
+        return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
+
+    def _get_github_release_body(self):
+        engine_channel = None
+        editor_channel = None
+        engine_sha1 = None
+        editor_sha1 = None
+        if self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            editor_sha1 = self._git_sha1()
+
+        engine_sha1 = self._git_sha1(self.version) # engine version
+        if not editor_sha1:
+            editor_sha1 = engine_sha1
+
+        body  = "Defold version %s\n" % self.version
+        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
+        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return body
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -1612,20 +1648,7 @@ class Configuration(object):
             is_editor_branch = True
 
         if tag_name is not None and not is_editor_branch:
-            # NOTE: Each of the main branches has a channel (stable, beta and alpha)
-            #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
-            channel_pattern = ''
-            if self.channel != 'stable':
-                channel_pattern = '-' + self.channel
-            platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
-            if platform_pattern:
-                platform_pattern = '-' + platform_pattern
-
-            # Example tags:
-            #   1.2.184, 1.2.184-alpha, 1.2.184-beta
-            #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
-            pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
-
+            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
@@ -1651,17 +1674,44 @@ class Configuration(object):
         # Release to github as well
         if tag_name:
             # only allowed anyways with a github token
-            release_to_github.release(self, tag_name, release_sha1, releases[0], editor_only=is_editor_branch, engine_channel=engine_channel, editor_channel=editor_channel)
+            body = self._get_github_release_body()
+            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, editor_only=is_editor_branch)
+
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
+    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    def release_to_github(self):
+        engine_channel = None
+        release_sha1 = None
+        is_editor_branch = False
+        prerelease = True
+        if self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            is_editor_branch = True
+            prerelease = False
+            release_sha1 = self._git_sha1()
+        else:
+            release_sha1 = self._git_sha1(self.version) # engine version
+            if self.channel in ('stable', 'beta'):
+                prerelease = False
+
+        tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
+
+        if tag_name is not None and not is_editor_branch:
+            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
+        else:
+            # e.g. editor-dev releases
+            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+
+        body = self._get_github_release_body()
+        release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
 #
 # END: RELEASE
 # ------------------------------------------------------------
-
-    def release_to_github(self):
-        tag_name = self.compose_tag_name(self.version, self.channel)
-        release_sha1 = self._git_sha1(self.version)
-        releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
-        release_to_github.release(self, tag_name, release_sha1, releases[0])
 
     def sync_archive(self):
         u = urlparse(self.get_archive_path())
