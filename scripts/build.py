@@ -1598,12 +1598,20 @@ class Configuration(object):
         editor_channel = None
         engine_sha1 = None
         editor_sha1 = None
-        if self.channel in ('editor-alpha',):
+        if self.channel in ('stable','beta'):
+            engine_sha1 = self._git_sha1(self.version) # engine version
+
+        elif self.channel in ('editor-alpha',):
             engine_channel = 'stable'
             editor_channel = self.channel
             editor_sha1 = self._git_sha1()
+            engine_sha1 = self._git_sha1(self.version) # engine version
 
-        engine_sha1 = self._git_sha1(self.version) # engine version
+        else:
+            engine_sha1 = self._git_sha1()
+            engine_channel = self.channel
+            editor_channel = self.channel
+
         if not editor_sha1:
             editor_sha1 = engine_sha1
 
