@@ -1578,7 +1578,7 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
-    def _get_tag_pattern_from_tag_name(channel, tag_name):
+    def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
         #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
         channel_pattern = ''
@@ -1651,7 +1651,7 @@ class Configuration(object):
             is_editor_branch = True
 
         if tag_name is not None and not is_editor_branch:
-            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
@@ -1701,7 +1701,7 @@ class Configuration(object):
         tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
 
         if tag_name is not None and not is_editor_branch:
-            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
