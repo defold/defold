@@ -163,8 +163,6 @@ namespace dmDDF
                     assert(field_index < DDF_MAX_FIELDS);
                     read_fields[field_index] = 1;
 
-                    // do something here.. 
-
                     Result e;
                     e = message->ReadField(load_context, (WireType) type, field, input_buffer);
                     if (e != RESULT_OK)

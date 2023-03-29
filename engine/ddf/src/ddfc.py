@@ -330,7 +330,6 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         if '"' in default:
             pp_cpp.p('char DM_ALIGNED(4) %s_%s_%s_DEFAULT_VALUE[] = %s;', namespace, message_type.name, f.name, default)
 
-    oneof_descs = {}
     oneof_scope = None
     lst = []
     for f in message_type.field:

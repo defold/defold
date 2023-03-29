@@ -793,7 +793,33 @@ TEST(OneOfTests, LoadSimple)
     ASSERT_EQ(1337, message->m_OneOfFieldOne.m_IntVal);
     ASSERT_EQ(99,   message->m_NotInOneof);
     ASSERT_EQ(10,   message->m_NestedVal.m_NestedFieldName.m_NestedIntVal);
+    ASSERT_EQ(13,   message->m_NestedVal.m_NestedButNotInOneof);
     ASSERT_STREQ(simple_string_valid.c_str(), message->m_OneOfFieldTwo.m_SimpleStringTwo);
+
+    dmDDF::FreeMessage(message);
+}
+
+TEST(OneOfTests, Repeated)
+{
+    TestDDF::OneOfMessageRepeat oneof_message_desc;
+
+    TestDDF::OneOfMessageRepeat::Nested* nested_one_valid = oneof_message_desc.add_nested_one_of();
+    nested_one_valid->set_val_b(true);
+
+    TestDDF::OneOfMessageRepeat::Nested* nested_two_valid = oneof_message_desc.add_nested_one_of();
+    nested_two_valid->set_val_a(256);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageRepeat* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(2,    message->m_NestedOneOf.m_Count);
+    ASSERT_EQ(true, message->m_NestedOneOf[0].m_Values.m_ValB);
+    ASSERT_EQ(256,  message->m_NestedOneOf[1].m_Values.m_ValA);
 
     dmDDF::FreeMessage(message);
 }
