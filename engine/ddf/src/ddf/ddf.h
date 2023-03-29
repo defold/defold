@@ -22,6 +22,7 @@
 
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
 #define DDF_MAX_FIELDS (128)
+#define DDF_NO_ONE_OF_INDEX 0xFF
 
 namespace dmDDF
 {
@@ -51,6 +52,7 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
+        uint8_t     m_OneOfIndex;
     };
 
     struct Descriptor

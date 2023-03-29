@@ -163,6 +163,8 @@ namespace dmDDF
                     assert(field_index < DDF_MAX_FIELDS);
                     read_fields[field_index] = 1;
 
+                    // do something here.. 
+
                     Result e;
                     e = message->ReadField(load_context, (WireType) type, field, input_buffer);
                     if (e != RESULT_OK)
@@ -181,7 +183,11 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* f = &desc->m_Fields[i];
-            if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
+            if (f->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+            {
+                continue;
+            }
+            else if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
             {
                 // Required but not read
                 dmLogWarning("Missing required field %s.%s", desc->m_Name, f->m_Name);

@@ -764,6 +764,40 @@ TEST(AlignmentTests, AlignField)
     dmMemory::AlignedFree(dummy);
 }
 
+TEST(OneOfTests, LoadSimple)
+{
+    TestDDF::OneOfMessage oneof_message_desc;
+
+    oneof_message_desc.set_not_in_oneof(99);
+
+    // the second call will overwrite the enum value for the one_of_field_one oneof
+    oneof_message_desc.set_enum_val(::TestDDF::TEST_ENUM_VAL2);
+    oneof_message_desc.set_int_val(1337);
+
+    // Set a nested oneof
+    TestDDF::OneOfMessage::Nested nested;
+    nested.set_nested_int_val(10);
+    *oneof_message_desc.mutable_nested_val() = nested;
+
+    // Set a string
+    std::string simple_string_valid = "set_simple_string_two_test_string";
+    oneof_message_desc.set_simple_string_two(simple_string_valid);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessage* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessage_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(1337, message->m_OneOfFieldOne.m_IntVal);
+    ASSERT_EQ(99,   message->m_NotInOneof);
+    ASSERT_EQ(10,   message->m_NestedVal.m_NestedFieldName.m_NestedIntVal);
+    ASSERT_STREQ(simple_string_valid.c_str(), message->m_OneOfFieldTwo.m_SimpleStringTwo);
+
+    dmDDF::FreeMessage(message);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
