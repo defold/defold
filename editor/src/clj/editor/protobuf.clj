@@ -293,8 +293,8 @@ Macros currently mean no foreseeable performance gain, however."
                      (resource-field? field-info)
                      (if (= :repeated (:field-rule field-info))
                        [ [[key]] ]
-                       (if-some [default-value (default class key nil)]
-                         [ [{key default-value}] ]
+                       (if-some [field-default (default class key nil)]
+                         [ [{key field-default}] ]
                          [ [key] ]))
 
                      (message-field? field-info)
@@ -441,36 +441,25 @@ Macros currently mean no foreseeable performance gain, however."
   (let [pb->clj-without-defaults (pb->clj-without-defaults-fn (.getClass pb))]
     (pb->clj-without-defaults (clear-defaults-from-message pb))))
 
-(defn- default-map-raw [^Class cls]
+(defn- default-value-raw [^Class cls]
   (-> cls
       (default-instance)
       (pb->map-with-defaults)))
 
-(def default-map (memoize default-map-raw))
+(def default-value (memoize default-value-raw))
 
 (defn default
   ([^Class cls field]
-   (let [default-value (get (default-map cls) field ::not-found)]
-     (if (not= ::not-found default-value)
-       default-value
+   (let [field-default (get (default-value cls) field ::not-found)]
+     (if (not= ::not-found field-default)
+       field-default
        (throw (ex-info (format "Field '%s' does not have a default in protobuf class '%s'."
                                field
                                (.getName cls))
                        {:pb-class cls
                         :field field})))))
   ([^Class cls field not-found]
-   (get (default-map cls) field not-found)))
-
-(def ^:private math-type-keys
-  {"Point3" [:x :y :z]
-   "Scale3" [:x :y :z]
-   "Vector3" [:x :y :z]
-   "Vector4" [:x :y :z :w]
-   "Quat" [:x :y :z :w]
-   "Matrix4" [:m00 :m01 :m02 :m03
-              :m10 :m11 :m12 :m13
-              :m20 :m21 :m22 :m23
-              :m30 :m31 :m32 :m33]})
+   (get (default-value cls) field not-found)))
 
 (defn- desc->proto-cls ^Class [desc]
   (let [cls-name (if-let [containing (containing-type desc)]
@@ -507,7 +496,7 @@ Macros currently mean no foreseeable performance gain, however."
                                                              (fn [v] (Enum/valueOf enum-cls (keyword->enum-name v))))
       :else nil)))
 
-(def ^:private pb-builder)
+(declare ^:private pb-builder ^:private vector-to-map-conversions)
 
 (defn- pb-builder-raw [^Class class]
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method class "getDescriptor")
@@ -548,10 +537,9 @@ Macros currently mean no foreseeable performance gain, however."
                                :let [setter! (get setters k)]
                                :when setter!]
                          (setter! b v))
-                       (.build b)))
-        pb-desc-name (desc-name desc)]
-    (if (and (.startsWith (full-name desc) "dmMath") (contains? math-type-keys pb-desc-name))
-      (comp builder-fn (partial zipmap (get math-type-keys pb-desc-name)))
+                       (.build b)))]
+    (if-some [vector->map (vector-to-map-conversions class)]
+      (comp builder-fn vector->map)
       builder-fn)))
 
 (def ^:private pb-builder (memoize pb-builder-raw))
@@ -770,8 +758,35 @@ Macros currently mean no foreseeable performance gain, however."
   ;; discussion around perhaps omitting default values from the project data.
   (= [0.0 0.0 0.0] value))
 
+(def ^:private vector-to-map-conversions
+  ;; TODO(save-value): Introduce Vector4One for identity scale and white color default.
+  (->> {DdfMath$Point3 [:x :y :z]
+        DdfMath$Vector3 [:x :y :z]
+        DdfMath$Vector4 [:x :y :z :w]
+        DdfMath$Quat [:x :y :z :w]
+        DdfMath$Matrix4 [:m00 :m01 :m02 :m03
+                         :m10 :m11 :m12 :m13
+                         :m20 :m21 :m22 :m23
+                         :m30 :m31 :m32 :m33]}
+       (into {}
+             (map (fn [[^Class cls component-keys]]
+                    (let [default-values (default-value cls)]
+                      (pair cls
+                            (fn vector->map [component-values]
+                              (->> component-keys
+                                   (reduce-kv
+                                     (fn [result index key]
+                                       (let [value (component-values index)]
+                                         ;; TODO(save-value): Strip out components with default values once we have Vector4One.
+                                         (assoc! result key value)
+                                         #_(if (= (default-values index) value)
+                                             result
+                                             (assoc! result key value))))
+                                     (transient {}))
+                                   (persistent!))))))))))
+
 (defn make-map-with-defaults [^Class cls & kvs]
-  (into (default-map cls)
+  (into (default-value cls)
         (comp (partition-all 2)
               (keep (fn [[key value]]
                       (cond
@@ -788,7 +803,7 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn make-map-without-defaults [^Class cls & kvs]
   (let [key->field-info (field-infos cls)
-        key->default (default-map cls)]
+        key->default (default-value cls)]
     (into {}
           (comp (partition-all 2)
                 (keep (fn [[key value]]

@@ -989,11 +989,6 @@
 
 ;; Box nodes
 
-(defn- strip-unwanted-box-node-fields [node-desc]
-  ;; TODO(save-value): Remove.
-  #_(select-keys node-desc (node-type->node-desc-fields BoxNode))
-  node-desc)
-
 (g/defnk produce-box-node-msg [shape-base-node-msg slice9]
   (merge shape-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
@@ -1032,11 +1027,6 @@
 
 (defn- validate-perimeter-vertices [node-id perimeter-vertices]
   (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
-
-(defn- strip-unwanted-pie-node-fields [node-desc]
-  ;; TODO(save-value): Remove.
-  #_(select-keys node-desc (node-type->node-desc-fields PieNode))
-  node-desc)
 
 (g/defnk produce-pie-node-msg [shape-base-node-msg outer-bounds inner-radius perimeter-vertices pie-fill-angle]
   (merge shape-base-node-msg
@@ -1127,11 +1117,6 @@
 ;; Text nodes
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
-
-(defn- strip-unwanted-text-node-fields [node-desc]
-  ;; TODO(save-value): Remove.
-  #_(select-keys node-desc (node-type->node-desc-fields TextNode))
-  node-desc)
 
 (g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
   (merge visual-base-node-msg
@@ -1278,11 +1263,6 @@
 (defn- andf [a b]
   (and a b))
 
-(defn- strip-unwanted-template-node-fields [node-desc]
-  ;; TODO(save-value): Remove.
-  #_(select-keys node-desc (node-type->node-desc-fields TemplateNode))
-  node-desc)
-
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
   (merge gui-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
@@ -1395,19 +1375,22 @@
                                                              (empty? (:parent %)) (assoc :parent id))
                                                           (:nodes scene-pb-msg)))))
   (output node-rt-msgs g/Any :cached (g/fnk [node-msg scene-rt-pb-msg]
-                                       (let [parent-q (math/euler->quat (:rotation node-msg))]
+                                       ;; TODO(save-value): Use (pose/pre-multiply) here after we've merged in the latest changes.
+                                       ;; TODO(save-value): Do this merge properly after we've merged in the latest changes.
+                                       (let [parent-q (or (some-> node-msg :rotation math/euler->quat)
+                                                          (Quat4d. 0.0 0.0 0.0 1.0))]
                                          (into [] (map #(cond-> (assoc % :child-index (:child-index node-msg))
-                                                          (empty? (:layer %)) (assoc :layer (:layer node-msg))
+                                                          (empty? (:layer %)) (assoc :layer (:layer node-msg ""))
                                                           (:inherit-alpha %) (->
-                                                                               (update :alpha * (:alpha node-msg))
-                                                                               (assoc :inherit-alpha (:inherit-alpha node-msg)))
+                                                                               (update :alpha (fnil * 1.0) (:alpha node-msg 1.0))
+                                                                               (assoc :inherit-alpha (:inherit-alpha node-msg false)))
                                                           (empty? (:parent %)) (->
-                                                                                 (assoc :parent (:parent node-msg))
-                                                                                 (update :enabled andf (:enabled node-msg))
+                                                                                 (assoc :parent (:parent node-msg ""))
+                                                                                 (update :enabled andf (:enabled node-msg true))
                                                                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
-                                                                                 (update :scale (partial mapv * (:scale node-msg)))
-                                                                                 (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
-                                                                                 (update :rotation trans-rotation parent-q)))
+                                                                                 (update :scale (partial mapv * (:scale node-msg [1.0 1.0 1.0 0.0])))
+                                                                                 (update :position (fnil trans-position [0.0 0.0 0.0 0.0]) (:position node-msg [0.0 0.0 0.0 0.0]) parent-q (:scale node-msg [1.0 1.0 1.0 0.0]))
+                                                                                 (update :rotation (fnil trans-rotation [0.0 0.0 0.0 1.0]) parent-q)))
                                                        (:nodes scene-rt-pb-msg))))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
                                               (-> {id _overridden-properties}
@@ -1447,16 +1430,11 @@
     (contains? scene :renderable)
     (assoc-in [:renderable :topmost?] true)))
 
-(defn- strip-unwanted-particlefx-node-fields [node-desc]
-  ;; TODO(save-value): Remove.
-  #_(select-keys node-desc (node-type->node-desc-fields ParticleFXNode))
-  node-desc)
-
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
   (-> visual-base-node-msg
-      (strip-unwanted-particlefx-node-fields)
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
                :particlefx particlefx
+               :size [1.0 1.0 0.0 0.0] ; TODO(save-value): Can we remove this now?
                :size-mode :size-mode-auto))))
 
 (g/defnode ParticleFXNode
@@ -1784,11 +1762,6 @@
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
                                                  (prop-resource-error _node-id :particlefx particlefx "Particle FX")))))
-
-(def ^:private non-overridable-fields #{:template :id :parent})
-
-(defn- extract-overrides [node-desc]
-  (select-keys node-desc (remove non-overridable-fields (map field-index->prop-key (:overridden-fields node-desc)))))
 
 (defn- layout-pb-msg [name node-msgs]
   (let [node-msgs (filterv (comp not-empty :overridden-fields) node-msgs)]
@@ -2659,6 +2632,23 @@
 (defn- get-registered-gui-scene-loaders []
   @custom-gui-scene-loaders)
 
+(def ^:private non-overridable-properties #{:template :id :parent})
+
+(def ^:private node-property-defaults
+  (node-desc->node-properties (protobuf/default-value Gui$NodeDesc)))
+
+(defn- extract-overrides [node-properties]
+  (into {}
+        (comp (map field-index->prop-key)
+              (remove non-overridable-properties)
+              (map (fn [prop-key]
+                     (let [prop-value (node-properties prop-key ::not-found)]
+                       (pair prop-key
+                             (if (= ::not-found prop-value)
+                               (node-property-defaults prop-key)
+                               prop-value))))))
+        (:overridden-fields node-properties)))
+
 (defn load-gui-scene [project self resource scene]
   (let [graph-id           (g/node-id->graph-id self)
         node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
@@ -2900,27 +2890,13 @@
 (defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)
 
-    :type-box
+    (:type-box :type-pie)
     (-> node-desc
-        (strip-unwanted-box-node-fields)
         (fixup-shape-base-node-size-fields))
-
-    :type-particlefx
-    (-> node-desc
-        (strip-unwanted-particlefx-node-fields))
-
-    :type-pie
-    (-> node-desc
-        (strip-unwanted-pie-node-fields)
-        (fixup-shape-base-node-size-fields))
-
-    :type-template
-    (-> node-desc
-        (strip-unwanted-template-node-fields))
 
     :type-text
     (-> node-desc
-        (strip-unwanted-text-node-fields)
+        (dissoc :size-mode)
         (sanitize-node-color :outline :outline-alpha)
         (sanitize-node-color :shadow :shadow-alpha))
 
