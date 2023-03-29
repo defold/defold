@@ -1297,6 +1297,45 @@ union SaveLoadBuffer
         return 1;
     }
 
+    //undocummented function for debugger
+
+    static int m_DebuggerLightweightHook;
+    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
+    {
+        int top = lua_gettop(L);
+        lua_getinfo(L, "S", ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, m_DebuggerLightweightHook);
+        // 1:fn
+        lua_pushstring(L, ar->source);
+        // 2: str
+        lua_pushnumber(L, ar->lastlinedefined);
+        // 3: num
+        if (lua_pushthread(L))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L); //main thread is not a coroutine
+        }
+        // 4: co or nil
+        lua_call(L, 3, 0);
+        assert(top == lua_gettop(L));
+    }
+
+    static int Sys_SetDebuggerLightweightHook(lua_State* L)
+    {
+        int index = 1;
+        lua_State* L1 = L;
+        if (lua_isthread(L, 1)) {
+            L1 = lua_tothread(L, 1);
+            index++;
+        }
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        m_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        
+        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
+        return 0;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -1322,6 +1361,9 @@ union SaveLoadBuffer
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {"serialize", Sys_Serialize},
         {"deserialize", Sys_Deserialize},
+
+        // undocummented functions for debugger
+        {"set_debugger_lightweight_hook", Sys_SetDebuggerLightweightHook},
         {0, 0}
     };
 
