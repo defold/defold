@@ -147,7 +147,6 @@ namespace dmHID
     {
         int id                = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
         int glfw_joystick     = GLFW_JOYSTICKS[id];
-        bool prev_connected   = gamepad->m_Connected;
         GamepadPacket& packet = gamepad->m_Packet;
 
         gamepad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
@@ -211,7 +210,10 @@ namespace dmHID
 
     static void GLFWGamepadDriverDestroy(HContext context, GamepadDriver* driver)
     {
-        delete driver;
+        GLFWGamepadDriver* glfw_driver = (GLFWGamepadDriver*) driver;
+        assert(g_GLFWGamepadDriver == glfw_driver);
+        delete glfw_driver;
+        g_GLFWGamepadDriver = 0;
     }
 
     GamepadDriver* CreateGamepadDriverGLFW(HContext context)

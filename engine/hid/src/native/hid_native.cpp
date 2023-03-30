@@ -52,6 +52,16 @@ namespace dmHID
         SetMarkedText(g_HidContext, text);
     }
 
+    static void GLFWDeviceChangedCallback(int status)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+
+        for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+        {
+            user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
+        }
+    }
+
     static uint8_t DriverToHandle(NativeContextUserData* user_data, GamepadDriver* driver)
     {
         for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
@@ -125,11 +135,15 @@ namespace dmHID
         {
             if (context->m_GamepadConnectivityCallback)
             {
-                // The callback isn't ready to consume the event yet, we will have to try later
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
+                    char buffer[128];
+                    GetGamepadDeviceName(context, gamepad, buffer, (uint32_t)sizeof(buffer));
+                    dmLogWarning("The connection for '%s' was ignored by the callback function!", buffer);
                     return;
                 }
+            } else {
+                dmLogWarning("There was no callback function set to handle the gamepad connection!");
             }
 
             SetGamepadConnectivity(context, gamepad_index, connection_status);
@@ -159,7 +173,6 @@ namespace dmHID
     // Called from gamepad drivers
     void ReleaseGamepad(HContext context, Gamepad* gamepad)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
         uint8_t gamepad_index = GamepadToIndex(context, gamepad);
         assert(context->m_Gamepads[gamepad_index].m_Driver != DRIVER_HANDLE_FREE);
         context->m_Gamepads[gamepad_index].m_Driver = DRIVER_HANDLE_FREE;
@@ -169,18 +182,22 @@ namespace dmHID
     {
         if (context != 0x0)
         {
-            assert(g_HidContext == 0);
-
             if (glfwInit() == GL_FALSE)
             {
                 dmLogFatal("glfw could not be initialized.");
                 return false;
             }
-            if (glfwSetCharCallback(GLFWCharacterCallback) == 0) {
+            if (glfwSetCharCallback(GLFWCharacterCallback) == 0)
+            {
                 dmLogFatal("could not set glfw char callback.");
             }
-            if (glfwSetMarkedTextCallback(GLFWMarkedTextCallback) == 0) {
+            if (glfwSetMarkedTextCallback(GLFWMarkedTextCallback) == 0)
+            {
                 dmLogFatal("could not set glfw marked text callback.");
+            }
+            if (glfwSetDeviceChangedCallback(GLFWDeviceChangedCallback) == 0)
+            {
+                dmLogFatal("coult not set glfw gamepad connection callback.");
             }
 
             assert(context->m_NativeContextUserData == 0);
@@ -204,6 +221,7 @@ namespace dmHID
         }
 
         delete user_data;
+        g_HidContext->m_NativeContextUserData = 0;
     }
 
     void Update(HContext context)
@@ -268,11 +286,6 @@ namespace dmHID
         if (!context->m_IgnoreGamepads)
         {
             NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
-
-            for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
-            {
-                user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
-            }
 
             for (uint32_t t = 0; t < MAX_GAMEPAD_COUNT; ++t)
             {

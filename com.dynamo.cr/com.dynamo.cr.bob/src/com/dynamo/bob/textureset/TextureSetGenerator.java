@@ -232,18 +232,19 @@ public class TextureSetGenerator {
     }
 
     // From the vertices and layout, generate UV coordinates
-    private static SpriteGeometry.Builder createPolygonUVs(SpriteGeometry geometry, Rect rect, float width, float height, int extrudeBorders) {
+    private static SpriteGeometry.Builder createPolygonUVs(SpriteGeometry geometry, Rect rect, float width, float height) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
         geometryBuilder.mergeFrom(geometry);
 
-        int originalRectWidth = (rect.rotated ? rect.height : rect.width) - 2*extrudeBorders;
-        int originalRectHeight = (rect.rotated ? rect.width : rect.height) - 2*extrudeBorders;
+        int originalRectWidth = (rect.rotated ? rect.height : rect.width);
+        int originalRectHeight = (rect.rotated ? rect.width : rect.height);
         float centerX = (float)rect.x + rect.width/2.0f;
         float centerY = (float)rect.y + rect.height/2.0f;
 
         // if (debug) {
-             // System.out.println(String.format("createPolygonUVs  - %s", rect.id));
-             // System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d  numPoints: %d", centerX, centerY, originalRectWidth, originalRectHeight, geometry.getVerticesCount() / 2));
+        //     System.out.println(String.format("createPolygonUVs  - %s", rect.id));
+        //     System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d  numPoints: %d", centerX, centerY, originalRectWidth, originalRectHeight, geometry.getVerticesCount() / 2));
+        //     System.out.println(String.format("  %d %d", rect.width, rect.height));
         // }
 
         int numPoints = geometry.getVerticesCount() / 2;
@@ -347,6 +348,7 @@ public class TextureSetGenerator {
 
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         layoutRects = clipBorders(layoutRects, extrudeBorders);
+
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
 
         vertexData.left.setUseGeometries(use_geometries);
@@ -354,7 +356,7 @@ public class TextureSetGenerator {
         if (imageHulls != null) {
             for (Rect rect : layoutRects) {
                 SpriteGeometry geometry = imageHulls.get(rect.index);
-                vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layoutWidth, layoutHeight, extrudeBorders));
+                vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layoutWidth, layoutHeight));
             }
         }
         return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layouts, innerPadding, extrudeBorders));

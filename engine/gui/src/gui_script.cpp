@@ -255,6 +255,16 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* i = (Scene*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_DataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -269,6 +279,7 @@ namespace dmGui
         {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    GuiScriptGetInstanceDataTableRef},
         {0, 0}
     };
 

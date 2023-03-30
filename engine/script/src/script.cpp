@@ -65,6 +65,7 @@ namespace dmScript
     const char META_TABLE_GET_USER_DATA[]            = "__get_user_data";
     const char META_TABLE_IS_VALID[]                 = "__is_valid";
     const char META_GET_INSTANCE_CONTEXT_TABLE_REF[] = "__get_instance_context_table_ref";
+    const char META_GET_INSTANCE_DATA_TABLE_REF[]    = "__get_instance_data_table_ref";
 
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);

@@ -1588,6 +1588,9 @@ run:
                 logInfo("%2d: Downloading %s", i, url);
                 TimeProfiler.addData("url", url.toString());
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                // GitLab will respond with a 406 Not Acceptable if the request
+                // is made without an Accept header
+                connection.setRequestProperty("Accept", "application/zip");
 
                 String etag = null;
                 if (f != null) {

@@ -45,6 +45,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -116,7 +117,7 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
         properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
 
-        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
+        String scaleMode = StringUtil.toUpperCase(projectProperties.getStringValue("html5", "scale_mode", "downscale_fit"));
         properties.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
 
         /// Legacy properties for backwards compatibility

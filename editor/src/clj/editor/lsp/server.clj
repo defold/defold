@@ -79,6 +79,35 @@
           (.redirectError ProcessBuilder$Redirect/INHERIT)
           (.directory directory))))))
 
+(defprotocol Message
+  (->jsonrpc [input project on-response]))
+
+(extend-protocol Message
+  Object
+  (->jsonrpc [input _ _] input)
+  nil
+  (->jsonrpc [input _ _] input))
+
+(deftype RawRequest [notification result-converter]
+  Message
+  (->jsonrpc [this _ _]
+    (throw (ex-info "Can't send raw request: use finalize-request first" {:request this}))))
+
+(defn finalize-request [^RawRequest raw-request id]
+  (reify Message
+    (->jsonrpc [_ project on-response]
+      (let [ch (a/chan 1)
+            result-converter (.-result-converter raw-request)
+            request (lsp.jsonrpc/notification->request (.-notification raw-request) ch)]
+        (a/take! ch (fn [response]
+                      (on-response
+                        id
+                        (cond-> response (not (:error response)) (update :result result-converter project)))))
+        request))))
+
+(defn- raw-request [notification result-converter]
+  (->RawRequest notification result-converter))
+
 (defn- make-uri-string [abs-path]
   (let [path (if (util/is-win32?)
                (str "/" (string/replace abs-path "\\" "/"))
@@ -91,11 +120,10 @@
 (defn- root-uri [workspace evaluation-context]
   (make-uri-string (g/node-value workspace :root evaluation-context)))
 
-(defn- maybe-resource [project uri]
-  (lsp.async/with-auto-evaluation-context evaluation-context
-    (let [workspace (g/node-value project :workspace evaluation-context)]
-      (when-let [proj-path (workspace/as-proj-path workspace (.getPath (URI. uri)) evaluation-context)]
-        (workspace/find-resource workspace proj-path evaluation-context)))))
+(defn- maybe-resource [project uri evaluation-context]
+  (let [workspace (g/node-value project :workspace evaluation-context)]
+    (when-let [proj-path (workspace/as-proj-path workspace (.getPath (URI. uri)) evaluation-context)]
+      (workspace/find-resource workspace proj-path evaluation-context))))
 
 ;; diagnostics
 (s/def ::severity #{:error :warning :information :hint})
@@ -103,13 +131,19 @@
 (s/def ::cursor #(instance? Cursor %))
 (s/def ::cursor-range #(instance? CursorRange %))
 (s/def ::diagnostic (s/and ::cursor-range (s/keys :req-un [::severity ::message])))
-(s/def ::diagnostics (s/coll-of ::diagnostic))
+(s/def ::result-id string?)
+(s/def ::version int?)
+(s/def ::items (s/coll-of ::diagnostic))
+(s/def ::diagnostics-result (s/keys :req-un [::items]
+                                    :opt-un [::result-id
+                                             ::version]))
 
 ;; capabilities
 (s/def ::open-close boolean?)
 (s/def ::change #{:none :full :incremental})
 (s/def ::text-document-sync (s/keys :req-un [::open-close ::change]))
-(s/def ::capabilities (s/keys :req-un [::text-document-sync]))
+(s/def ::pull-diagnostics #{:none :text-document :workspace})
+(s/def ::capabilities (s/keys :req-un [::text-document-sync ::pull-diagnostics]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
   (data/->Cursor line character))
@@ -132,10 +166,20 @@
     :message message
     :severity ({1 :error 2 :warning 3 :information 4 :hint} severity :error)))
 
+(defn- lsp-diagnostic-result->editor-diagnostic-result
+  [{:keys [resultId version] :as lsp-diagnostics-result} diagnostics-key]
+  (cond-> {:items (mapv lsp-diagnostic->editor-diagnostic (get lsp-diagnostics-result diagnostics-key))}
+          resultId
+          (assoc :result-id resultId)
+          version
+          (assoc :version version)))
+
 (defn- diagnostics-handler [project out on-publish-diagnostics]
-  (fn [{:keys [uri diagnostics]}]
-    (when-let [resource (maybe-resource project uri)]
-      (a/put! out (on-publish-diagnostics resource (mapv lsp-diagnostic->editor-diagnostic diagnostics))))))
+  (fn [{:keys [uri] :as result}]
+    (lsp.async/with-auto-evaluation-context evaluation-context
+      (when-let [resource (maybe-resource project uri evaluation-context)]
+        (let [result (lsp-diagnostic-result->editor-diagnostic-result result :diagnostics)]
+          (a/put! out (on-publish-diagnostics resource result)))))))
 
 (def lsp-text-document-sync-kind-incremental 2)
 (def lsp-text-document-sync-kind-full 1)
@@ -147,7 +191,7 @@
     lsp-text-document-sync-kind-full :full
     lsp-text-document-sync-kind-incremental :incremental))
 
-(defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync]}]
+(defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync diagnosticProvider]}]
   {:text-document-sync (cond
                          (nil? textDocumentSync)
                          {:change :none :open-close false}
@@ -161,7 +205,11 @@
                           :change (lsp-text-document-sync-kind->editor-sync-kind (:change textDocumentSync 0))}
 
                          :else
-                         (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))})
+                         (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))
+   :pull-diagnostics (cond
+                       (nil? diagnosticProvider) :none
+                       (:workspaceDiagnostics diagnosticProvider) :workspace
+                       :else :text-document)})
 
 (defn- configuration-handler [project]
   (fn [{:keys [items]}]
@@ -183,6 +231,9 @@
                             (when (and textual? (not= "plaintext" language))
                               [(str "*." ext) language])))
                     resource-types))
+
+            "files.exclude"
+            ["/build" "/.internal"]
 
             nil))
         items))))
@@ -227,13 +278,16 @@
                                hierarchy about published diagnostics
     :on-initialized            a function of 1 arg, a server capabilities map,
                                produces a value for out channel
+    :on-response               a function of 2 args: request id and response,
+                               produces a value for out channel
 
   Returns a channel that will close when the LSP server closes.
 
   See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages"
   [project launcher in out & {:keys [on-publish-diagnostics
-                                     on-initialized]}]
+                                     on-initialized
+                                     on-response]}]
   (a/go
     (try
       (let [directory (lsp.async/with-auto-evaluation-context evaluation-context
@@ -253,7 +307,8 @@
                              "window/showMessageRequest" (constantly nil)
                              "window/workDoneProgress/create" (constantly nil)}
                             base-source
-                            base-sink)]
+                            base-sink)
+                  on-response #(a/put! out (on-response %1 %2))]
               (a/alt!
                 (a/go
                   (try
@@ -262,7 +317,7 @@
                       (>! out (on-initialized (lsp-capabilities->editor-capabilities capabilities)))
                       (>! jsonrpc (lsp.jsonrpc/notification "initialized"))
                       ;; LSP lifecycle: serve requests
-                      (<! (lsp.async/pipe in jsonrpc false))
+                      (<! (lsp.async/pipe (a/map #(->jsonrpc % project on-response) [in]) jsonrpc false))
                       ;; LSP lifecycle: shutdown
                       (lsp.jsonrpc/unwrap-response (<! (lsp.jsonrpc/request! jsonrpc "shutdown" (* 10 1000))))
                       (>! jsonrpc (lsp.jsonrpc/notification "exit"))
@@ -288,6 +343,44 @@
                           :exception e))))))
       (finally
         (a/close! out)))))
+
+(defn- full-or-unchanged-diagnostic-result:lsp->editor [{:keys [kind] :as result}]
+  (case kind
+    "full" {:type :full
+            :result (lsp-diagnostic-result->editor-diagnostic-result result :items)}
+    "unchanged" {:type :unchanged
+                 :result-id (:resultId result)}))
+
+(defn pull-workspace-diagnostics [resource->previous-result-id result-converter]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "workspace/diagnostic"
+      {:previousResultIds (into []
+                                (map (fn [[resource previous-result-id]]
+                                       {:uri (resource-uri resource)
+                                        :value previous-result-id}))
+                                resource->previous-result-id)})
+    ;; bound-fn only needed for tests to pick up the test system
+    (bound-fn convert-result [{:keys [items]} project]
+      (result-converter
+        (lsp.async/with-auto-evaluation-context evaluation-context
+          (into {}
+                (keep
+                  (fn [{:keys [uri] :as item}]
+                    (when-let [resource (maybe-resource project uri evaluation-context)]
+                      [resource (full-or-unchanged-diagnostic-result:lsp->editor item)])))
+                items))))))
+
+(defn pull-document-diagnostics
+  [resource previous-result-id result-converter]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/diagnostic"
+      (cond-> {:textDocument {:uri (resource-uri resource)}}
+              previous-result-id
+              (assoc :previousResultId previous-result-id)))
+    (fn convert-result [result _]
+      (result-converter (full-or-unchanged-diagnostic-result:lsp->editor result)))))
 
 (defn open-text-document
   "See also:

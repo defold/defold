@@ -554,6 +554,16 @@ namespace dmRender
         return 1;
     }
 
+    static int RenderScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_RenderScriptDataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg RenderScriptInstance_methods[] =
     {
         {0,0}
@@ -568,6 +578,7 @@ namespace dmRender
         {dmScript::META_TABLE_RESOLVE_PATH,             RenderScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 RenderScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, RenderScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    RenderScriptGetInstanceDataTableRef},
         {0, 0}
     };
 
