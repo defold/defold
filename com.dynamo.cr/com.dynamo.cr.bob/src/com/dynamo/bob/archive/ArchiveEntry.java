@@ -23,6 +23,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_ENCRYPTED = 1 << 0;
     public static final int FLAG_COMPRESSED = 1 << 1;
     public static final int FLAG_LIVEUPDATE = 1 << 2;
+    public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
 
     private int size;
     private int compressedSize;
@@ -55,6 +56,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.size = (int) file.length();
         if(compress) {
             this.flags = this.flags | FLAG_COMPRESSED;
+            this.compressedSize = 0;
+        }
+        else {
+            this.compressedSize = FLAG_UNCOMPRESSED;
         }
 
         if (encrypt) {
