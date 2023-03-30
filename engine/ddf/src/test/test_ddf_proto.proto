@@ -294,6 +294,7 @@ message OneOfMessageRepeat
 {
     message Nested
     {
+        // Note: Default values are not supported for oneof blocks!
         oneof values
         {
             uint64 val_a = 1 [default = 2];

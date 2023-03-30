@@ -821,6 +821,7 @@ TEST(OneOfTests, Repeated)
     ASSERT_EQ(2,            message->m_NestedOneOf.m_Count);
     ASSERT_EQ(256,          message->m_NestedOneOf[0].m_Values.m_ValB);
     ASSERT_EQ(large_number, message->m_NestedOneOf[1].m_Values.m_ValA);
+    ASSERT_EQ(0,            message->m_NestedOneOfWithDefaults.m_Values.m_ValA);
 
     std::string save_str;
     e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, save_str);
