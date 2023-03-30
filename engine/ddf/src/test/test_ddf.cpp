@@ -875,6 +875,37 @@ TEST(OneOfTests, Save)
     dmDDF::FreeMessage(message);
 }
 
+TEST(OneOfTests, Nested)
+{
+    TestDDF::OneOfMessageNested oneof_message_desc;
+
+    TestDDF::OneOfMessageNested_SubTwo* sub_two = new TestDDF::OneOfMessageNested_SubTwo();
+    TestDDF::OneOfMessageNested_SubOne* sub_one_for_two = new TestDDF::OneOfMessageNested_SubOne;
+    sub_one_for_two->set_value_two(13.0f);
+    sub_one_for_two->set_non_one_of(1337);
+
+    sub_two->set_allocated_value_sub_one(sub_one_for_two);
+    oneof_message_desc.set_allocated_two(sub_two);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageNested* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageNested_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_NEAR(13.0f, message->m_Composite.m_Two.m_Values.m_ValueSubOne.m_Values.m_ValueTwo, 0.0001f);
+    ASSERT_EQ(1337, message->m_Composite.m_Two.m_Values.m_ValueSubOne.m_NonOneOf);
+
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageNested_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(msg_str, save_str);
+
+    dmDDF::FreeMessage(message);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
