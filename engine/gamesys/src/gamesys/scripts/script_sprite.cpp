@@ -47,8 +47,9 @@ namespace dmGameSystem
 
     /*# [type:vector3] sprite size
      *
-     * [mark:READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
-     * The type of the property is vector3.
+     * The size of the sprite, not allowing for any additional scaling that may be applied.
+     * The type of the property is vector3. It is not possible to set the size if the size mode
+     * of the sprite is set to auto.
      *
      * @name size
      * @property

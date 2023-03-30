@@ -39,26 +39,26 @@ namespace dmRender
 
     struct Sampler
     {
-        dmhash_t m_NameHash;
-        int32_t  m_Location : 24;
-        int32_t  m_Unit     : 8;
-
+        dmhash_t                  m_NameHash;
+        dmGraphics::TextureType   m_Type;
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
-        dmGraphics::TextureWrap m_UWrap;
-        dmGraphics::TextureWrap m_VWrap;
+        dmGraphics::TextureWrap   m_UWrap;
+        dmGraphics::TextureWrap   m_VWrap;
+        float                     m_MaxAnisotropy;
+        int32_t                   m_Location       : 24;
+        int32_t                   m_UnitValueCount : 8;
 
-        float m_MaxAnisotropy;
-
-        Sampler(int32_t unit)
+        Sampler()
             : m_NameHash(0)
-            , m_Location(-1)
-            , m_Unit(unit)
+            , m_Type(dmGraphics::TEXTURE_TYPE_2D)
             , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_MaxAnisotropy(1.0f)
+            , m_Location(-1)
+            , m_UnitValueCount(0)
         {
         }
     };
@@ -266,6 +266,9 @@ namespace dmRender
     uint32_t                        RegisterMaterialTagList(HRenderContext context, uint32_t tag_count, const dmhash_t* tags);
     // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
+
+    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

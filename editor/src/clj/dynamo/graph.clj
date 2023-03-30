@@ -160,8 +160,9 @@
          basis (is/basis system)
          id-generators (is/id-generators system)
          override-id-generator (is/override-id-generator system)
+         tx-data-context-map (or (:tx-data-context-map opts) {})
          metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator metrics-collector)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))
@@ -226,6 +227,7 @@
   (let [param        (gensym "m")
         [alias argv] (strip-alias (vec argv))
         kargv        (mapv keyword argv)
+        annotations  (into {} (map (juxt keyword meta)) argv)
         arglist      (interleave argv (map #(list `get param %) kargv))]
     (if alias
       `(with-meta
@@ -233,11 +235,13 @@
            (let [~alias (select-keys ~param ~kargv)
                  ~@(vec arglist)]
              ~@tail))
-         {:arguments (quote ~kargv)})
+         {:arguments (quote ~kargv)
+          :annotations (quote ~annotations)})
       `(with-meta
          (fn [~param]
            (let ~(vec arglist) ~@tail))
-         {:arguments (quote ~kargv)}))))
+         {:arguments (quote ~kargv)
+          :annotations (quote ~annotations)}))))
 
 (defmacro defnk
   [symb & body]
@@ -335,6 +339,12 @@
   Define an output to produce values of type. The ':cached' flag is
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
+
+  In the arglist, you can specify ^:try metadata on arguments to allow
+  the computation of the output even when some of its arguments are
+  errors. Note that adding ^:try metadata on an array input will never
+  supply an error value to the output fnk; instead, it will provide
+  an array where some items might be errors.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or

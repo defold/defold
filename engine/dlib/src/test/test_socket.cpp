@@ -20,7 +20,7 @@
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
-#include <arpa/inet.h>
+#include <arpa/inet.h> // inet_addr
 #endif
 
 #include <dlib/network_constants.h>

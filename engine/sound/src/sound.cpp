@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
@@ -207,7 +208,10 @@ namespace dmSound
         dmHashTable<dmhash_t, int> m_GroupMap;
         SoundGroup              m_Groups[MAX_GROUPS];
 
-        Result                  m_Status;
+        int32_atomic_t          m_IsRunning;
+        int32_atomic_t          m_IsPaused;
+        int32_atomic_t          m_Status; // type Result
+
         uint32_t                m_MixRate;
         uint32_t                m_FrameCount;
         uint32_t                m_PlayCounter;
@@ -218,8 +222,6 @@ namespace dmSound
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
-        bool                    m_IsRunning;
-        bool                    m_IsPaused;
     };
 
     struct OptionalScopedMutexLock
@@ -392,9 +394,9 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[master_index];
         master->m_Gain.Reset(master_gain);
 
-        sound->m_IsRunning = true;
-        sound->m_IsPaused = false;
-        sound->m_Status = RESULT_NOTHING_TO_PLAY;
+        dmAtomicStore32(&sound->m_IsRunning, 1);
+        dmAtomicStore32(&sound->m_IsPaused, 0);
+        dmAtomicStore32(&sound->m_Status, (int)RESULT_NOTHING_TO_PLAY);
 
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
@@ -413,7 +415,7 @@ namespace dmSound
         if (!sound)
             return RESULT_OK;
 
-        sound->m_IsRunning = false;
+        dmAtomicStore32(&sound->m_IsRunning, 0);
         if (sound->m_Thread)
         {
             dmThread::Join(sound->m_Thread);
@@ -1477,11 +1479,13 @@ namespace dmSound
     static void SoundThread(void* ctx)
     {
         SoundSystem* sound = (SoundSystem*)ctx;
-        while (sound->m_IsRunning)
+        while (dmAtomicGet32(&sound->m_IsRunning))
         {
-            sound->m_Status = RESULT_OK;
-            if (!sound->m_IsPaused)
-                sound->m_Status = UpdateInternal(sound);
+            Result result = RESULT_OK;
+            if (!dmAtomicGet32(&sound->m_IsPaused))
+                result = UpdateInternal(sound);
+
+            dmAtomicStore32(&sound->m_Status, (int)result);
             dmTime::Sleep(8000);
         }
     }
@@ -1495,7 +1499,7 @@ namespace dmSound
 
         if (!sound->m_Thread)
             return UpdateInternal(sound);
-        return sound->m_Status;
+        return (Result)dmAtomicGet32(&sound->m_Status);
     }
 
     Result Pause(bool pause)
@@ -1503,7 +1507,7 @@ namespace dmSound
         SoundSystem* sound = g_SoundSystem;
         if (sound && sound->m_Thread)
         {
-            sound->m_IsPaused = pause;
+            dmAtomicStore32(&sound->m_IsPaused, (int)pause);
         }
         return RESULT_OK;
     }

@@ -14,18 +14,20 @@
 
 (ns integration.asset-browser-test
   (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
-            [editor.dialogs :as dialogs]
-            [editor.workspace :as workspace]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]])
+  (:import [com.defold.editor.test TestDdf$DefaultValue]))
 
 (deftest workspace-tree
   (testing "The file system can be retrieved as a tree"
@@ -250,3 +252,19 @@
             (is (some? (resource-map "/collection/game.project")))
             (is (not (some? (resource-map "/car/car.script"))))
             (is (some? (resource-map "/collection/car.script")))))))))
+
+(deftest replace-template-name
+  (are [name]
+    (= name
+       (->> name
+            (asset-browser/replace-template-name "string_value: \"{{NAME}}\"")
+            (protobuf/str->pb TestDdf$DefaultValue)
+            (.getStringValue)))
+
+    "single-quoted: 'text in quotes'"
+    "double-quoted: \"text in quotes\""
+    "slash: /"
+    "backslash: \\"
+    "newline: \n"
+    "carriage-return: \r"
+    "unicode: \u3042"))

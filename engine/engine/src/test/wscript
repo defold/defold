@@ -2,7 +2,7 @@
 
 import waflib.Task, waflib.TaskGen
 from waflib import Options
-import os, sys, glob, re
+import os, sys, glob, re, shutil
 import run, sdk
 import waf_gamesys
 
@@ -34,6 +34,11 @@ def run_bob(task):
                 env['DYLD_LIBRARY_PATH'] += os.pathsep + java_lib_path
             else:
                 env['DYLD_LIBRARY_PATH'] = java_lib_path
+
+    # The tests needs the compiled builtins folder locally for this test to work
+    builtins_src = "build/content/builtins"
+    builtins_dst = "src/test/build/default/builtins"
+    shutil.copytree(builtins_src, builtins_dst, dirs_exist_ok=True)
 
     args = task.generator.run_args
     output = run.env_command(env, args.split())
@@ -75,9 +80,6 @@ def build(bld):
     if 'win32' in bld.env.PLATFORM:
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
-    builtins_src = "content/builtins"
-    builtins_dst = "src/test/builtins"
-
     platform = bld.env.PLATFORM
     if platform == 'win32':
         platform = 'x86-win32'
@@ -86,10 +88,13 @@ def build(bld):
     bob_flags.append("--platform=%s" % platform)
     if Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")
+    bob_flags = ' '.join(bob_flags)
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
+    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k clean build %s' % bob_flags
+
     bld(rule = run_bob,
-        run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k distclean build %s' % ' '.join(bob_flags),
+        run_args = bob_command,
         source = 'wscript',
         always = True)

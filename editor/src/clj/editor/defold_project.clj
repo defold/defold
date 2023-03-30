@@ -89,7 +89,7 @@
               (load-registered-resource-node load-fn project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource)))))))
+              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
@@ -508,10 +508,12 @@
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
-                                             (let [deps (du/measuring resource-metrics (resource/proj-path (g/node-value node-id :resource rn-dependencies-evaluation-context)) :find-old-reload-dependencies
-                                                          (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context))]
-                                               (when-not (g/error? deps)
-                                                 deps))))
+                                             (let [resource (g/node-value node-id :resource rn-dependencies-evaluation-context)]
+                                               (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
+                                                 (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+                                                   (let [save-value (g/node-value node-id :save-value rn-dependencies-evaluation-context)]
+                                                     (when-not (g/error? save-value)
+                                                       (dependencies-fn save-value))))))))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (du/measuring process-metrics :make-new-nodes
                       (make-nodes! project (:new plan)))

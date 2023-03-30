@@ -186,7 +186,6 @@
                           :cache-retain? project/cache-retain?}
         (let [workspace (test-util/setup-workspace! world project-path)
               project (test-util/setup-project! workspace)
-              prefs (test-util/make-test-prefs)
               artifact-map (workspace/artifact-map workspace)
               game-project (test-util/resource-node project "/game.project")
               game-project-build-targets (g/node-value game-project :build-targets)
@@ -202,22 +201,24 @@
           (test-util/run-event-loop!
             (fn [exit-event-loop!]
               (g/clear-system-cache!)
-              (app-view/async-build! project prefs {:debug false :engine? false} artifact-map progress/null-render-progress!
-                                     (fn [build-results _engine-descriptor build-engine-exception]
-                                       (when (and (is (nil? (:error build-results)))
-                                                  (is (nil? build-engine-exception)))
+              (app-view/async-build! project
+                                     :debug false
+                                     :build-engine false
+                                     :old-artifact-map artifact-map
+                                     :result-fn (fn [build-results]
+                                                  (when (is (nil? (:error build-results)))
 
-                                         (testing "Build targets remain in cache even though we've exceeded the cache limit."
-                                           (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
+                                                    (testing "Build targets remain in cache even though we've exceeded the cache limit."
+                                                      (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
 
-                                         (testing "Build targets are always evicted from the cache after their dependencies change."
-                                           (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
-                                             (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
-                                             (test-util/prop! background-atlas :margin 10)
-                                             (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
+                                                    (testing "Build targets are always evicted from the cache after their dependencies change."
+                                                      (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
+                                                        (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
+                                                        (test-util/prop! background-atlas :margin 10)
+                                                        (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
 
-                                         (testing "Build targets are always evicted from the cache when it is explicitly cleared."
-                                           (g/clear-system-cache!)
-                                           (is (empty? (g/cache)))))
+                                                    (testing "Build targets are always evicted from the cache when it is explicitly cleared."
+                                                      (g/clear-system-cache!)
+                                                      (is (empty? (g/cache)))))
 
-                                       (exit-event-loop!))))))))))
+                                                  (exit-event-loop!))))))))))

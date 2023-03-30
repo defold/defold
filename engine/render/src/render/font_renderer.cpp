@@ -664,9 +664,9 @@ namespace dmRender
 
                 uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
                 uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
-                uint8_t compression_type = *glyph_data++;
+                uint8_t is_compressed = *glyph_data++;
 
-                if (compression_type) {
+                if (is_compressed) {
 
                     // When if came to choosing between the different algorithms, here are some speed/compression tests
                     // Decoding 100 glyphs

@@ -39,7 +39,11 @@
     (.order (ByteOrder/nativeOrder))
     (.asDoubleBuffer)))
 
-(scene-cache/register-object-cache! ::grid-vertex make-grid-vertex-buffer identity identity)
+(defn- ignore-grid-vertex-buffer [_1 _2 _3]
+  ;; Nothing.
+  nil)
+
+(scene-cache/register-object-cache! ::grid-vertex make-grid-vertex-buffer ignore-grid-vertex-buffer ignore-grid-vertex-buffer)
 
 (defn render-grid-axis
   [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]

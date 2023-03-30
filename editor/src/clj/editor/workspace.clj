@@ -101,11 +101,11 @@ ordinary paths."
   (source-type [this] (resource/source-type resource))
   (read-only? [this] false)
   (path [this] (let [ext (resource/ext this)
-                     ext (if (not-empty ext) (str "." ext) "")
-                     suffix (format "%x" (resource/resource-hash this))]
+                     ext (if (not-empty ext) (str "." ext) "")]
                  (if-let [path (resource/path resource)]
                    (str (FilenameUtils/removeExtension path) ext)
-                   (str prefix "_generated_" suffix ext))))
+                   (let [suffix (format "%x" (resource/resource-hash this))]
+                     (str prefix "_generated_" suffix ext)))))
   (abs-path [this] (.getAbsolutePath (io/file (build-path (resource/workspace this)) (resource/path this))))
   (proj-path [this] (str "/" (resource/path this)))
   (resource-name [this] (resource/resource-name resource))

@@ -109,5 +109,7 @@ function update(self)
 		test_compressed_fail,
 	}
 
-	tests[self.update_counter]()
+	if tests[self.update_counter] ~= nil then
+		tests[self.update_counter]()
+	end
 end

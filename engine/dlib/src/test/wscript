@@ -198,4 +198,5 @@ def build(bld):
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
     create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')
+    create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')

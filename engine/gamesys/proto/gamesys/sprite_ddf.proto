@@ -31,6 +31,8 @@ message SpriteDesc
     optional dmMath.Vector4 slice9      = 5;
     optional dmMath.Vector4 size        = 6;
     optional SizeMode size_mode         = 7 [default = SIZE_MODE_AUTO];
+    optional float offset               = 8 [default = 0.0];
+    optional float playback_rate        = 9 [default = 1.0];
 }
 
 /*# Sprite API documentation

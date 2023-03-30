@@ -43,14 +43,13 @@ namespace dmHID
         context->m_IgnoreTouchDevice = params.m_IgnoreTouchDevice;
         context->m_IgnoreAcceleration = params.m_IgnoreAcceleration;
         context->m_FlipScrollDirection = params.m_FlipScrollDirection;
-
-        context->m_GamepadConnectivityCallback = params.m_GamepadConnectivityCallback;
         return context;
     }
 
-    void SetGamepadFuncUserdata(HContext context, void* userdata)
+    void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx)
     {
-        context->m_GamepadConnectivityUserdata = userdata;
+        context->m_GamepadConnectivityCallback = callback;
+        context->m_GamepadConnectivityUserdata = callback_ctx;
     }
 
     void DeleteContext(HContext context)
