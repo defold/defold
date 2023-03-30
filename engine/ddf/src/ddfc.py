@@ -333,12 +333,14 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     oneof_scope = None
     lst = []
     for f in message_type.field:
-
-        one_of_index = 0xff
+        one_of_index = 0
 
         if f.HasField("oneof_index"):
             oneof_decl = message_type.oneof_decl[f.oneof_index]
-            one_of_index = f.oneof_index
+
+            # indices start at zero, but we need to distinguish between which fields belong
+            # to a oneof block somehow
+            one_of_index = f.oneof_index + 1
 
             if oneof_scope == None or oneof_scope != oneof_decl.name:
                 oneof_scope = oneof_decl.name

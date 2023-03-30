@@ -803,11 +803,13 @@ TEST(OneOfTests, Repeated)
 {
     TestDDF::OneOfMessageRepeat oneof_message_desc;
 
+    uint64_t large_number = 0x100000001;
+
     TestDDF::OneOfMessageRepeat::Nested* nested_one_valid = oneof_message_desc.add_nested_one_of();
-    nested_one_valid->set_val_b(true);
+    nested_one_valid->set_val_b(256);
 
     TestDDF::OneOfMessageRepeat::Nested* nested_two_valid = oneof_message_desc.add_nested_one_of();
-    nested_two_valid->set_val_a(256);
+    nested_two_valid->set_val_a(large_number);
 
     std::string msg_str   = oneof_message_desc.SerializeAsString();
     const char* msg_buf   = msg_str.c_str();
@@ -816,10 +818,58 @@ TEST(OneOfTests, Repeated)
     DUMMY::TestDDF::OneOfMessageRepeat* message;
     dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, (void**)&message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(2,            message->m_NestedOneOf.m_Count);
+    ASSERT_EQ(256,          message->m_NestedOneOf[0].m_Values.m_ValB);
+    ASSERT_EQ(large_number, message->m_NestedOneOf[1].m_Values.m_ValA);
 
-    ASSERT_EQ(2,    message->m_NestedOneOf.m_Count);
-    ASSERT_EQ(true, message->m_NestedOneOf[0].m_Values.m_ValB);
-    ASSERT_EQ(256,  message->m_NestedOneOf[1].m_Values.m_ValA);
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    // Note: We can't compare the serialized input with the saved string..
+    //       When we load a repeated field, we load all the internal fields in the repeated field,
+    //       because we don't know which ones have been set. This is not the case for non-repeated fields,
+    //       since the fields that haven't been set will not be present in the input buffer.
+    //       This is not a problem per se, other than that the serialized string will contain a bit more data.
+    // ASSERT_EQ(msg_str, save_str);
+
+    DUMMY::TestDDF::OneOfMessageRepeat* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageRepeat_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(256,          saved_message->m_NestedOneOf[0].m_Values.m_ValB);
+    ASSERT_EQ(large_number, saved_message->m_NestedOneOf[1].m_Values.m_ValA);
+
+    dmDDF::FreeMessage(message);
+}
+
+TEST(OneOfTests, Save)
+{
+    std::string oneof_string_val = "This is a somewhat long string!";
+    TestDDF::OneOfMessageSave oneof_message_desc;
+    oneof_message_desc.set_int_val(999);
+    oneof_message_desc.set_string_val(oneof_string_val);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageSave* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    std::string save_str;
+    e = DDFSaveToString(message, &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, save_str);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_EQ(msg_str, save_str);
+    ASSERT_STREQ(oneof_string_val.c_str(), message->m_OneOfFieldString.m_StringVal);
+
+    DUMMY::TestDDF::OneOfMessageSave* saved_message;
+    e = dmDDF::LoadMessage((void*) save_str.c_str(), save_str.size(), &DUMMY::TestDDF_OneOfMessageSave_DESCRIPTOR, (void**)&saved_message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(message->m_OneOfField.m_IntVal, saved_message->m_OneOfField.m_IntVal);
+    ASSERT_EQ(message->m_OneOfField.m_BoolVal, saved_message->m_OneOfField.m_BoolVal);
+    ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
 
     dmDDF::FreeMessage(message);
 }

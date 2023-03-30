@@ -111,6 +111,12 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* f = &desc->m_Fields[i];
+            // We cannot support default values for oneof fields currently as we don't know which one to take
+            if (f->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+            {
+                dmLogWarning("Default values for 'oneof' fields are not supported");
+                continue;
+            }
             DoLoadDefaultField(load_context, f, message);
         }
     }
@@ -168,6 +174,12 @@ namespace dmDDF
                     if (e != RESULT_OK)
                     {
                         return e;
+                    }
+
+                    if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+                    {
+                        FieldDescriptor* field_non_const = (FieldDescriptor*) field;
+                        field_non_const->m_OneOfSet = 1;
                     }
                 }
             }

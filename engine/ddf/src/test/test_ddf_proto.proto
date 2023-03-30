@@ -296,10 +296,27 @@ message OneOfMessageRepeat
     {
         oneof values
         {
-            int32 val_a = 1;
-            bool val_b  = 2;
+            uint64 val_a = 1 [default = 2];
+            int32  val_b = 2 [default = 1];
         }
     }
 
     repeated Nested nested_one_of = 3;
+    optional Nested nested_one_of_with_defaults = 4;
 }
+
+message OneOfMessageSave
+{
+    oneof one_of_field
+    {
+        int32 int_val = 1;
+        bool bool_val = 2;
+    }
+
+    oneof one_of_field_string
+    {
+        int32 int_val_no_string = 3;
+        string string_val       = 4;
+    }
+}
+
