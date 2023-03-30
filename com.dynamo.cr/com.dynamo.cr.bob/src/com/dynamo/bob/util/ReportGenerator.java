@@ -175,13 +175,13 @@ public class ReportGenerator {
             boolean encrypted = archiveEntry.isEncrypted();
             boolean excluded = true;
 
-            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getFilename(),
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
                         archiveEntry.getSize(),
                         compressedSize,
                         encrypted,
                         excluded);
 
-            this.excludedResources.put(archiveEntry.getFilename(), resEntry);
+            this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
         }
     }
 
