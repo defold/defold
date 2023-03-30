@@ -59,7 +59,6 @@ public class ArchiveBuilder {
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private List<ArchiveEntry> excludedEntries = new ArrayList<ArchiveEntry>();
     private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
-    private Map<String, String> hexDigestToFilename = new HashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
@@ -94,19 +93,15 @@ public class ArchiveBuilder {
     }
 
     public ArchiveEntry getArchiveEntry(int index) {
-        return entries.get(index);
+        return this.entries.get(index);
     }
 
     public int getArchiveEntrySize() {
-        return entries.size();
+        return this.entries.size();
     }
 
     public byte[] getArchiveIndexHash() {
-        return archiveIndexMD5;
-    }
-
-    public String getFilenameFromHexDigest(String hexDigest) {
-        return hexDigestToFilename.get(hexDigest);
+        return this.archiveIndexMD5;
     }
 
     public byte[] loadResourceData(String filepath) throws IOException {
@@ -166,8 +161,8 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        if (manifestBuilder != null) {
-            List<ArrayList<String>> parentChains = manifestBuilder.getParentCollections(filepath);
+        if (this.manifestBuilder != null) {
+            List<ArrayList<String>> parentChains = this.manifestBuilder.getParentCollections(filepath);
             for (List<String> parents : parentChains) {
                 boolean excluded = isTreeExcluded(parents, excludedResources);
                 if (!excluded) {
@@ -197,11 +192,11 @@ public class ArchiveBuilder {
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
-            byte[] buffer = loadResourceData(entry.getFilename());
+            byte[] buffer = this.loadResourceData(entry.getFilename());
             if (entry.isCompressed()) {
                 // Compress data
-                byte[] compressed = compressResourceData(buffer);
-                if (shouldUseCompressedResourceData(buffer, compressed)) {
+                byte[] compressed = this.compressResourceData(buffer);
+                if (this.shouldUseCompressedResourceData(buffer, compressed)) {
                     buffer = compressed;
                     entry.setCompressedSize(compressed.length);
                 } else {
@@ -211,7 +206,7 @@ public class ArchiveBuilder {
 
             // Encrypt data
             if (entry.isEncrypted()) {
-                buffer = encryptResourceData(buffer);
+                buffer = this.encryptResourceData(buffer);
             }
 
             // Add entry to manifest
@@ -230,16 +225,15 @@ public class ArchiveBuilder {
             // Store association between hexdigest and original filename in a
             // lookup table
             entry.setHexDigest(hexDigest);
-            hexDigestToFilename.put(hexDigest, entry.getRelativeFilename());
 
             // Write resource to resource pack or data archive
-            if (excludeResource(normalisedPath, excludedResources)) {
-                writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
+            if (this.excludeResource(normalisedPath, excludedResources)) {
+                this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
                 excludedEntries.add(entry);
                 manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.EXCLUDED.getNumber());
             } else {
-                alignBuffer(archiveData, resourcePadding);
+                alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
                 manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.BUNDLED.getNumber());
@@ -273,7 +267,7 @@ public class ArchiveBuilder {
             int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
             byte[] archiveIndexBytes = new byte[num_bytes];
             archiveIndex.readFully(archiveIndexBytes);
-            archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+            this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("The algorithm specified is not supported!");
             e.printStackTrace();
@@ -288,7 +282,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
-        archiveIndex.write(archiveIndexMD5);
+        archiveIndex.write(this.archiveIndexMD5);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
