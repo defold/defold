@@ -52,8 +52,10 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.ComponentsCounter;
@@ -233,10 +235,11 @@ public class GameProjectBuilder extends Builder<Void> {
         archiveData.close();
 
         // Populate publisher with the resource pack
-        for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
-            if (fhandle.isFile()) {
-                project.getPublisher().AddEntry(fhandle.getName(), fhandle);
-            }
+        Publisher publisher = project.getPublisher();
+        List<ArchiveEntry> excluded = archiveBuilder.getExcludedEntries();
+        for (ArchiveEntry entry : excluded) {
+            File f = new File(resourcePackDirectory.toAbsolutePath().toString(), entry.getHexDigest());
+            publisher.AddEntry(f, entry);
         }
 
         long tend = System.currentTimeMillis();
@@ -585,12 +588,15 @@ public class GameProjectBuilder extends Builder<Void> {
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
-                // Add copy of game.dmanifest to be published with liveuodate resources
+                // Add copy of game.dmanifest to be published with liveupdate resources
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
                 String liveupdateManifestFilename = "liveupdate.game.dmanifest";
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
-                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+
+                String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
+                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath().toString());
+                project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
                 project.getPublisher().Publish();
 
                 // Copy SSL public keys if specified

@@ -31,10 +31,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.Bob;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.ResourceNode;
@@ -53,7 +57,9 @@ public class ArchiveBuilder {
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
+    private List<ArchiveEntry> excludedEntries = new ArrayList<ArchiveEntry>();
     private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
+    private Map<String, String> hexDigestToFilename = new HashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
@@ -70,7 +76,7 @@ public class ArchiveBuilder {
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
         if (!contains(e)) {
-            lookup.add(e.relName);
+            lookup.add(e.getRelativeFilename());
             entries.add(e);
         }
     }
@@ -84,19 +90,23 @@ public class ArchiveBuilder {
     }
 
     private boolean contains(ArchiveEntry e) {
-        return lookup.contains(e.relName);
+        return lookup.contains(e.getRelativeFilename());
     }
 
     public ArchiveEntry getArchiveEntry(int index) {
-        return this.entries.get(index);
+        return entries.get(index);
     }
 
     public int getArchiveEntrySize() {
-        return this.entries.size();
+        return entries.size();
     }
 
     public byte[] getArchiveIndexHash() {
-        return this.archiveIndexMD5;
+        return archiveIndexMD5;
+    }
+
+    public String getFilenameFromHexDigest(String hexDigest) {
+        return hexDigestToFilename.get(hexDigest);
     }
 
     public byte[] loadResourceData(String filepath) throws IOException {
@@ -120,17 +130,17 @@ public class ArchiveBuilder {
         return ResourceEncryption.encrypt(buffer);
     }
 
-    public void writeResourcePack(String filename, String directory, byte[] buffer, byte flags, int size) throws IOException {
+    public void writeResourcePack(ArchiveEntry entry, String directory, byte[] buffer) throws IOException {
         FileOutputStream outputStream = null;
         try {
-            File fhandle = new File(directory, filename);
+            File fhandle = new File(directory, entry.getHexDigest());
             if (!fhandle.exists()) {
                 byte[] padding = new byte[11];
-                byte[] size_bytes = ByteBuffer.allocate(4).putInt(size).array();
+                byte[] size_bytes = ByteBuffer.allocate(4).putInt(entry.getSize()).array();
                 Arrays.fill(padding, (byte)0xED);
                 outputStream = new FileOutputStream(fhandle);
                 outputStream.write(size_bytes); // 4 bytes
-                outputStream.write(flags); // 1 byte
+                outputStream.write((byte)entry.getFlags()); // 1 byte
                 outputStream.write(padding); // 11 bytes
                 outputStream.write(buffer);
 
@@ -150,10 +160,14 @@ public class ArchiveBuilder {
         return false;
     }
 
+    public List<ArchiveEntry> getExcludedEntries() {
+        return excludedEntries;
+    }
+
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        if (this.manifestBuilder != null) {
-            List<ArrayList<String>> parentChains = this.manifestBuilder.getParentCollections(filepath);
+        if (manifestBuilder != null) {
+            List<ArrayList<String>> parentChains = manifestBuilder.getParentCollections(filepath);
             for (List<String> parents : parentChains) {
                 boolean excluded = isTreeExcluded(parents, excludedResources);
                 if (!excluded) {
@@ -183,52 +197,53 @@ public class ArchiveBuilder {
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
-            byte[] buffer = this.loadResourceData(entry.fileName);
-            byte archiveEntryFlags = (byte) entry.flags;
-            int resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
-            if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+            byte[] buffer = loadResourceData(entry.getFilename());
+            if (entry.isCompressed()) {
                 // Compress data
-                byte[] compressed = this.compressResourceData(buffer);
-                if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
+                byte[] compressed = compressResourceData(buffer);
+                if (shouldUseCompressedResourceData(buffer, compressed)) {
                     buffer = compressed;
-                    entry.compressedSize = compressed.length;
+                    entry.setCompressedSize(compressed.length);
                 } else {
-                    entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+                    entry.setCompressed(false);
                 }
             }
 
             // Encrypt data
-            if ((archiveEntryFlags & ArchiveEntry.FLAG_ENCRYPTED) != 0) {
-                buffer = this.encryptResourceData(buffer);
+            if (entry.isEncrypted()) {
+                buffer = encryptResourceData(buffer);
             }
 
             // Add entry to manifest
-            String normalisedPath = FilenameUtils.separatorsToUnix(entry.relName);
+            String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
 
             // Calculate hash digest values for resource
             String hexDigest = null;
             try {
                 byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-                entry.hash = new byte[HASH_MAX_LENGTH];
-                System.arraycopy(hashDigest, 0, entry.hash, 0, hashDigest.length);
+                entry.setHash(new byte[HASH_MAX_LENGTH]);
+                System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
                 hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
             } catch (NoSuchAlgorithmException exception) {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
+            // Store association between hexdigest and original filename in a
+            // lookup table
+            entry.setHexDigest(hexDigest);
+            hexDigestToFilename.put(hexDigest, entry.getRelativeFilename());
 
-            // Write resource to data archive
-            if (this.excludeResource(normalisedPath, excludedResources)) {
-                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
-                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
+            // Write resource to resource pack or data archive
+            if (excludeResource(normalisedPath, excludedResources)) {
+                writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
+                excludedEntries.add(entry);
+                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.EXCLUDED.getNumber());
             } else {
-                alignBuffer(archiveData, this.resourcePadding);
-                entry.resourceOffset = (int) archiveData.getFilePointer();
+                alignBuffer(archiveData, resourcePadding);
+                entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
+                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.BUNDLED.getNumber());
             }
-
-            manifestBuilder.addResourceEntry(normalisedPath, buffer, resourceEntryFlags);
         }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash
@@ -236,7 +251,7 @@ public class ArchiveBuilder {
         // Write sorted hashes to index file
         int hashOffset = (int) archiveIndex.getFilePointer();
         for(ArchiveEntry entry : entries) {
-            archiveIndex.write(entry.hash);
+            archiveIndex.write(entry.getHash());
         }
 
         // Write sorted entries to index file
@@ -245,10 +260,10 @@ public class ArchiveBuilder {
 
         ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * entries.size());
         for (ArchiveEntry entry : entries) {
-            indexBuffer.putInt(entry.resourceOffset);
-            indexBuffer.putInt(entry.size);
-            indexBuffer.putInt(entry.compressedSize);
-            indexBuffer.putInt(entry.flags);
+            indexBuffer.putInt(entry.getResourceOffset());
+            indexBuffer.putInt(entry.getSize());
+            indexBuffer.putInt(entry.getCompressedSize());
+            indexBuffer.putInt(entry.getFlags());
         }
         archiveIndex.write(indexBuffer.array());
 
@@ -258,7 +273,7 @@ public class ArchiveBuilder {
             int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
             byte[] archiveIndexBytes = new byte[num_bytes];
             archiveIndex.readFully(archiveIndexBytes);
-            this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+            archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("The algorithm specified is not supported!");
             e.printStackTrace();
@@ -273,7 +288,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
-        archiveIndex.write(this.archiveIndexMD5);
+        archiveIndex.write(archiveIndexMD5);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {

@@ -1210,18 +1210,24 @@ public class Project {
 
                     // Do early test if report files are writable before we start building
                     boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
-                    FileWriter fileJSONWriter = null;
-                    FileWriter fileHTMLWriter = null;
+                    FileWriter resourceReportJSONWriter = null;
+                    FileWriter resourceReportHTMLWriter = null;
+                    FileWriter excludedResourceReportJSONWriter = null;
+                    FileWriter excludedResourceReportHTMLWriter = null;
 
                     if (this.hasOption("build-report")) {
-                        String reportJSONPath = this.option("build-report", "report.json");
-                        File reportJSONFile = new File(reportJSONPath);
-                        fileJSONWriter = new FileWriter(reportJSONFile);
+                        String resourceReportJSONPath = this.option("build-report", "report.json");
+                        File resourceReportJSONFile = new File(resourceReportJSONPath);
+                        resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
+                        File excludedResourceReportJSONFile = new File("excluded_" + resourceReportJSONPath);
+                        excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
                     }
                     if (this.hasOption("build-report-html")) {
-                        String reportHTMLPath = this.option("build-report-html", "report.html");
-                        File reportHTMLFile = new File(reportHTMLPath);
-                        fileHTMLWriter = new FileWriter(reportHTMLFile);
+                        String resourceReportHTMLPath = this.option("build-report-html", "report.html");
+                        File resourceReportHTMLFile = new File(resourceReportHTMLPath);
+                        resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
+                        File excludedResourceReportHTMLFile = new File("excluded_" + resourceReportHTMLPath);
+                        excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
                     }
 
                     IProgress m = monitor.subProgress(99);
@@ -1257,19 +1263,25 @@ public class Project {
                         mrep = monitor.subProgress(1);
                         mrep.beginTask("Generating report...", 1);
                         ReportGenerator rg = new ReportGenerator(this);
-                        String reportJSON = rg.generateJSON();
+                        String resourceReportJSON = rg.generateResourceReportJSON();
+                        String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
 
                         // Save JSON report
                         if (this.hasOption("build-report")) {
-                            fileJSONWriter.write(reportJSON);
-                            fileJSONWriter.close();
+                            resourceReportJSONWriter.write(resourceReportJSON);
+                            resourceReportJSONWriter.close();
+                            excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
+                            excludedResourceReportJSONWriter.close();
                         }
 
                         // Save HTML report
                         if (this.hasOption("build-report-html")) {
-                            String reportHTML = rg.generateHTML(reportJSON);
-                            fileHTMLWriter.write(reportHTML);
-                            fileHTMLWriter.close();
+                            String resourceReportHTML = rg.generateHTML(resourceReportJSON);
+                            String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
+                            resourceReportHTMLWriter.write(resourceReportHTML);
+                            resourceReportHTMLWriter.close();
+                            excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
+                            excludedResourceReportHTMLWriter.close();
                         }
                         mrep.done();
                     }
