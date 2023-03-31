@@ -277,6 +277,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     class MaxRects {
         private int binWidth;
         private int binHeight;
+        private int newFreeRectanglesLastSize;
         private final ArrayList<RectNode> usedRectangles = new ArrayList<RectNode>();
         private final ArrayList<RectNode> freeRectangles = new ArrayList<RectNode>();
         private final ArrayList<RectNode> newFreeRectangles = new ArrayList<RectNode>();
@@ -637,7 +638,13 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             Rect usedRect = usedNode.rect;
             // Test with SAT if the rectangles even intersect.
             if (usedRect.x >= freeRect.x + freeRect.width || usedRect.x + usedRect.width <= freeRect.x
-                || usedRect.y >= freeRect.y + freeRect.height || usedRect.y + usedRect.height <= freeRect.y) return false;
+                || usedRect.y >= freeRect.y + freeRect.height || usedRect.y + usedRect.height <= freeRect.y)
+                    return false;
+
+            // We add up to four new free rectangles to the free rectangles list below. None of these
+            // four newly added free rectangles can overlap any other three, so keep a mark of them
+            // to avoid testing them against each other.
+            newFreeRectanglesLastSize = newFreeRectangles.size();   
 
             if (usedRect.x < freeRect.x + freeRect.width && usedRect.x + usedRect.width > freeRect.x) {
                 // New node at the top side of the used node.
@@ -678,7 +685,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
         private void insertNewFreeRectangle(RectNode newFreeRect)
         {
-            for(int i = 0; i < newFreeRectangles.size();)
+            for(int i = 0; i < newFreeRectanglesLastSize;)
             {
                 // This new free rectangle is already accounted for?
                 if (isContainedIn(newFreeRect.rect, newFreeRectangles.get(i).rect))
@@ -687,7 +694,11 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 // Does this new free rectangle obsolete a previous new free rectangle?
                 if (isContainedIn(newFreeRectangles.get(i).rect, newFreeRect.rect))
                 {
-                    newFreeRectangles.remove(i);
+                    // Remove i'th new free rectangle, but do so by retaining the order
+                    // of the older vs newest free rectangles that we may still be placing
+                    // in calling function SplitFreeNode().
+                    newFreeRectangles.set(i, newFreeRectangles.get(--newFreeRectanglesLastSize));
+                    newFreeRectangles.remove(newFreeRectanglesLastSize);
                 }
                 else 
                 {
