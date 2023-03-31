@@ -11,6 +11,10 @@
   (mapv #(math/round-with-precision % 0.001)
         numbers))
 
+(defn- round-euler-rotation [pose]
+  (round-numbers
+    (math/clj-quat->euler (:rotation pose))))
+
 (deftest pose?-test
   (is (false? (pose/pose? nil)))
   (is (false? (pose/pose? {:translation [0.0 0.0 0.0]
@@ -165,10 +169,17 @@
   (is (= (pose/euler-rotation-pose 0.0 -40.0 0.0)
          (pose/pre-multiply (pose/euler-rotation-pose 0.0 -10.0 0.0)
                             (pose/euler-rotation-pose 0.0 -30.0 0.0))))
-  (is (= (pose/euler-rotation-pose 45.0 45.0 45.0)
-         (-> (pose/euler-rotation-pose 0.0 45.0 0.0)
-             (pose/pre-multiply (pose/euler-rotation-pose 0.0 0.0 45.0))
-             (pose/pre-multiply (pose/euler-rotation-pose 45.0 0.0 0.0)))))
+  (is (= (pose/rotation-pose -0.6615634399999999 -0.24966735999999995 -0.2496673599999999 0.6615634400000001)
+         (pose/pre-multiply (pose/rotation-pose -0.5 -0.5 -0.4999999999999999 0.5000000000000001)
+                            (pose/rotation-pose 0.0 0.41189608 0.0 0.9112308))))
+  (is (= [-90.0 135.0 0.0]
+         (round-euler-rotation
+           (pose/pre-multiply (pose/euler-rotation-pose 0.0 90.0 0.0)
+                              (pose/euler-rotation-pose 45.0 0.0 90.0)))))
+  (is (= [3.342 103.606 68.165]
+         (round-euler-rotation
+           (pose/pre-multiply (pose/euler-rotation-pose 45.0 45.0 45.0)
+                              (pose/euler-rotation-pose 10.0 20.0 30.0)))))
   (let [pose (pose/pre-multiply pose/default
                                 (pose/euler-rotation-pose -90.0 180.0 0.0))]
     (is (= [0.0 0.0 0.0] (:translation pose)))
