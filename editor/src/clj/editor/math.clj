@@ -147,6 +147,9 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
+(defn clj-quat->euler [[^double x ^double y ^double z ^double w]]
+  (quat-components->euler x y z w))
+
 (defn offset-scaled
   ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
   (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
