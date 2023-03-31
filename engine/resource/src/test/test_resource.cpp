@@ -14,6 +14,7 @@
 
 #include <dlib/log.h>
 
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -1049,9 +1050,10 @@ TEST(RecreateTest, RecreateTest)
     dmResource::DeleteFactory(factory);
 }
 
-volatile bool SendReloadDone = false;
-void SendReloadThread(void*)
+static void SendReloadThread(void* ctx)
 {
+    int32_atomic_t* send_reload_done = (int32_atomic_t*)ctx;
+
     uint32_t msg_size = sizeof(dmResourceDDF::Reload) + sizeof(uintptr_t) + (strlen("__testrecreate__.foo") + 1);
     dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
     memset(reload_resources, 0x0, msg_size);
@@ -1068,7 +1070,7 @@ void SendReloadThread(void*)
     dmMessage::GetSocket("@resource", &url.m_Socket);
     dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, reload_resources, msg_size, 0);
 
-    SendReloadDone = true;
+    dmAtomicStore32(send_reload_done, 1);
     free(reload_resources);
 }
 
@@ -1114,14 +1116,14 @@ TEST(RecreateTest, RecreateTestHttp)
     fprintf(f, "456");
     fclose(f);
 
-    SendReloadDone = false;
-    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
+    int32_atomic_t send_reload_done = 0;
+    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, (void*)&send_reload_done, "reload");
 
     do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
-    } while (!SendReloadDone);
+    } while (!dmAtomicGet32(&send_reload_done));
 
     dmThread::Join(send_thread);
 
@@ -1129,14 +1131,15 @@ TEST(RecreateTest, RecreateTestHttp)
 
     dmSys::Unlink(host_name);
 
-    SendReloadDone = false;
-    send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
+    send_reload_done = 0;
+    send_thread = dmThread::New(&SendReloadThread, 0x8000, (void*)&send_reload_done, "reload");
 
     do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
-    } while (!SendReloadDone);
+    } while (!dmAtomicGet32(&send_reload_done));
+
     dmThread::Join(send_thread);
 
     dmResource::Result rr = dmResource::ReloadResource(factory, resource_name, 0);
