@@ -279,6 +279,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         private int binHeight;
         private final ArrayList<RectNode> usedRectangles = new ArrayList<RectNode>();
         private final ArrayList<RectNode> freeRectangles = new ArrayList<RectNode>();
+        private final ArrayList<RectNode> newFreeRectangles = new ArrayList<RectNode>();
 
         public void init (int width, int height) {
             binWidth = width;
@@ -286,6 +287,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
             usedRectangles.clear();
             freeRectangles.clear();
+            newFreeRectangles.clear();
             RectNode n = new RectNode(new Rect(null, 0, 0, 0, width, height));
             freeRectangles.add(n);
         }
@@ -370,11 +372,14 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
         private void placeRect (RectNode node) {
             int numRectanglesToProcess = freeRectangles.size();
-            for (int i = 0; i < numRectanglesToProcess; i++) {
+            for (int i = 0; i < numRectanglesToProcess;) {
                 if (splitFreeNode(freeRectangles.get(i), node)) {
                     freeRectangles.remove(i);
-                    --i;
                     --numRectanglesToProcess;
+                }
+                else
+                {
+                    ++i;
                 }
             }
 
@@ -639,7 +644,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 if (usedRect.y > freeRect.y && usedRect.y < freeRect.y + freeRect.height) {
                     RectNode newNode = new RectNode(freeNode);
                     newNode.rect.height = usedRect.y - newNode.rect.y;
-                    freeRectangles.add(newNode);
+                    insertNewFreeRectangle(newNode);
                 }
 
                 // New node at the bottom side of the used node.
@@ -647,7 +652,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     RectNode newNode = new RectNode(freeNode);
                     newNode.rect.y = usedRect.y + usedRect.height;
                     newNode.rect.height = freeRect.y + freeRect.height - (usedRect.y + usedRect.height);
-                    freeRectangles.add(newNode);
+                    insertNewFreeRectangle(newNode);
                 }
             }
 
@@ -656,7 +661,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 if (usedRect.x > freeRect.x && usedRect.x < freeRect.x + freeRect.width) {
                     RectNode newNode = new RectNode(freeNode);
                     newNode.rect.width = usedRect.x - newNode.rect.x;
-                    freeRectangles.add(newNode);
+                    insertNewFreeRectangle(newNode);
                 }
 
                 // New node at the right side of the used node.
@@ -664,39 +669,54 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     RectNode newNode = new RectNode(freeNode);
                     newNode.rect.x = usedRect.x + usedRect.width;
                     newNode.rect.width = freeRect.x + freeRect.width - (usedRect.x + usedRect.width);
-                    freeRectangles.add(newNode);
+                    insertNewFreeRectangle(newNode);
                 }
             }
 
             return true;
         }
 
-        private void pruneFreeList () {
-            /*
-             * /// Would be nice to do something like this, to avoid a Theta(n^2) loop through each pair. /// But unfortunately it
-             * doesn't quite cut it, since we also want to detect containment. /// Perhaps there's another way to do this faster than
-             * Theta(n^2).
-             *
-             * if (freeRectangles.size > 0) clb::sort::QuickSort(&freeRectangles[0], freeRectangles.size, NodeSortCmp);
-             *
-             * for(int i = 0; i < freeRectangles.size-1; i++) if (freeRectangles[i].x == freeRectangles[i+1].x && freeRectangles[i].y
-             * == freeRectangles[i+1].y && freeRectangles[i].width == freeRectangles[i+1].width && freeRectangles[i].height ==
-             * freeRectangles[i+1].height) { freeRectangles.erase(freeRectangles.begin() + i); --i; }
-             */
+        private void insertNewFreeRectangle(RectNode newFreeRect)
+        {
+            for(int i = 0; i < newFreeRectangles.size();)
+            {
+                // This new free rectangle is already accounted for?
+                if (isContainedIn(newFreeRect.rect, newFreeRectangles.get(i).rect))
+                    return;
 
-            // / Go through each pair and remove any rectangle that is redundant.
-            for (int i = 0; i < freeRectangles.size(); i++)
-                for (int j = i + 1; j < freeRectangles.size(); ++j) {
-                    if (isContainedIn(freeRectangles.get(i).rect, freeRectangles.get(j).rect)) {
-                        freeRectangles.remove(i);
-                        --i;
-                        break;
+                // Does this new free rectangle obsolete a previous new free rectangle?
+                if (isContainedIn(newFreeRectangles.get(i).rect, newFreeRect.rect))
+                {
+                    newFreeRectangles.remove(i);
+                }
+                else 
+                {
+                    ++i;
+                }
+            }
+            newFreeRectangles.add(newFreeRect);
+        }
+
+        private void pruneFreeList () {
+            // Test all newly introduced free rectangles against old free rectangles.
+            for(int i = 0; i < freeRectangles.size(); ++i)
+            {
+                for(int j = 0; j < newFreeRectangles.size();)
+                {
+                    if (isContainedIn(newFreeRectangles.get(j).rect, freeRectangles.get(i).rect))
+                    {
+                        newFreeRectangles.remove(j);
                     }
-                    if (isContainedIn(freeRectangles.get(j).rect, freeRectangles.get(i).rect)) {
-                        freeRectangles.remove(j);
-                        --j;
+                    else
+                    {
+                        ++j;
                     }
                 }
+            }  
+
+            // Merge new and old free rectangles to the group of old free rectangles.
+            freeRectangles.addAll(newFreeRectangles);
+            newFreeRectangles.clear();
         }
 
         private boolean isContainedIn (Rect a, Rect b) {
