@@ -145,10 +145,6 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         return (flags & FLAG_ENCRYPTED) != 0;
     }
 
-    public boolean isLiveUpdate() {
-        return (flags & FLAG_LIVEUPDATE) != 0;
-    }
-
     public int getFlags() {
         return flags;
     }
