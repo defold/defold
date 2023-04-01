@@ -292,6 +292,9 @@ namespace dmHttpClient
      * @return Result as string
      */
     const char* ResultToString(Result result);
+
+    // For unit tests
+    uint32_t GetNumPoolConnections();
 }
 
 #endif // DM_HTTP_CLIENT_H

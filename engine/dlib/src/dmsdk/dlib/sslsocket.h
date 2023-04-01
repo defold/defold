@@ -48,6 +48,7 @@ namespace dmSSLSocket
     enum Result
     {
         RESULT_OK = 0,
+        RESULT_UNKNOWN = -1,
         RESULT_SSL_INIT_FAILED = -2000,
         RESULT_HANDSHAKE_FAILED = -2001,
         RESULT_WOULDBLOCK = -2002,
