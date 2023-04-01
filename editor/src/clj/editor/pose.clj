@@ -85,7 +85,7 @@
        (* vz qx qx)
        (* vz qy qy))))
 
-(defn- rotate-quaternion [[^double ax ^double ay ^double az ^double aw] [^double bx ^double by ^double bz ^double bw]]
+(defn- multiply-quaternion [[^double ax ^double ay ^double az ^double aw] [^double bx ^double by ^double bz ^double bw]]
   (vector-of
     :double
     (- (+ (* ax bw)
@@ -223,10 +223,10 @@
     (cond-> child-pose
 
             parent-scaled
-            (assoc :scale (multiply-vector child-scale parent-scale))
+            (assoc :scale (multiply-vector parent-scale child-scale))
 
             parent-rotated
-            (assoc :rotation (rotate-quaternion child-rotation parent-rotation))
+            (assoc :rotation (multiply-quaternion parent-rotation child-rotation))
 
             (or parent-scaled parent-rotated parent-translated)
             (assoc :translation
