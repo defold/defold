@@ -200,7 +200,6 @@ public class ArchiveBuilder {
                     buffer = compressed;
                     entry.setCompressedSize(compressed.length);
                 } else {
-                    entry.setCompressed(false);
                     entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
             }

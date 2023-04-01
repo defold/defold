@@ -55,7 +55,6 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
         this.size = (int) file.length();
         if(compress) {
-            this.flags = this.flags | FLAG_COMPRESSED;
             this.compressedSize = 0;
         }
         else {
@@ -139,16 +138,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     }
 
     public boolean isCompressed() {
-        return (flags & FLAG_COMPRESSED) != 0;
-    }
-
-    public void setCompressed(boolean compressed) {
-        if (compressed) {
-            flags = flags | FLAG_COMPRESSED;
-        }
-        else {
-            flags = flags & ~FLAG_COMPRESSED;
-        }
+        return compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED;
     }
 
     public boolean isEncrypted() {
