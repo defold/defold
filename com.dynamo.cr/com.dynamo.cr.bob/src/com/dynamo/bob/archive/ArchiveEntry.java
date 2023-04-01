@@ -55,9 +55,9 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
         this.size = (int) file.length();
         if(compress) {
+            // Will be set to real value after compression
             this.compressedSize = 0;
-        }
-        else {
+        } else {
             this.compressedSize = FLAG_UNCOMPRESSED;
         }
 
