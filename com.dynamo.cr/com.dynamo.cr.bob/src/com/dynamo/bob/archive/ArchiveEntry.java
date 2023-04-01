@@ -157,6 +157,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.flags = flags;
     }
 
+    public void setFlag(int flag) {
+        this.flags = this.flags | flag;
+    }
+
     // For checking duplicate when constructing archive
     @Override
     public boolean equals(Object other){

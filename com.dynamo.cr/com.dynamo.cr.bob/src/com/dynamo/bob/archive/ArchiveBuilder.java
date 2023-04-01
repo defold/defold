@@ -195,6 +195,7 @@ public class ArchiveBuilder {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                    entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.setCompressedSize(compressed.length);
                 } else {
