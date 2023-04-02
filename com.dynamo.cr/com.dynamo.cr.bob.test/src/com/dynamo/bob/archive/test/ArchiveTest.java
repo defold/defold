@@ -173,8 +173,8 @@ public class ArchiveTest {
             ArchiveEntry ePrev = entries.get(i-1);
             ArchiveEntry eCurr = entries.get(i);
             correctOrder = false;
-            for (int j = 0; j < eCurr.hash.length; j++) {
-                correctOrder = bitwiseCompare(eCurr.hash[j], ePrev.hash[j]) == 1;
+            for (int j = 0; j < eCurr.getHash().length; j++) {
+                correctOrder = bitwiseCompare(eCurr.getHash()[j], ePrev.getHash()[j]) == 1;
 
                 if(correctOrder)
                     break;
