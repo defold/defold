@@ -30,8 +30,9 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
+import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
@@ -96,7 +97,7 @@ public class MaterialBuilder extends Builder<Void>  {
             return;
         }
 
-        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderProgramBuilder.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
+        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderCompilerHelpers.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
 
         // JG: AAaah this should not be here, but we need to know of the parsed array samplers for building the indirection map..
         variantBuildResult.shaderBuilder.setVariantTextureArray(true);
