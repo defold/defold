@@ -177,6 +177,12 @@
   [^GL2 gl]
   (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
 
+(defn gl-active-texture
+  ^long [^GL2 gl]
+  (let [out (int-array 1)]
+    (.glGetIntegerv gl GL2/GL_ACTIVE_TEXTURE out 0)
+    (aget out 0)))
+
 (defn gl-current-program [^GL2 gl]
   (first (gl-get-integer-v gl GL2/GL_CURRENT_PROGRAM 1)))
 

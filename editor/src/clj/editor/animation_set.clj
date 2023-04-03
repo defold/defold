@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,7 +26,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException]
+  (:import [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException ModelUtil]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$AnimationSetDesc]
            [java.util ArrayList]))
 
@@ -73,9 +73,12 @@
         parent-resources (map (fn [x] (:parent-resource x)) animation-info)
 
         animation-set-builder (Rig$AnimationSet/newBuilder)
-        animation-ids (ArrayList.)]
-    
-    (AnimationSetBuilder/buildAnimations paths bones streams parent-ids animation-set-builder animation-ids)
+        animation-ids (ArrayList.)
+        workspace (resource/workspace resource)
+        project-path (workspace/project-path workspace)
+        data-resolver (ModelUtil/createFileDataResolver project-path)]
+
+    (AnimationSetBuilder/buildAnimations paths bones streams data-resolver parent-ids animation-set-builder animation-ids)
     (let [animation-set (protobuf/pb->map-with-defaults (.build animation-set-builder))]
       {:animation-set animation-set
        :animation-ids (vec animation-ids)})))

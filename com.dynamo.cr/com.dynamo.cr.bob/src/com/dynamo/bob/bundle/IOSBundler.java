@@ -203,8 +203,10 @@ public class IOSBundler implements IBundler {
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
+                orientationSupport.add("LandscapeLeft");
             } else {
                 orientationSupport.add("Portrait");
+                orientationSupport.add("PortraitUpsideDown");
             }
         } else {
             orientationSupport.add("Portrait");
@@ -232,6 +234,15 @@ public class IOSBundler implements IBundler {
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
+
+        String bundleIdentifier = project.getProjectProperties().getStringValue("ios", "bundle_identifier");
+        if (bundleIdentifier == null) {
+            throw new CompileExceptionError("No value for 'ios.bundle_identifier' set in game.project");
+        }
+
+        if (!BundleHelper.isValidAppleBundleIdentifier(bundleIdentifier)) {
+            throw new CompileExceptionError("iOS bundle identifier '" + bundleIdentifier + "' is not valid.");
+        }
 
         BundleHelper.throwIfCanceled(canceled);
 

@@ -18,7 +18,7 @@
             [editor.game-object-common :as game-object-common]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
-            [editor.math :as math]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -28,7 +28,7 @@
             [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -131,11 +131,11 @@
                             nil))))
               (:embedded-instances source-value))))))
 
-(defn game-object-instance-build-target [build-resource instance-desc-with-go-props ^Matrix4d transform-matrix game-object-build-target proj-path->resource-property-build-target]
+(defn game-object-instance-build-target [build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
          (map? instance-desc-with-go-props) ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format, but GameObject$PropertyDescs must have a :clj-value.
          (not (contains? instance-desc-with-go-props :data)) ; We don't need the :data from GameObject$EmbeddedInstanceDescs.
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? pose)
          (map? game-object-build-target)
          (ifn? proj-path->resource-property-build-target)]}
   ;; Create a build-target for the referenced or embedded game object. Also tag
@@ -163,7 +163,7 @@
                                               (util/distinct-by (comp resource/proj-path :resource)))
                                         component-property-infos)
         game-object-instance-data {:resource build-resource
-                                   :transform transform-matrix
+                                   :pose pose
                                    :property-deps go-prop-dep-build-targets
                                    :instance-msg (protobuf/assign-repeated instance-desc-with-go-props
                                                    :component-properties component-property-descs)}
@@ -184,8 +184,8 @@
       (vals)
       (vec)))
 
-(defn- flatten-game-object-instance-data [game-object-instance-data collection-instance-id ^Matrix4d collection-instance-transform child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target]
-  (let [{:keys [resource instance-msg ^Matrix4d transform]} game-object-instance-data
+(defn- flatten-game-object-instance-data [game-object-instance-data collection-instance-id collection-instance-pose child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target]
+  (let [{:keys [resource instance-msg pose]} game-object-instance-data
         {:keys [id children component-properties]} instance-msg
         build-target-go-props (partial properties/build-target-go-props proj-path->resource-property-build-target)
         component-properties (map source-resource-component-property-desc component-properties)
@@ -203,18 +203,17 @@
                        :id (str collection-instance-id path-sep id)
                        :children (mapv #(str collection-instance-id path-sep %) children)
                        :component-properties component-property-descs)
-        transform (if (child-game-object-instance-id? id)
-                    transform
-                    (doto (Matrix4d. collection-instance-transform)
-                      (.mul transform)))]
+        pose (if (child-game-object-instance-id? id)
+               pose
+               (pose/pre-multiply pose collection-instance-pose))]
     {:resource resource
      :instance-msg instance-msg
-     :transform transform
+     :pose pose
      :property-deps go-prop-dep-build-targets}))
 
-(defn collection-instance-build-target [collection-instance-id ^Matrix4d transform-matrix instance-property-descs collection-build-target proj-path->resource-property-build-target]
+(defn collection-instance-build-target [collection-instance-id pose instance-property-descs collection-build-target proj-path->resource-property-build-target]
   {:pre [(string? collection-instance-id)
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? pose)
          (seqable? instance-property-descs) ; GameObject$InstancePropertyDescs in map format.
          (map? collection-build-target)
          (ifn? proj-path->resource-property-build-target)]}
@@ -232,17 +231,11 @@
     (bt/with-content-hash
       (assoc-in collection-build-target [:user-data :instance-data]
                 (mapv (fn [game-object-instance-data]
-                        (flatten-game-object-instance-data game-object-instance-data collection-instance-id transform-matrix child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target))
+                        (flatten-game-object-instance-data game-object-instance-data collection-instance-id pose child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target))
                       game-object-instance-datas)))))
 
-(defn- matrix->transform-properties [^Matrix4d transform-matrix]
-  (let [position (Point3d.)
-        rotation (Quat4d.)
-        scale (Vector3d.)]
-    (math/split-mat4 transform-matrix position rotation scale)
-    {:position (math/vecmath->clj position)
-     :rotation (math/vecmath->clj rotation)
-     :scale3 (math/vecmath->clj scale)}))
+(defn- pose->transform-properties [pose]
+  (pose/to-map pose :position :rotation :scale3))
 
 (defn- build-collection [build-resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
@@ -262,7 +255,7 @@
   (let [{:keys [name instance-data scale-along-z]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
         go-instance-msgs (map :instance-msg instance-data)
-        go-instance-transform-properties (map (comp matrix->transform-properties :transform) instance-data)
+        go-instance-transform-properties (map (comp pose->transform-properties :pose) instance-data)
         go-instance-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
         go-instance-component-go-props (map (fn [instance-desc] ; GameObject$InstanceDesc in map form
                                               (map (fn [component-property-desc] ; GameObject$ComponentPropertyDesc in map form

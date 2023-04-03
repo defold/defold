@@ -18,6 +18,7 @@
             [editor.build-target :as bt]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -165,25 +166,25 @@
               (mapcat #(embedded-component-desc->dependencies % ext->embedded-component-resource-type))
               (:embedded-components prototype-desc))))))
 
-(defn embedded-component-instance-data [build-resource embedded-component-desc ^Matrix4d transform-matrix]
+(defn embedded-component-instance-data [build-resource embedded-component-desc pose]
   {:pre [(workspace/build-resource? build-resource)
          (map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
-         (instance? Matrix4d transform-matrix)]}
+         (pose/pose? pose)]}
   {:resource build-resource
-   :transform transform-matrix
+   :pose pose
    :instance-msg (-> embedded-component-desc
                      (dissoc :type :data)
                      (add-default-scale-to-component-desc))})
 
-(defn referenced-component-instance-data [build-resource component-desc ^Matrix4d transform-matrix proj-path->resource-property-build-target]
+(defn referenced-component-instance-data [build-resource component-desc pose proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
          (map? component-desc) ; GameObject$ComponentDesc in map format, but PropertyDescs must have a :clj-value.
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? pose)
          (ifn? proj-path->resource-property-build-target)]}
   (let [go-props-with-source-resources (:properties component-desc) ; Every PropertyDesc must have a :clj-value with actual Resource, etc.
         [go-props go-prop-dep-build-targets] (properties/build-target-go-props proj-path->resource-property-build-target go-props-with-source-resources)]
     {:resource build-resource
-     :transform transform-matrix
+     :pose pose
      :property-deps go-prop-dep-build-targets
      :instance-msg (-> component-desc
                        (add-default-scale-to-component-desc)

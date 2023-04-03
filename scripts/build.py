@@ -27,6 +27,7 @@ import sdk
 import release_to_github
 import BuildUtility
 import http_cache
+from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
 from threading import Thread, Event
@@ -109,8 +110,8 @@ PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -122,10 +123,10 @@ DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
-PACKAGES_ANDROID_NDK="android-ndk-r20"
+PACKAGES_ANDROID_NDK="android-ndk-r25b"
 PACKAGES_ANDROID_SDK="android-sdk"
-ANDROID_TARGET_API_LEVEL=31
-ANDROID_BUILD_TOOLS_VERSION="32.0.0"
+ANDROID_TARGET_API_LEVEL=33
+ANDROID_BUILD_TOOLS_VERSION="33.0.1"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -343,16 +344,20 @@ class Configuration(object):
         sys.stdout.flush()
         sys.stderr.flush()
 
+    def _remove_tree(self, path):
+        if os.path.exists(path):
+            self._log('Removing %s' % path)
+            shutil.rmtree(path)
+
     def distclean(self):
-        if os.path.exists(self.dynamo_home):
-            self._log('Removing %s' % self.dynamo_home)
-            shutil.rmtree(self.dynamo_home)
+        self._remove_tree(self.dynamo_home)
 
         for lib in ENGINE_LIBS:
             builddir = join(self.defold_root, 'engine/%s/build' % lib)
-            if os.path.exists(builddir):
-                self._log('Removing %s' % builddir)
-                shutil.rmtree(builddir)
+            self._remove_tree(builddir)
+
+        # remove engine test dir specifically
+        self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
 
         # Recreate dirs
         self._create_common_dirs()
@@ -596,7 +601,7 @@ class Configuration(object):
                 host = 'darwin' # our packages are still called darwin
 
             # Android NDK
-            download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk(self, '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, ANDROID_TARGET_API_LEVEL, ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
@@ -905,16 +910,11 @@ class Configuration(object):
 
         strip = "strip"
         if 'android' in self.target_platform:
-            ANDROID_NDK_VERSION = '20'
+            ANDROID_NDK_VERSION = '25b'
             ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % ANDROID_NDK_VERSION)
-            ANDROID_GCC_VERSION = '4.9'
-            if target_platform == 'armv7-android':
-                ANDROID_PLATFORM = 'arm-linux-androideabi'
-            elif target_platform == 'arm64-android':
-                ANDROID_PLATFORM = 'aarch64-linux-android'
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-            strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
+            strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
 
         if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
             strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
@@ -1491,7 +1491,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    def _get_tag_name(self, version, channel):
+    def compose_tag_name(self, version, channel):
         if channel and channel != 'stable':
             channel = '-' + channel
         else:
@@ -1512,7 +1512,7 @@ class Configuration(object):
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
 
-        tag_name = self._get_tag_name(self.version, self.channel)
+        tag_name = self.compose_tag_name(self.version, self.channel)
 
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
@@ -1527,13 +1527,6 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        model = {'releases': releases,
-                 'has_releases': True}
-
-        model['release'] = { 'channel': "Unknown", 'version': self.version }
-        if self.channel:
-            model['release']['channel'] = self.channel.capitalize()
-
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         editor_channel = None
@@ -1550,19 +1543,13 @@ class Configuration(object):
 
         release_sha1 = releases[0]['sha1']
 
-        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-macos.dmg'),
-                                        dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
-
-        page = None;
+        html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
-            page = file.read()
+            html = file.read()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
-        html = page % {'model': json.dumps(model)}
 
         key = bucket.new_key('%s/index.html' % self.channel)
         key.content_type = 'text/html'
@@ -1591,6 +1578,49 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
+    def _get_tag_pattern_from_tag_name(self, channel, tag_name):
+        # NOTE: Each of the main branches has a channel (stable, beta and alpha)
+        #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
+        channel_pattern = ''
+        if channel != 'stable':
+            channel_pattern = '-' + channel
+        platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
+        if platform_pattern:
+            platform_pattern = '-' + platform_pattern
+
+        # Example tags:
+        #   1.2.184, 1.2.184-alpha, 1.2.184-beta
+        #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
+        return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
+
+    def _get_github_release_body(self):
+        engine_channel = None
+        editor_channel = None
+        engine_sha1 = None
+        editor_sha1 = None
+        if self.channel in ('stable','beta'):
+            engine_sha1 = self._git_sha1(self.version) # engine version
+
+        elif self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            editor_sha1 = self._git_sha1()
+            engine_sha1 = self._git_sha1(self.version) # engine version
+
+        else:
+            engine_sha1 = self._git_sha1()
+            engine_channel = self.channel
+            editor_channel = self.channel
+
+        if not editor_sha1:
+            editor_sha1 = engine_sha1
+
+        body  = "Defold version %s\n" % self.version
+        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
+        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return body
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -1609,26 +1639,28 @@ class Configuration(object):
 
         # Create or update the tag for engine releases
         tag_name = None
+        is_editor_branch = False
+        engine_channel = None
+        editor_channel = None
+        prerelease = True
         if self.channel in ('stable', 'beta', 'alpha'):
+            engine_channel = self.channel
+            editor_channel = self.channel
+            prerelease = self.channel in ('alpha',)
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        if tag_name is not None:
-            # NOTE: Each of the main branches has a channel (stable, beta and alpha)
-            #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
-            channel_pattern = ''
-            if self.channel != 'stable':
-                channel_pattern = '-' + self.channel
-            platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
-            if platform_pattern:
-                platform_pattern = '-' + platform_pattern
+        elif self.channel in ('editor-alpha',):
+            # We update the stable release with new editor builds
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            prerelease = False
+            tag_name = self.compose_tag_name(self.version, engine_channel)
+            is_editor_branch = True
 
-            # Example tags:
-            #   1.2.184, 1.2.184-alpha, 1.2.184-beta
-            #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
-            pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
-
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
+        if tag_name is not None and not is_editor_branch:
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
@@ -1653,17 +1685,44 @@ class Configuration(object):
         # Release to github as well
         if tag_name:
             # only allowed anyways with a github token
-            release_to_github.release(self, tag_name, release_sha1, releases[0])
+            body = self._get_github_release_body()
+            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
+    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    def release_to_github(self):
+        engine_channel = None
+        release_sha1 = None
+        is_editor_branch = False
+        prerelease = True
+        if self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            is_editor_branch = True
+            prerelease = False
+            release_sha1 = self._git_sha1()
+        else:
+            release_sha1 = self._git_sha1(self.version) # engine version
+            if self.channel in ('stable', 'beta'):
+                prerelease = False
+
+        tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
+
+        if tag_name is not None and not is_editor_branch:
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
+        else:
+            # e.g. editor-dev releases
+            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+
+        body = self._get_github_release_body()
+        release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
 #
 # END: RELEASE
 # ------------------------------------------------------------
-
-    def release_to_github(self):
-        tag_name = self._get_tag_name(self.version, self.channel)
-        release_sha1 = self._git_sha1(self.version)
-        releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
-        release_to_github.release(self, tag_name, release_sha1, releases[0])
 
     def sync_archive(self):
         u = urlparse(self.get_archive_path())

@@ -31,6 +31,7 @@ Macros currently mean no foreseeable performance gain, however."
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
+           [java.nio.charset StandardCharsets]
            [java.util Collection]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
@@ -49,6 +50,12 @@ Macros currently mean no foreseeable performance gain, however."
   (msg->clj [^Message pb v]))
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
+
+(defn escape-string
+  ^String [^String string]
+  (-> string
+      (.getBytes StandardCharsets/UTF_8)
+      (TextFormat/escapeBytes)))
 
 (defn- default-instance-raw [^Class cls]
   (j/invoke-no-arg-class-method cls "getDefaultInstance"))

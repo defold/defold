@@ -52,7 +52,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id factory-type prototype-resource load-dynamically]
+  [_node-id factory-type prototype-resource load-dynamically dynamic-prototype]
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
@@ -64,16 +64,21 @@
                          :filter (get-in factory-types [factory-type :ext])}
                         {:path [:load-dynamically]
                          :label "Load Dynamically"
+                         :type :boolean}
+                        {:path [:dynamic-prototype]
+                         :label "Dynamic Prototype"
                          :type :boolean}]}]
    :values {[:prototype] prototype-resource
-            [:load-dynamically] load-dynamically}})
+            [:load-dynamically] load-dynamically
+            [:dynamic-prototype] dynamic-prototype}})
 
 (g/defnk produce-pb-msg
-  [prototype-resource load-dynamically factory-type]
+  [prototype-resource load-dynamically dynamic-prototype factory-type]
   (let [pb-class (-> factory-types factory-type :pb-type)]
     (protobuf/make-map-with-defaults pb-class
       :prototype (resource/resource->proj-path prototype-resource)
-      :load-dynamically load-dynamically)))
+      :load-dynamically load-dynamically
+      :dynamic-prototype dynamic-prototype)))
 
 (defn build-factory
   [resource dep-resources user-data]
@@ -105,7 +110,8 @@
   (g/set-property self
                   :factory-type factory-type
                   :prototype (workspace/resolve-resource resource (:prototype factory))
-                  :load-dynamically (:load-dynamically factory)))
+                  :load-dynamically (:load-dynamically factory)
+                  :dynamic-prototype (:dynamic-prototype factory)))
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
@@ -128,6 +134,7 @@
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
   (property load-dynamically g/Bool)
+  (property dynamic-prototype g/Bool)
 
   (output form-data g/Any produce-form-data)
 

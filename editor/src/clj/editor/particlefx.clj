@@ -50,7 +50,7 @@
            [editor.gl.shader ShaderLifecycle]
            [editor.properties Curve CurveSpread]
            [editor.types AABB]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer ByteOrder IntBuffer]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -406,6 +406,7 @@
                   vtx-binding (vtx/use-with context vbuf shader)
                   blend-mode (convert-blend-mode (:blend-mode render-data))]
               (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
+                (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
                 (gl/set-blend-mode gl blend-mode)
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))
@@ -631,6 +632,27 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
+
+(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
+  (when (and (some? texture-page-count)
+             (some? material-max-page-count))
+    (cond
+      (and is-paged-material
+           (zero? texture-page-count))
+      "The Material expects a paged Atlas, but the selected Image is not paged"
+
+      (and (not is-paged-material)
+           (pos? texture-page-count))
+      "The Material does not support paged Atlases, but the selected Image is paged"
+
+      (< material-max-page-count texture-page-count)
+      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
+
+(defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
+  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
+    (or (prop-resource-error :fatal _node-id :material material "Material")
+        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+
 (declare ParticleFXNode)
 
 (g/defnode EmitterNode
@@ -658,6 +680,7 @@
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:texture-set :texture-set]
+                                            [:texture-page-count :texture-page-count]
                                             [:gpu-texture :gpu-texture]
                                             [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
@@ -680,14 +703,16 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
+                                            [:max-page-count :material-max-page-count]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]}))
-            (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material "Material"))))
+            (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
+                             (prop-resource-error :fatal _node-id :material material "Material")
+                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
@@ -714,15 +739,17 @@
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
+  (input material-max-page-count g/Int)
   (input default-tex-params g/Any)
   (input texture-set g/Any)
   (input gpu-texture g/Any)
+  (input texture-page-count g/Int :substitute nil)
   (input dep-build-targets g/Any :array)
   (input emitter-indices g/Any)
   (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
-  (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
+  (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count material-shader texture-page-count animation anim-ids dep-build-targets]
                                 (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
-                                                            (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                                                            (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
                                                            (remove nil?)
@@ -757,13 +784,25 @@
             (when (and animation texture-set gpu-texture)
               (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
                     ^ByteString tex-coords (:tex-coords texture-set)
-                    tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
+                    tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))
+                    page-indices (:page-indices texture-set)
+                    page-indices-buffer (ByteBuffer/allocateDirect (* Integer/BYTES (count page-indices)))
+                    frame-indices (:frame-indices texture-set)
+                    frame-indices-buffer (ByteBuffer/allocateDirect (* Integer/BYTES (count frame-indices)))]
                 (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
                 (.flip tex-coords-buffer)
+                (.order page-indices-buffer ByteOrder/LITTLE_ENDIAN)
+                (.put (.asIntBuffer page-indices-buffer) (int-array page-indices))
+                (.flip page-indices-buffer)
+                (.order frame-indices-buffer ByteOrder/LITTLE_ENDIAN)
+                (.put (.asIntBuffer frame-indices-buffer) (int-array frame-indices))
+                (.flip frame-indices-buffer)
                 {:gpu-texture gpu-texture
                  :shader material-shader
                  :texture-set-anim texture-set-anim
-                 :tex-coords tex-coords-buffer})))))
+                 :tex-coords tex-coords-buffer
+                 :page-indices page-indices-buffer
+                 :frame-indices frame-indices-buffer})))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

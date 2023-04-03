@@ -460,15 +460,29 @@
         new-value (from-fn new-value)]
     (set-value-txs evaluation-context node-id prop-kw key set-fn value new-value)))
 
-(defn- set-values [evaluation-context property values]
+(defn- resolve-set-operations
+  "Resolves the supplied property and sequence of new values to a vector of
+  individual [node-id prop-kw old-value new-value] vectors detailing the
+  low-level property set operations that will be performed as a result."
+  [property values]
+  (let [node-ids (:node-ids property)
+        prop-kws (:prop-kws property)
+        old-values (:values property)
+        new-values (if-some [from-fn (-> property :edit-type :from-type)]
+                     (map from-fn values) ; The values might be an infinite sequence, so we can't use mapv here.
+                     values)]
+    (mapv vector node-ids prop-kws old-values new-values)))
+
+(defn- edited-endpoints [set-operations]
+  (into #{}
+        (map (fn [[node-id prop-kw]]
+               (g/endpoint node-id prop-kw)))
+        set-operations))
+
+(defn- set-values [evaluation-context property set-operations]
   (let [key (:key property)
-        set-fn (get-in property [:edit-type :set-fn])
-        from-fn (get-in property [:edit-type :from-type] identity)]
-    (for [[node-id prop-kw old-value new-value] (map vector
-                                                     (:node-ids property)
-                                                     (:prop-kws property)
-                                                     (:values property)
-                                                     (map from-fn values))]
+        set-fn (get-in property [:edit-type :set-fn])]
+    (for [[node-id prop-kw old-value new-value] set-operations]
       (set-value-txs evaluation-context node-id prop-kw key set-fn old-value new-value))))
 
 (defn keyword->name [kw]
@@ -491,17 +505,35 @@
 (defn read-only? [property]
   (:read-only? property))
 
+(defn user-edit?
+  "Callable from a property setter function. Returns true if the setter function
+  is being invoked as a result of the user editing the specified property. It
+  will return false if the property setter is being called as a result of other
+  operations such as resource loading, script code being executed, etc."
+  [node-id prop-kw evaluation-context]
+  {:pre [(map? evaluation-context)]}
+  (true?
+    (some-> evaluation-context
+            :tx-data-context
+            deref
+            :edited-endpoints
+            (contains? (g/endpoint node-id prop-kw)))))
+
 (defn set-values!
+  "Set values as a result of a user-edit in the Property Editor."
   ([property values]
    (set-values! property values (gensym)))
   ([property values op-seq]
    (when (not (read-only? property))
-     (let [evaluation-context (g/make-evaluation-context)]
+     (let [evaluation-context (g/make-evaluation-context)
+           set-operations (resolve-set-operations property values)
+           edited-endpoints (edited-endpoints set-operations)]
        (g/transact
+         {:tx-data-context-map {:edited-endpoints edited-endpoints}}
          (concat
            (g/operation-label (str "Set " (label property)))
            (g/operation-sequence op-seq)
-           (set-values evaluation-context property values)))))))
+           (set-values evaluation-context property set-operations)))))))
 
 (defn unify-values [values]
   (loop [v0 (first values)

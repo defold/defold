@@ -17,9 +17,6 @@
 #include <string.h>
 #include <time.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>

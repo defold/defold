@@ -80,12 +80,11 @@ def transform_runnable_path(platform, path):
 SDK_ROOT=sdk.SDK_ROOT
 
 ANDROID_ROOT=SDK_ROOT
-ANDROID_BUILD_TOOLS_VERSION = '32.0.0'
-ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_BUILD_TOOLS_VERSION = '33.0.1'
+ANDROID_NDK_API_VERSION='19' # Android 4.4
 ANDROID_NDK_ROOT=os.path.join(SDK_ROOT,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
-ANDROID_TARGET_API_LEVEL='31' # Android 12.0
-ANDROID_MIN_API_LEVEL='16'
-ANDROID_GCC_VERSION='4.9'
+ANDROID_TARGET_API_LEVEL='33' # Android 13.0
+ANDROID_MIN_API_LEVEL='19'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
@@ -245,9 +244,6 @@ def getAndroidNDKArch(target_arch):
 
 def getAndroidArch(target_arch):
     return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
-
-def getAndroidBuildtoolName(target_arch):
-    return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
 
 def getAndroidCompilerName(target_arch, api_version):
     if target_arch == 'arm64':
@@ -586,10 +582,15 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('macos','ios','android'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
-        self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
-        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
+    if Options.options.with_asan:
+        if build_util.get_target_os() in ('macos','ios','android'):
+            self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
+            self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
+            self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
+        elif build_util.get_target_os() in ('win',):
+            self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
+            self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
+            # not a linker option
     elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
@@ -872,8 +873,7 @@ def _strip_executable(bld, platform, target_arch, path):
     if 'android' in platform:
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-        build_tool = getAndroidBuildtoolName(target_arch)
-        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, ANDROID_GCC_VERSION, ANDROID_HOST, build_tool)
+        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1517,7 +1517,7 @@ def detect(conf):
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/ar' % bin_dir
             conf.env['RANLIB']  = '%s/ranlib' % bin_dir
-            conf.env['LD']      = '%s/ld' % bin_dir
+            conf.env['LD']      = '%s/lld' % bin_dir
 
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
@@ -1529,10 +1529,10 @@ def detect(conf):
         if bp_os == 'macos':
             bp_os = 'darwin' # the toolset is still called darwin
         target_arch = build_util.get_target_architecture()
-        tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
         bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
+        tool_name = "llvm"
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
@@ -1540,7 +1540,7 @@ def detect(conf):
         conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
         conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
-        conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
+        conf.env['LD']       = '%s/lld' % (bintools)
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     elif 'linux' == build_util.get_target_os():
@@ -1761,6 +1761,7 @@ def detect(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
+        conf.env['LINKFLAGS_DINPUT']   = ['dinput8.lib', 'dxguid.lib']
         conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 
 def configure(conf):

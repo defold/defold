@@ -25,7 +25,8 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.http-util :as http-util])
   (:import [java.net URI URLDecoder]
            [javafx.scene Parent]
            [javafx.scene.control Tab]
@@ -72,9 +73,9 @@
 
         :else
         (do (log/warn :message (format "Unknown content-type %s for %s" resource-ext resource))
-            {:code 404})))
+            http-util/not-found-response)))
     (do (log/warn :message (format "Cannot find resource for %s" (:url request)))
-        {:code 404})))
+        http-util/not-found-response)))
 
 (defn- get-http-server!
   [project]

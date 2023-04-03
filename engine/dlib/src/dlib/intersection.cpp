@@ -137,7 +137,7 @@ bool TestFrustumOBB(const Frustum& frustum, const dmVMath::Matrix4& world, dmVMa
     {
         // get plane normal/equation
         bool positive_found = false;
-        for (int corner_i=1; corner_i<8; corner_i++)
+        for (int corner_i=0; corner_i<8; corner_i++)
         {
             float distance = DistanceToPlane(frustum.m_Planes[plane_i], corner_points[corner_i]);
             if (distance >= 0)

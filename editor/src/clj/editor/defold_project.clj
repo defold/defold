@@ -26,6 +26,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.lsp :as lsp]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -92,7 +93,7 @@
                 (load-registered-resource-node resource-type project node-id resource)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource)))))))
+              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
@@ -393,11 +394,15 @@
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
-  (run [project-graph] (g/undo! project-graph)))
+  (run [project-graph]
+    (g/undo! project-graph)
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/defhandler :redo :global
   (enabled? [project-graph] (g/has-redo? project-graph))
-  (run [project-graph] (g/redo! project-graph)))
+  (run [project-graph]
+    (g/redo! project-graph)
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (def ^:private bundle-targets
   (into []
@@ -512,10 +517,12 @@
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
-                                             (let [deps (du/measuring resource-metrics (resource/proj-path (g/node-value node-id :resource rn-dependencies-evaluation-context)) :find-old-reload-dependencies
-                                                          (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context))]
-                                               (when-not (g/error? deps)
-                                                 deps))))
+                                             (let [resource (g/node-value node-id :resource rn-dependencies-evaluation-context)]
+                                               (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
+                                                 (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+                                                   (let [save-value (g/node-value node-id :save-value rn-dependencies-evaluation-context)]
+                                                     (when-not (g/error? save-value)
+                                                       (dependencies-fn save-value))))))))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (du/measuring process-metrics :make-new-nodes
                       (make-nodes! project (:new plan)))
@@ -659,7 +666,8 @@
         resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
-    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))))
+    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
+    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)))
 
 (g/defnk produce-collision-groups-data
   [collision-group-nodes]
@@ -846,7 +854,8 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
-                (g/set-graph-value graph :project-id project)))))]
+                (g/set-graph-value graph :project-id project)
+                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 

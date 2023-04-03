@@ -582,6 +582,7 @@ bail:
         VkDevice              vk_device,
         uint32_t              imageWidth,
         uint32_t              imageHeight,
+        uint32_t              imageLayers,
         uint16_t              imageMips,
         VkSampleCountFlagBits vk_sample_count,
         VkFormat              vk_format,
@@ -595,8 +596,8 @@ bail:
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
         TextureType tex_type = textureOut->m_Type;
 
-        VkImageCreateInfo vk_image_create_info;
-        memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
+        VkImageCreateInfo vk_image_create_info = {};
+        VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
         vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
@@ -604,7 +605,7 @@ bail:
         vk_image_create_info.extent.height = imageHeight;
         vk_image_create_info.extent.depth  = 1;
         vk_image_create_info.mipLevels     = imageMips;
-        vk_image_create_info.arrayLayers   = 1;
+        vk_image_create_info.arrayLayers   = imageLayers;
         vk_image_create_info.format        = vk_format;
         vk_image_create_info.tiling        = vk_tiling;
         vk_image_create_info.initialLayout = vk_initial_layout;
@@ -615,23 +616,21 @@ bail:
 
         if (tex_type == TEXTURE_TYPE_CUBE_MAP)
         {
-            vk_image_create_info.arrayLayers = 6;
-            vk_image_create_info.flags      |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+            assert(imageLayers == 6);
+            vk_image_create_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+            vk_view_type   = VK_IMAGE_VIEW_TYPE_CUBE;
+        }
+        else if (tex_type == TEXTURE_TYPE_2D_ARRAY)
+        {
+            assert(imageLayers > 0);
+            vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+            vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         }
 
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
-        }
-
-        // Handle cubemap vs 2D
-        VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
-        uint8_t vk_layer_count       = 1;
-        if (tex_type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            vk_view_type   = VK_IMAGE_VIEW_TYPE_CUBE;
-            vk_layer_count = 6;
         }
 
         // Allocate GPU memory to hold texture
@@ -679,7 +678,7 @@ bail:
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
         vk_view_create_info.subresourceRange.levelCount     = imageMips;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
-        vk_view_create_info.subresourceRange.layerCount     = vk_layer_count;
+        vk_view_create_info.subresourceRange.layerCount     = imageLayers;
 
         textureOut->m_Format                   = vk_format;
         textureOut->m_Destroyed                = 0;

@@ -181,6 +181,24 @@
 (def defold-docs (defold-documentation))
 (def preinstalled-modules (into #{} (remove #{""} (keys defold-docs))))
 
+(def base-globals
+  (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
+        (map #(.getName ^ScriptDoc$Element %))
+        (get (load-sdoc (sdoc-path "base")) "")))
+
+(defn extract-globals-from-completions [completions]
+  (into #{}
+        (comp
+          (remove #(#{:message :property} (:type %)))
+          (map :name)
+          (remove #(or (= "" %)
+                       (string/includes? % ":")
+                       (contains? base-globals %))))
+        (get completions "")))
+
+(def defined-globals
+  (extract-globals-from-completions defold-docs))
+
 (defn lua-base-documentation []
   (s/validate documentation-schema
               {"" (into []

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,78 +26,44 @@ namespace dmGameSystem
 {
     static dmGraphics::HContext g_GraphicsContext = 0x0;
 
-    static bool IsSupportedGraphicsType(dmBufferDDF::ValueType value_type) {
-        if (value_type == dmBufferDDF::VALUE_TYPE_UINT64 ||
-            value_type == dmBufferDDF::VALUE_TYPE_INT64) {
+    static bool IsBufferTypeSupportedGraphicsType(dmBuffer::ValueType value_type) {
+        if (value_type == dmBuffer::VALUE_TYPE_UINT64 ||
+            value_type == dmBuffer::VALUE_TYPE_INT64) {
             return false;
         }
 
         return true;
     }
 
-    static dmGraphics::Type StreamTypeToGraphicsType(dmBufferDDF::ValueType value_type)
+    static dmGraphics::Type BufferValueTypeToGraphicsType(dmBuffer::ValueType value_type)
     {
         switch (value_type)
         {
-            case dmBufferDDF::VALUE_TYPE_UINT8:
+            case dmBuffer::VALUE_TYPE_UINT8:
                 return dmGraphics::TYPE_UNSIGNED_BYTE;
             break;
-            case dmBufferDDF::VALUE_TYPE_UINT16:
+            case dmBuffer::VALUE_TYPE_UINT16:
                 return dmGraphics::TYPE_UNSIGNED_SHORT;
             break;
-            case dmBufferDDF::VALUE_TYPE_UINT32:
+            case dmBuffer::VALUE_TYPE_UINT32:
                 return dmGraphics::TYPE_UNSIGNED_INT;
             break;
-            case dmBufferDDF::VALUE_TYPE_INT8:
+            case dmBuffer::VALUE_TYPE_INT8:
                 return dmGraphics::TYPE_BYTE;
             break;
-            case dmBufferDDF::VALUE_TYPE_INT16:
+            case dmBuffer::VALUE_TYPE_INT16:
                 return dmGraphics::TYPE_SHORT;
             break;
-            case dmBufferDDF::VALUE_TYPE_INT32:
+            case dmBuffer::VALUE_TYPE_INT32:
                 return dmGraphics::TYPE_INT;
             break;
-            case dmBufferDDF::VALUE_TYPE_FLOAT32:
+            case dmBuffer::VALUE_TYPE_FLOAT32:
                 return dmGraphics::TYPE_FLOAT;
             break;
-
-            // case dmBufferDDF::VALUE_TYPE_UINT64:
-            // case dmBufferDDF::VALUE_TYPE_INT64:
+            // case dmBuffer::VALUE_TYPE_UINT64:
+            // case dmBuffer::VALUE_TYPE_INT64:
             default:
                 return dmGraphics::TYPE_BYTE;
-        }
-    }
-
-    static size_t StreamTypeToSize(dmBufferDDF::ValueType value_type)
-    {
-        switch (value_type)
-        {
-            case dmBufferDDF::VALUE_TYPE_UINT8:
-                return sizeof(uint8_t);
-            break;
-            case dmBufferDDF::VALUE_TYPE_UINT16:
-                return sizeof(uint16_t);
-            break;
-            case dmBufferDDF::VALUE_TYPE_UINT32:
-                return sizeof(uint32_t);
-            break;
-            case dmBufferDDF::VALUE_TYPE_INT8:
-                return sizeof(int8_t);
-            break;
-            case dmBufferDDF::VALUE_TYPE_INT16:
-                return sizeof(int16_t);
-            break;
-            case dmBufferDDF::VALUE_TYPE_INT32:
-                return sizeof(int32_t);
-            break;
-            case dmBufferDDF::VALUE_TYPE_FLOAT32:
-                return sizeof(float);
-            break;
-
-            // case dmBufferDDF::VALUE_TYPE_UINT64:
-            // case dmBufferDDF::VALUE_TYPE_INT64:
-            default:
-                return 0;
         }
     }
 
@@ -105,45 +71,51 @@ namespace dmGameSystem
     {
         switch (primitive_type)
         {
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_POINTS:
-            //     return dmGraphics::PRIMITIVE_POINTS;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_LINES:
-                return dmGraphics::PRIMITIVE_LINES;
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_LOOP:
-            //     return dmGraphics::PRIMITIVE_LINE_LOOP;
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_STRIP:
-            //     return dmGraphics::PRIMITIVE_LINE_STRIP;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES:
-                return dmGraphics::PRIMITIVE_TRIANGLES;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP:
-                return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
-            //     return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_LINES:          return dmGraphics::PRIMITIVE_LINES;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES:      return dmGraphics::PRIMITIVE_TRIANGLES;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP: return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
+            default:                                            assert(0 && "Unsupported primitive_type");
         }
+        return (dmGraphics::PrimitiveType) -1;
     }
 
     bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
     {
+        #define CHECK_BUFFER_RESULT_OR_RETURN(res) \
+            if (res != dmBuffer::RESULT_OK) \
+                return false;
+
         assert(buffer_resource);
 
+        dmBuffer::HBuffer buffer = buffer_resource->m_Buffer;
+
+        uint32_t stream_count;
+        dmBuffer::Result buffer_res = dmBuffer::GetNumStreams(buffer, &stream_count);
+        CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(g_GraphicsContext);
 
-        const uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
         for (uint32_t i = 0; i < stream_count; ++i)
         {
-            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+            dmhash_t stream_name;
+            buffer_res = dmBuffer::GetStreamName(buffer, i, &stream_name);
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
 
-            if (!IsSupportedGraphicsType(ddf_stream.m_ValueType)) {
-                dmLogError("Value type for stream %s is not supported.", ddf_stream.m_Name);
+            dmBuffer::ValueType stream_value_type;
+            uint32_t stream_value_count;
+            buffer_res = dmBuffer::GetStreamType(buffer, stream_name, &stream_value_type, &stream_value_count);
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
+
+            if (!IsBufferTypeSupportedGraphicsType(stream_value_type)) {
+                dmLogError("Value type for stream %s is not supported.", dmHashReverseSafe64(stream_name));
                 dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
                 return false;
             }
 
-            dmGraphics::AddVertexStream(stream_declaration, ddf_stream.m_Name, ddf_stream.m_ValueCount, StreamTypeToGraphicsType(ddf_stream.m_ValueType), false);
+            dmGraphics::AddVertexStream(stream_declaration, stream_name, stream_value_count, BufferValueTypeToGraphicsType(stream_value_type), false);
         }
 
         // Get correct "struct stride/size", since dmBuffer might align the structs etc.
-        uint32_t stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
+        uint32_t stride = dmBuffer::GetStructSize(buffer);
 
         // Init vertex declaration
         *out_vert_decl = dmGraphics::NewVertexDeclaration(g_GraphicsContext, stream_declaration, stride);
@@ -153,12 +125,14 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             uint32_t offset = 0;
-            dmBuffer::Result r = dmBuffer::GetStreamOffset(buffer_resource->m_Buffer, i, &offset);
-            assert(r == dmBuffer::RESULT_OK);
+            buffer_res = dmBuffer::GetStreamOffset(buffer, i, &offset);
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res)
 
             bool b2 = dmGraphics::SetStreamOffset(*out_vert_decl, i, offset);
             assert(b2);
         }
+
+        #undef CHECK_BUFFER_RESULT_OR_RETURN
 
         return true;
     }
@@ -213,22 +187,30 @@ namespace dmGameSystem
             return result;
         }
 
-        dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
+        TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
+
         for (uint32_t i = 0; i < resource->m_MeshDDF->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             const char* texture_path = resource->m_MeshDDF->m_Textures[i];
             if (*texture_path != 0)
             {
-                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
+                TextureResource* texture_res;
+                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &texture_res);
+                textures[i] = texture_res;
+
                 if (r != dmResource::RESULT_OK)
                 {
-                    if (result == dmResource::RESULT_OK) {
+                    if (result == dmResource::RESULT_OK)
+                    {
                         result = r;
                     }
-                } else {
+                }
+                else
+                {
                     r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
-                    if (r != dmResource::RESULT_OK) {
+                    if (r != dmResource::RESULT_OK)
+                    {
                        result = r;
                     }
                 }
@@ -242,7 +224,7 @@ namespace dmGameSystem
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
             return result;
         }
-        memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+        memcpy(resource->m_Textures, textures, sizeof(TextureResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         // Buffer resources can be created with zero elements, in such case
         // the buffer will be null and we cannot create vertices.
@@ -272,8 +254,10 @@ namespace dmGameSystem
     {
         MeshResource* mesh_resource = (MeshResource*) params.m_UserData;
 
-        if (mesh_resource->m_BufferVersion != mesh_resource->m_BufferResource->m_Version) {
-            if (!BuildVertices(mesh_resource)) {
+        if (mesh_resource->m_BufferVersion != mesh_resource->m_BufferResource->m_Version)
+        {
+            if (!BuildVertices(mesh_resource))
+            {
                 dmLogWarning("Reloading the mesh failed, there might be rendering errors.");
             }
             mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;

@@ -322,19 +322,19 @@ public class TestHttpServer extends AbstractHandler
         {
             Server server = new Server();
             SocketConnector connector = new SocketConnector();
-            connector.setMaxIdleTime(1000);
+            connector.setMaxIdleTime(10000);
             server.addConnector(connector);
 
             SslSocketConnector sslConnector = new SslSocketConnector();
-            sslConnector.setHandshakeTimeout(1000);
-            sslConnector.setMaxIdleTime(1000);
+            sslConnector.setHandshakeTimeout(10000);
+            sslConnector.setMaxIdleTime(10000);
             sslConnector.setKeystore("src/test/data/keystore");
             sslConnector.setKeyPassword("defold");
             server.addConnector(sslConnector);
 
             TestSslSocketConnector testsslConnector = new TestSslSocketConnector();
-            testsslConnector.setHandshakeTimeout(1000);
-            testsslConnector.setMaxIdleTime(1000);
+            testsslConnector.setHandshakeTimeout(10000);
+            testsslConnector.setMaxIdleTime(10000);
             testsslConnector.setKeystore("src/test/data/keystore");
             testsslConnector.setKeyPassword("defold");
             server.addConnector(testsslConnector);

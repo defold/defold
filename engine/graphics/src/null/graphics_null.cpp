@@ -476,11 +476,6 @@ namespace dmGraphics
         return 65536;
     }
 
-    static bool NullIsMultiTargetRenderingSupported(HContext context)
-    {
-        return true;
-    }
-
     static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         return NewVertexDeclaration(context, stream_declaration);
@@ -581,7 +576,7 @@ namespace dmGraphics
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
             VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            dmHashUpdateBuffer32(state, stream.m_Name,       strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_NameHash,  sizeof(dmhash_t));
             dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
             dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
             dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
@@ -593,33 +588,13 @@ namespace dmGraphics
     {
         const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
 
-        if (type == dmGraphics::TYPE_BYTE)
+        if (type == dmGraphics::TYPE_UNSIGNED_SHORT)
         {
-            return ((char*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_UNSIGNED_BYTE)
-        {
-            return ((unsigned char*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_SHORT)
-        {
-            return ((short*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_UNSIGNED_SHORT)
-        {
-            return ((unsigned short*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_INT)
-        {
-            return ((int*)index_buffer)[index];
+            return ((unsigned short*)index_buffer)[index/2];
         }
         else if (type == dmGraphics::TYPE_UNSIGNED_INT)
         {
-            return ((unsigned int*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_FLOAT)
-        {
-            return (uint32_t)((float*)index_buffer)[index];
+            return ((unsigned int*)index_buffer)[index/4];
         }
 
         assert(0);
@@ -737,12 +712,16 @@ namespace dmGraphics
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        VertexProgram* vertex = 0x0;
+        VertexProgram* vertex     = 0x0;
         FragmentProgram* fragment = 0x0;
         if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
+        {
             vertex = (VertexProgram*) vertex_program;
+        }
         if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
+        {
             fragment = (FragmentProgram*) fragment_program;
+        }
         return (HProgram) new Program(vertex, fragment);
     }
 
@@ -1127,12 +1106,6 @@ namespace dmGraphics
         }
     }
 
-    // Not used?
-    uint8_t* GetTextureData(HTexture texture)
-    {
-        return 0x0;
-    }
-
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
@@ -1169,7 +1142,7 @@ namespace dmGraphics
         return texture->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
@@ -1319,18 +1292,6 @@ namespace dmGraphics
         return context->m_PipelineState;
     }
 
-    // Not used?
-    bool AcquireSharedContext()
-    {
-        return false;
-    }
-
-    // Not used?
-    void UnacquireContext()
-    {
-
-    }
-
     static void NullSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         SetTexture(texture, params);
@@ -1353,117 +1314,46 @@ namespace dmGraphics
         g_ForceVertexReloadFail = should_fail;
     }
 
+    static bool NullIsExtensionSupported(HContext context, const char* extension)
+    {
+        return true;
+    }
+
+    static TextureType NullGetTextureType(HTexture texture)
+    {
+        return texture->m_Type;
+    }
+
+    static uint32_t NullGetNumSupportedExtensions(HContext context)
+    {
+        return 0;
+    }
+
+    static const char* NullGetSupportedExtension(HContext context, uint32_t index)
+    {
+        return "";
+    }
+
+    static uint8_t NullGetNumTextureHandles(HTexture texture)
+    {
+        return 1;
+    }
+
+    static bool NullIsContextFeatureSupported(HContext context, ContextFeature feature)
+    {
+        return true;
+    }
+
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable()
     {
-        GraphicsAdapterFunctionTable fn_table;
-        memset(&fn_table,0,sizeof(fn_table));
-        fn_table.m_NewContext = NullNewContext;
-        fn_table.m_DeleteContext = NullDeleteContext;
-        fn_table.m_Initialize = NullInitialize;
-        fn_table.m_Finalize = NullFinalize;
-        fn_table.m_GetWindowRefreshRate = NullGetWindowRefreshRate;
-        fn_table.m_OpenWindow = NullOpenWindow;
-        fn_table.m_CloseWindow = NullCloseWindow;
-        fn_table.m_IconifyWindow = NullIconifyWindow;
-        fn_table.m_GetWindowState = NullGetWindowState;
-        fn_table.m_GetDisplayDpi = NullGetDisplayDpi;
-        fn_table.m_GetWidth = NullGetWidth;
-        fn_table.m_GetHeight = NullGetHeight;
-        fn_table.m_GetWindowWidth = NullGetWindowWidth;
-        fn_table.m_GetWindowHeight = NullGetWindowHeight;
-        fn_table.m_GetDisplayScaleFactor = NullGetDisplayScaleFactor;
-        fn_table.m_SetWindowSize = NullSetWindowSize;
-        fn_table.m_ResizeWindow = NullResizeWindow;
-        fn_table.m_GetDefaultTextureFilters = NullGetDefaultTextureFilters;
-        fn_table.m_BeginFrame = NullBeginFrame;
-        fn_table.m_Flip = NullFlip;
-        fn_table.m_SetSwapInterval = NullSetSwapInterval;
-        fn_table.m_Clear = NullClear;
-        fn_table.m_NewVertexBuffer = NullNewVertexBuffer;
-        fn_table.m_DeleteVertexBuffer = NullDeleteVertexBuffer;
-        fn_table.m_SetVertexBufferData = NullSetVertexBufferData;
-        fn_table.m_SetVertexBufferSubData = NullSetVertexBufferSubData;
-        fn_table.m_MapVertexBuffer = NullMapVertexBuffer;
+        GraphicsAdapterFunctionTable fn_table = {};
+        DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Null);
+
+        // Add test functions
+        fn_table.m_MapVertexBuffer   = NullMapVertexBuffer;
         fn_table.m_UnmapVertexBuffer = NullUnmapVertexBuffer;
-        fn_table.m_GetMaxElementsVertices = NullGetMaxElementsVertices;
-        fn_table.m_NewIndexBuffer = NullNewIndexBuffer;
-        fn_table.m_DeleteIndexBuffer = NullDeleteIndexBuffer;
-        fn_table.m_SetIndexBufferData = NullSetIndexBufferData;
-        fn_table.m_SetIndexBufferSubData = NullSetIndexBufferSubData;
-        fn_table.m_MapIndexBuffer = NullMapIndexBuffer;
-        fn_table.m_UnmapIndexBuffer = NullUnmapIndexBuffer;
-        fn_table.m_IsIndexBufferFormatSupported = NullIsIndexBufferFormatSupported;
-        fn_table.m_NewVertexDeclaration = NullNewVertexDeclaration;
-        fn_table.m_NewVertexDeclarationStride = NullNewVertexDeclarationStride;
-        fn_table.m_SetStreamOffset = NullSetStreamOffset;
-        fn_table.m_DeleteVertexDeclaration = NullDeleteVertexDeclaration;
-        fn_table.m_EnableVertexDeclaration = NullEnableVertexDeclaration;
-        fn_table.m_EnableVertexDeclarationProgram = NullEnableVertexDeclarationProgram;
-        fn_table.m_DisableVertexDeclaration = NullDisableVertexDeclaration;
-        fn_table.m_HashVertexDeclaration = NullHashVertexDeclaration;
-        fn_table.m_DrawElements = NullDrawElements;
-        fn_table.m_Draw = NullDraw;
-        fn_table.m_NewVertexProgram = NullNewVertexProgram;
-        fn_table.m_NewFragmentProgram = NullNewFragmentProgram;
-        fn_table.m_NewProgram = NullNewProgram;
-        fn_table.m_DeleteProgram = NullDeleteProgram;
-        fn_table.m_ReloadVertexProgram = NullReloadVertexProgram;
-        fn_table.m_ReloadFragmentProgram = NullReloadFragmentProgram;
-        fn_table.m_DeleteVertexProgram = NullDeleteVertexProgram;
-        fn_table.m_DeleteFragmentProgram = NullDeleteFragmentProgram;
-        fn_table.m_GetShaderProgramLanguage = NullGetShaderProgramLanguage;
-        fn_table.m_EnableProgram = NullEnableProgram;
-        fn_table.m_DisableProgram = NullDisableProgram;
-        fn_table.m_ReloadProgram = NullReloadProgram;
-        fn_table.m_GetUniformName = NullGetUniformName;
-        fn_table.m_GetUniformCount = NullGetUniformCount;
-        fn_table.m_GetUniformLocation = NullGetUniformLocation;
-        fn_table.m_SetConstantV4 = NullSetConstantV4;
-        fn_table.m_SetConstantM4 = NullSetConstantM4;
-        fn_table.m_SetSampler = NullSetSampler;
-        fn_table.m_SetViewport = NullSetViewport;
-        fn_table.m_EnableState = NullEnableState;
-        fn_table.m_DisableState = NullDisableState;
-        fn_table.m_SetBlendFunc = NullSetBlendFunc;
-        fn_table.m_SetColorMask = NullSetColorMask;
-        fn_table.m_SetDepthMask = NullSetDepthMask;
-        fn_table.m_SetDepthFunc = NullSetDepthFunc;
-        fn_table.m_SetScissor = NullSetScissor;
-        fn_table.m_SetStencilMask = NullSetStencilMask;
-        fn_table.m_SetStencilFunc = NullSetStencilFunc;
-        fn_table.m_SetStencilOp = NullSetStencilOp;
-        fn_table.m_SetCullFace = NullSetCullFace;
-        fn_table.m_SetPolygonOffset = NullSetPolygonOffset;
-        fn_table.m_NewRenderTarget = NullNewRenderTarget;
-        fn_table.m_DeleteRenderTarget = NullDeleteRenderTarget;
-        fn_table.m_SetRenderTarget = NullSetRenderTarget;
-        fn_table.m_GetRenderTargetTexture = NullGetRenderTargetTexture;
-        fn_table.m_GetRenderTargetSize = NullGetRenderTargetSize;
-        fn_table.m_SetRenderTargetSize = NullSetRenderTargetSize;
-        fn_table.m_IsTextureFormatSupported = NullIsTextureFormatSupported;
-        fn_table.m_NewTexture = NullNewTexture;
-        fn_table.m_DeleteTexture = NullDeleteTexture;
-        fn_table.m_SetTexture = NullSetTexture;
-        fn_table.m_SetTextureAsync = NullSetTextureAsync;
-        fn_table.m_SetTextureParams = NullSetTextureParams;
-        fn_table.m_GetTextureResourceSize = NullGetTextureResourceSize;
-        fn_table.m_GetTextureWidth = NullGetTextureWidth;
-        fn_table.m_GetTextureHeight = NullGetTextureHeight;
-        fn_table.m_GetOriginalTextureWidth = NullGetOriginalTextureWidth;
-        fn_table.m_GetOriginalTextureHeight = NullGetOriginalTextureHeight;
-        fn_table.m_EnableTexture = NullEnableTexture;
-        fn_table.m_DisableTexture = NullDisableTexture;
-        fn_table.m_GetMaxTextureSize = NullGetMaxTextureSize;
-        fn_table.m_GetTextureStatusFlags = NullGetTextureStatusFlags;
-        fn_table.m_ReadPixels = NullReadPixels;
-        fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
-        fn_table.m_GetTextureHandle = NullGetTextureHandle;
-        fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
-        fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
-        fn_table.m_GetPipelineState = NullGetPipelineState;
-        fn_table.m_SetStencilFuncSeparate = NullSetStencilFuncSeparate;
-        fn_table.m_SetStencilOpSeparate = NullSetStencilOpSeparate;
-        fn_table.m_SetFaceWinding = NullSetFaceWinding;
+        fn_table.m_MapIndexBuffer    = NullMapIndexBuffer;
+        fn_table.m_UnmapIndexBuffer  = NullUnmapIndexBuffer;
 
         return fn_table;
     }

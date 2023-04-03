@@ -183,5 +183,6 @@
                                     :load-fn load-script-api
                                     :write-fn r/write-fn
                                     :textual? true
+                                    :language "yaml"
                                     :auto-connect-save-data? false))
 

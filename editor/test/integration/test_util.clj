@@ -128,7 +128,7 @@
   ([graph project-path]
    (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
          workspace (workspace/make-workspace graph
-                                             (.getAbsolutePath (io/file project-path))
+                                             project-path
                                              {}
                                              workspace-config)]
      (g/transact
@@ -140,7 +140,7 @@
 
 (defn make-temp-project-copy! [project-path]
   (let [temp-project-path (-> (fs/create-temp-directory! "test")
-                              (.getAbsolutePath))]
+                              (.getCanonicalPath))]
     (fs/copy-directory! (io/file project-path) (io/file temp-project-path))
     temp-project-path))
 
@@ -607,7 +607,7 @@
   (memoize
     (fn temp-directory-path []
       (let [temp-file (fs/create-temp-file!)
-            parent-directory-path (.getAbsolutePath (.getParentFile temp-file))]
+            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
         (fs/delete! temp-file {:fail :silently})
         parent-directory-path))))
 
@@ -617,9 +617,9 @@
   directory path must be a temp directory."
   ^java.lang.AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
-    (assert (string/starts-with? (.getAbsolutePath directory)
+    (assert (string/starts-with? (.getCanonicalPath directory)
                                  (temp-directory-path))
-            (str "directory-path `" (.getAbsolutePath directory) "` is not a temp directory"))
+            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
     (reify java.lang.AutoCloseable
       (close [_]
         (fs/delete-directory! directory {:fail :silently})))))
@@ -940,9 +940,13 @@
   (when-some [resource-node (resource-node project path)]
     (node-build-resource resource-node)))
 
-(defn texture-build-resource [project path]
+(defn nth-dep-build-resource [index project path]
   (when-some [resource-node (resource-node project path)]
-    (:resource (first (:deps (first (g/node-value resource-node :build-targets)))))))
+    (:resource (nth (:deps (first (g/node-value resource-node :build-targets))) index))))
+
+(def texture-build-resource (partial nth-dep-build-resource 0))
+(def vertex-shader-build-resource (partial nth-dep-build-resource 0))
+(def fragment-shader-build-resource (partial nth-dep-build-resource 1))
 
 (defn build-output
   ^bytes [project path]

@@ -17,10 +17,17 @@ package com.dynamo.bob.util;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.protobuf.ByteString;
+
 import com.dynamo.graphics.proto.Graphics.PathSettings;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
@@ -198,6 +205,51 @@ public class TextureUtil {
         }
 
         return null;
+    }
 
+    public static TextureImage createCombinedTextureImage(TextureImage[] textures, Type type) throws IOException {
+        int numTextures = textures.length;
+        if (numTextures == 0) {
+            return null;
+        }
+
+        if (type == TextureImage.Type.TYPE_2D)
+        {
+            numTextures = 1;
+        }
+
+        TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(textures[0]);
+
+        for (int i = 0; i < combinedImageBuilder.getAlternativesCount(); i++) {
+            Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
+
+            alternativeImageBuilder.clearMipMapSizeCompressed();
+
+            ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
+            for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+
+                for (int k = 0; k < numTextures; k++) {
+                    int mipSize = textures[k].getAlternatives(i).getMipMapSize(j);
+                    ByteString data = textures[k].getAlternatives(i).getData();
+                    int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
+                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+
+                    // Sizes can change between textures (maybe resize only if needed)
+                    byte[] buf = new byte[mipSize];
+                    data.copyTo(buf, mipOffset, 0, mipSize);
+                    os.write(buf);
+                }
+            }
+            os.flush();
+            alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
+            for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+                alternativeImageBuilder.setMipMapOffset(j, alternativeImageBuilder.getMipMapOffset(j) * numTextures);
+            }
+            combinedImageBuilder.setAlternatives(i, alternativeImageBuilder);
+        }
+
+        combinedImageBuilder.setCount(numTextures);
+        combinedImageBuilder.setType(type);
+        return combinedImageBuilder.build();
     }
 }

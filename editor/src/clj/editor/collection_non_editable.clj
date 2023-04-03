@@ -21,8 +21,8 @@
             [editor.game-object-common :as game-object-common]
             [editor.game-object-non-editable :as game-object-non-editable]
             [editor.graph-util :as gu]
-            [editor.math :as math]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -47,14 +47,23 @@
             referenced-component-build-targets
             resource-property-build-targets)))
 
-(defn- any-instance-desc->transform-matrix
-  ^Matrix4d [{:keys [position rotation scale3] :as any-instance-desc}]
+(defn- any-instance-desc->pose [{:keys [position rotation scale3] :as any-instance-desc}]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (let [scale (if (or (nil? scale3)
                       (protobuf/default-read-scale-value? scale3))
-                (:scale any-instance-desc) ; Legacy file format - use uniform scale.
+
+                ;; Legacy file format - use uniform scale.
+                (let [uniform-scale (or (:scale any-instance-desc) 1.0)]
+                  [uniform-scale uniform-scale uniform-scale])
+
+                ;; Modern file format.
                 scale3)]
-    (math/clj->mat4 position rotation scale)))
+    (pose/make position rotation scale)))
+
+(defn- any-instance-desc->transform-matrix
+  ^Matrix4d [any-instance-desc]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (pose/to-mat4 (any-instance-desc->pose any-instance-desc)))
 
 (defn- component-property-desc-with-go-props [component-property-desc proj-path->source-resource]
   ;; GameObject$ComponentPropertyDesc in map format.
@@ -74,20 +83,20 @@
     (assoc instance-property-desc :properties (mapv #(component-property-desc-with-go-props % proj-path->source-resource) component-property-descs))
     (dissoc instance-property-desc :properties)))
 
-(defn- game-object-instance-build-target [build-resource instance-desc ^Matrix4d transform-matrix game-object-build-target proj-path->resource-property-build-target]
+(defn- game-object-instance-build-target [build-resource instance-desc pose game-object-build-target proj-path->resource-property-build-target]
   ;; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
   (let [proj-path->source-resource (comp :resource :resource proj-path->resource-property-build-target)
         instance-desc-with-go-props (cond-> (instance-desc-with-go-props instance-desc proj-path->source-resource)
 
                                             (empty? (:children instance-desc))
                                             (dissoc :children))]
-    (collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props transform-matrix game-object-build-target proj-path->resource-property-build-target)))
+    (collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target)))
 
 (defn- instance-desc->game-object-instance-build-target [instance-desc game-object-build-target proj-path->build-target]
   ;; GameObject$InstanceDesc in map format.
   (let [build-resource (:resource game-object-build-target)
-        transform-matrix (any-instance-desc->transform-matrix instance-desc)]
-    (game-object-instance-build-target build-resource instance-desc transform-matrix game-object-build-target proj-path->build-target)))
+        pose (any-instance-desc->pose instance-desc)]
+    (game-object-instance-build-target build-resource instance-desc pose game-object-build-target proj-path->build-target)))
 
 (g/defnk produce-referenced-game-object-instance-build-targets [_node-id collection-desc proj-path->build-target resource]
   (let [build-targets
@@ -109,8 +118,8 @@
         embedded-game-object-build-target (game-object-common/game-object-build-target nil collection-node-id component-instance-datas component-build-targets)
         embedded-game-object-resource (workspace/make-embedded-resource workspace :non-editable "go" (:content-hash embedded-game-object-build-target)) ; Content determines hash for merging with embedded components in other .go files.
         embedded-game-object-build-resource (workspace/make-build-resource embedded-game-object-resource)
-        transform-matrix (any-instance-desc->transform-matrix embedded-instance-desc)]
-    (game-object-instance-build-target embedded-game-object-build-resource embedded-instance-desc transform-matrix embedded-game-object-build-target proj-path->build-target)))
+        pose (any-instance-desc->pose embedded-instance-desc)]
+    (game-object-instance-build-target embedded-game-object-build-resource embedded-instance-desc pose embedded-game-object-build-target proj-path->build-target)))
 
 (g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets resource proj-path->build-target]
   (let [workspace (resource/workspace resource)
@@ -142,10 +151,10 @@
               collection-instance-build-targets
               (mapv (fn [collection-instance-desc]
                       (let [collection-instance-id (:id collection-instance-desc)
-                            transform-matrix (any-instance-desc->transform-matrix collection-instance-desc)
+                            pose (any-instance-desc->pose collection-instance-desc)
                             referenced-collection-build-target (proj-path->build-target (:collection collection-instance-desc))
                             instance-property-descs (mapv #(instance-property-desc-with-go-props % proj-path->source-resource) (:instance-properties collection-instance-desc))]
-                        (collection-common/collection-instance-build-target collection-instance-id transform-matrix instance-property-descs referenced-collection-build-target proj-path->build-target)))
+                        (collection-common/collection-instance-build-target collection-instance-id pose instance-property-descs referenced-collection-build-target proj-path->build-target)))
                     collection-instance-descs)]
           [(collection-common/collection-build-target build-resource _node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets)]))))
 
@@ -276,9 +285,9 @@
          (ifn? child-id->desc)]}
   (letfn [(desc->instance-scene [desc]
             (let [id (:id desc)
-                  transform (any-instance-desc->transform-matrix desc)
+                  transform-matrix (any-instance-desc->transform-matrix desc)
                   source-scene (desc->source-scene desc)
-                  instance-scene (collection-common/any-instance-scene node-id id transform source-scene)
+                  instance-scene (collection-common/any-instance-scene node-id id transform-matrix source-scene)
                   child-instance-scenes (map (comp desc->instance-scene child-id->desc)
                                              (:children desc))]
               (cond-> instance-scene

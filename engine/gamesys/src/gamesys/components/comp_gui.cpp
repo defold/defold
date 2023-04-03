@@ -537,7 +537,7 @@ namespace dmGameSystem
             const char* name = scene_desc->m_Textures[i].m_Name;
 
             void* texture_source;
-            dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
+            dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture->m_Texture;
             dmGui::NodeTextureType texture_source_type;
 
             if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
@@ -903,7 +903,7 @@ namespace dmGameSystem
             TextureSetResource* texture_set_res = (TextureSetResource*) result;
             assert(texture_set_res);
 
-            return texture_set_res->m_Texture;
+            return texture_set_res->m_Texture->m_Texture;
         }
 
         return (dmGraphics::HTexture) result;
@@ -1030,7 +1030,9 @@ namespace dmGameSystem
             dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
             dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
             dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
-            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetUniformScale());
+            // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
+            float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
+            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
@@ -1138,9 +1140,9 @@ namespace dmGameSystem
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
         dmBuffer::StreamDeclaration boxvertex_stream_decl[] = {
-            {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+            {dmHashString64("position"),  dmBuffer::VALUE_TYPE_FLOAT32, 3},
             {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_FLOAT32, 2},
-            {dmHashString64("color"), dmBuffer::VALUE_TYPE_FLOAT32, 4}
+            {dmHashString64("color"),     dmBuffer::VALUE_TYPE_FLOAT32, 4},
         };
 
         uint32_t struct_size = 0;
@@ -1339,7 +1341,9 @@ namespace dmGameSystem
             bool flip_u = false;
             bool flip_v = false;
             if (!manually_set_texture)
+            {
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+            }
 
             // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
@@ -1465,6 +1469,7 @@ namespace dmGameSystem
             v10.SetColor(pm_color);
             v01.SetColor(pm_color);
             v11.SetColor(pm_color);
+
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
@@ -1619,6 +1624,7 @@ namespace dmGameSystem
             float u0,su,v0,sv;
             bool uv_rotated;
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+
             if(tc)
             {
                 bool flip_u, flip_v;
@@ -1957,8 +1963,8 @@ namespace dmGameSystem
             out_data->m_TexCoords = (const float*) texture_set->m_TexCoords.m_Data;
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
-            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
-            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture);
+            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture->m_Texture);
+            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture->m_Texture);
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
@@ -2377,7 +2383,7 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGraphics::HTexture texture = texture_source->m_Texture;
+                dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
                 dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
                 if (r != dmGui::RESULT_OK) {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);

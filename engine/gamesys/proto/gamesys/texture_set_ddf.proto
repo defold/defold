@@ -77,4 +77,12 @@ message TextureSet
 
     // A hash of the texture name/path
     optional uint64 texture_hash            = 23;
+
+    // Maps animation frames to atlas page index
+    repeated uint32 page_indices            = 24;
+
+    // Number of pages the texture contains. If the texture is non-paged, this value will be zero
+    // Note: We currently only need this for validation in bob, the engine can get this
+    //       value from the number of images in the texture resource
+    optional uint32 page_count              = 25 [default = 0];
 }

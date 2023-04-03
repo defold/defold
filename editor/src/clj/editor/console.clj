@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.console
-  (:require [clojure.string :as string]
+  (:require [clojure.data.json :as json]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
@@ -23,7 +24,8 @@
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.http-util :as http-util])
   (:import [clojure.lang PersistentQueue]
            [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.util.regex MatchResult]
@@ -31,13 +33,15 @@
            [javafx.scene Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button Tab TextField]
-           [javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
            [javafx.scene.layout GridPane Pane]
            [javafx.scene.paint Color]
            [javafx.scene.text Font FontSmoothingType TextAlignment]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defonce ^:const url-prefix "/console")
 
 (def ^:private pending-atom
   (atom {:clear? false :entries PersistentQueue/EMPTY}))
@@ -244,13 +248,25 @@
 ;; Setup
 ;; -----------------------------------------------------------------------------
 
+(defmulti json-compatible-region (fn [region] (:type region)))
+
+(defmethod json-compatible-region :default [region] (dissoc region :on-click!))
+
+(g/defnk produce-request-response [lines regions]
+  (let [json-regions (keep json-compatible-region regions)
+        body-data {:lines lines
+                   :regions json-regions}
+        body-string (json/write-str body-data)]
+    (http-util/make-json-response body-string)))
+
 (g/defnode ConsoleNode
   (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
-  (output lines r/Lines (gu/passthrough modified-lines)))
+  (output lines r/Lines (gu/passthrough modified-lines))
+  (output request-response g/Any :cached produce-request-response))
 
 (defn- gutter-metrics []
   [44.0 0.0])
@@ -319,13 +335,13 @@
             (.setFill gc gutter-eval-error-color)
             (.fillText gc "!" text-right text-y))
 
-          :extension-out
+          :extension-output
           (let [text-y (+ ascent line-y)]
             (.setFont gc font)
             (.setFill gc gutter-eval-expression-color)
             (.fillText gc "⚙" text-right text-y))
 
-          :extension-err
+          :extension-error
           (let [text-y (+ ascent line-y)]
             (.setFont gc font)
             (.setFill gc gutter-eval-error-color)
@@ -506,11 +522,15 @@
   (let [^Color background-color (Color/valueOf "#27292D")
         ^Color selection-background-color (Color/valueOf "#264A8B")]
     (view/make-color-scheme
-      [["console.error" (Color/valueOf "#FF6161")]
+      [["console.reload.successful" (Color/valueOf "#33CC33")]
+       ["console.error" (Color/valueOf "#FF6161")]
        ["console.warning" (Color/valueOf "#FF9A34")]
        ["console.info" (Color/valueOf "#CCCFD3")]
        ["console.debug" (Color/valueOf "#3B8CF8")]
-       ["console.reload.successful" (Color/valueOf "#33CC33")]
+       ["editor.error" (Color/valueOf "#FF6161")]
+       ["editor.warning" (Color/valueOf "#FF9A34")]
+       ["editor.info" (Color/valueOf "#CCCFD3")]
+       ["editor.debug" (Color/valueOf "#3B8CF8")]
        ["editor.foreground" (Color/valueOf "#A2B0BE")]
        ["editor.background" background-color]
        ["editor.cursor" Color/TRANSPARENT]
@@ -606,3 +626,21 @@
     ;; Start repaint timer.
     (ui/timer-start! repainter)
     view-node))
+
+(defn- handle-request! [{:keys [url method] :as _request} console-node]
+  (cond
+    (and (not= "/console" url)
+         (not= "/console/" url))
+    http-util/not-found-response
+
+    (not= "GET" method)
+    http-util/only-get-allowed-response
+
+    :else
+    (g/node-value console-node :request-response)))
+
+(defn make-request-handler [console-view]
+  (let [console-node (g/node-value console-view :resource-node)]
+    (assert (g/node-instance? ConsoleNode console-node))
+    (fn request-handler [request]
+      (handle-request! request console-node))))

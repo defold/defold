@@ -24,6 +24,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.image :as image]
+            [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.luajit :as luajit]
@@ -31,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
+            [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
@@ -144,6 +146,7 @@
           :script-property-type-resource))
 
 (def script-defs [{:ext "script"
+                   :language "lua"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
@@ -151,18 +154,21 @@
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
+                   :language "lua"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "gui_script"
+                   :language "lua"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "lua"
+                   :language "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
                    :view-types [:code :default]
@@ -519,37 +525,41 @@
               preprocessed-modules (lua-info->modules preprocessed-lua-info)
               proj-path->module-build-target (bt/make-proj-path->build-target module-build-targets)
               module->build-target (comp proj-path->module-build-target lua/lua-module->path)
-              preprocessed-module-build-targets (map module->build-target preprocessed-modules)
+              missing-modules (filterv (complement module->build-target) preprocessed-modules)]
+          (if (pos? (count missing-modules))
+            (g/->error _node-id :build-targets :fatal resource
+                       (str "Can't find required modules: " (eutil/join-words ", " " and " missing-modules)))
+            (let [preprocessed-module-build-targets (map module->build-target preprocessed-modules)
 
-              preprocessed-go-props-with-source-resources
-              (map (fn [{:keys [name type value]}]
-                     (let [go-prop-type (script-property-type->go-prop-type type)
-                           go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
-                       {:id name
-                        :type go-prop-type
-                        :value go-prop-value
-                        :clj-value value}))
-                   preprocessed-script-properties)
+                  preprocessed-go-props-with-source-resources
+                  (map (fn [{:keys [name type value]}]
+                         (let [go-prop-type (script-property-type->go-prop-type type)
+                               go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                           {:id name
+                            :type go-prop-type
+                            :value go-prop-value
+                            :clj-value value}))
+                       preprocessed-script-properties)
 
-              proj-path->resource-property-build-target
-              (bt/make-proj-path->build-target original-resource-property-build-targets)
+                  proj-path->resource-property-build-target
+                  (bt/make-proj-path->build-target original-resource-property-build-targets)
 
-              [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
-              (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
-          ;; NOTE: The :user-data must not contain any overridden data. If it does,
-          ;; the build targets won't be fused and the script will be recompiled
-          ;; for every instance of the script component. The :go-props here describe
-          ;; the original property values from the script, never overridden values.
-          [(bt/with-content-hash
-             {:node-id _node-id
-              :resource (workspace/make-build-resource resource)
-              :build-fn build-script
-              :user-data {:lines preprocessed-lines
-                          :go-props preprocessed-go-props
-                          :modules preprocessed-modules
-                          :proj-path (resource/proj-path resource)}
-              :deps (into preprocessed-go-prop-dep-build-targets
-                          preprocessed-module-build-targets)})])))))
+                  [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
+                  (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
+              ;; NOTE: The :user-data must not contain any overridden data. If it does,
+              ;; the build targets won't be fused and the script will be recompiled
+              ;; for every instance of the script component. The :go-props here describe
+              ;; the original property values from the script, never overridden values.
+              [(bt/with-content-hash
+                 {:node-id _node-id
+                  :resource (workspace/make-build-resource resource)
+                  :build-fn build-script
+                  :user-data {:lines preprocessed-lines
+                              :go-props preprocessed-go-props
+                              :modules preprocessed-modules
+                              :proj-path (resource/proj-path resource)}
+                  :deps (into preprocessed-go-prop-dep-build-targets
+                              preprocessed-module-build-targets)})])))))))
 
 (g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
   (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
@@ -582,6 +592,7 @@
   (property modified-lines r/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
+                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
                    (let [resource (g/node-value self :resource evaluation-context)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]

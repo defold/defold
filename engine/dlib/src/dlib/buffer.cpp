@@ -22,6 +22,8 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/array.h>
 
+#include <dlib/opaque_handle_container.h>
+
 #include <string.h>
 #include <assert.h>
 #include <new>
@@ -66,21 +68,11 @@ namespace dmBuffer
         dmArray<MetaData*> m_MetaDataArray;
         uint32_t m_Stride;          // The struct size (in bytes)
         uint32_t m_Count;           // The number of "structs" in the buffer (e.g. vertex count)
-        uint16_t m_Version;
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
-
-
     };
 
-    struct BufferContext
-    {
-        // Holds available slots (quite few, so simple linear search should be fine when creating new buffers)
-        // Realloc when it grows
-        Buffer** m_Buffers;
-        uint32_t m_Capacity;
-        uint16_t m_Version;
-    };
+    typedef dmOpaqueHandleContainer<Buffer> BufferContext;
 
     static BufferContext* g_BufferContext = 0;
 
@@ -89,87 +81,18 @@ namespace dmBuffer
 
     void NewContext()
     {
-        assert(g_BufferContext == 0 && "Buffer context should be null");
-
-        const uint32_t capacity = 128;
-        g_BufferContext = (BufferContext*)malloc( sizeof(BufferContext) + capacity * sizeof(Buffer*) );
-        g_BufferContext->m_Capacity = capacity;
-        uint32_t size = capacity * sizeof(Buffer*);
-        g_BufferContext->m_Buffers = (Buffer**)malloc( size );
-        g_BufferContext->m_Version = 0;
-
-        memset(g_BufferContext->m_Buffers, 0, size);
+        const uint32_t initial_capacity = 128;
+        g_BufferContext = new BufferContext(initial_capacity);
     }
 
     void DeleteContext()
     {
-        if( g_BufferContext )
-        {
-            free( g_BufferContext->m_Buffers );
-            free( (void*)g_BufferContext );
-        }
+        delete g_BufferContext;
         g_BufferContext = 0;
     }
 
-    static uint32_t FindEmptySlot(BufferContext* ctx)
+    static void FreeMetadata(Buffer* buffer)
     {
-        for( uint32_t i = 0; i < ctx->m_Capacity; ++i )
-        {
-            if( ctx->m_Buffers[i] == 0 )
-            {
-                return i;
-            }
-        }
-        return 0xFFFFFFFF;
-    }
-
-    static void GrowPool(BufferContext* ctx, uint32_t count)
-    {
-        uint32_t new_capacity = ctx->m_Capacity + count;
-        ctx->m_Buffers = (Buffer**)realloc(g_BufferContext->m_Buffers, new_capacity * sizeof(Buffer*));
-        for( uint32_t i = ctx->m_Capacity; i < new_capacity; ++i )
-        {
-            ctx->m_Buffers[i] = 0;
-        }
-        ctx->m_Capacity = new_capacity;
-    }
-
-    static Buffer* GetBuffer(BufferContext* ctx, HBuffer hbuffer)
-    {
-        if(hbuffer == 0) {
-            return 0;
-        }
-        uint32_t version = hbuffer >> 16;
-        uint32_t index = hbuffer & 0xFFFF;
-        Buffer* b = ctx->m_Buffers[index];
-        if (b == 0 || version != b->m_Version)
-        {
-            return 0;
-        }
-        return b;
-    }
-
-    static HBuffer SetBuffer(BufferContext* ctx, uint32_t index, Buffer* buffer)
-    {
-        assert( index < ctx->m_Capacity );
-        assert( ctx->m_Buffers[index] == 0 );
-        ctx->m_Version++;
-        if (ctx->m_Version == 0)
-        {
-            ctx->m_Version = 1; // Don't allow it to be 0, to avoid potentially getting a 0 buffer handle out
-        }
-
-        uint16_t version = ctx->m_Version;
-
-        ctx->m_Buffers[index] = buffer;
-        buffer->m_Version = version;
-        return version << 16 | index;
-    }
-
-    static void FreeMetadata(Buffer* buffer) {
-
-        uint32_t count = buffer->m_MetaDataArray.Size();
-
         for (uint32_t i=0; i<buffer->m_MetaDataArray.Size(); i++) {
             Buffer::MetaData* metadata = buffer->m_MetaDataArray[i];
             free(metadata->m_Data);
@@ -180,17 +103,24 @@ namespace dmBuffer
 
     static void FreeBuffer(BufferContext* ctx, HBuffer hbuffer)
     {
-        uint16_t version = hbuffer >> 16;
-        Buffer* b = ctx->m_Buffers[hbuffer & 0xffff];
-        if (version != b->m_Version)
+        if (!IsBufferValid(hbuffer))
+        {
+            dmLogError("Invalid buffer when freeing buffer");
+            return;
+        }
+
+        Buffer* b = ctx->Get(hbuffer);
+        if (b == 0x0)
         {
             dmLogError("Stale buffer handle when freeing buffer");
             return;
         }
+
+        ctx->Release(hbuffer);
+
         FreeMetadata(b);
         b->m_MetaDataArray.~dmArray(); // b->m_MetaDataArray was initialized with "placement new" operator. We have to destroy it manually
 
-        ctx->m_Buffers[hbuffer & 0xffff] = 0;
         dmMemory::AlignedFree(b);
     }
 
@@ -200,7 +130,7 @@ namespace dmBuffer
 
     uint32_t GetStructSize(HBuffer hbuffer)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return 0;
         }
@@ -321,7 +251,7 @@ namespace dmBuffer
 
     Result ValidateBuffer(HBuffer hbuffer)
     {
-        return ValidateBuffer(GetBuffer(g_BufferContext, hbuffer));
+        return ValidateBuffer(g_BufferContext->Get(hbuffer));
     }
 #else
     static inline void WriteGuard(void* ptr)
@@ -360,7 +290,7 @@ namespace dmBuffer
 
     bool IsBufferValid(HBuffer hbuffer)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         return buffer != 0 && ValidateBuffer(buffer) == RESULT_OK;
     }
 
@@ -404,12 +334,10 @@ namespace dmBuffer
         }
 
         // TODO: Perhaps implement as an index pool
-        uint32_t index = FindEmptySlot(ctx);
-        if( index == 0xFFFFFFFF )
+        if (ctx->Full())
         {
-            GrowPool(ctx, 64);
-            index = FindEmptySlot(ctx);
-            if( index == 0xFFFFFFFF ) {
+            if (!ctx->Allocate(64))
+            {
                 return RESULT_ALLOCATION_ERROR;
             }
         }
@@ -433,21 +361,65 @@ namespace dmBuffer
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
 
-        *out_buffer = SetBuffer(ctx, index, buffer);
+        *out_buffer = ctx->Put(buffer);
+
+        assert(*out_buffer != INVALID_OPAQUE_HANDLE);
+
+        return RESULT_OK;
+    }
+
+    Result Clone(const HBuffer src_buffer, HBuffer* out_buffer)
+    {
+        Buffer* buffer = g_BufferContext->Get(src_buffer);
+        Result res = dmBuffer::ValidateBuffer(buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*) alloca(buffer->m_NumStreams * sizeof(dmBuffer::StreamDeclaration));
+        for (int i = 0; i < buffer->m_NumStreams; ++i)
+        {
+            streams_decl[i].m_Name  = buffer->m_Streams[i].m_Name;
+            streams_decl[i].m_Type  = (ValueType) buffer->m_Streams[i].m_ValueType;
+            streams_decl[i].m_Count = buffer->m_Streams[i].m_ValueCount;
+        }
+
+        HBuffer dst_buffer;
+        res = dmBuffer::Create(buffer->m_Count, streams_decl, buffer->m_NumStreams, &dst_buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::Copy(dst_buffer, src_buffer);
+
+        // Clone the meta data entries
+        for (uint32_t i = 0; i < buffer->m_MetaDataArray.Size(); i++)
+        {
+            res = SetMetaData(dst_buffer,
+                buffer->m_MetaDataArray[i]->m_Name,
+                buffer->m_MetaDataArray[i]->m_Data,
+                buffer->m_MetaDataArray[i]->m_ValueCount,
+                (ValueType) buffer->m_MetaDataArray[i]->m_ValueType);
+            assert(res == RESULT_OK);
+        }
+
+        *out_buffer = dst_buffer;
         return RESULT_OK;
     }
 
     Result GetStreamOffset(HBuffer buffer_handle, uint32_t index, uint32_t* offset)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, buffer_handle);
+        Buffer* buffer = g_BufferContext->Get(buffer_handle);
         *offset = buffer->m_Streams[index].m_Offset;
         return RESULT_OK;
     }
 
     Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle)
     {
-        const Buffer* dst_buffer = GetBuffer(g_BufferContext, dst_buffer_handle);
-        const Buffer* src_buffer = GetBuffer(g_BufferContext, src_buffer_handle);
+        const Buffer* dst_buffer = g_BufferContext->Get(dst_buffer_handle);
+        const Buffer* src_buffer = g_BufferContext->Get(src_buffer_handle);
 
         // Verify stream declaration is 1:1
         if (src_buffer->m_NumStreams != dst_buffer->m_NumStreams) {
@@ -504,7 +476,7 @@ namespace dmBuffer
 
     Result GetNumStreams(HBuffer hbuffer, uint32_t* num_streams)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (buffer) {
             *num_streams = buffer->m_NumStreams;
         }
@@ -513,7 +485,7 @@ namespace dmBuffer
 
     Result GetStreamName(HBuffer hbuffer, uint32_t index, dmhash_t* stream_name)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -535,31 +507,9 @@ namespace dmBuffer
         return 0x0;
     }
 
-    Result CheckStreamType(HBuffer hbuffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count)
-    {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (!buffer) {
-            return RESULT_BUFFER_INVALID;
-        }
-
-        // Get stream
-        Buffer::Stream* stream = GetStream(buffer, stream_name);
-        if (stream == 0x0) {
-            return RESULT_STREAM_MISSING;
-        }
-
-        // Validate expected type and value count
-        if (stream->m_ValueType != type) {
-            return dmBuffer::RESULT_STREAM_TYPE_MISMATCH;
-        } else if (stream->m_ValueCount != type_count) {
-            return dmBuffer::RESULT_STREAM_COUNT_MISMATCH;
-        }
-        return RESULT_OK;
-    }
-
     Result GetStream(HBuffer hbuffer, dmhash_t stream_name, void** out_stream, uint32_t* count, uint32_t* component_count, uint32_t* stride)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -587,7 +537,7 @@ namespace dmBuffer
 
     Result GetBytes(HBuffer hbuffer, void** out_buffer, uint32_t* out_size)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -605,7 +555,7 @@ namespace dmBuffer
 
     Result GetCount(HBuffer hbuffer, uint32_t* out_element_count)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -615,7 +565,7 @@ namespace dmBuffer
 
     Result GetStreamType(HBuffer hbuffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* type_count)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -632,7 +582,7 @@ namespace dmBuffer
 
     Result GetContentVersion(HBuffer hbuffer, uint32_t* version)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -642,7 +592,7 @@ namespace dmBuffer
 
     Result UpdateContentVersion(HBuffer hbuffer)
     {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -663,7 +613,7 @@ namespace dmBuffer
 
 
     Result GetMetaData(HBuffer hbuffer, dmhash_t name_hash, void** data, uint32_t* count, ValueType* type) {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
@@ -680,8 +630,9 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
-    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type) {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type)
+    {
+        Buffer* buffer = g_BufferContext->Get(hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }

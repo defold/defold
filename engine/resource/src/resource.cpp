@@ -18,9 +18,6 @@
 #include <time.h>
 #include <assert.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #ifdef __linux__
 #include <limits.h>
 #elif defined (__MACH__)
@@ -1026,19 +1023,9 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
     return r;
 }
 
-
-const char* GetExtFromPath(const char* path, char* buffer, uint32_t buffersize)
+const char* GetExtFromPath(const char* path)
 {
-    const char* ext = strrchr(path, '.');
-    if( !ext )
-        return 0;
-
-    int result = dmStrlCpy(buffer, ext, buffersize);
-    if( result >= 0 )
-    {
-        return buffer;
-    }
-    return 0;
+    return strrchr(path, '.');
 }
 
 // Assumes m_LoadMutex is already held
@@ -1152,8 +1139,7 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
         return RESULT_OUT_OF_RESOURCES;
     }
 
-    char extbuffer[64];
-    const char* ext = GetExtFromPath(canonical_path, extbuffer, sizeof(extbuffer));
+    const char* ext = GetExtFromPath(canonical_path);
 
     if (!ext)
     {
