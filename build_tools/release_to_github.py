@@ -148,7 +148,7 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
                                           'Defold-x86_64-win32.zip')
 
     def is_main_file(path):
-        return os.path.basename(path) in ('bob.jar',) or is_editor_file(path)
+        return os.path.basename(path) in ('bob.jar', 'defoldsdk.zip', 'ref-doc.zip') or is_editor_file(path)
 
     def is_platform_file(path):
         return os.path.basename(path) in ('gdc',
