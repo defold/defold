@@ -906,6 +906,61 @@ TEST(OneOfTests, Nested)
     dmDDF::FreeMessage(message);
 }
 
+TEST(OneOfTests, Recursive)
+{
+    TestDDF::MessageRecursiveB* msg_a_child = new TestDDF::MessageRecursiveB();
+    msg_a_child->set_val_b(666);
+
+    TestDDF::MessageRecursiveA* msg_a = new TestDDF::MessageRecursiveA();
+    msg_a->set_val_a(999);
+    msg_a->set_allocated_my_b(msg_a_child);
+
+    TestDDF::MessageRecursiveB msg_b;
+    msg_b.set_allocated_my_a(msg_a);
+    msg_b.set_val_b(1337);
+
+    // Structure
+    // msg_b (MessageRecursiveB)
+    //   |_ val_b : 1337
+    //   |_ my_a  :
+    //     |_ val_a : 999
+    //     |_ my_b  :
+    //        |_ val_b : 666
+    //        |_ my_a  : NULL
+
+    std::string msg_str   = msg_b.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::MessageRecursiveB* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_MessageRecursiveB_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    ASSERT_EQ(1337, message->m_ValB);
+    ASSERT_EQ(999, message->m_MyA.m_ValA);
+    ASSERT_EQ(666, message->m_MyA.m_MyB->m_ValB);
+
+    /*
+    TestDDF::OneOfMessageRecursive oneof_message_desc;
+    TestDDF::OneOfMessageRecursive_Object* root        = oneof_message_desc.add_objects();
+    TestDDF::OneOfMessageRecursive_Member* root_member = root->add_members();
+    TestDDF::OneOfMessageRecursive_Object* child0      = new TestDDF::OneOfMessageRecursive_Object(); // root_member->add_objects();
+
+    child0->set_name("child0");
+    root->set_name("root");
+    root_member->set_name("root_member");
+    root_member->set_allocated_obj_val(child0);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageRecursive* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageRecursive_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    */
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

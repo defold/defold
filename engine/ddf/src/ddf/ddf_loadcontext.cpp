@@ -32,6 +32,8 @@ namespace dmDDF
             memset(buffer, 0, buffer_size);
         }
         m_ArrayCount.SetCapacity(2048, 2048);
+
+        m_OffsetCursor = 0;
     }
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
@@ -40,8 +42,16 @@ namespace dmDDF
         uintptr_t b = m_Current;
         m_Current += desc->m_Size;
         assert(m_DryRun || m_Current <= m_End);
-
         return Message(desc, (char*)b, desc->m_Size, m_DryRun);
+    }
+
+    Message LoadContext::AllocMessageRaw(const Descriptor* desc, uint32_t size)
+    {
+        m_Current = (uintptr_t) DM_ALIGN(m_Current, 16);
+        uintptr_t b = m_Current;
+        m_Current += size;
+        assert(m_DryRun || m_Current <= m_End);
+        return Message(desc, (char*)b, size, m_DryRun);
     }
 
     void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
@@ -119,12 +129,17 @@ namespace dmDDF
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
         if(m_ArrayCount.Full())
+        {
             m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
+        }
+
         uint32_t* value_p = m_ArrayCount.Get(hash);
-        if(value_p) {
+        if(value_p)
+        {
             (*value_p)++;
         }
-        else {
+        else
+        {
             m_ArrayCount.Put(hash, 1);
         }
     }
@@ -135,6 +150,25 @@ namespace dmDDF
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
         uint32_t *value_p = m_ArrayCount.Get(hash);
         return value_p == 0 ? 0 : *value_p;
+    }
+
+    void LoadContext::AddDynamicTypeOffset(uint32_t offset)
+    {
+        if (m_DynamicOffsets.Full())
+        {
+            m_DynamicOffsets.OffsetCapacity(32);
+        }
+        m_DynamicOffsets.Push(offset);
+    }
+
+    uint32_t LoadContext::NextDynamicTypeOffset()
+    {
+        return m_DynamicOffsets[m_OffsetCursor++];
+    }
+
+    void LoadContext::ResetDynamicOffsetCursor()
+    {
+        m_OffsetCursor = 0;
     }
 }
 

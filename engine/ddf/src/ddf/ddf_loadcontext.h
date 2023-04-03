@@ -29,6 +29,7 @@ namespace dmDDF
     public:
         LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options);
         Message     AllocMessage(const Descriptor* desc);
+        Message     AllocMessageRaw(const Descriptor* desc, uint32_t size);
         void*       AllocRepeated(const FieldDescriptor* field_desc, int count);
         char*       AllocString(int length);
         char*       AllocBytes(int length);
@@ -41,19 +42,31 @@ namespace dmDDF
         void        IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
         uint32_t    GetArrayCount(uint32_t buffer_pos, uint32_t field_number);
 
+        void        AddDynamicTypeOffset(uint32_t offset);
+        uint32_t    NextDynamicTypeOffset();
+        void        ResetDynamicOffsetCursor();
+
         inline uint32_t GetOptions()
         {
             return m_Options;
         }
 
+        inline bool GetIsDryRun()
+        {
+            return m_DryRun;
+        }
+
     private:
         dmHashTable32<uint32_t> m_ArrayCount;
+
+        dmArray<uint32_t> m_DynamicOffsets;
 
         uintptr_t   m_Start;
         uintptr_t   m_End;
         uintptr_t   m_Current;
         bool        m_DryRun;
         uint32_t    m_Options;
+        uint32_t    m_OffsetCursor;
     };
 }
 

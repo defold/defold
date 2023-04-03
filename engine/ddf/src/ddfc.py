@@ -179,9 +179,16 @@ def dot_to_cxx_namespace(str):
         str = str[1:]
     return str.replace(".", "::")
 
-def to_cxx_struct(context, pp, message_type):
-    # Calculate maximum length of "type"
+def to_cxx_struct(context, pp, message_type, namespace):
+    #if (context.should_align_struct(message_type)):
+    #    pp.p("struct DM_ALIGNED(16) %s;", message_type.name)
+    #else:
+    #    pp.p("struct %s;", message_type.name)
 
+    namespace = "%s.%s" % (namespace, message_type.name)
+    context.set_message_type_defined(dot_to_cxx_namespace(namespace))
+
+    # Calculate maximum length of "type"
     max_len = 0
     for f in message_type.field:
         l = 0
@@ -208,13 +215,22 @@ def to_cxx_struct(context, pp, message_type):
     else:
         pp.begin("struct %s", message_type.name)
 
+    for nt in message_type.nested_type:
+        pp.p("struct %s;", nt.name)
+
     for et in message_type.enum_type:
         to_cxx_enum(context, pp, et)
 
     for nt in message_type.nested_type:
-        to_cxx_struct(context, pp, nt)
+        to_cxx_struct(context, pp, nt, namespace)
 
     oneof_scope = None
+
+    #for f in message_type.field:
+    #    if f.type == FieldDescriptor.TYPE_MESSAGE and not context.get_is_message_type_defined(f):
+    #        t_name = dot_to_cxx_namespace(f.type_name)
+    #        context.set_message_type_defined(t_name)
+    #        pp.p("struct %s;", t_name)
 
     for f in message_type.field:
         field_name = to_camel_case(f.name)
@@ -262,7 +278,12 @@ def to_cxx_struct(context, pp, message_type):
             pp.p("uint32_t " + "m_Count;")
             pp.end(" m_%s", field_name)
         elif f.type ==  FieldDescriptor.TYPE_ENUM or f.type == FieldDescriptor.TYPE_MESSAGE:
-            p(align_str + context.get_field_type_name(f), field_name)
+            field_ptr_str = ""
+
+            if f.type == FieldDescriptor.TYPE_MESSAGE and not context.get_is_message_type_defined(f):
+                field_ptr_str = "*"
+
+            p(align_str + context.get_field_type_name(f) + field_ptr_str, field_name)
         else:
             p(align_str + type_to_ctype[f.type], field_name)
 
@@ -322,6 +343,9 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
     pp_h.p('extern dmDDF::Descriptor %s_%s_DESCRIPTOR;', namespace, message_type.name)
 
+    mt_type_name = "%s.%s" % ("::".join(namespace_lst), message_type.name)
+    context.set_message_type_defined(dot_to_cxx_namespace(mt_type_name))
+
     for nt in message_type.nested_type:
         to_cxx_descriptor(context, pp_cpp, pp_h, nt, namespace_lst + [message_type.name] )
 
@@ -333,7 +357,8 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     oneof_scope = None
     lst = []
     for f in message_type.field:
-        one_of_index = 0
+        one_of_index       = 0
+        fully_defined_type = True
 
         if f.HasField("oneof_index"):
             oneof_decl = message_type.oneof_decl[f.oneof_index]
@@ -349,7 +374,10 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
                 oneof_scope = None
 
         tpl = (f.name, f.number, f.type, f.label, one_of_index)
+
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:
+            fully_defined_type = context.get_is_message_type_defined(f)
+
             tmp = f.type_name.replace(".", "_")
             if tmp.startswith("_"):
                 tmp = tmp[1:]
@@ -369,12 +397,14 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         else:
             tpl += ('0x0',)
 
+        tpl += (fully_defined_type, )
+
         lst.append(tpl)
 
     if len(lst) > 0:
         pp_cpp.begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
-        for name, number, type, label, one_of_index, msg_desc, offset, default_value in lst:
-            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index))
+        for name, number, type, label, one_of_index, msg_desc, offset, default_value, fully_defined_type in lst:
+            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d, 0, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index, fully_defined_type))
         pp_cpp.end()
     else:
         pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
@@ -652,11 +682,17 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
         pp_h.begin("namespace %s",  namespace)
     pp_h.begin("namespace %s",  file_desc.package)
 
+    # forward declare base message types
+    for mt in file_desc.message_type:
+        #context.set_message_type_defined(dot_to_cxx_namespace(file_desc.package + "." + mt.name))
+        pp_h.p("struct %s;", mt.name)
+    pp_h.p("")
+
     for mt in file_desc.enum_type:
         to_cxx_enum(context, pp_h, mt)
 
     for mt in file_desc.message_type:
-        to_cxx_struct(context, pp_h, mt)
+        to_cxx_struct(context, pp_h, mt, file_desc.package)
 
     pp_h.end()
 
@@ -675,6 +711,8 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
         pp_cpp.begin("namespace %s",  namespace)
 
     pp_h.p("#ifdef DDF_EXPOSE_DESCRIPTORS")
+
+    context.reset_defined_message_types()
 
     for mt in file_desc.enum_type:
         to_cxx_enum_descriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
@@ -702,6 +740,7 @@ class CompilerContext(object):
     def __init__(self, request):
         self.request = request
         self.message_types = {}
+        self.defined_message_types = {}
         self.type_name_to_java_type = {}
         self.type_alias_messages = {}
         self.response = CodeGeneratorResponse()
@@ -751,6 +790,20 @@ class CompilerContext(object):
             if x[0].name == 'alias':
                 return x[1]
         assert False
+
+    def set_message_type_defined(self, type_name):
+        self.defined_message_types[type_name] = True
+        #print("ADDING " + type_name)
+
+    def get_is_message_type_defined(self, f):
+        type_name = dot_to_cxx_namespace(f.type_name)
+        #print("CHECKING " + type_name)
+        if type_name in self.defined_message_types:
+            return True
+        return False
+
+    def reset_defined_message_types(self):
+        self.defined_message_types = {}
 
     def get_field_type_name(self, f):
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:

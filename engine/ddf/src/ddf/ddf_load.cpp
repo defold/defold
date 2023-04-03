@@ -106,6 +106,26 @@ namespace dmDDF
         }
     }
 
+    static bool HasDescriptorRecursive(const Descriptor* desc, const FieldDescriptor* f)
+    {
+        if (f->m_MessageDescriptor != 0x0)
+        {
+            if (f->m_MessageDescriptor == desc)
+            {
+                return true;
+            }
+            for (int i = 0; i < f->m_MessageDescriptor->m_FieldCount; ++i)
+            {
+                const FieldDescriptor* child_f = &f->m_MessageDescriptor->m_Fields[i];
+                if (HasDescriptorRecursive(desc, child_f))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static void DoLoadDefaultMessage(LoadContext* load_context, const Descriptor* desc, Message* message)
     {
         for (int i = 0; i < desc->m_FieldCount; ++i)
@@ -114,9 +134,15 @@ namespace dmDDF
             // We cannot support default values for oneof fields currently as we don't know which one to take
             if (f->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
             {
-                dmLogWarning("Default values for 'oneof' fields are not supported");
+                dmLogWarning("Default values for 'oneof' fields are not supported for field %s.%s", desc->m_Name, f->m_Name);
                 continue;
             }
+            else if (HasDescriptorRecursive(desc, f))
+            {
+                dmLogWarning("Default values for field %s.%s is not supported, cyclic dependencies found", desc->m_Name, f->m_Name);
+                continue;
+            }
+
             DoLoadDefaultField(load_context, f, message);
         }
     }
@@ -137,6 +163,8 @@ namespace dmDDF
                 message->AllocateRepeatedBuffer(load_context, f, load_context->GetArrayCount(buffer_pos, f->m_Number));
             }
         }
+
+        dmLogInfo("DoLoadMessage desc: %s", desc->m_Name);
 
         while (!input_buffer->Eof())
         {
@@ -168,6 +196,16 @@ namespace dmDDF
                 {
                     assert(field_index < DDF_MAX_FIELDS);
                     read_fields[field_index] = 1;
+
+                    dmLogInfo("  %s: %d", field->m_Name, field->m_Number);
+                    /*
+                    const char* m_Name;
+                    uint32_t    m_Number : 22;
+                    uint32_t    m_Type : 6;
+                    uint32_t    m_Label : 4;
+                    Descriptor* m_MessageDescriptor;
+                    uint32_t    m_Offset;
+                    */
 
                     Result e;
                     e = message->ReadField(load_context, (WireType) type, field, input_buffer);

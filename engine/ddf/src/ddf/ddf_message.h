@@ -45,6 +45,8 @@ namespace dmDDF
 
         Message  SubMessage(const FieldDescriptor* field);
 
+        uint32_t GetSize() { return m_End - m_Start; }
+
     private:
         Result ReadScalarField(LoadContext* load_context,
                                  WireType wire_type,
