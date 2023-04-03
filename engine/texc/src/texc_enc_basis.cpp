@@ -22,8 +22,6 @@
 #include <basis/encoder/basisu_comp.h>
 #include <basis/encoder/basisu_frontend.h>
 
-#include <basis/transcoder/basisu_global_selector_palette.h>
-
 namespace dmTexc
 {
     static void SetCompressionLevel(CompressionType compression_type, CompressionLevel compression_level, basisu::basis_compressor_params& comp_params)
