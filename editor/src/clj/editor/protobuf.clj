@@ -482,9 +482,9 @@ Macros currently mean no foreseeable performance gain, however."
   (let [type (.getJavaType desc)]
     (cond
       (= type Descriptors$FieldDescriptor$JavaType/INT) (fn [v]
-                                                            (int (if (instance? Boolean v)
-                                                                   (if v 1 0)
-                                                                   v)))
+                                                          (int (if (instance? Boolean v)
+                                                                 (if v 1 0)
+                                                                 v)))
       (= type Descriptors$FieldDescriptor$JavaType/LONG) long
       (= type Descriptors$FieldDescriptor$JavaType/FLOAT) float
       (= type Descriptors$FieldDescriptor$JavaType/DOUBLE) double
@@ -493,7 +493,7 @@ Macros currently mean no foreseeable performance gain, however."
       (= type Descriptors$FieldDescriptor$JavaType/BOOLEAN) (fn [v] (Boolean/valueOf (boolean v)))
       (= type Descriptors$FieldDescriptor$JavaType/BYTE_STRING) identity
       (= type Descriptors$FieldDescriptor$JavaType/ENUM) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
-                                                             (fn [v] (Enum/valueOf enum-cls (keyword->enum-name v))))
+                                                           (fn [v] (Enum/valueOf enum-cls (keyword->enum-name v))))
       :else nil)))
 
 (declare ^:private pb-builder ^:private vector-to-map-conversions)
@@ -794,7 +794,7 @@ Macros currently mean no foreseeable performance gain, however."
                         nil
 
                         (sequential? value)
-                        (when (pos? (coll/bounded-count 1 value))
+                        (when-not (coll/empty? value)
                           (pair key (vec value)))
 
                         :else
@@ -812,18 +812,18 @@ Macros currently mean no foreseeable performance gain, however."
                             (case (:field-rule field-info)
                               :optional
                               (when-not (or (and (= :message (:java-type-key field-info))
-                                                 (zero? (coll/bounded-count 1 value)))
+                                                 (coll/empty? value))
                                             (= (key->default key) value))
                                 (pair key value))
 
                               :repeated
-                              (when (and (pos? (coll/bounded-count 1 value))
+                              (when (and (not (coll/empty? value))
                                          (not= (key->default key) value))
                                 (pair key (vec value)))
 
                               :required
                               (when-not (and (= :message (:java-type-key field-info))
-                                             (zero? (coll/bounded-count 1 value)))
+                                             (coll/empty? value))
                                 (pair key value))
 
                               (throw (ex-info (str "Invalid field " key " for protobuf class " (.getName cls))
@@ -839,6 +839,22 @@ Macros currently mean no foreseeable performance gain, however."
   (pb->map-without-defaults
     (read-pb cls input)))
 
+(defn assign [pb-map field-kw value]
+  {:pre [(map? pb-map)
+         (keyword? field-kw)]}
+  (if (or (nil? value)
+          (and (map? value)
+               (coll/empty? value)))
+    (dissoc pb-map field-kw)
+    (assoc pb-map field-kw value)))
+
+(defn assign-repeated [pb-map field-kw items]
+  {:pre [(map? pb-map)
+         (keyword? field-kw)]}
+  (if (coll/empty? items)
+    (dissoc pb-map field-kw)
+    (assoc pb-map field-kw (vec items))))
+
 (defn sanitize
   ([pb-map field-kw]
    {:pre [(map? pb-map)
@@ -852,17 +868,9 @@ Macros currently mean no foreseeable performance gain, however."
           (keyword? field-kw)
           (ifn? sanitize-value-fn)]}
    (let [value (get pb-map field-kw ::not-found)]
-     (cond
-       (= ::not-found value)
+     (if (= ::not-found value)
        pb-map
-
-       (nil? value)
-       (dissoc pb-map field-kw)
-
-       :else
-       (if-some [sanitized-value (sanitize-value-fn value)]
-         (assoc pb-map field-kw sanitized-value)
-         (dissoc pb-map field-kw))))))
+       (assign pb-map field-kw (some-> value sanitize-value-fn))))))
 
 (defn sanitize-repeated
   ([pb-map field-kw]
@@ -870,7 +878,7 @@ Macros currently mean no foreseeable performance gain, however."
           (keyword? field-kw)]}
    (let [items (get pb-map field-kw ::not-found)]
      (if (or (= ::not-found items)
-             (seq items))
+             (not (coll/empty? items)))
        pb-map
        (dissoc pb-map field-kw))))
   ([pb-map field-kw sanitize-item-fn]
@@ -878,12 +886,6 @@ Macros currently mean no foreseeable performance gain, however."
           (keyword? field-kw)
           (ifn? sanitize-item-fn)]}
    (let [items (get pb-map field-kw ::not-found)]
-     (cond
-       (= ::not-found items)
+     (if (= ::not-found items)
        pb-map
-
-       (seq items)
-       (assoc pb-map field-kw (mapv sanitize-item-fn items))
-
-       :else
-       (dissoc pb-map field-kw)))))
+       (assign-repeated pb-map field-kw (some->> items (mapv sanitize-item-fn)))))))

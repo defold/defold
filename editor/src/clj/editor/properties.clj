@@ -775,7 +775,10 @@
 
     go-props-with-fused-build-resources))
 
-(defn- source-resource-go-prop [property-desc]
+(defn source-resource-go-prop
+  "Resolve any reference to a build resource in the provided go-prop so that it
+  refers to a source resource instead."
+  [property-desc]
   (if (not= :property-type-hash (:type property-desc))
     property-desc
     (let [build-resource (:clj-value property-desc)]
@@ -786,13 +789,6 @@
           (assoc property-desc
             :clj-value source-resource
             :value source-proj-path))))))
-
-(defn source-resource-go-props
-  "Given a sequence of go-props, return an equal-length sequence of go-props
-  where all build resources have been replaced by their respective source
-  resources."
-  [go-props-with-build-resources]
-  (mapv source-resource-go-prop go-props-with-build-resources))
 
 (defn try-get-go-prop-proj-path
   "Returns a non-empty string of the assigned proj-path, or nil if no

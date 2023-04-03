@@ -388,7 +388,7 @@
 (defn embedded-instance-desc-save-value [embedded-instance-desc]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (-> embedded-instance-desc
-      (protobuf/sanitize :data game-object/prototype-desc-save-value)
+      (update :data game-object/prototype-desc-save-value) ; Required field.
       (protobuf/sanitize-repeated :component-properties game-object/component-property-desc-save-value)))
 
 (defn collection-instance-desc-save-value [collection-instance-desc]

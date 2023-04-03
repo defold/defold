@@ -27,7 +27,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -155,7 +155,7 @@
         component-property-infos (map (comp build-target-go-props :properties)
                                       (:component-properties instance-desc-with-go-props))
         component-go-props (map first component-property-infos)
-        component-property-descs (map #(assoc %1 :properties %2)
+        component-property-descs (map #(protobuf/assign-repeated %1 :properties %2)
                                       (:component-properties instance-desc-with-go-props)
                                       component-go-props)
         go-prop-dep-build-targets (into []
@@ -165,16 +165,15 @@
         game-object-instance-data {:resource build-resource
                                    :transform transform-matrix
                                    :property-deps go-prop-dep-build-targets
-                                   :instance-msg (if (seq component-property-descs)
-                                                   (assoc instance-desc-with-go-props :component-properties component-property-descs)
-                                                   instance-desc-with-go-props)}
+                                   :instance-msg (protobuf/assign-repeated instance-desc-with-go-props
+                                                   :component-properties component-property-descs)}
         build-target (assoc game-object-build-target
                        :resource build-resource
                        :instance-data game-object-instance-data)]
     (bt/with-content-hash build-target)))
 
 (defn- source-resource-component-property-desc [component-property-desc]
-  (update component-property-desc :properties properties/source-resource-go-props))
+  (protobuf/sanitize-repeated component-property-desc :properties properties/source-resource-go-prop))
 
 (defn override-property-descs [original-property-descs overridden-property-descs]
   ;; GameObject$PropertyDescs in map format.
@@ -193,16 +192,17 @@
         component-properties (override-property-descs component-properties (game-object-instance-id->component-property-descs id))
         component-property-infos (map (comp build-target-go-props :properties) component-properties)
         component-go-props (map first component-property-infos)
-        component-property-descs (mapv #(assoc %1 :properties %2)
+        component-property-descs (mapv #(protobuf/assign-repeated %1 :properties %2)
                                        component-properties
                                        component-go-props)
         go-prop-dep-build-targets (into []
                                         (comp (mapcat second)
                                               (util/distinct-by (comp resource/proj-path :resource)))
                                         component-property-infos)
-        instance-msg {:id (str collection-instance-id path-sep id)
-                      :children (mapv #(str collection-instance-id path-sep %) children)
-                      :component-properties component-property-descs}
+        instance-msg (protobuf/make-map-without-defaults GameObject$InstanceDesc
+                       :id (str collection-instance-id path-sep id)
+                       :children (mapv #(str collection-instance-id path-sep %) children)
+                       :component-properties component-property-descs)
         transform (if (child-game-object-instance-id? id)
                     transform
                     (doto (Matrix4d. collection-instance-transform)
@@ -276,11 +276,11 @@
                                   (assoc :id (str path-sep (:id instance-desc))
                                          :prototype fused-build-resource-path
                                          :children (mapv (partial str path-sep) (:children instance-desc))
-                                         :component-properties (map (fn [component-property-desc go-props]
-                                                                      (cond-> (dissoc component-property-desc :properties) ; Runtime uses :property-decls, not :properties
-                                                                              (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
-                                                                    (:component-properties instance-desc)
-                                                                    component-go-props))))
+                                         :component-properties (mapv (fn [component-property-desc go-props]
+                                                                       (cond-> (dissoc component-property-desc :properties) ; Runtime uses :property-decls, not :properties
+                                                                               (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
+                                                                     (:component-properties instance-desc)
+                                                                     component-go-props))))
                             go-instance-msgs
                             go-instance-transform-properties
                             go-instance-build-resource-paths

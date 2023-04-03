@@ -185,10 +185,9 @@
     {:resource build-resource
      :transform transform-matrix
      :property-deps go-prop-dep-build-targets
-     :instance-msg (cond-> (add-default-scale-to-component-desc component-desc)
-
-                           (seq go-props)
-                           (assoc :properties go-props))}))
+     :instance-msg (-> component-desc
+                       (add-default-scale-to-component-desc)
+                       (protobuf/assign-repeated :properties go-props))}))
 
 (defn- build-game-object [build-resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
