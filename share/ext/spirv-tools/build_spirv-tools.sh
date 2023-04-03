@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # License: MIT
-# Copyright 2022 The Defold Foundation
+# Copyright 2023 The Defold Foundation
 
 PLATFORM=$1
 PWD=$(pwd)

@@ -22,7 +22,6 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
@@ -35,23 +34,6 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
 
     private static final ES2ToES3Converter.ShaderType SHADER_TYPE = ES2ToES3Converter.ShaderType.FRAGMENT_SHADER;
     private boolean soft_fail = true;
-
-    /*
-    @Override
-    public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
-        IResource in = task.getInputs().get(0);
-        try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
-            boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-            boolean outputSpirv = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
-
-            String platformKey = project.getPlatformStrings()[0];
-            Platform platform = Platform.get(platformKey);
-            IShaderCompiler shaderCompiler = project.getShaderCompiler(platform);
-            ShaderDesc shaderDesc = shaderCompiler.compile(is, SHADER_TYPE, in, task.getOutputs().get(0).getPath(), isDebug, outputSpirv, soft_fail);
-            task.output(0).setContent(shaderDesc.toByteArray());
-        }
-    }
-    */
 
     @Override
     public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
