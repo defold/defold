@@ -23,7 +23,7 @@
             [editor.handler :as handler]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d Matrix4d Vector3d]))
+  (:import [javax.vecmath Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))

@@ -235,7 +235,9 @@
                       game-object-instance-datas)))))
 
 (defn- pose->transform-properties [pose]
-  (pose/to-map pose :position :rotation :scale3))
+  {:position (pose/translation-v3 pose)
+   :rotation (pose/rotation-q4 pose)
+   :scale3 (pose/scale-v3 pose)})
 
 (defn- build-collection [build-resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`

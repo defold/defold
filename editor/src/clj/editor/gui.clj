@@ -36,6 +36,7 @@
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.particlefx :as particlefx]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -51,11 +52,12 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair] :as coll])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
+           [editor.pose Pose]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d Vector3d]))
@@ -889,7 +891,7 @@
 
 (defn- strip-size-from-shape-base-node-msg [node-desc]
   (-> node-desc
-      (assoc :size [200.0 100.0 0.0 1.0]) ; Default size for ShapeNode. The runtime uses this size if there is no texture applied.
+      (assoc :size [200.0 100.0 0.0 0.0]) ; Default size for ShapeNode. The runtime uses this size if there is no texture applied.
       (protobuf/sanitize :overridden-fields strip-size-from-overridden-fields)))
 
 (defn- add-size-to-overridden-fields-in-node-desc [node-desc]
@@ -1265,9 +1267,6 @@
   (update-scene-tree scene
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
-
-(defn- andf [a b]
-  (and a b))
 
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
   (merge gui-base-node-msg
@@ -2254,7 +2253,22 @@
             [(persistent! textures) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(defn nodes->rt-nodes [nodes]
+(defn- node-desc->pose
+  ^Pose [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (pose/make (some-> (:position node-desc) pose/seq-translation)
+             (some-> (:rotation node-desc) pose/seq-euler-rotation)
+             (some-> (:scale node-desc) pose/seq-scale)))
+
+(defn- pre-multiply-pb-pose [child-node-desc parent-node-desc]
+  (let [pose (pose/pre-multiply (node-desc->pose child-node-desc)
+                                (node-desc->pose parent-node-desc))]
+    (assoc child-node-desc
+      :position (pose/translation-v4 pose)
+      :rotation (pose/euler-rotation-v4 pose)
+      :scale (pose/scale-v4 pose))))
+
+(defn- nodes->rt-nodes [nodes]
   (into []
         (keep (fn [node]
                 (cond
@@ -2264,25 +2278,24 @@
                   (:template-node-child node)
                   (reduce
                     (fn [node template]
-                      (let [parent-q (math/euler->quat (:rotation template))]
-                        (cond-> (assoc node :template-node-child false)
-                                (empty? (:layer node))
-                                (assoc :layer (:layer template))
+                      (cond-> (assoc node :template-node-child false)
 
-                                (:inherit-alpha node)
-                                (->
-                                  (update :alpha * (:alpha template))
-                                  (assoc :inherit-alpha (:inherit-alpha template)))
+                              (and (coll/empty? (:layer node))
+                                   (not (coll/empty? (:layer template))))
+                              (assoc :layer (:layer template))
 
-                                (or (= (:id template) (:parent node))
-                                    (empty? (:parent node)))
-                                (->
-                                  (assoc :parent (:parent template))
-                                  (update :enabled andf (:enabled template))
-                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
-                                  (update :scale (partial mapv * (:scale template)))
-                                  (update :position trans-position (:position template) parent-q (:scale template))
-                                  (update :rotation trans-rotation parent-q)))))
+                              (:inherit-alpha node)
+                              (->
+                                (assoc :alpha (* (:alpha node 1.0) (:alpha template 1.0)))
+                                (assoc :inherit-alpha (:inherit-alpha template false)))
+
+                              (or (= (:id template) (:parent node))
+                                  (coll/empty? (:parent node)))
+                              (->
+                                (assoc :parent (:parent template ""))
+                                (assoc :enabled (and (:enabled node true) (:enabled template true)))
+                                ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                                (pre-multiply-pb-pose template))))
                     node
                     (:templates (meta node)))
 
@@ -2290,7 +2303,7 @@
                   node)))
         nodes))
 
-(defn pb-msg->pb-rt-msg [msg]
+(defn- pb-msg->pb-rt-msg [msg]
   (-> msg
       (update :nodes nodes->rt-nodes)
       (update :layouts (fn [layouts] (mapv #(update % :nodes nodes->rt-nodes) layouts)))))

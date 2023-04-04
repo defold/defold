@@ -63,7 +63,7 @@
 (defn- any-instance-desc->transform-matrix
   ^Matrix4d [any-instance-desc]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (pose/to-mat4 (any-instance-desc->pose any-instance-desc)))
+  (pose/matrix (any-instance-desc->pose any-instance-desc)))
 
 (defn- component-property-desc-with-go-props [component-property-desc proj-path->source-resource]
   ;; GameObject$ComponentPropertyDesc in map format.

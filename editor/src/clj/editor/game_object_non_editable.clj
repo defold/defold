@@ -161,7 +161,7 @@
 (defn- any-component-desc->transform-matrix
   ^Matrix4d [any-component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
-  (pose/to-mat4 (any-component-desc->pose any-component-desc)))
+  (pose/matrix (any-component-desc->pose any-component-desc)))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
