@@ -150,6 +150,11 @@ public class HTML5Bundler implements IBundler {
         if (customCSS != null) {
             properties.put("DEFOLD_CUSTOM_CSS_INLINE", BundleHelper.formatResource(propertiesMap, properties, customCSS));
         }
+
+        // set flag so that we can disable wasm support in the engine_template.html if we're not
+        // bundling with a wasm engine
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+        properties.put("DEFOLD_HAS_WASM_ENGINE", architectures.contains(Platform.WasmWeb));
     }
 
     class SplitFile {
@@ -249,36 +254,6 @@ public class HTML5Bundler implements IBundler {
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        List<File> binsAsmjs = null;
-        List<File> binsWasm = null;
-
-        BundleHelper.throwIfCanceled(canceled);
-        // asmjs binaries
-        {
-            Platform targetPlatform = Platform.JsWeb;
-            binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-            if (binsAsmjs == null) {
-                binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-            }
-            else {
-                logger.log(Level.INFO, "Using extender binary for Asm.js");
-            }
-            ;
-        }
-
-        BundleHelper.throwIfCanceled(canceled);
-        // wasm binaries
-        {
-            Platform targetPlatform = Platform.WasmWeb;
-            binsWasm = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-            if (binsWasm == null) {
-                binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-            }
-            else {
-                logger.log(Level.INFO, "Using extender binary for WASM");
-            }
-        }
-
         BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
 
@@ -294,17 +269,8 @@ public class HTML5Bundler implements IBundler {
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        // Copy engine binaries
-        for (File bin : binsAsmjs) {
-            BundleHelper.throwIfCanceled(canceled);
-            String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-            if (binExtension.equals("js")) {
-                FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
-            } else {
-                throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
-            }
-        }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy debug symbols if they were generated
         String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
         File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
@@ -317,15 +283,49 @@ public class HTML5Bundler implements IBundler {
             FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 
-        for (File bin : binsWasm) {
+
+        if (architectures.contains(Platform.JsWeb)) {
             BundleHelper.throwIfCanceled(canceled);
-            String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-            if (binExtension.equals("js")) {
-                FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
-            } else if (binExtension.equals("wasm")) {
-                FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
-            } else {
-                throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+            Platform targetPlatform = Platform.JsWeb;
+            List<File> binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsAsmjs == null) {
+                binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+            }
+            else {
+                logger.log(Level.INFO, "Using extender binary for Asm.js");
+            }
+            // Copy engine binaries
+            for (File bin : binsAsmjs) {
+                BundleHelper.throwIfCanceled(canceled);
+                String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                if (binExtension.equals("js")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
+                } else {
+                    throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                }
+            }
+        }
+
+        if (architectures.contains(Platform.WasmWeb)) {
+            BundleHelper.throwIfCanceled(canceled);
+            Platform targetPlatform = Platform.WasmWeb;
+            List<File> binsWasm = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsWasm == null) {
+                binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+            }
+            else {
+                logger.log(Level.INFO, "Using extender binary for WASM");
+            }
+            for (File bin : binsWasm) {
+                BundleHelper.throwIfCanceled(canceled);
+                String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                if (binExtension.equals("js")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
+                } else if (binExtension.equals("wasm")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
+                } else {
+                    throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                }
             }
         }
 
