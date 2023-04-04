@@ -54,15 +54,6 @@ namespace dmMessage
         MemoryPage* m_FullPages;
     };
 
-    struct GlobalInit
-    {
-        GlobalInit() {
-            // Make sure the struct sizes are in sync! Think of potential save files!
-            DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
-        }
-
-    } g_MessageInit;
-
     static void AllocateNewPage(MemoryAllocator* allocator)
     {
         if (allocator->m_CurrentPage)
@@ -113,7 +104,7 @@ namespace dmMessage
 
     struct MessageSocket
     {
-        uint32_t        m_RefCount; // Is protected by "g_MessageContext->m_Spinlock"
+        uint32_t        m_RefCount; // Is protected by "g_MessageContext.m_Spinlock"
         dmhash_t        m_NameHash;
         Message*        m_Header;
         Message*        m_Tail;
@@ -128,38 +119,40 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmSpinlock::Spinlock m_Spinlock;
+        dmSpinlock::Spinlock         m_Spinlock;
+
+        MessageContext() {
+            // Make sure the struct sizes are in sync! Think of potential save files!
+            DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
+        }
     };
-
-    MessageContext* g_MessageContext = 0;
-
-    static MessageContext* Create(uint32_t max_sockets)
-    {
-        MessageContext* ctx = new MessageContext;
-        ctx->m_Sockets.SetCapacity(max_sockets, max_sockets);
-        dmSpinlock::Init(&ctx->m_Spinlock);
-        return ctx;
-    }
 
     // Until the Create/Destroy functions are exposed:
     // The context is created on demand, and we also need to destroy it automatically
+    static bool g_MessageContextInitialized = false;
+    static MessageContext g_MessageContext;
+
+    static void Initialize(MessageContext* ctx, uint32_t max_sockets)
+    {
+        ctx->m_Sockets.SetCapacity(max_sockets, max_sockets);
+        dmSpinlock::Init(&ctx->m_Spinlock);
+    }
+
     struct ContextDestroyer
     {
         ~ContextDestroyer()
         {
-            if (g_MessageContext)
-            {
-                delete g_MessageContext;
-                g_MessageContext = 0;
-            }
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
+            g_MessageContextInitialized = false;
         }
     } g_ContextDestroyer;
 
     Result NewSocket(const char* name, HSocket* socket)
     {
-        if (g_MessageContext == 0)
+        if (!g_MessageContextInitialized)
         {
-            g_MessageContext = Create(MAX_SOCKETS);
+            Initialize(&g_MessageContext, MAX_SOCKETS);
+            g_MessageContextInitialized = true;
         }
         if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
         {
@@ -174,9 +167,9 @@ namespace dmMessage
 
         dmhash_t name_hash = dmHashString64(name);
 
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
 
-        if (g_MessageContext->m_Sockets.Full())
+        if (g_MessageContext.m_Sockets.Full())
         {
             return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
@@ -190,7 +183,7 @@ namespace dmMessage
         s.m_Mutex = dmMutex::New();
         s.m_Condition = dmConditionVariable::New();
 
-        g_MessageContext->m_Sockets.Put(name_hash, s);
+        g_MessageContext.m_Sockets.Put(name_hash, s);
         *socket = name_hash;
 
         return RESULT_OK;
@@ -239,7 +232,7 @@ namespace dmMessage
     static void ReleaseSocket(MessageSocket* s)
     {
         {
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
             --s->m_RefCount;
 
             if (s->m_RefCount > 0)
@@ -252,9 +245,13 @@ namespace dmMessage
 
     static MessageSocket* AcquireSocket(HSocket socket)
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
+        if (!g_MessageContextInitialized)
+        {
+            return 0;
+        }
 
-        MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
+        MessageSocket* s = g_MessageContext.m_Sockets.Get(socket);
 
         if (s == 0x0)
         {
@@ -272,14 +269,14 @@ namespace dmMessage
     {
         MessageSocket* s = 0x0;
         {
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
-            s = g_MessageContext->m_Sockets.Get(socket);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
+            s = g_MessageContext.m_Sockets.Get(socket);
             if (s == 0x0)
             {
                 return RESULT_SOCKET_NOT_FOUND;
             }
 
-            g_MessageContext->m_Sockets.Erase(s->m_NameHash);
+            g_MessageContext.m_Sockets.Erase(s->m_NameHash);
             --s->m_RefCount;
 
             if(s->m_RefCount > 0)
@@ -304,9 +301,9 @@ namespace dmMessage
         dmhash_t name_hash = dmHashString64(name);
         *out_socket = name_hash;
 
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
 
-        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
+        MessageSocket* message_socket = g_MessageContext.m_Sockets.Get(name_hash);
         if (message_socket)
         {
             return RESULT_OK;
@@ -316,9 +313,9 @@ namespace dmMessage
 
     const char* GetSocketName(HSocket socket)
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
 
-        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
+        MessageSocket* message_socket = g_MessageContext.m_Sockets.Get(socket);
         if (message_socket != 0x0)
         {
             return message_socket->m_Name;
@@ -333,8 +330,8 @@ namespace dmMessage
     {
         if (socket != 0)
         {
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
-            MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext.m_Spinlock);
+            MessageSocket* message_socket = g_MessageContext.m_Sockets.Get(socket);
             return message_socket != 0;
         }
         return false;
