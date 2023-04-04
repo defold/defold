@@ -159,8 +159,10 @@ namespace dmDDF
             if (f->m_Label == LABEL_REPEATED)
             {
                 // TODO: Verify buffer_pos!!!! Correct to use Tell()?
-                uint32_t buffer_pos = input_buffer->Tell();
-                message->AllocateRepeatedBuffer(load_context, f, load_context->GetArrayCount(buffer_pos, f->m_Number));
+                uint32_t buffer_pos  = input_buffer->Tell();
+                uint32_t array_count, data_size;
+                load_context->GetArrayInfo(buffer_pos, f->m_Number, &array_count, &data_size);
+                message->AllocateRepeatedBuffer(load_context, f, array_count, data_size);
             }
         }
 

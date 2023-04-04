@@ -30,7 +30,7 @@ namespace dmDDF
         LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options);
         Message     AllocMessage(const Descriptor* desc);
         Message     AllocMessageRaw(const Descriptor* desc, uint32_t size);
-        void*       AllocRepeated(const FieldDescriptor* field_desc, int count);
+        void*       AllocRepeated(const FieldDescriptor* field_desc, int count, int data_size);
         char*       AllocString(int length);
         char*       AllocBytes(int length);
         uint32_t    GetOffset(void* memory);
@@ -39,8 +39,9 @@ namespace dmDDF
         void        SetMemoryBuffer(char* buffer, int buffer_size, bool dry_run);
         int         GetMemoryUsage();
 
-        void        IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
-        uint32_t    GetArrayCount(uint32_t buffer_pos, uint32_t field_number);
+        uint32_t    IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number);
+        void        GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size);
+        uint32_t    IncreaseArrayDataSize(uint32_t info_hash, uint32_t data_size);
 
         void        AddDynamicTypeOffset(uint32_t offset);
         uint32_t    NextDynamicTypeOffset();
@@ -57,7 +58,13 @@ namespace dmDDF
         }
 
     private:
-        dmHashTable32<uint32_t> m_ArrayCount;
+        struct ArrayInfo
+        {
+            uint32_t m_Count;
+            uint32_t m_DataSize;
+        };
+
+        dmHashTable32<ArrayInfo> m_ArrayInfo;
 
         dmArray<uint32_t> m_DynamicOffsets;
 

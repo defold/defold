@@ -908,6 +908,27 @@ TEST(OneOfTests, Nested)
 
 TEST(OneOfTests, Recursive)
 {
+    TestDDF::OneOfMessageRecursive oneof_message_desc;
+    TestDDF::OneOfMessageRecursive_Object* root        = oneof_message_desc.add_objects();
+    TestDDF::OneOfMessageRecursive_Member* root_member = root->add_members();
+    TestDDF::OneOfMessageRecursive_Object* child0      = new TestDDF::OneOfMessageRecursive_Object(); // root_member->add_objects();
+
+    child0->set_name("child0");
+    root->set_name("root");
+    root_member->set_name("root_member");
+    root_member->set_allocated_obj_val(child0);
+
+    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    const char* msg_buf   = msg_str.c_str();
+    uint32_t msg_buf_size = msg_str.size();
+
+    DUMMY::TestDDF::OneOfMessageRecursive* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageRecursive_DESCRIPTOR, (void**)&message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+}
+
+TEST(Recursive, TreeSimple)
+{
     TestDDF::MessageRecursiveB* msg_a_child = new TestDDF::MessageRecursiveB();
     msg_a_child->set_val_b(666);
 
@@ -940,25 +961,52 @@ TEST(OneOfTests, Recursive)
     ASSERT_EQ(999, message->m_MyA.m_ValA);
     ASSERT_EQ(666, message->m_MyA.m_MyB->m_ValB);
 
-    /*
-    TestDDF::OneOfMessageRecursive oneof_message_desc;
-    TestDDF::OneOfMessageRecursive_Object* root        = oneof_message_desc.add_objects();
-    TestDDF::OneOfMessageRecursive_Member* root_member = root->add_members();
-    TestDDF::OneOfMessageRecursive_Object* child0      = new TestDDF::OneOfMessageRecursive_Object(); // root_member->add_objects();
+    dmDDF::FreeMessage(message);
+}
 
-    child0->set_name("child0");
-    root->set_name("root");
-    root_member->set_name("root_member");
-    root_member->set_allocated_obj_val(child0);
+TEST(Recursive, Repeated)
+{
+    TestDDF::RecursiveRepeat msg;
+    TestDDF::MessageRecursiveA* item_0   = msg.add_list_a();
+    TestDDF::MessageRecursiveA* item_1   = msg.add_list_a();
+    TestDDF::MessageRecursiveB* item_0_b = new TestDDF::MessageRecursiveB();
+    TestDDF::MessageRecursiveB* item_1_b = new TestDDF::MessageRecursiveB();
 
-    std::string msg_str   = oneof_message_desc.SerializeAsString();
+    std::string test_string = "This is a test string!";
+
+    msg.add_list_numbers(32768);
+    msg.set_string_val(test_string);
+    msg.set_float_val(0.5f);
+
+    item_0_b->set_val_b(999);
+    item_1_b->set_val_b(2001);
+
+    item_0->set_allocated_my_b(item_0_b);
+    item_1->set_allocated_my_b(item_1_b);
+
+    item_0->set_val_a(1338);
+    item_1->set_val_a(666);
+
+    std::string msg_str   = msg.SerializeAsString();
     const char* msg_buf   = msg_str.c_str();
     uint32_t msg_buf_size = msg_str.size();
 
-    DUMMY::TestDDF::OneOfMessageRecursive* message;
-    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_OneOfMessageRecursive_DESCRIPTOR, (void**)&message);
+    DUMMY::TestDDF::RecursiveRepeat* message;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_RecursiveRepeat_DESCRIPTOR, (void**)&message);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    */
+
+    DUMMY::TestDDF::MessageRecursiveA* child_0 = &message->m_ListA[0];
+    DUMMY::TestDDF::MessageRecursiveA* child_1 = &message->m_ListA[1];
+
+    ASSERT_EQ(1338, child_0->m_ValA);
+    ASSERT_EQ(999, child_0->m_MyB->m_ValB);
+
+    ASSERT_EQ(666, child_1->m_ValA);
+    ASSERT_EQ(2001, child_1->m_MyB->m_ValB);
+
+    ASSERT_EQ(32768, message->m_ListNumbers[0]);
+    ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
+    ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
 }
 
 int main(int argc, char **argv)

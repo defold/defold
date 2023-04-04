@@ -18,6 +18,8 @@
 #include "ddf_loadcontext.h"
 #include "ddf_util.h"
 
+#include <dlib/log.h> // REMOVE
+
 namespace dmDDF
 {
     LoadContext::LoadContext(char* buffer, int buffer_size, bool dry_run, uint32_t options)
@@ -31,7 +33,7 @@ namespace dmDDF
         {
             memset(buffer, 0, buffer_size);
         }
-        m_ArrayCount.SetCapacity(2048, 2048);
+        m_ArrayInfo.SetCapacity(2048, 2048);
 
         m_OffsetCursor = 0;
     }
@@ -54,7 +56,7 @@ namespace dmDDF
         return Message(desc, (char*)b, size, m_DryRun);
     }
 
-    void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count)
+    void* LoadContext::AllocRepeated(const FieldDescriptor* field_desc, int count, int data_size)
     {
         Type type = (Type) field_desc->m_Type;
 
@@ -62,7 +64,9 @@ namespace dmDDF
         int element_size = 0;
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
-            element_size = field_desc->m_MessageDescriptor->m_Size;
+            // We need to get the actual size of the field_desc here somehow
+            element_size = data_size; // field_desc->m_MessageDescriptor->m_Size;
+            // TODO COUNT
         }
         else if ( field_desc->m_Type == TYPE_STRING )
         {
@@ -124,32 +128,58 @@ namespace dmDDF
         return (int) (m_Current - m_Start);
     }
 
-    void LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
+    uint32_t LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
-        if(m_ArrayCount.Full())
+        if(m_ArrayInfo.Full())
         {
-            m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
+            m_ArrayInfo.SetCapacity(2048, m_ArrayInfo.Capacity() + 1024);
         }
 
-        uint32_t* value_p = m_ArrayCount.Get(hash);
-        if(value_p)
+        ArrayInfo* info_ptr = m_ArrayInfo.Get(hash);
+        if(info_ptr)
         {
-            (*value_p)++;
+            info_ptr->m_Count++;
         }
         else
         {
-            m_ArrayCount.Put(hash, 1);
+            ArrayInfo new_info;
+            new_info.m_Count    = 1;
+            new_info.m_DataSize = 0;
+            m_ArrayInfo.Put(hash, new_info);
         }
+
+        return hash;
     }
 
-    uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
+    void LoadContext::GetArrayInfo(uint32_t buffer_pos, uint32_t field_number, uint32_t* count, uint32_t* data_size)
     {
         uint32_t key[] = {field_number, buffer_pos};
         uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
-        uint32_t *value_p = m_ArrayCount.Get(hash);
-        return value_p == 0 ? 0 : *value_p;
+        ArrayInfo *info_ptr = m_ArrayInfo.Get(hash);
+
+        if (info_ptr == 0)
+        {
+            *count = 0;
+            *data_size = 0;
+        }
+        else
+        {
+            *count = info_ptr->m_Count;
+            *data_size = info_ptr->m_DataSize;
+        }
+    }
+
+    uint32_t LoadContext::IncreaseArrayDataSize(uint32_t info_hash, uint32_t data_size)
+    {
+        ArrayInfo *info_ptr = m_ArrayInfo.Get(info_hash);
+        assert(info_ptr);
+        info_ptr->m_DataSize += data_size;
+
+        dmLogInfo("IncreaseArrayDataSize: %d has size: %d", info_hash, info_ptr->m_DataSize);
+
+        return info_ptr->m_DataSize;
     }
 
     void LoadContext::AddDynamicTypeOffset(uint32_t offset)

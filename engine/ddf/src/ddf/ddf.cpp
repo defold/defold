@@ -33,6 +33,10 @@
 
 namespace dmDDF
 {
+    #define DDF_CHECK_RESULT(e) \
+        if (e != RESULT_OK) \
+            return e;
+
     Descriptor* g_FirstDescriptor = 0;
     dmHashTable64<const Descriptor*> g_Descriptors;
 
@@ -85,10 +89,6 @@ namespace dmDDF
 
     static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
     {
-    #define CHECK_RESULT(e) \
-        if (e != RESULT_OK) \
-            return e;
-
         *size_out += desc->m_Size;
 
         while (!ib->Eof())
@@ -118,18 +118,18 @@ namespace dmDDF
 
                         if (!field->m_FullyDefinedType)
                         {
-                            uint32_t ptr_offset = *size_out; //  + field->m_Offset;
+                            uint32_t ptr_offset = *size_out;
                             dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
                             load_context->AddDynamicTypeOffset(ptr_offset);
                         }
 
                         Result e = GetDataSizeFromDesc(load_context, ib, field->m_MessageDescriptor, size_out);
-                        CHECK_RESULT(e);
+                        DDF_CHECK_RESULT(e);
                     }
                     else
                     {
                         Result e = SkipField(ib, type);
-                        CHECK_RESULT(e);
+                        DDF_CHECK_RESULT(e);
                     }
                 }
             }
@@ -139,7 +139,6 @@ namespace dmDDF
             }
         }
         return RESULT_OK;
-    #undef CHECK_RESULT
     }
 
     static bool NeedsSizeResolve(const Descriptor* desc)
@@ -148,7 +147,7 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* field = &desc->m_Fields[i];
-            if (field->m_Type == TYPE_MESSAGE)
+            if (field->m_Label != LABEL_REPEATED && field->m_Type == TYPE_MESSAGE)
             {
                 if (!field->m_FullyDefinedType)
                 {
@@ -165,25 +164,23 @@ namespace dmDDF
 
     static Result CreateMessage(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, Message* message_out)
     {
-        if (!NeedsSizeResolve(desc))
+        if (NeedsSizeResolve(desc))
         {
-            *message_out = load_context->AllocMessage(desc);
+            dmLogInfo("%s needs resolve!", desc->m_Name);
+            uint32_t calculated_size = 0;
+            Result e = GetDataSizeFromDesc(load_context, ib, desc, &calculated_size);
+            DDF_CHECK_RESULT(e);
+            *message_out = load_context->AllocMessageRaw(desc, calculated_size);
         }
         else
         {
-            uint32_t calculated_size = 0;
-            Result e = GetDataSizeFromDesc(load_context, ib, desc, &calculated_size);
-            if (e != RESULT_OK)
-            {
-                return e;
-            }
-            *message_out = load_context->AllocMessageRaw(desc, calculated_size);
+            *message_out = load_context->AllocMessage(desc);
         }
 
         return RESULT_OK;
     }
 
-    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc)
+    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* array_info_hash)
     {
         assert(desc);
 
@@ -205,28 +202,31 @@ namespace dmDDF
                 if (field == 0)
                 {
                     Result e = SkipField(ib, type);
-                    if (e != RESULT_OK)
-                        return e;
+                    DDF_CHECK_RESULT(e);
+                    *array_info_hash = 0;
                 }
                 else
                 {
+                    dmLogInfo("Array member desc: %s.%s, offset: %d", desc->m_Name, field->m_Name, field->m_Offset);
+
                     if (field->m_Label == LABEL_REPEATED)
                     {
-                        load_context->IncreaseArrayCount(start, field->m_Number);
+                        *array_info_hash = load_context->IncreaseArrayCount(start, field->m_Number);
                     }
 
                     if (field->m_Type != TYPE_MESSAGE)
                     {
                         Result e = SkipField(ib, type);
-                        if (e != RESULT_OK)
-                            return e;
+                        DDF_CHECK_RESULT(e);
                     }
                     else
                     {
                         assert(field->m_MessageDescriptor);
                         uint32_t length;
                         if (!ib->ReadVarInt32(&length))
+                        {
                             return RESULT_WIRE_FORMAT_ERROR;
+                        }
 
                     #if 1
                         InputBuffer sub_ib;
@@ -235,17 +235,26 @@ namespace dmDDF
                             return RESULT_WIRE_FORMAT_ERROR;
                         }
 
-                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
+                        uint32_t dynamic_offset = 0;
+                        if (field->m_Label != LABEL_REPEATED && *array_info_hash != 0)
+                        {
+                            dynamic_offset = load_context->IncreaseArrayDataSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
+                        }
+
+                        if (!field->m_FullyDefinedType)
+                        {
+                            dmLogInfo("  !! Array member %s.%s is not fully defined! adding offset %d", desc->m_Name, field->m_Name, dynamic_offset);
+                            load_context->AddDynamicTypeOffset(dynamic_offset);
+                        }
+
+                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash);
                     #else
                         InputBuffer sub_ib = ib;
                         sub_ib->m_End = sub_ib->m_Current + length;
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
                     #endif
 
-                        if (e != RESULT_OK)
-                        {
-                            return e;
-                        }
+                        DDF_CHECK_RESULT(e);
                     }
                 }
             }
@@ -281,11 +290,10 @@ namespace dmDDF
         Message dry_message(0, 0, 0, true);
         Result e = CreateMessage(&load_context, &input_buffer, desc, &dry_message);
 
-        e = CalculateRepeated(&load_context, &input_buffer, desc);
-        if (e != RESULT_OK)
-        {
-            return e;
-        }
+        uint32_t array_info_hash = 0;
+        input_buffer.Seek(0);
+        e = CalculateRepeated(&load_context, &input_buffer, desc, &array_info_hash);
+        DDF_CHECK_RESULT(e);
 
         dmLogInfo("\nLoadMessage DRY:");
 
@@ -308,7 +316,9 @@ namespace dmDDF
         if ( e == RESULT_OK )
         {
             if (size)
+            {
                 *size = message_buffer_size;
+            }
             *out_message = (void*) message_buffer;
         }
         else
@@ -463,4 +473,6 @@ namespace dmDDF
         assert(message);
         dmMemory::AlignedFree(message);
     }
+
+    #undef DDF_CHECK_RESULT
 }
