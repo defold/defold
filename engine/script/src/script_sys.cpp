@@ -43,6 +43,8 @@ namespace dmScript
 
 const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
 
+static int g_DebuggerLightweightHook = 0;
+
 union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for js-web
@@ -1299,23 +1301,22 @@ union SaveLoadBuffer
 
     //undocummented function for debugger
 
-    static int m_DebuggerLightweightHook;
     static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
     {
         int top = lua_gettop(L);
         lua_getinfo(L, "S", ar);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, m_DebuggerLightweightHook);
-        // 1:fn
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
         lua_pushstring(L, ar->source);
-        // 2: str
         lua_pushnumber(L, ar->lastlinedefined);
-        // 3: num
         if (lua_pushthread(L))
         {
             lua_pop(L, 1);
             lua_pushnil(L); //main thread is not a coroutine
         }
-        // 4: co or nil
+        //[-1] - thread or nil
+        //[-2] - lastlinedefined (number)
+        //[-3] - source (string)
+        //[-4] - callback
         lua_call(L, 3, 0);
         assert(top == lua_gettop(L));
     }
@@ -1330,7 +1331,12 @@ union SaveLoadBuffer
         }
         luaL_checktype(L, index, LUA_TFUNCTION);
         lua_pushvalue(L, index);
-        m_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        if (g_DebuggerLightweightHook)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+            g_DebuggerLightweightHook = 0;
+        }
+        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
         
         lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
         return 0;
