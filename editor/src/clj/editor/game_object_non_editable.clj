@@ -124,12 +124,12 @@
 (g/defnode ComponentHostResourceNode
   (inherits resource-node/NonEditableResourceNode)
 
-  (property embedded-component-resource-data->index g/Any
+  (property embedded-component-resource-data->index g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (data->index-setter evaluation-context self new-value :embedded-component-build-targets add-embedded-component-resource-node))))
 
-  (property referenced-components resource/ResourceVec
+  (property referenced-components resource/ResourceVec ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough referenced-component-resources))
             (set (fn [evaluation-context self _old-value new-value]
@@ -339,7 +339,7 @@
 (g/defnode NonEditableGameObjectNode
   (inherits ComponentHostResourceNode)
 
-  (property prototype-desc g/Any
+  (property prototype-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    ;; We use default evaluation-context in queries to ensure the

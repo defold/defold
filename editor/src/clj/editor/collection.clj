@@ -65,7 +65,7 @@
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
   (inherits core/Scope)
-  (property id g/Str
+  (property id g/Str ; Required pb field.
             (dynamic error (g/fnk [_node-id id id-counts]
                              (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
             (dynamic read-only? (g/fnk [_node-id]
@@ -399,7 +399,7 @@
 (defn collection-desc-save-value [collection-desc]
   ;; GameObject$CollectionDesc in map format.
   (-> collection-desc
-      (update :scale-along-z #(or % 0)) ; Keep this field around even though it is optional - we may want to change its default.
+      (assoc :scale-along-z (:scale-along-z collection-desc (protobuf/default GameObject$CollectionDesc :scale-along-z))) ; Keep this field around even though it is optional - we may want to change its default.
       (protobuf/sanitize-repeated :instances instance-desc-save-value)
       (protobuf/sanitize-repeated :embedded-instances embedded-instance-desc-save-value)
       (protobuf/sanitize-repeated :collection-instances collection-instance-desc-save-value)))
@@ -445,7 +445,7 @@
   (property name g/Str)
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
-  (property scale-along-z g/Bool
+  (property scale-along-z g/Bool (default (= 1 (protobuf/default GameObject$CollectionDesc :scale-along-z)))
             (dynamic visible (g/constantly false)))
 
   (input ref-inst-ddf g/Any :array)

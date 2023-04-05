@@ -318,7 +318,7 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
 
-  (property image resource/Resource
+  (property image resource/Resource ; Required protobuf field.
             (value (gu/passthrough image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -337,14 +337,14 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
 
-  (property default-animation g/Str
+  (property default-animation g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
                                   (when image
                                     (or (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
                                         (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 
-  (property material resource/Resource
+  (property material resource/Resource ; Default assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -371,9 +371,9 @@
                        (let [texture-size [(double (:width animation)) (double (:height animation)) 0.0]]
                          (g/set-property self :manual-size texture-size))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
-  (property manual-size types/Vec3 (default [0.0 0.0 0.0])
+  (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Sprite$SpriteDesc :size)))
             (dynamic visible (g/constantly false)))
-  (property size types/Vec3
+  (property size types/Vec3 ; Just for presentation.
             (value (g/fnk [manual-size size-mode animation]
                      (if (and (some? animation)
                               (or (= :size-mode-auto size-mode)
@@ -383,7 +383,7 @@
             (set (fn [_evaluation-context self _old-value new-value]
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
-  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+  (property slice9 types/Vec4 (default (protobuf/default Sprite$SpriteDesc :slice9))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
   (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate)))

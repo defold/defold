@@ -360,7 +360,7 @@
 (g/defnode NonEditableCollectionNode
   (inherits game-object-non-editable/ComponentHostResourceNode)
 
-  (property collection-desc g/Any
+  (property collection-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    ;; We use default evaluation-context in queries to ensure the
@@ -383,12 +383,12 @@
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (collection-desc->referenced-property-resources new-value proj-path->resource))))))))
 
-  (property referenced-collections resource/ResourceVec
+  (property referenced-collections resource/ResourceVec; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (game-object-non-editable/referenced-resources-setter evaluation-context self new-value :referenced-collection-resources referenced-collection-connections))))
 
-  (property referenced-game-objects resource/ResourceVec
+  (property referenced-game-objects resource/ResourceVec; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough referenced-game-object-resources))
             (set (fn [evaluation-context self _old-value new-value]

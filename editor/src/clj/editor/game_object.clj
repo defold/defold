@@ -172,13 +172,13 @@
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
-  (property id g/Str
+  (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts]
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
-  (property url g/Str
+  (property url g/Str ; No protobuf counterpart.
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
 
@@ -262,7 +262,7 @@
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
 
-  (property path g/Any
+  (property path g/Any ; Required protobuf field.
             (dynamic edit-type (g/fnk [source-resource]
                                       {:type resource/Resource
                                        :ext (some-> source-resource resource/resource-type :ext)

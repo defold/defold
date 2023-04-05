@@ -627,7 +627,7 @@
   (inherits outline/OutlineNode)
 
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
-  (property type g/Keyword (dynamic visible (g/constantly false))) ; Required pb field.
+  (property type g/Keyword (dynamic visible (g/constantly false))) ; Required protobuf field.
   (property custom-type g/Int (dynamic visible (g/constantly false)) (default (protobuf/default Gui$NodeDesc :custom-type)))
 
   (input id-counts NameCounts)
@@ -656,8 +656,7 @@
   (property inherit-alpha g/Bool (default (protobuf/default Gui$NodeDesc :inherit-alpha)))
   (property enabled g/Bool (default (protobuf/default Gui$NodeDesc :enabled)))
 
-  (property layer g/Str
-            (default (protobuf/default Gui$NodeDesc :layer))
+  (property layer g/Str (default (protobuf/default Gui$NodeDesc :layer))
             (dynamic edit-type (g/fnk [layer-names] (optional-gui-resource-choicebox layer-names)))
             (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer))))
   (output layer-index g/Any :cached
@@ -935,7 +934,7 @@
 
   (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic visible (g/constantly false)))
-  (property size types/Vec3
+  (property size types/Vec3 ; Just for presentation.
             (value (g/fnk [manual-size size-mode texture-size]
                           (if (= :size-mode-auto size-mode)
                             (or texture-size manual-size)
@@ -956,8 +955,7 @@
                            (let [texture-size [(double (:width anim-data)) (double (:height anim-data)) 0.0]]
                              (g/set-property self :manual-size texture-size))))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
-  (property texture g/Str
-            (default (protobuf/default Gui$NodeDesc :texture))
+  (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
             (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
             (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
 
@@ -1145,12 +1143,10 @@
   ; Text
   (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic label (g/constantly "Size")))
-  (property text g/Str
-            (default (protobuf/default Gui$NodeDesc :text))
+  (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property line-break g/Bool (default (protobuf/default Gui$NodeDesc :line-break)))
-  (property font g/Str
-    (default (protobuf/default Gui$NodeDesc :font))
+  (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
     (dynamic edit-type (g/fnk [font-names] (required-gui-resource-choicebox font-names)))
     (dynamic error (g/fnk [_node-id font-names font]
                      (validate-font _node-id font-names font))))
@@ -1428,8 +1424,7 @@
 (g/defnode ParticleFXNode
   (inherits VisualNode)
 
-  (property particlefx g/Str
-    (default (protobuf/default Gui$NodeDesc :particlefx))
+  (property particlefx g/Str (default (protobuf/default Gui$NodeDesc :particlefx))
     (dynamic edit-type (g/fnk [particlefx-resource-names] (required-gui-resource-choicebox particlefx-resource-names)))
     (dynamic error (g/fnk [_node-id particlefx particlefx-resource-names]
                      (validate-particlefx-resource _node-id particlefx-resource-names particlefx))))
@@ -1546,10 +1541,10 @@
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
 
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :texture)))
-  (property texture resource/Resource
+  (property texture resource/Resource ; Required protobuf field.
             (value (gu/passthrough texture-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -1599,10 +1594,10 @@
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :font)))
-  (property font resource/Resource
+  (property font resource/Resource ; Required protobuf field.
             (value (gu/passthrough font-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
@@ -1654,7 +1649,7 @@
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :layer)))
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
@@ -1677,10 +1672,10 @@
 
 (g/defnode ResourceNode
   (inherits outline/OutlineNode)
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :path)))
-  (property path resource/Resource
+  (property path resource/Resource ; Required protobuf field.
             (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
@@ -1720,10 +1715,10 @@
 
 (g/defnode ParticleFXResource
   (inherits outline/OutlineNode)
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :particlefx)))
-  (property particlefx resource/Resource
+  (property particlefx resource/Resource ; Required protobuf field.
             (value (gu/passthrough particlefx-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
@@ -1778,10 +1773,10 @@
 
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
-  (property nodes g/Any
+  (property nodes g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough layout-overrides))
             (set (fn [evaluation-context self _ new-value]
@@ -2409,7 +2404,7 @@
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
-  (property script resource/Resource
+  (property script resource/Resource ; Required protobuf field.
             (value (gu/passthrough script-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
@@ -2422,7 +2417,7 @@
             (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui_script"})))
 
-  (property material resource/Resource
+  (property material resource/Resource ; Default assigned in load-fn.
     (value (gu/passthrough material-resource))
     (set (fn [evaluation-context self old-value new-value]
            (project/resource-setter
@@ -2437,16 +2432,13 @@
                                  {:type resource/Resource
                                   :ext ["material"]})))
 
-  (property adjust-reference g/Keyword
-            (default (protobuf/default Gui$SceneDesc :adjust-reference))
+  (property adjust-reference g/Keyword (default (protobuf/default Gui$SceneDesc :adjust-reference))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
-  (property background-color types/Color
-            (default (protobuf/default Gui$SceneDesc :background-color))
+  (property background-color types/Color (default (protobuf/default Gui$SceneDesc :background-color))
             (dynamic visible (g/constantly false)))
   (property visible-layout g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
-  (property max-nodes g/Int
-            (default (protobuf/default Gui$SceneDesc :max-nodes))
+  (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
             (dynamic error (g/fnk [_node-id max-nodes node-ids]
                              (validate-max-nodes _node-id max-nodes node-ids))))
 
@@ -3208,9 +3200,3 @@
                             (:name @node-cls))
                     {:node-cls node-cls})))
   (swap! custom-node-type-infos conj type-info))
-
-;; TODO(save-value) Next steps:
-;; DONE Don't read defaults.
-;; DONE Swap over node loading to use node-desc->node-properties.
-;; DONE Use (merge gui-base-node-msg (protobuf/make-map-without-defaults DerivedGuiNode ...)) in node-msg.
-;; Clean up unused functions. (convert-node-desc, node-type-deref->node-desc-fields-raw, etc.)

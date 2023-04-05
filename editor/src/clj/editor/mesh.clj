@@ -373,9 +373,7 @@
 (g/defnode MeshNode
   (inherits resource-node/ResourceNode)
 
-  (property name g/Str (dynamic visible (g/constantly false)))
-
-  (property material resource/Resource
+  (property material resource/Resource ; Required protobuf field.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -389,7 +387,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
 
-  (property vertices resource/Resource
+  (property vertices resource/Resource ; Required protobuf field.
             (value (gu/passthrough vertices-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -399,7 +397,8 @@
                                             [:streams :streams])))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "buffer"})))
-  (property textures resource/ResourceVec
+
+  (property textures resource/ResourceVec ; Vector assigned in load-fn.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
@@ -420,14 +419,12 @@
   (property primitive-type g/Any (default (protobuf/default MeshProto$MeshDesc :primitive-type))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType))))
 
-  (property position-stream g/Str
-            (default (protobuf/default MeshProto$MeshDesc :position-stream))
+  (property position-stream g/Str (default (protobuf/default MeshProto$MeshDesc :position-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids position-stream]
                              (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
 
-  (property normal-stream g/Str
-            (default (protobuf/default MeshProto$MeshDesc :normal-stream))
+  (property normal-stream g/Str (default (protobuf/default MeshProto$MeshDesc :normal-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids normal-stream]
                              (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
