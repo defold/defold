@@ -35,7 +35,7 @@ message SpriteDesc
     optional float offset               = 8 [default = 0.0];
     optional float playback_rate        = 9 [default = 1.0];
 
-    repeated dmGraphics.VertexAttribute attributes = 9;
+    repeated dmGraphics.VertexAttribute attributes = 10;
 }
 
 /*# Sprite API documentation
