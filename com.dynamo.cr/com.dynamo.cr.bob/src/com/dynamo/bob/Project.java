@@ -1188,7 +1188,7 @@ public class Project {
                         buildEngine(monitor, architectures, appmanifestOptions);
 
                         long tend = System.currentTimeMillis();
-                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
+                        Bob.verbose("Engine build took %f s", (tend-tstart)/1000.0);
                         TimeProfiler.stop();
 
                         if (!shouldBuildEngine()) {

@@ -592,7 +592,7 @@ public class ManifestBuilder {
         }
 
         long tend = System.currentTimeMillis();
-        Bob.verbose("ManifestBuilder.buildManifestData took %f\n", (tend-tstart)/1000.0);
+        Bob.verbose("ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
 
         return builder.build();
     }
