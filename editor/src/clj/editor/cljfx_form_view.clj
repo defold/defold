@@ -816,11 +816,21 @@
                                                          on-value-changed
                                                          ui-state
                                                          state-path]}]
-  (let [indices-path (conj state-path :selected-indices)
-        selected-indices (set (get-in ui-state indices-path))
+  (let [{:keys [selected-indices edit] :as state} (get-in ui-state state-path)
+        selected-indices (set selected-indices)
         new-value (remove-indices selected-indices value)]
+    ;; When we remove a row that has been edited, JavaFX will commit the edit.
+    ;; However, by that point, the state will have already changed to a new
+    ;; state without the item that was deleted. This can result in either
+    ;; creating a new row with only one field set (if the deleted row was the
+    ;; last), or applying the edit to the next row after the deleted row (if it
+    ;; wasn't the last). Cancelling the edit here solves the issue.
+    (when edit
+      (.edit ^TableView (:table edit) -1 nil))
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
-     [:set-ui-state (assoc-in ui-state indices-path [])]]))
+     [:set-ui-state (assoc-in ui-state state-path (-> state
+                                                      (assoc :selected-indices [])
+                                                      (dissoc :edit)))]]))
 
 (defmethod handle-event :table-select [{:keys [ui-state state-path fx/event]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
