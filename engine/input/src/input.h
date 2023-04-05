@@ -79,6 +79,7 @@ namespace dmInput
 
     HContext NewContext(const NewContextParams& params);
     void DeleteContext(HContext context);
+    void Update(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 
     HBinding NewBinding(HContext context);

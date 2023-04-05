@@ -65,7 +65,7 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
-    typedef bool (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+    typedef bool (* FHIDGamepadFunc)(uint32_t, bool, void*);
 
     /// parameters to be passed to NewContext
     struct NewContextParams
@@ -84,9 +84,6 @@ namespace dmHID
         uint32_t m_IgnoreAcceleration : 1;
         /// if mouse wheel scroll direction should be flipped (see DEF-2450)
         uint32_t m_FlipScrollDirection : 1;
-
-        DMHIDGamepadFunc m_GamepadConnectivityCallback;
-
     };
 
     /**
@@ -107,10 +104,12 @@ namespace dmHID
     /**
      * Set user data that will be passed along to the gamepad connectivity callback.
      *
+     * @name SetGamepadConnectivityCallback
      * @params context context for which the userdata should be set
-     * @params userdata userdata that should be passed along to callback
+     * @params callback [type: DMHIDGamepadFunc] userdata that will be passed to the callback
+     * @params callback_ctx [type: void*] userdata that will be passed to the callback
      */
-    void SetGamepadFuncUserdata(HContext context, void* userdata);
+    void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
 
     /**
      * Initializes a hid context.

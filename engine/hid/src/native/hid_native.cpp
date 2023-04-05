@@ -135,11 +135,15 @@ namespace dmHID
         {
             if (context->m_GamepadConnectivityCallback)
             {
-                // The callback isn't ready to consume the event yet, we will have to try later
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
+                    char buffer[128];
+                    GetGamepadDeviceName(context, gamepad, buffer, (uint32_t)sizeof(buffer));
+                    dmLogWarning("The connection for '%s' was ignored by the callback function!", buffer);
                     return;
                 }
+            } else {
+                dmLogWarning("There was no callback function set to handle the gamepad connection!");
             }
 
             SetGamepadConnectivity(context, gamepad_index, connection_status);
@@ -169,7 +173,6 @@ namespace dmHID
     // Called from gamepad drivers
     void ReleaseGamepad(HContext context, Gamepad* gamepad)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
         uint8_t gamepad_index = GamepadToIndex(context, gamepad);
         assert(context->m_Gamepads[gamepad_index].m_Driver != DRIVER_HANDLE_FREE);
         context->m_Gamepads[gamepad_index].m_Driver = DRIVER_HANDLE_FREE;

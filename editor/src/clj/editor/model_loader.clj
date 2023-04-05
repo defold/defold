@@ -53,7 +53,7 @@
         path (resource/path resource)
         options nil
         data-resolver (ModelUtil/createFileDataResolver project-path)
-        scene (ModelUtil/loadScene stream path options data-resolver)
+        scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ArrayList.)]

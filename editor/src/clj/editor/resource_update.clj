@@ -91,12 +91,10 @@
                          (catch Exception _
                            nil))
             new-sha256 (try
-                         (if (and read-fn write-fn)
+                         (when (and read-fn write-fn)
                            (let [source-value (read-fn new-resource)
                                  sanitized-content (write-fn source-value)]
-                             (DigestUtils/sha256Hex ^String sanitized-content))
-                           (with-open [input-stream (io/input-stream new-resource)]
-                             (DigestUtils/sha256Hex ^InputStream input-stream)))
+                             (DigestUtils/sha256Hex ^String sanitized-content)))
                          (catch Exception _
                            nil))]
         (and (some? old-sha256)

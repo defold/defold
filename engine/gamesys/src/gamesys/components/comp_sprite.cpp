@@ -428,8 +428,8 @@ namespace dmGameSystem
 
         SpriteContext* sprite_context = (SpriteContext*) params.m_Context;
         SetVertexDeclaration(sprite_world, component, dmRender::GetGraphicsContext(sprite_context->m_RenderContext));
-
-        PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
+        PlayAnimation(component, resource->m_DefaultAnimation,
+                component->m_Resource->m_DDF->m_Offset, component->m_Resource->m_DDF->m_PlaybackRate);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;

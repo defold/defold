@@ -1258,7 +1258,7 @@
     (user-data! menu-item ::menu-item-id id)
     (when command
       (.setId menu-item (name command)))
-    (when (some? key-combo)
+    (when (and (some? key-combo) (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
