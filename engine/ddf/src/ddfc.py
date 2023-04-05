@@ -371,10 +371,13 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         lst.append(tpl)
 
+    # For clarity, set the 'm_OneOfSet' bit in the field descriptor to zero
+    one_of_index_set = 0
+
     if len(lst) > 0:
         pp_cpp.begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
         for name, number, type, label, one_of_index, msg_desc, offset, default_value in lst:
-            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index))
+            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index, one_of_index_set))
         pp_cpp.end()
     else:
         pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
