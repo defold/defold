@@ -46,14 +46,37 @@ message DefaultValue
     optional bool bool_value = 5 [ default = true ];
 }
 
+message NestedDefaultsSubMsg
+{
+    optional string optional_string = 1 [ default = "default" ];
+    optional int32 optional_int = 2 [ default = 10 ];
+    optional dmMath.Quat optional_quat = 3;
+    optional Enum optional_enum = 4 [ default = ENUM_VAL1 ];
+    optional bool optional_bool = 5 [ default = true ];
+}
+
 message NestedDefaults
 {
-    required string required = 1;
+    required string required_string = 1;
     optional string optional_with_default = 2 [ default = "default" ];
     optional string optional_without_default = 3;
-    optional DefaultValue optional_message = 4;
-    repeated DefaultValue repeated_message = 5;
+    optional NestedDefaultsSubMsg optional_message = 4;
+    repeated NestedDefaultsSubMsg repeated_message = 5;
     repeated int32 repeated_int = 6;
+}
+
+message NestedRequiredsSubMsg
+{
+    required string required_string = 1;
+    required dmMath.Quat required_quat = 2;
+    required Enum required_enum = 3;
+}
+
+message NestedRequireds
+{
+    required NestedRequiredsSubMsg required_message = 1;
+    optional NestedRequiredsSubMsg optional_message = 2;
+    repeated NestedRequiredsSubMsg repeated_message = 3;
 }
 
 message OptionalNoDefaultValue

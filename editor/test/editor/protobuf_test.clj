@@ -15,7 +15,7 @@
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
 
@@ -152,90 +152,90 @@
 (deftest make-map-with-defaults-unspecified-test
   (is (= {:optional-with-default "default"
           :optional-without-default ""
-          :optional-message {:uint-value 10
-                             :string-value "test"
-                             :quat-value [0.0 0.0 0.0 1.0]
-                             :enum-value :enum-val1
-                             :bool-value true}}
+          :optional-message {:optional-string "default"
+                             :optional-int 10
+                             :optional-quat [0.0 0.0 0.0 1.0]
+                             :optional-enum :enum-val1
+                             :optional-bool true}}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults))))
 
 (deftest make-map-with-defaults-specified-overrides-defaults-test
-  (is (= {:required "overridden required"
+  (is (= {:required-string "overridden required"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
-          :optional-message {:uint-value 11
-                             :string-value "overridden string_value"
-                             :quat-value [1.0 2.0 3.0 4.0]
-                             :enum-value :enum-val0
-                             :bool-value false}
-          :repeated-message [{:uint-value 10
-                              :string-value "test"
-                              :quat-value [0.0 0.0 0.0 1.0]
-                              :enum-value :enum-val1
-                              :bool-value true}
-                             {:uint-value 11
-                              :string-value "overridden string_value"
-                              :quat-value [1.0 2.0 3.0 4.0]
-                              :enum-value :enum-val0
-                              :bool-value false}]
+          :optional-message {:optional-string "overridden optional_string"
+                             :optional-int 11
+                             :optional-quat [1.0 2.0 3.0 4.0]
+                             :optional-enum :enum-val0
+                             :optional-bool false}
+          :repeated-message [{:optional-string "default"
+                              :optional-int 10
+                              :optional-quat [0.0 0.0 0.0 1.0]
+                              :optional-enum :enum-val1
+                              :optional-bool true}
+                             {:optional-string "overridden optional_string"
+                              :optional-int 11
+                              :optional-quat [1.0 2.0 3.0 4.0]
+                              :optional-enum :enum-val0
+                              :optional-bool false}]
           :repeated-int [0
                          1]}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
-           :required "overridden required"
+           :required-string "overridden required"
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
-           :optional-message (protobuf/make-map-with-defaults TestDdf$DefaultValue
-                               :uint-value 11
-                               :string-value "overridden string_value"
-                               :quat-value [1.0 2.0 3.0 4.0]
-                               :enum-value :enum-val0
-                               :bool-value false)
-           :repeated-message [(protobuf/make-map-with-defaults TestDdf$DefaultValue)
-                              (protobuf/make-map-with-defaults TestDdf$DefaultValue
-                                :uint-value 11
-                                :string-value "overridden string_value"
-                                :quat-value [1.0 2.0 3.0 4.0]
-                                :enum-value :enum-val0
-                                :bool-value false)]
+           :optional-message (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                               :optional-string "overridden optional_string"
+                               :optional-int 11
+                               :optional-quat [1.0 2.0 3.0 4.0]
+                               :optional-enum :enum-val0
+                               :optional-bool false)
+           :repeated-message [(protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg)
+                              (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                                :optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false)]
            :repeated-int [0
                           1]))))
 
 (deftest make-map-with-defaults-specified-equals-defaults-test
-  (is (= {:required ""
+  (is (= {:required-string ""
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
-          :optional-message {:uint-value 11
-                             :string-value "overridden string_value"
-                             :quat-value [1.0 2.0 3.0 4.0]
-                             :enum-value :enum-val0
-                             :bool-value false}
-          :repeated-message [{:uint-value 10
-                              :string-value "test"
-                              :quat-value [0.0 0.0 0.0 1.0]
-                              :enum-value :enum-val1
-                              :bool-value true}
-                             {:uint-value 11
-                              :string-value "overridden string_value"
-                              :quat-value [1.0 2.0 3.0 4.0]
-                              :enum-value :enum-val0
-                              :bool-value false}]}
+          :optional-message {:optional-string "overridden optional_string"
+                             :optional-int 11
+                             :optional-quat [1.0 2.0 3.0 4.0]
+                             :optional-enum :enum-val0
+                             :optional-bool false}
+          :repeated-message [{:optional-string "default"
+                              :optional-int 10
+                              :optional-quat [0.0 0.0 0.0 1.0]
+                              :optional-enum :enum-val1
+                              :optional-bool true}
+                             {:optional-string "overridden optional_string"
+                              :optional-int 11
+                              :optional-quat [1.0 2.0 3.0 4.0]
+                              :optional-enum :enum-val0
+                              :optional-bool false}]}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
-           :required ""
+           :required-string ""
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
-           :optional-message (protobuf/make-map-with-defaults TestDdf$DefaultValue
-                               :uint-value 11
-                               :string-value "overridden string_value"
-                               :quat-value [1.0 2.0 3.0 4.0]
-                               :enum-value :enum-val0
-                               :bool-value false)
-           :repeated-message [(protobuf/make-map-with-defaults TestDdf$DefaultValue)
-                              (protobuf/make-map-with-defaults TestDdf$DefaultValue
-                                :uint-value 11
-                                :string-value "overridden string_value"
-                                :quat-value [1.0 2.0 3.0 4.0]
-                                :enum-value :enum-val0
-                                :bool-value false)]))))
+           :optional-message (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                               :optional-string "overridden optional_string"
+                               :optional-int 11
+                               :optional-quat [1.0 2.0 3.0 4.0]
+                               :optional-enum :enum-val0
+                               :optional-bool false)
+           :repeated-message [(protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg)
+                              (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
+                                :optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false)]))))
 
 ;; -----------------------------------------------------------------------------
 ;; read-map-with-defaults
@@ -246,120 +246,120 @@
     (protobuf/read-map-with-defaults cls reader)))
 
 (deftest read-map-with-defaults-unspecified-test
-  (is (= {:required ""
+  (is (= {:required-string ""
           :optional-with-default "default"
           :optional-without-default ""
-          :optional-message {:uint-value 10
-                             :string-value "test"
-                             :quat-value [0.0 0.0 0.0 1.0]
-                             :enum-value :enum-val1
-                             :bool-value true}}
-         (read-map-with-defaults TestDdf$NestedDefaults "required: ''"))))
+          :optional-message {:optional-string "default"
+                             :optional-int 10
+                             :optional-quat [0.0 0.0 0.0 1.0]
+                             :optional-enum :enum-val1
+                             :optional-bool true}}
+         (read-map-with-defaults TestDdf$NestedDefaults "required_string: ''"))))
 
 (deftest read-map-with-defaults-specified-overrides-defaults-test
-  (is (= {:required "overridden required"
+  (is (= {:required-string "overridden required"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
-          :optional-message {:uint-value 11
-                             :string-value "overridden string_value"
-                             :quat-value [1.0 2.0 3.0 4.0]
-                             :enum-value :enum-val0
-                             :bool-value false}
-          :repeated-message [{:uint-value 10
-                              :string-value "test"
-                              :quat-value [0.0 0.0 0.0 1.0]
-                              :enum-value :enum-val1
-                              :bool-value true}
-                             {:uint-value 11
-                              :string-value "overridden string_value"
-                              :quat-value [1.0 2.0 3.0 4.0]
-                              :enum-value :enum-val0
-                              :bool-value false}]
+          :optional-message {:optional-string "overridden optional_string"
+                             :optional-int 11
+                             :optional-quat [1.0 2.0 3.0 4.0]
+                             :optional-enum :enum-val0
+                             :optional-bool false}
+          :repeated-message [{:optional-string "default"
+                              :optional-int 10
+                              :optional-quat [0.0 0.0 0.0 1.0]
+                              :optional-enum :enum-val1
+                              :optional-bool true}
+                             {:optional-string "overridden optional_string"
+                              :optional-int 11
+                              :optional-quat [1.0 2.0 3.0 4.0]
+                              :optional-enum :enum-val0
+                              :optional-bool false}]
           :repeated-int [0
                          1]}
          (read-map-with-defaults TestDdf$NestedDefaults "
-required: 'overridden required'
+required_string: 'overridden required'
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
-  uint_value: 11
-  string_value: 'overridden string_value'
-  quat_value {
+  optional_string: 'overridden optional_string'
+  optional_int: 11
+  optional_quat {
     x: 1.0
     y: 2.0
     z: 3.0
     w: 4.0
   }
-  enum_value: ENUM_VAL0
-  bool_value: false
+  optional_enum: ENUM_VAL0
+  optional_bool: false
 }
 repeated_message {
 }
 repeated_message {
-  uint_value: 11
-  string_value: 'overridden string_value'
-  quat_value {
+  optional_string: 'overridden optional_string'
+  optional_int: 11
+  optional_quat {
     x: 1.0
     y: 2.0
     z: 3.0
     w: 4.0
   }
-  enum_value: ENUM_VAL0
-  bool_value: false
+  optional_enum: ENUM_VAL0
+  optional_bool: false
 }
 repeated_int: 0
 repeated_int: 1"))))
 
 (deftest read-map-with-defaults-specified-equals-defaults-test
-  (is (= {:required ""
+  (is (= {:required-string ""
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
-          :optional-message {:uint-value 11
-                             :string-value "overridden string_value"
-                             :quat-value [1.0 2.0 3.0 4.0]
-                             :enum-value :enum-val0
-                             :bool-value false}
-          :repeated-message [{:uint-value 10
-                              :string-value "test"
-                              :quat-value [0.0 0.0 0.0 1.0]
-                              :enum-value :enum-val1
-                              :bool-value true}
-                             {:uint-value 11
-                              :string-value "overridden string_value"
-                              :quat-value [1.0 2.0 3.0 4.0]
-                              :enum-value :enum-val0
-                              :bool-value false}]
+          :optional-message {:optional-string "overridden optional_string"
+                             :optional-int 11
+                             :optional-quat [1.0 2.0 3.0 4.0]
+                             :optional-enum :enum-val0
+                             :optional-bool false}
+          :repeated-message [{:optional-string "default"
+                              :optional-int 10
+                              :optional-quat [0.0 0.0 0.0 1.0]
+                              :optional-enum :enum-val1
+                              :optional-bool true}
+                             {:optional-string "overridden optional_string"
+                              :optional-int 11
+                              :optional-quat [1.0 2.0 3.0 4.0]
+                              :optional-enum :enum-val0
+                              :optional-bool false}]
           :repeated-int [0
                          0]}
          (read-map-with-defaults TestDdf$NestedDefaults "
-required: ''
+required_string: ''
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
-  uint_value: 11
-  string_value: 'overridden string_value'
-  quat_value {
+  optional_string: 'overridden optional_string'
+  optional_int: 11
+  optional_quat {
     x: 1.0
     y: 2.0
     z: 3.0
     w: 4.0
   }
-  enum_value: ENUM_VAL0
-  bool_value: false
+  optional_enum: ENUM_VAL0
+  optional_bool: false
 }
 repeated_message {
 }
 repeated_message {
-  uint_value: 11
-  string_value: 'overridden string_value'
-  quat_value {
+  optional_string: 'overridden optional_string'
+  optional_int: 11
+  optional_quat {
     x: 1.0
     y: 2.0
     z: 3.0
     w: 4.0
   }
-  enum_value: ENUM_VAL0
-  bool_value: false
+  optional_enum: ENUM_VAL0
+  optional_bool: false
 }
 repeated_int: 0
 repeated_int: 0"))))
@@ -373,65 +373,65 @@ repeated_int: 0"))))
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults))))
 
 (deftest make-map-without-defaults-specified-overrides-defaults-test
-  (is (= {:required "overridden required"
+  (is (= {:required-string "overridden required"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
-          :optional-message {:uint-value 11
-                             :string-value "overridden string_value"
-                             :quat-value [1.0 2.0 3.0 4.0]
-                             :enum-value :enum-val0
-                             :bool-value false}
+          :optional-message {:optional-string "overridden optional_string"
+                             :optional-int 11
+                             :optional-quat [1.0 2.0 3.0 4.0]
+                             :optional-enum :enum-val0
+                             :optional-bool false}
           :repeated-message [{}
-                             {:uint-value 11
-                              :string-value "overridden string_value"
-                              :quat-value [1.0 2.0 3.0 4.0]
-                              :enum-value :enum-val0
-                              :bool-value false}]
+                             {:optional-string "overridden optional_string"
+                              :optional-int 11
+                              :optional-quat [1.0 2.0 3.0 4.0]
+                              :optional-enum :enum-val0
+                              :optional-bool false}]
           :repeated-int [0
                          1]}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
-           :required "overridden required"
+           :required-string "overridden required"
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
-           :optional-message (protobuf/make-map-without-defaults TestDdf$DefaultValue
-                               :uint-value 11
-                               :string-value "overridden string_value"
-                               :quat-value [1.0 2.0 3.0 4.0]
-                               :enum-value :enum-val0
-                               :bool-value false)
-           :repeated-message [(protobuf/make-map-without-defaults TestDdf$DefaultValue)
-                              (protobuf/make-map-without-defaults TestDdf$DefaultValue
-                                :uint-value 11
-                                :string-value "overridden string_value"
-                                :quat-value [1.0 2.0 3.0 4.0]
-                                :enum-value :enum-val0
-                                :bool-value false)]
+           :optional-message (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                               :optional-string "overridden optional_string"
+                               :optional-int 11
+                               :optional-quat [1.0 2.0 3.0 4.0]
+                               :optional-enum :enum-val0
+                               :optional-bool false)
+           :repeated-message [(protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg)
+                              (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                                :optional-string "overridden optional_string"
+                                :optional-int 11
+                                :optional-quat [1.0 2.0 3.0 4.0]
+                                :optional-enum :enum-val0
+                                :optional-bool false)]
            :repeated-int [0
                           1]))))
 
 (deftest make-map-without-defaults-specified-equals-defaults-test
-  (is (= {:required ""
+  (is (= {:required-string ""
           :repeated-message [{}
                              {}]
           :repeated-int [0
                          0]}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
-           :required ""
+           :required-string ""
            :optional-with-default "default"
            :optional-without-default ""
-           :optional-message (protobuf/make-map-without-defaults TestDdf$DefaultValue
-                               :uint-value 10
-                               :string-value "test"
-                               :quat-value [0.0 0.0 0.0 1.0]
-                               :enum-value :enum-val1
-                               :bool-value true)
-           :repeated-message [(protobuf/make-map-without-defaults TestDdf$DefaultValue)
-                              (protobuf/make-map-without-defaults TestDdf$DefaultValue
-                                :uint-value 10
-                                :string-value "test"
-                                :quat-value [0.0 0.0 0.0 1.0]
-                                :enum-value :enum-val1
-                                :bool-value true)]
+           :optional-message (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                               :optional-string "default"
+                               :optional-int 10
+                               :optional-quat [0.0 0.0 0.0 1.0]
+                               :optional-enum :enum-val1
+                               :optional-bool true)
+           :repeated-message [(protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg)
+                              (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
+                                :optional-string "default"
+                                :optional-int 10
+                                :optional-quat [0.0 0.0 0.0 1.0]
+                                :optional-enum :enum-val1
+                                :optional-bool true)]
            :repeated-int [0
                           0]))))
 
@@ -444,94 +444,94 @@ repeated_int: 0"))))
     (protobuf/read-map-without-defaults cls reader)))
 
 (deftest read-map-without-defaults-unspecified-test
-  (is (= {:required ""}
-         (read-map-without-defaults TestDdf$NestedDefaults "required: ''"))))
+  (is (= {:required-string ""}
+         (read-map-without-defaults TestDdf$NestedDefaults "required_string: ''"))))
 
 (deftest read-map-without-defaults-specified-overrides-defaults-test
-  (is (= {:required "overridden required"
+  (is (= {:required-string "overridden required"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
-          :optional-message {:uint-value 11
-                             :string-value "overridden string_value"
-                             :quat-value [1.0 2.0 3.0 4.0]
-                             :enum-value :enum-val0
-                             :bool-value false}
+          :optional-message {:optional-string "overridden optional_string"
+                             :optional-int 11
+                             :optional-quat [1.0 2.0 3.0 4.0]
+                             :optional-enum :enum-val0
+                             :optional-bool false}
           :repeated-message [{}
-                             {:uint-value 11
-                              :string-value "overridden string_value"
-                              :quat-value [1.0 2.0 3.0 4.0]
-                              :enum-value :enum-val0
-                              :bool-value false}]
+                             {:optional-string "overridden optional_string"
+                              :optional-int 11
+                              :optional-quat [1.0 2.0 3.0 4.0]
+                              :optional-enum :enum-val0
+                              :optional-bool false}]
           :repeated-int [0
                          1]}
          (read-map-without-defaults TestDdf$NestedDefaults "
-required: 'overridden required'
+required_string: 'overridden required'
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
-  uint_value: 11
-  string_value: 'overridden string_value'
-  quat_value {
+  optional_string: 'overridden optional_string'
+  optional_int: 11
+  optional_quat {
     x: 1.0
     y: 2.0
     z: 3.0
     w: 4.0
   }
-  enum_value: ENUM_VAL0
-  bool_value: false
+  optional_enum: ENUM_VAL0
+  optional_bool: false
 }
 repeated_message {
 }
 repeated_message {
-  uint_value: 11
-  string_value: 'overridden string_value'
-  quat_value {
+  optional_string: 'overridden optional_string'
+  optional_int: 11
+  optional_quat {
     x: 1.0
     y: 2.0
     z: 3.0
     w: 4.0
   }
-  enum_value: ENUM_VAL0
-  bool_value: false
+  optional_enum: ENUM_VAL0
+  optional_bool: false
 }
 repeated_int: 0
 repeated_int: 1"))))
 
 (deftest read-map-without-defaults-specified-equals-defaults-test
-  (is (= {:required ""
+  (is (= {:required-string ""
           :repeated-message [{}
                              {}]
           :repeated-int [0
                          0]}
          (read-map-without-defaults TestDdf$NestedDefaults "
-required: ''
+required_string: ''
 optional_with_default: 'default'
 optional_without_default: ''
 optional_message {
-  uint_value: 10
-  string_value: 'test'
-  quat_value {
+  optional_string: 'default'
+  optional_int: 10
+  optional_quat {
     x: 0.0
     y: 0.0
     z: 0.0
     w: 1.0
   }
-  enum_value: ENUM_VAL1
-  bool_value: true
+  optional_enum: ENUM_VAL1
+  optional_bool: true
 }
 repeated_message {
 }
 repeated_message {
-  uint_value: 10
-  string_value: 'test'
-  quat_value {
+  optional_string: 'default'
+  optional_int: 10
+  optional_quat {
     x: 0.0
     y: 0.0
     z: 0.0
     w: 1.0
   }
-  enum_value: ENUM_VAL1
-  bool_value: true
+  optional_enum: ENUM_VAL1
+  optional_bool: true
 }
 repeated_int: 0
 repeated_int: 0"))))
