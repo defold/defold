@@ -170,7 +170,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
@@ -340,6 +339,10 @@ namespace dmGameSystem
         HashState32 state;
         dmHashInit32(&state, false);
 
+        component->m_VertexDeclaration = dmRender::GetVertexDeclaration(material);
+        component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(component->m_VertexDeclaration);
+
+        /*
         dmRender::VertexAttribute* attributes;
         uint32_t attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
@@ -387,6 +390,7 @@ namespace dmGameSystem
 
         component->m_VertexDeclaration = vx_decl;
         component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(vx_decl);
+        */
     }
 
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
@@ -455,19 +459,52 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void GetCustomAttributeValue(dmRender::HMaterial material, const uint32_t material_attr_index, const dmRender::VertexAttribute& material_attr, dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count, uint8_t** value_ptr, uint32_t* num_values)
+    static void GetAttributeValueInfo(const dmGraphics::VertexAttribute& attribute, uint8_t** data_ptr, uint32_t* data_size)
+    {
+        switch(attribute.m_DataType)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_INT:
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_IntValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_IntValues.m_V.m_Count * sizeof(int32_t);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_UintValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_UintValues.m_V.m_Count * sizeof(uint32_t);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_FloatValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_FloatValues.m_V.m_Count * sizeof(uint32_t);
+                break;
+            default:
+                assert(0 && "Unknown data type");
+                break;
+        }
+    }
+
+    static void GetCustomAttributeValue(dmRender::HMaterial material, const uint32_t material_attr_index, const dmRender::VertexAttribute& material_attr, dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count, uint8_t** value_ptr, uint32_t* value_byte_count)
     {
         for (int i = 0; i < sprite_attribute_count; ++i)
         {
             if (material_attr.m_NameHash == sprite_attributes[i].m_NameHash)
             {
-                *value_ptr  = (uint8_t*) sprite_attributes[i].m_Value.m_Data;
-                *num_values = sprite_attributes[i].m_Value.m_Count;
+                GetAttributeValueInfo(sprite_attributes[i], value_ptr, value_byte_count);
                 return;
             }
         }
 
-        dmRender::GetMaterialProgramAttributeValues(material, material_attr_index, value_ptr, num_values);
+        dmRender::GetMaterialProgramAttributeValues(material, material_attr_index, value_ptr, value_byte_count);
     }
 
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
@@ -495,12 +532,10 @@ namespace dmGameSystem
             }
             else
             {
-                uint8_t* value_ptr  = 0;
-                uint32_t num_values = 0;
-                GetCustomAttributeValue(material, k, attr, sprite_attributes, sprite_attribute_count, &value_ptr, &num_values);
-
-                const uint32_t stream_byte_size = sizeof(float) * attr.m_ElementCount * num_values;
-                memcpy(vertices_write_ptr, value_ptr, stream_byte_size);
+                uint8_t* value_ptr        = 0;
+                uint32_t value_byte_count = 0;
+                GetCustomAttributeValue(material, k, attr, sprite_attributes, sprite_attribute_count, &value_ptr, &value_byte_count);
+                memcpy(vertices_write_ptr, value_ptr, value_byte_count);
             }
 
             vertices_write_ptr += sizeof(float) * attr.m_ElementCount;

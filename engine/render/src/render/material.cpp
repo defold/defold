@@ -29,6 +29,21 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    static dmGraphics::Type GetBaseDataType(dmGraphics::Type from_type)
+    {
+        switch(from_type)
+        {
+            case dmGraphics::TYPE_FLOAT_VEC2:
+            case dmGraphics::TYPE_FLOAT_VEC3:
+            case dmGraphics::TYPE_FLOAT_VEC4:
+            case dmGraphics::TYPE_FLOAT_MAT2:
+            case dmGraphics::TYPE_FLOAT_MAT3:
+            case dmGraphics::TYPE_FLOAT_MAT4:
+                return dmGraphics::TYPE_FLOAT;
+        }
+        return from_type;
+    }
+
     static void CreateAttributes(dmGraphics::HContext graphics_context, Material* m)
     {
         uint32_t num_program_attributes  = dmGraphics::GetAttributeCount(m->m_Program);
@@ -45,7 +60,7 @@ namespace dmRender
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
             num_attribute_byte_size += dmGraphics::GetTypeSize(type);
 
-        #if 0
+        #if 1
             dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
             dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d", (int) type, element_count, num_values, location);
         #endif
@@ -61,6 +76,8 @@ namespace dmRender
             memset(m->m_AttributeValues.Begin(), 0, num_attribute_byte_size);
 
             uint32_t num_attribute_byte_size = 0;
+
+            dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
 
             for (int i = 0; i < num_program_attributes; ++i)
             {
@@ -81,7 +98,14 @@ namespace dmRender
                 attribute.m_ElementCount   = element_count;
 
                 num_attribute_byte_size += dmGraphics::GetTypeSize(type);
+                dmGraphics::Type base_data_type = GetBaseDataType(type);
+
+                dmGraphics::AddVertexStream(stream_declaration, name_hash, element_count, base_data_type, false);
             }
+
+            m->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+
+            dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
         }
     }
 
@@ -541,15 +565,15 @@ namespace dmRender
         *attribute_count = material->m_Attributes.Size();
     }
 
-    void GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* num_values)
+    void GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, uint8_t** value_ptr, uint32_t* value_byte_size)
     {
         assert(index < material->m_Attributes.Size());
         VertexAttribute& attribute = material->m_Attributes[index];
-        *num_values                = attribute.m_ValueCount;
+        *value_byte_size           = dmGraphics::GetTypeSize(attribute.m_Type) * attribute.m_ValueCount;
         *value_ptr                 = &material->m_AttributeValues[attribute.m_ValueIndex];
     }
 
-    void SetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, uint8_t* values, uint32_t num_values)
+    void SetMaterialProgramAttribute(HMaterial material, dmhash_t name_hash, uint8_t* values, uint32_t value_byte_size)
     {
         int32_t index = FindMaterialAttributeIndex(material, name_hash);
         if (index < 0)
@@ -557,9 +581,9 @@ namespace dmRender
             return;
         }
 
-        VertexAttribute& attribute = material->m_Attributes[index];
-        num_values                 = dmMath::Min((uint16_t) num_values, attribute.m_ValueCount);
-        uint32_t value_byte_size   = dmGraphics::GetTypeSize(attribute.m_Type) * num_values;
+        VertexAttribute& attribute   = material->m_Attributes[index];
+        uint32_t attribute_byte_size = dmGraphics::GetTypeSize(attribute.m_Type) * attribute.m_ValueCount;
+        value_byte_size              = dmMath::Min(value_byte_size, attribute_byte_size);
         memcpy(&material->m_AttributeValues[attribute.m_ValueIndex], values, value_byte_size);
     }
 
@@ -619,6 +643,11 @@ namespace dmRender
             }
         }
         return false;
+    }
+
+    dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)
+    {
+        return material->m_VertexDeclaration;
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)

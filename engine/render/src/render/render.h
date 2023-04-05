@@ -209,6 +209,8 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
+    dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material);
+
     struct VertexAttribute
     {
         dmhash_t         m_NameHash;
