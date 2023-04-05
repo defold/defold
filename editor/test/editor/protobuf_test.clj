@@ -15,7 +15,7 @@
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
 
@@ -157,10 +157,12 @@
                              :optional-quat [0.0 0.0 0.0 1.0]
                              :optional-enum :enum-val1
                              :optional-bool true}}
-         (protobuf/make-map-with-defaults TestDdf$NestedDefaults))))
+         (protobuf/make-map-with-defaults TestDdf$NestedDefaults)))
+  (is (= {:optional-message {}} ; TODO(save-value): Should this be here? It contains required fields.
+         (protobuf/make-map-with-defaults TestDdf$NestedRequireds))))
 
 (deftest make-map-with-defaults-specified-overrides-defaults-test
-  (is (= {:required-string "overridden required"
+  (is (= {:required-string "overridden required_string"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:optional-string "overridden optional_string"
@@ -181,7 +183,7 @@
           :repeated-int [0
                          1]}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
-           :required-string "overridden required"
+           :required-string "overridden required_string"
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
            :optional-message (protobuf/make-map-with-defaults TestDdf$NestedDefaultsSubMsg
@@ -198,7 +200,31 @@
                                 :optional-enum :enum-val0
                                 :optional-bool false)]
            :repeated-int [0
-                          1]))))
+                          1])))
+  (is (= {:required-message {:required-string "overridden required_string"
+                             :required-quat [1.0 2.0 3.0 4.0]
+                             :required-enum :enum-val1}
+          :optional-message {:required-string "overridden required_string"
+                             :required-quat [1.0 2.0 3.0 4.0]
+                             :required-enum :enum-val1}
+          :repeated-message [{}
+                             {:required-string "overridden required_string"
+                              :required-quat [1.0 2.0 3.0 4.0]
+                              :required-enum :enum-val1}]}
+         (protobuf/make-map-with-defaults TestDdf$NestedRequireds
+           :required-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                               :required-string "overridden required_string"
+                               :required-quat [1.0 2.0 3.0 4.0]
+                               :required-enum :enum-val1)
+           :optional-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                               :required-string "overridden required_string"
+                               :required-quat [1.0 2.0 3.0 4.0]
+                               :required-enum :enum-val1)
+           :repeated-message [(protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg)
+                              (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                                :required-string "overridden required_string"
+                                :required-quat [1.0 2.0 3.0 4.0]
+                                :required-enum :enum-val1)]))))
 
 (deftest make-map-with-defaults-specified-equals-defaults-test
   (is (= {:required-string ""
@@ -235,7 +261,31 @@
                                 :optional-int 11
                                 :optional-quat [1.0 2.0 3.0 4.0]
                                 :optional-enum :enum-val0
-                                :optional-bool false)]))))
+                                :optional-bool false)])))
+  (is (= {:required-message {:required-string ""
+                             :required-quat [0.0 0.0 0.0 1.0]
+                             :required-enum :enum-val0}
+          :optional-message {:required-string ""
+                             :required-quat [0.0 0.0 0.0 1.0]
+                             :required-enum :enum-val0}
+          :repeated-message [{}
+                             {:required-string ""
+                              :required-quat [0.0 0.0 0.0 1.0]
+                              :required-enum :enum-val0}]}
+         (protobuf/make-map-with-defaults TestDdf$NestedRequireds
+           :required-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                               :required-string ""
+                               :required-quat [0.0 0.0 0.0 1.0]
+                               :required-enum :enum-val0)
+           :optional-message (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                               :required-string ""
+                               :required-quat [0.0 0.0 0.0 1.0]
+                               :required-enum :enum-val0)
+           :repeated-message [(protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg)
+                              (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
+                                :required-string ""
+                                :required-quat [0.0 0.0 0.0 1.0]
+                                :required-enum :enum-val0)]))))
 
 ;; -----------------------------------------------------------------------------
 ;; read-map-with-defaults
@@ -254,10 +304,20 @@
                              :optional-quat [0.0 0.0 0.0 1.0]
                              :optional-enum :enum-val1
                              :optional-bool true}}
-         (read-map-with-defaults TestDdf$NestedDefaults "required_string: ''"))))
+         (read-map-with-defaults TestDdf$NestedDefaults "required_string: ''")))
+  (is (= {:optional-message {} ; TODO(save-value): Should this be here? It contains required fields.
+          :required-message {:required-string ""
+                             :required-quat [0.0 0.0 0.0 1.0]
+                             :required-enum :enum-val0}}
+         (read-map-with-defaults TestDdf$NestedRequireds "
+required_message {
+  required_string: ''
+  required_quat {}
+  required_enum: ENUM_VAL0
+}"))))
 
 (deftest read-map-with-defaults-specified-overrides-defaults-test
-  (is (= {:required-string "overridden required"
+  (is (= {:required-string "overridden required_string"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:optional-string "overridden optional_string"
@@ -278,7 +338,7 @@
           :repeated-int [0
                          1]}
          (read-map-with-defaults TestDdf$NestedDefaults "
-required_string: 'overridden required'
+required_string: 'overridden required_string'
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
@@ -308,9 +368,63 @@ repeated_message {
   optional_bool: false
 }
 repeated_int: 0
-repeated_int: 1"))))
+repeated_int: 1")))
+  (is (= {:optional-message {:required-string "overridden required_string"
+                             :required-quat [1.0 2.0 3.0 4.0]
+                             :required-enum :enum-val1}
+          :required-message {:required-string "overridden required_string"
+                             :required-quat [1.0 2.0 3.0 4.0]
+                             :required-enum :enum-val1}
+          :repeated-message [{:required-string "overridden required_string"
+                              :required-quat [1.0 2.0 3.0 4.0]
+                              :required-enum :enum-val1}
+                             {:required-string "overridden required_string"
+                              :required-quat [1.0 2.0 3.0 4.0]
+                              :required-enum :enum-val1}]}
+         (read-map-with-defaults TestDdf$NestedRequireds "
+required_message {
+  required_string: 'overridden required_string'
+  required_quat {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  required_enum: ENUM_VAL1
+}
+optional_message {
+  required_string: 'overridden required_string'
+  required_quat {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  required_enum: ENUM_VAL1
+}
+repeated_message {
+  required_string: 'overridden required_string'
+  required_quat {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  required_enum: ENUM_VAL1
+}
+repeated_message {
+  required_string: 'overridden required_string'
+  required_quat {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  required_enum: ENUM_VAL1
+}"))))
 
 (deftest read-map-with-defaults-specified-equals-defaults-test
+  ;; TODO(save-value): This test is wrong? We should be specifying each value in the text, but the specified value should be the pb-default.
   (is (= {:required-string ""
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
@@ -362,18 +476,72 @@ repeated_message {
   optional_bool: false
 }
 repeated_int: 0
-repeated_int: 0"))))
+repeated_int: 0")))
+  (is (= {:optional-message {:required-string ""
+                             :required-quat [0.0 0.0 0.0 1.0]
+                             :required-enum :enum-val0}
+          :required-message {:required-string ""
+                             :required-quat [0.0 0.0 0.0 1.0]
+                             :required-enum :enum-val0}
+          :repeated-message [{:required-string ""
+                              :required-quat [0.0 0.0 0.0 1.0]
+                              :required-enum :enum-val0}
+                             {:required-string ""
+                              :required-quat [0.0 0.0 0.0 1.0]
+                              :required-enum :enum-val0}]}
+         (read-map-with-defaults TestDdf$NestedRequireds "
+required_message {
+  required_string: ''
+  required_quat {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  required_enum: ENUM_VAL0
+}
+optional_message {
+  required_string: ''
+  required_quat {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  required_enum: ENUM_VAL0
+}
+repeated_message {
+  required_string: ''
+  required_quat {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  required_enum: ENUM_VAL0
+}
+repeated_message {
+  required_string: ''
+  required_quat {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  required_enum: ENUM_VAL0
+}"))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-without-defaults
 ;; -----------------------------------------------------------------------------
+; TODO(save-value): Add tests for NestedRequireds to all cases below.
 
 (deftest make-map-without-defaults-unspecified-test
   (is (= {}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults))))
 
 (deftest make-map-without-defaults-specified-overrides-defaults-test
-  (is (= {:required-string "overridden required"
+  (is (= {:required-string "overridden required_string"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:optional-string "overridden optional_string"
@@ -390,7 +558,7 @@ repeated_int: 0"))))
           :repeated-int [0
                          1]}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
-           :required-string "overridden required"
+           :required-string "overridden required_string"
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
            :optional-message (protobuf/make-map-without-defaults TestDdf$NestedDefaultsSubMsg
@@ -448,7 +616,7 @@ repeated_int: 0"))))
          (read-map-without-defaults TestDdf$NestedDefaults "required_string: ''"))))
 
 (deftest read-map-without-defaults-specified-overrides-defaults-test
-  (is (= {:required-string "overridden required"
+  (is (= {:required-string "overridden required_string"
           :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:optional-string "overridden optional_string"
@@ -465,7 +633,7 @@ repeated_int: 0"))))
           :repeated-int [0
                          1]}
          (read-map-without-defaults TestDdf$NestedDefaults "
-required_string: 'overridden required'
+required_string: 'overridden required_string'
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
