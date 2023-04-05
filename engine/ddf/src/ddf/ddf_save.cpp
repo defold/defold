@@ -38,6 +38,11 @@ namespace dmDDF
             FieldDescriptor* field_desc = &desc->m_Fields[i];
             Type type = (Type) field_desc->m_Type;
 
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX && field_desc->m_OneOfSet == 0)
+            {
+                continue;
+            }
+
     #define DDF_SAVEMESSAGE_CASE(t, wt, func) \
             write_result = output_stream.WriteTag(field_desc->m_Number, wt) && \
                            output_stream.func(*((t*) data)); \
