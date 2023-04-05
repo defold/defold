@@ -42,17 +42,7 @@
 (set! *warn-on-reflection* true)
 
 (defn set-verbose-logging! [enable]
-  (doto (.getDeclaredField Bob "verbose")
-    (.setAccessible true)
-    (.setBoolean nil enable)))
-
-;; Disable verbose logging in Bob by default. Doing this here will let us know
-;; if the verbose field is no longer in Bob. We enable verbose logging while a
-;; Bob build is in progress, but disable it otherwise because it can be a lot.
-(try
-  (set-verbose-logging! false)
-  (catch Exception e
-    (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
+  (Bob/setVerboseLogging enable))
 
 (def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
@@ -180,12 +170,6 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn- PrintStream-on ^PrintStream [fn]
-  (-> fn
-      (PrintWriter-on nil)
-      (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
-      (PrintStream. true StandardCharsets/UTF_8)))
-
 (defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! show-build-log-stream! task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
@@ -195,51 +179,40 @@
          (ifn? show-build-log-stream!)
          (ifn? task-cancelled?)]}
   (reset! build-in-progress-atom true)
-  (let [prev-out System/out
-        prev-err System/err]
-    (with-open [log-stream (PipedInputStream.)
-                log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
-                build-out (PrintStream-on
-                            #(doseq [line (util/split-lines %)]
-                               (when (string/starts-with? line "Bob: ")
-                                 (.println log-stream-writer (subs line 5)))))
-                build-err (PrintStream-on
-                            #(doseq [line (util/split-lines %)]
-                               (.println log-stream-writer line)))]
-      (try
-        (show-build-log-stream! log-stream)
-        (System/setOut build-out)
-        (System/setErr build-err)
-        (if (and (some #(= "build" %) bob-commands)
-                 (native-extensions/has-engine-extensions? project evaluation-context)
-                 (not (native-extensions/supported-platform? (get bob-args "platform"))))
-          {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
-          (let [ws (project/workspace project evaluation-context)
-                proj-path (str (workspace/project-path ws evaluation-context))
-                bob-project (Project. workspace/class-loader (DefaultFileSystem.) proj-path "build/default")]
-            (doseq [[key val] bob-args]
-              (.setOption bob-project key val))
-            (when-not (string/blank? build-server-headers)
-              (doseq [header (string/split-lines build-server-headers)]
-                (.addBuildServerHeader bob-project header)))
-            (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-            (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-              (ClassLoaderScanner/scanClassLoader workspace/class-loader pkg))
-            (let [deps (workspace/dependencies ws)]
-              (when (seq deps)
-                (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
-                (ui/with-progress [render-progress! render-progress!]
-                  (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
-            (.mount bob-project (->graph-resource-scanner ws))
-            (.findSources bob-project proj-path skip-dirs)
-            (ui/with-progress [render-progress! render-progress!]
-              (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
-        (catch Throwable error
-          {:exception error})
-        (finally
-          (reset! build-in-progress-atom false)
-          (System/setOut prev-out)
-          (System/setErr prev-err))))))
+  (with-open [log-stream-in (PipedInputStream.)
+              log-stream-out (PipedOutputStream. log-stream-in)]
+    (Bob/addLogStream log-stream-out)
+    (try
+      (show-build-log-stream! log-stream-in)
+      (if (and (some #(= "build" %) bob-commands)
+               (native-extensions/has-engine-extensions? project evaluation-context)
+               (not (native-extensions/supported-platform? (get bob-args "platform"))))
+        {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
+        (let [ws (project/workspace project evaluation-context)
+              proj-path (str (workspace/project-path ws evaluation-context))
+              bob-project (Project. workspace/class-loader (DefaultFileSystem.) proj-path "build/default")]
+          (doseq [[key val] bob-args]
+            (.setOption bob-project key val))
+          (when-not (string/blank? build-server-headers)
+            (doseq [header (string/split-lines build-server-headers)]
+              (.addBuildServerHeader bob-project header)))
+          (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
+          (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+            (ClassLoaderScanner/scanClassLoader workspace/class-loader pkg))
+          (let [deps (workspace/dependencies ws)]
+            (when (seq deps)
+              (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+              (ui/with-progress [render-progress! render-progress!]
+                (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
+          (.mount bob-project (->graph-resource-scanner ws))
+          (.findSources bob-project proj-path skip-dirs)
+          (ui/with-progress [render-progress! render-progress!]
+            (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
+      (catch Throwable error
+        {:exception error})
+      (finally
+        (reset! build-in-progress-atom false)
+        (Bob/removeLogStream)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
