@@ -1408,6 +1408,7 @@ namespace dmGameSystem
                 }
                 else
                 {
+                    component->m_Playing = 0;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
                     dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
