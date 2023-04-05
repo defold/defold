@@ -197,7 +197,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
-        Bob.verbose("GameProjectBuilder.createArchive\n");
+        Bob.verbose("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
@@ -240,7 +240,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         long tend = System.currentTimeMillis();
-        Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
+        Bob.verbose("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
         TimeProfiler.stop();
     }
 
