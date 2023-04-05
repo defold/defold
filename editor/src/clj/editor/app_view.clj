@@ -1680,7 +1680,9 @@ If you do not specifically require different script states, consider changing th
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title
-  ([] (str "Defold " (System/getProperty "defold.version" "(No version)")))
+  ([] (if-some [version (system/defold-version)]
+        (str "Defold " version)
+        "Defold"))
   ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
