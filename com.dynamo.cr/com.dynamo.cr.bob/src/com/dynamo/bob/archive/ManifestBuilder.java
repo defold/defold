@@ -544,7 +544,7 @@ public class ManifestBuilder {
     }
 
     public ManifestData buildManifestData() throws IOException {
-        Bob.verbose("buildManifestData begin\n");
+        Bob.verbose("buildManifestData begin");
         long tstart = System.currentTimeMillis();
 
         ManifestData.Builder builder = ManifestData.newBuilder();
