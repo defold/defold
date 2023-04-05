@@ -19,9 +19,59 @@ message Cubemap
 
 message VertexAttribute
 {
-    required string name          = 1;
-    optional uint64 name_hash     = 2;
-    repeated dmMath.Vector4 value = 3;
+    enum DataType
+    {
+        TYPE_BYTE             = 1;
+        TYPE_UNSIGNED_BYTE    = 2;
+        TYPE_SHORT            = 3;
+        TYPE_UNSIGNED_SHORT   = 4;
+        TYPE_INT              = 5;
+        TYPE_UNSIGNED_INT     = 6;
+        TYPE_FLOAT            = 7;
+    }
+
+    enum SemanticType
+    {
+        SEMANTIC_TYPE_NONE           = 1;
+        SEMANTIC_TYPE_BINORMAL       = 2;
+        SEMANTIC_TYPE_BLEND_INDICES  = 3;
+        SEMANTIC_TYPE_BLEND_WEIGHTS  = 4;
+        SEMANTIC_TYPE_COLOR          = 5;
+        SEMANTIC_TYPE_NORMAL         = 6;
+        SEMANTIC_TYPE_POSITION_LOCAL = 7;
+        SEMANTIC_TYPE_POSITION_WORLD = 8;
+        SEMANTIC_TYPE_TANGENT        = 9;
+        SEMANTIC_TYPE_TEXCOORD       = 10;
+    }
+
+    message IntValues
+    {
+        repeated int32 v = 1;
+    }
+
+    message UIntValues
+    {
+        repeated uint32 v = 1;
+    }
+
+    message FloatValues
+    {
+        repeated float v = 1;
+    }
+
+    required string       name          = 1;
+    optional uint64       name_hash     = 2;
+    optional SemanticType semantic_type = 3 [default = SEMANTIC_TYPE_NONE];
+    required DataType     data_type     = 4;
+    required int32        element_count = 5;
+    optional bool         normalize     = 6;
+
+    oneof values
+    {
+        IntValues   int_values   = 8;
+        UIntValues  uint_values  = 9;
+        FloatValues float_values = 10;
+    }
 }
 
 message TextureImage
