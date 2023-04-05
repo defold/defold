@@ -1400,16 +1400,20 @@ namespace dmGameSystem
             // Since the animation referred to the old texture, we need to update it
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                uint32_t* anim_id =  GetTextureSet(component, component->m_Resource)->m_AnimationIds.Get(component->m_CurrentAnimation);
+                TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+                uint32_t* anim_id =  texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
                 if (anim_id)
                 {
                     PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
                 }
                 else
                 {
-                    component->m_Playing = 0;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
+                    dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+                    if (texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID) {
+                        component->m_AnimationID = 0;
+                    }
                 }
             }
             return res;
