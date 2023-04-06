@@ -28,7 +28,29 @@ import java.util.logging.Formatter;
 
 public class LogHelper {
 
-    private static StreamHandler logStreamHandler = null;
+    /**
+     * StreamHandler subclass which flushes the underlying stream after each
+     * published log record
+     */
+    private static class AutoFlushingStreamHandler extends StreamHandler {
+
+        public AutoFlushingStreamHandler(OutputStream out, Formatter formatter) {
+            super(out, formatter);
+        }
+
+        public void changeOutputStream(OutputStream out) {
+            super.setOutputStream(out);
+        }
+
+        @Override
+        public synchronized void publish(final LogRecord record) {
+            super.publish(record);
+            flush();
+        }
+
+    }
+
+    private static AutoFlushingStreamHandler logStreamHandler = null;
 
     private static Level logLevel = Level.INFO;
 
@@ -38,14 +60,16 @@ public class LogHelper {
      * @param logger The logger instance to configure
      */
     public static void configureLogger(Logger logger) {
-        ConsoleHandler consoleHandler = new ConsoleHandler();
-        consoleHandler.setFormatter(new LogFormatter());
-        logger.addHandler(consoleHandler);
-
         if (logStreamHandler != null) {
             logger.addHandler(logStreamHandler);
         }
+        else {
+            ConsoleHandler consoleHandler = new ConsoleHandler();
+            consoleHandler.setFormatter(new LogFormatter());
+            logger.addHandler(consoleHandler);
+        }
         logger.setLevel(logLevel);
+        logger.setUseParentHandlers(false);
     }
 
     /**
@@ -58,15 +82,12 @@ public class LogHelper {
     public static void setLogStream(OutputStream out) {
         removeLogStream();
 
-        // create a StreamHandler which flushes the stream after each
-        // published log record
-        logStreamHandler = new StreamHandler(out, new LogFormatter()) {
-            @Override
-            public synchronized void publish(final LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
+        if (logStreamHandler == null) {
+            logStreamHandler = new AutoFlushingStreamHandler(out, new LogFormatter());
+        }
+        else {
+            logStreamHandler.changeOutputStream(out);
+        }
 
         // apply stream handler to existing loggers
         LogManager logManager = LogManager.getLogManager();
@@ -78,6 +99,12 @@ public class LogHelper {
                 }
             }
         });
+
+        // add stream handler to root logger
+        Logger rootLogger = logManager.getLogger("");
+        if (rootLogger != null) {
+            rootLogger.addHandler(logStreamHandler);
+        }
     }
 
     /**
@@ -100,8 +127,11 @@ public class LogHelper {
             }
         });
 
-        // LogManager.getLogManager().getLogger("").removeHandler(logStreamHandler);
-        logStreamHandler = null;
+        // remove stream handler from root logger
+        Logger rootLogger = logManager.getLogger("");
+        if (rootLogger != null) {
+            rootLogger.removeHandler(logStreamHandler);
+        }
     }
 
     /**

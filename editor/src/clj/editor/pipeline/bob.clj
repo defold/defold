@@ -183,8 +183,8 @@
   (with-open [log-stream-in (PipedInputStream.)
               log-stream-out (PipedOutputStream. log-stream-in)]
     (try
-      (show-build-log-stream! log-stream-in)
       (LogHelper/setLogStream log-stream-out)
+      (show-build-log-stream! log-stream-in)
       (if (and (some #(= "build" %) bob-commands)
                (native-extensions/has-engine-extensions? project evaluation-context)
                (not (native-extensions/supported-platform? (get bob-args "platform"))))
