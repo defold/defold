@@ -1739,7 +1739,7 @@ def detect(conf):
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('arm64-ios','x86_64-ios'):
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
-        conf.env['FRAMEWORK_VULKAN'] = 'Metal'
+        conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
     elif platform in ('x86_64-linux',):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
