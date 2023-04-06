@@ -570,7 +570,7 @@ namespace dmRender
     {
         assert(index < material->m_Attributes.Size());
         VertexAttribute& attribute = material->m_Attributes[index];
-        *value_byte_size           = dmGraphics::GetTypeSize(attribute.m_Type) * attribute.m_ValueCount;
+        *value_byte_size           = dmGraphics::GetTypeSize(attribute.m_Type) * attribute.m_ElementCount;
         *value_ptr                 = &material->m_AttributeValues[attribute.m_ValueIndex];
     }
 

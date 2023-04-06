@@ -512,11 +512,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void GetCustomAttributeValue(dmRender::HMaterial material,
+    static void GetCustomAttribute(dmRender::HMaterial material,
         const uint32_t material_attr_index,
         const dmRender::VertexAttribute& material_attr,
         const dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count,
-        const uint8_t** value_ptr, uint32_t* value_byte_count, uint32_t* element_count)
+        const uint8_t** value_ptr, uint32_t* value_byte_count,
+        uint32_t* element_count, dmGraphics::VertexAttribute::SemanticType* semantic_type)
     {
         for (int i = 0; i < sprite_attribute_count; ++i)
         {
@@ -524,16 +525,18 @@ namespace dmGameSystem
             {
                 dmGraphics::GetAttributeValues(sprite_attributes[i], value_ptr, value_byte_count);
                 *element_count = sprite_attributes[i].m_ElementCount;
+                *semantic_type = sprite_attributes[i].m_SemanticType;
                 return;
             }
         }
 
         dmRender::GetMaterialProgramAttributeValues(material, material_attr_index, value_ptr, value_byte_count);
         *element_count = material_attr.m_ElementCount;
+        *semantic_type = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
-        Vector4* p, const float* uv, float page_index,
+        const Point3& p, const Matrix4& w, const float* uv, float page_index,
         const dmRender::VertexAttribute* attributes, uint32_t attributes_count,
         const dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count)
     {
@@ -546,18 +549,18 @@ namespace dmGameSystem
             const uint8_t* value_ptr;
             uint32_t value_byte_count;
             uint32_t element_count;
+            dmGraphics::VertexAttribute::SemanticType semantic_type;
 
-            GetCustomAttributeValue(material, k, attr, sprite_attributes, sprite_attribute_count, &value_ptr, &value_byte_count, &element_count);
+            GetCustomAttribute(material, k, attr, sprite_attributes, sprite_attribute_count, &value_ptr, &value_byte_count, &element_count, &semantic_type);
 
             if (attr.m_NameHash == SPRITE_STREAM_POSITION)
             {
-                const uint32_t stream_byte_size = sizeof(float) * dmMath::Min((uint32_t) 3, element_count);
-                memcpy(vertices_write_ptr, p, stream_byte_size);
+                Vector4 wp = w * p;
+                memcpy(vertices_write_ptr, &wp, value_byte_count);
             }
             else if (attr.m_NameHash == SPRITE_STREAM_TEXCOORD0)
             {
-                const uint32_t stream_byte_size = sizeof(float) * dmMath::Min((uint32_t) 2, element_count);
-                memcpy(vertices_write_ptr, uv, stream_byte_size);
+                memcpy(vertices_write_ptr, uv, value_byte_count);
             }
             else if (attr.m_NameHash == SPRITE_STREAM_PAGE_INDEX)
             {
@@ -565,7 +568,20 @@ namespace dmGameSystem
             }
             else
             {
-                memcpy(vertices_write_ptr, value_ptr, value_byte_count);
+                switch(semantic_type)
+                {
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_LOCAL:
+                        {
+                            memcpy(vertices_write_ptr, &p, value_byte_count);
+                        } break;
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_WORLD:
+                        {
+                            Vector4 wp = w * p;
+                            memcpy(vertices_write_ptr, &wp, value_byte_count);
+                        } break;
+                    default:
+                        memcpy(vertices_write_ptr, value_ptr, value_byte_count);
+                }
             }
 
             vertices_write_ptr += sizeof(float) * element_count;
@@ -643,9 +659,9 @@ namespace dmGameSystem
         {
             for (int x=0; x<4; x++)
             {
-                Vector4 p        = transform * Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
+                Point3 p         = Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
                 const float uv[] = {us[x], vs[y]};
-                WriteSpriteVertex(material, vertices + vertex_stride * vx_index, &p, uv, page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
+                WriteSpriteVertex(material, vertices + vertex_stride * vx_index, p, transform, uv, page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
                 vx_index++;
             }
         }
@@ -764,10 +780,10 @@ namespace dmGameSystem
 
                 for (uint32_t vert = 0; vert < num_points; ++vert, points += step, uvs += step)
                 {
-                    float x   = points[0] * scaleX; // range -0.5,+0.5
-                    float y   = points[1] * scaleY;
-                    Vector4 p = w * Point3(x, y, 0.0f);
-                    WriteSpriteVertex(material, vertices + vert * vertex_stride, &p, uvs, page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
+                    float x  = points[0] * scaleX; // range -0.5,+0.5
+                    float y  = points[1] * scaleY;
+                    Point3 p = Point3(x, y, 0.0f);
+                    WriteSpriteVertex(material, vertices + vert * vertex_stride, p, w, uvs, page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -846,15 +862,15 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
-                    Vector4 p1 = w * Point3(-0.5f,  0.5f, 0.0f);
-                    Vector4 p2 = w * Point3( 0.5f,  0.5f, 0.0f);
-                    Vector4 p3 = w * Point3( 0.5f, -0.5f, 0.0f);
+                    Point3 p0 = Point3(-0.5f, -0.5f, 0.0f);
+                    Point3 p1 = Point3(-0.5f,  0.5f, 0.0f);
+                    Point3 p2 = Point3( 0.5f,  0.5f, 0.0f);
+                    Point3 p3 = Point3( 0.5f, -0.5f, 0.0f);
 
-                    WriteSpriteVertex(material, vertices                    , &p0, &tc[tex_lookup[0] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
-                    WriteSpriteVertex(material, vertices + vertex_stride    , &p1, &tc[tex_lookup[1] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
-                    WriteSpriteVertex(material, vertices + vertex_stride * 2, &p2, &tc[tex_lookup[2] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
-                    WriteSpriteVertex(material, vertices + vertex_stride * 3, &p3, &tc[tex_lookup[4] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
+                    WriteSpriteVertex(material, vertices                    , p0, w, &tc[tex_lookup[0] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
+                    WriteSpriteVertex(material, vertices + vertex_stride    , p1, w, &tc[tex_lookup[1] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
+                    WriteSpriteVertex(material, vertices + vertex_stride * 2, p2, w, &tc[tex_lookup[2] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
+                    WriteSpriteVertex(material, vertices + vertex_stride * 3, p3, w, &tc[tex_lookup[4] * 2], page_index, attributes, attributes_count, sprite_attributes, sprite_attribute_count);
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
