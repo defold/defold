@@ -544,7 +544,8 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
       (aget out-uniform-count 0))))
 
 (def ^:private uniform-info
-  (let [name-buffer-size 128
+  (let [name-array-suffix-pattern #"\[\d+\]$"
+        name-buffer-size 128
         out-name-length (int-array 1)
         out-size (int-array 1) ; Number of array elements.
         out-type (int-array 1)
@@ -555,8 +556,9 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
             name (String. out-name 0 name-length StandardCharsets/UTF_8)
             location (.glGetUniformLocation gl program name)
             type (gl-uniform-type->uniform-type (aget out-type 0))
-            count (aget out-size 0)]
-        {:name name
+            count (aget out-size 0)
+            sanitized-name (string/replace name name-array-suffix-pattern "")]
+        {:name sanitized-name
          :index location
          :type type
          :count count}))))

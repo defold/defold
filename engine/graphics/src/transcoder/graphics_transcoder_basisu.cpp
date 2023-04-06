@@ -131,7 +131,7 @@ namespace dmGraphics
     struct ImageTranscodeState
     {
         ImageTranscodeState()
-        : m_Transcoder(0)
+        : m_Transcoder()
         , m_LevelData(0)
         , m_SrcDataPtr(0)
         {}
