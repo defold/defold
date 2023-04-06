@@ -94,14 +94,15 @@ Macros currently mean no foreseeable performance gain, however."
                                                 val-or-desc)]
     (enum-name->keyword (.getName desc))))
 
-(defn- pb-value->clj-fn [field-info pb->clj-fn]
+(declare ^:private pb->clj-fn)
+
+(defn- pb-value->clj-fn [field-info default-included-field-rules]
   (let [pb-value->clj
         (case (:field-type-key field-info)
-          :message (pb->clj-fn (:type field-info))
+          :message (pb->clj-fn (:type field-info) default-included-field-rules)
           :enum pb-enum->val
-          (if (= :boolean (:java-type-key field-info))
-            boolean
-            identity))]
+          :bool boolean ; Java reflection returns unique Boolean instances. We want either Boolean/TRUE or Boolean/FALSE.
+          identity)]
     (if (not= :repeated (:field-rule field-info))
       pb-value->clj
       (fn repeated-pb-value->clj [^Collection values]
@@ -169,17 +170,6 @@ Macros currently mean no foreseeable performance gain, however."
         field-accessor-name (str "get" java-name)]
     (.getReturnType (lookup-method class field-accessor-name))))
 
-(def ^:private java-type->key
-  {Descriptors$FieldDescriptor$JavaType/BOOLEAN :boolean
-   Descriptors$FieldDescriptor$JavaType/BYTE_STRING :byte-string
-   Descriptors$FieldDescriptor$JavaType/DOUBLE :double
-   Descriptors$FieldDescriptor$JavaType/ENUM :enum
-   Descriptors$FieldDescriptor$JavaType/FLOAT :float
-   Descriptors$FieldDescriptor$JavaType/INT :int
-   Descriptors$FieldDescriptor$JavaType/LONG :long
-   Descriptors$FieldDescriptor$JavaType/MESSAGE :message
-   Descriptors$FieldDescriptor$JavaType/STRING :string})
-
 (def ^:private field-type->key
   {Descriptors$FieldDescriptor$Type/BOOL :bool
    Descriptors$FieldDescriptor$Type/BYTES :bytes
@@ -228,7 +218,6 @@ Macros currently mean no foreseeable performance gain, however."
                  (pair (field->key field-desc)
                        {:type (field-type cls field-desc)
                         :java-name (underscores-to-camel-case (.getName field-desc))
-                        :java-type-key (java-type->key (.getJavaType field-desc))
                         :options (options (.getOptions field-desc))
                         :field-type-key (field-type->key (.getType field-desc))
                         :field-rule (cond (.isRepeated field-desc) :repeated
@@ -352,7 +341,7 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def get-fields-fn (memoize get-fields-fn-raw))
 
-(defn- pb->clj-fn [fields]
+(defn- make-pb->clj-fn [fields]
   (fn pb->clj [pb]
     (->> fields
          (reduce (fn [pb-map [field-key pb->field-value]]
@@ -363,45 +352,53 @@ Macros currently mean no foreseeable performance gain, however."
          (persistent!)
          (msg->clj pb))))
 
-(declare ^:private pb->clj-with-defaults-fn)
+(defn- default-message-raw [^Class class default-included-field-rules]
+  (let [pb->clj (pb->clj-fn class default-included-field-rules)]
+    (pb->clj (default-instance class))))
 
-(defn- pb->clj-with-defaults-fn-raw [^Class class]
-  (pb->clj-fn
+(def ^:private default-message (memoize default-message-raw))
+
+(defn- pb->clj-fn-raw [^Class class default-included-field-rules]
+  {:pre [(set? default-included-field-rules)
+         (every? #{:optional :required} default-included-field-rules)]}
+  (make-pb->clj-fn
     (mapv (fn [[field-key {:keys [field-rule java-name] :as field-info}]]
-            (let [pb-value->clj (pb-value->clj-fn field-info pb->clj-with-defaults-fn)
+            (let [pb-value->clj (pb-value->clj-fn field-info default-included-field-rules)
                   repeated (= :repeated field-rule)
-                  ^Method field-get-method (field-get-method class java-name repeated)]
+                  ^Method field-get-method (field-get-method class java-name repeated)
+                  include-defaults (contains? default-included-field-rules field-rule)]
               (pair field-key
-                    (if (= :required field-rule)
-                      (let [field-has-value? (field-has-value-fn class java-name false)]
+                    (cond
+                      (and include-defaults
+                           (= :optional field-rule)
+                           (= :message (:field-type-key field-info)))
+                      (let [field-has-value? (field-has-value-fn class java-name repeated)
+                            default-field-value (default-message (:type field-info) default-included-field-rules)]
+                        (fn pb->field-clj-value [pb]
+                          (if (field-has-value? pb)
+                            (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                              (pb-value->clj field-pb-value))
+                            default-field-value)))
+
+                      (or repeated
+                          include-defaults)
+                      (fn pb->field-clj-value-or-default [pb]
+                        (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                          (pb-value->clj field-pb-value)))
+
+                      :else
+                      (let [field-has-value? (field-has-value-fn class java-name repeated)]
                         (fn pb->field-clj-value [pb]
                           (when (field-has-value? pb)
                             (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
-                              (pb-value->clj field-pb-value)))))
-                      (fn pb->field-clj-value-or-default [pb]
-                        (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
-                          (pb-value->clj field-pb-value)))))))
+                              (pb-value->clj field-pb-value)))))))))
           (field-infos class))))
 
-(def ^:private pb->clj-with-defaults-fn (memoize pb->clj-with-defaults-fn-raw))
+(def ^:private pb->clj-fn (memoize pb->clj-fn-raw))
 
-(declare ^:private pb->clj-without-defaults-fn)
+(def ^:private pb->clj-with-defaults-fn (memoize #(pb->clj-fn % #{:optional :required})))
 
-(defn- pb->clj-without-defaults-fn-raw [^Class class]
-  (pb->clj-fn
-    (mapv (fn [[field-key {:keys [field-rule java-name] :as field-info}]]
-            (let [pb-value->clj (pb-value->clj-fn field-info pb->clj-without-defaults-fn)
-                  repeated (= :repeated field-rule)
-                  ^Method field-get-method (field-get-method class java-name repeated)
-                  field-has-value? (field-has-value-fn class java-name repeated)]
-              (pair field-key
-                    (fn pb->field-clj-value [pb]
-                      (when (field-has-value? pb)
-                        (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
-                          (pb-value->clj field-pb-value)))))))
-          (field-infos class))))
-
-(def ^:private pb->clj-without-defaults-fn (memoize pb->clj-without-defaults-fn-raw))
+(def ^:private pb->clj-without-defaults-fn (memoize #(pb->clj-fn % #{})))
 
 (declare ^:private clear-defaults-from-message)
 
@@ -449,9 +446,7 @@ Macros currently mean no foreseeable performance gain, however."
     (pb->clj-without-defaults (clear-defaults-from-message pb))))
 
 (defn- default-value-raw [^Class cls]
-  (-> cls
-      (default-instance)
-      (pb->map-with-defaults)))
+  (default-message cls #{:optional}))
 
 (def default-value (memoize default-value-raw))
 
@@ -818,7 +813,7 @@ Macros currently mean no foreseeable performance gain, however."
                           (let [field-info (key->field-info key)]
                             (case (:field-rule field-info)
                               :optional
-                              (when-not (or (and (= :message (:java-type-key field-info))
+                              (when-not (or (and (= :message (:field-type-key field-info))
                                                  (coll/empty? value))
                                             (= (key->default key) value))
                                 (pair key value))
@@ -829,7 +824,7 @@ Macros currently mean no foreseeable performance gain, however."
                                 (pair key (vec value)))
 
                               :required
-                              (when-not (and (= :message (:java-type-key field-info))
+                              (when-not (and (= :message (:field-type-key field-info))
                                              (coll/empty? value))
                                 (pair key value))
 

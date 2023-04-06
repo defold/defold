@@ -305,7 +305,9 @@
                              :optional-enum :enum-val1
                              :optional-bool true}}
          (read-map-with-defaults TestDdf$NestedDefaults "required_string: ''")))
-  (is (= {:optional-message {} ; TODO(save-value): Should this be here? It contains required fields.
+  (is (= {:optional-message {:required-string ""
+                             :required-quat [0.0 0.0 0.0 1.0]
+                             :required-enum :enum-val0}
           :required-message {:required-string ""
                              :required-quat [0.0 0.0 0.0 1.0]
                              :required-enum :enum-val0}}
