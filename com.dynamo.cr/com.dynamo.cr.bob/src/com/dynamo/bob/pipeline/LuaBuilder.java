@@ -28,8 +28,8 @@ import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.Level;
 import java.net.URLClassLoader;
 import java.net.URL;
 import java.lang.Math;
@@ -70,6 +70,8 @@ import com.google.protobuf.Message;
  *
  */
 public abstract class LuaBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
@@ -365,7 +367,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // write index, count and bytes
             if (count > 0) {
                 if (count == 256) {
-                    Bob.verbose("\n\nLuaBuilder count %d\n\n", count);
+                    logger.log(Level.INFO, "\n\nLuaBuilder count %d\n\n", count);
                 }
 
                 // write index of diff
@@ -485,15 +487,15 @@ public abstract class LuaBuilder extends Builder<Void> {
                 Platform p = architectures.get(0);
                 if (p.is64bit()) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-                    Bob.verbose("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.log(Level.INFO, "Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }
                 else {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
-                    Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.log(Level.INFO, "Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                Bob.verbose("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                logger.log(Level.INFO, "Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
@@ -501,7 +503,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
                 srcBuilder.setDelta(ByteString.copyFrom(delta));
 
-                Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                logger.log(Level.INFO, "Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
             }
         }

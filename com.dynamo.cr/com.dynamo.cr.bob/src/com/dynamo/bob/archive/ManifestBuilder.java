@@ -38,6 +38,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -47,7 +49,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -60,6 +61,8 @@ import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
 
 public class ManifestBuilder {
+
+    private static Logger logger = Logger.getLogger(ManifestBuilder.class.getName());
 
     public static class CryptographicOperations {
 
@@ -544,7 +547,7 @@ public class ManifestBuilder {
     }
 
     public ManifestData buildManifestData() throws IOException {
-        Bob.verbose("buildManifestData begin");
+        logger.info("buildManifestData begin");
         long tstart = System.currentTimeMillis();
 
         ManifestData.Builder builder = ManifestData.newBuilder();
@@ -592,7 +595,7 @@ public class ManifestBuilder {
         }
 
         long tend = System.currentTimeMillis();
-        Bob.verbose("ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
+        logger.log(Level.INFO, "ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
 
         return builder.build();
     }

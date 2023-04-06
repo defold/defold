@@ -31,6 +31,7 @@
     [util.http-util :as http-util])
   (:import
     [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob.logging LogHelper]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
@@ -42,7 +43,7 @@
 (set! *warn-on-reflection* true)
 
 (defn set-verbose-logging! [enable]
-  (Bob/setVerboseLogging enable))
+  (LogHelper/setVerboseLogging enable))
 
 (def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
@@ -181,9 +182,9 @@
   (reset! build-in-progress-atom true)
   (with-open [log-stream-in (PipedInputStream.)
               log-stream-out (PipedOutputStream. log-stream-in)]
-    (Bob/addLogStream log-stream-out)
     (try
       (show-build-log-stream! log-stream-in)
+      (LogHelper/setLogStream log-stream-out)
       (if (and (some #(= "build" %) bob-commands)
                (native-extensions/has-engine-extensions? project evaluation-context)
                (not (native-extensions/supported-platform? (get bob-args "platform"))))
@@ -212,7 +213,7 @@
         {:exception error})
       (finally
         (reset! build-in-progress-atom false)
-        (Bob/removeLogStream)))))
+        (LogHelper/removeLogStream)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling

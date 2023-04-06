@@ -36,12 +36,6 @@ import java.util.Locale;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.LogManager;
-import java.util.logging.Handler;
-import java.util.logging.StreamHandler;
-import java.util.logging.SimpleFormatter;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -59,6 +53,9 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.logging.LogFormatter;
+import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -73,26 +70,7 @@ public class Bob {
 
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
-    private static StreamHandler logStreamHandler = null;
-
-    static {
-        // 1 date - a Date object representing event time of the log record.
-        // 2 source - a string representing the caller, if available; otherwise, the logger's name.
-        // 3 logger - the logger's name.
-        // 4 level - the log level.
-        // 5 message - the formatted log message returned from the Formatter.formatMessage(LogRecord) method. It uses java.text formatting and does not use the java.util.Formatter format argument.
-        // 6 thrown - a string representing the throwable associated with the log record and its backtrace beginning with a newline character, if any; otherwise, an empty string.
-        try {
-            String property = "java.util.logging.SimpleFormatter.format";
-            // [2023-04-05 13:12:11] [INFO   ] Compiling resources from /Users/bjornritzl/Downloads/armv7-android/unnamed/res 
-            String format = "[%1$tF %1$tT] [%4$-7s] %5$s %n";
-            System.setProperty(property, format);
-        }
-        catch(Exception e) {
-            System.out.println("Unable to set java.util.logging.SimpleFormatter.format");
-        }
-    }
-
+    
     public Bob() {
     }
 
@@ -229,7 +207,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -599,50 +577,6 @@ public class Bob {
         return project;
     }
 
-    /**
-     * Set the log level to use for the root logger and all handlers
-     * @param level The java.util.logging.Level to use
-     */
-    public static void setLogLevel(Level level) {
-        Logger rootLogger = LogManager.getLogManager().getLogger("");
-        rootLogger.setLevel(level);
-        for (Handler h : rootLogger.getHandlers()) {
-            h.setLevel(level);
-        }
-    }
-
-    /**
-     * Enable or disable verbose logging
-     * @param enable Set to true to enable verbose logging
-     */
-    public static void setVerboseLogging(boolean enabled) {
-        Bob.setLogLevel(enabled ? Level.CONFIG : Level.WARNING);
-    }
-
-    /**
-     * Remove the log stream handler from the root logger
-     * Use this together with addLogStream()
-     */
-    public static void removeLogStream() {
-        if (logStreamHandler != null) {
-            LogManager.getLogManager().getLogger("").removeHandler(logStreamHandler);
-            logStreamHandler = null;
-        }
-    }
-
-    /**
-     * Add a log stream handler to the root logger. Use this to send log records
-     * from bob to some other source, for instance the Defold editor. If a log
-     * stream has already been added it will first be removed before the new one
-     * will be added
-     * @param out The output stream to write log records to
-     */
-    public static void addLogStream(OutputStream out) {
-        removeLogStream();
-        logStreamHandler = new StreamHandler(out, new SimpleFormatter());
-        LogManager.getLogManager().getLogger("").addHandler(logStreamHandler);
-    }
-
     public static String logExceptionToString(int severity, IResource res, int line, String message)
     {
         String resourceString = "unspecified";
@@ -760,10 +694,11 @@ public class Bob {
         }
 
         boolean verbose = cmd.hasOption('v');
+        LogHelper.setVerboseLogging(verbose);
+
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
         Project project = createProject(rootDirectory, buildDirectory, email, auth);
-        setVerboseLogging(verbose);
 
         if (cmd.hasOption("settings")) {
             for (String filepath : cmd.getOptionValues("settings")) {
@@ -952,7 +887,7 @@ public class Bob {
         if (e.getCause() != null) {
             System.err.println("Cause: " + e.getCause());
         }
-        logger.log(Level.INFO, e.getMessage(), e);
+        logger.severe(e.getMessage(), e);
         System.exit(1);
     }
 
@@ -964,7 +899,6 @@ public class Bob {
         } catch (Exception e) {
             logErrorAndExit(e);
         }
-
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
@@ -975,9 +909,4 @@ public class Bob {
         }
         return value;
     }
-
-    public static void verbose(String message, Object... args) {
-        logger.info(String.format(message, args));
-    }
-
 }
