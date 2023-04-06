@@ -310,6 +310,56 @@ namespace dmGraphics
         return 0;
     }
 
+    void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        switch(attribute.m_DataType)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
+                assert(0 && "Not supprted yet");
+                break;
+            case dmGraphics::VertexAttribute::TYPE_INT:
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_IntValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_IntValues.m_V.m_Count * sizeof(int32_t);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_UintValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_UintValues.m_V.m_Count * sizeof(uint32_t);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_FloatValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_FloatValues.m_V.m_Count * sizeof(uint32_t);
+                break;
+            default:
+                assert(0 && "Unknown data type");
+                break;
+        }
+    }
+
+    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return dmGraphics::TYPE_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return dmGraphics::TYPE_UNSIGNED_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return dmGraphics::TYPE_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return dmGraphics::TYPE_UNSIGNED_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return dmGraphics::TYPE_INT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return dmGraphics::TYPE_UNSIGNED_INT;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return dmGraphics::TYPE_FLOAT;
+            default: assert(0 && "Unsupported dmGraphics::VertexAttribute::DataType");
+        }
+        return (dmGraphics::Type) -1;
+    }
+
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();

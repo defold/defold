@@ -454,43 +454,6 @@ static void LogFrameBufferError(GLenum status)
         return type_lut[type];
     }
 
-    /*
-    GL_FLOAT
-    GL_FLOAT_VEC2
-    GL_FLOAT_VEC3
-    GL_FLOAT_VEC4
-    GL_FLOAT_MAT2
-    GL_FLOAT_MAT3
-    GL_FLOAT_MAT4
-    GL_FLOAT_MAT2x3
-    GL_FLOAT_MAT2x4
-    GL_FLOAT_MAT3x2
-    GL_FLOAT_MAT3x4
-    GL_FLOAT_MAT4x2
-    GL_FLOAT_MAT4x3
-    GL_INT
-    GL_INT_VEC2
-    GL_INT_VEC3
-    GL_INT_VEC4
-    GL_UNSIGNED_INT
-    GL_UNSIGNED_INT_VEC2
-    GL_UNSIGNED_INT_VEC3
-    GL_UNSIGNED_INT_VEC4
-    GL_DOUBLE
-    GL_DOUBLE_VEC2
-    GL_DOUBLE_VEC3
-    GL_DOUBLE_VEC4
-    GL_DOUBLE_MAT2
-    GL_DOUBLE_MAT3
-    GL_DOUBLE_MAT4
-    GL_DOUBLE_MAT2x3
-    GL_DOUBLE_MAT2x4
-    GL_DOUBLE_MAT3x2
-    GL_DOUBLE_MAT3x4
-    GL_DOUBLE_MAT4x2
-    GL_DOUBLE_MAT4x3
-    */
-
     static Type GetGraphicsType(GLenum type)
     {
         switch(type)

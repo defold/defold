@@ -115,40 +115,6 @@ namespace dmGameSystem
         }
     }
 
-    static void GetAttributeValueInfo(const dmGraphics::VertexAttribute& attribute, uint8_t** data_ptr, uint32_t* data_size)
-    {
-        switch(attribute.m_DataType)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_SHORT:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_INT:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_IntValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_IntValues.m_V.m_Count * sizeof(int32_t);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_UintValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_UintValues.m_V.m_Count * sizeof(uint32_t);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_FloatValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_FloatValues.m_V.m_Count * sizeof(uint32_t);
-                break;
-            default:
-                assert(0 && "Unknown data type");
-                break;
-        }
-    }
-
     static void SetMaterial(const char* path, dmRender::HMaterial material, dmRenderDDF::MaterialDesc* ddf)
     {
         dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
@@ -193,15 +159,7 @@ namespace dmGameSystem
         }
 
         // Set vertex attributes
-        dmGraphics::VertexAttribute* attributes = ddf->m_Attributes.m_Data;
-        for (int i = 0; i < ddf->m_Attributes.m_Count; ++i)
-        {
-            dmGraphics::VertexAttribute& attribute = ddf->m_Attributes[i];
-            uint32_t byte_size;
-            uint8_t* bytes;
-            GetAttributeValueInfo(attribute, &bytes, &byte_size);
-            dmRender::SetMaterialProgramAttribute(material, attribute.m_NameHash, bytes, byte_size);
-        }
+        dmRender::SetMaterialProgramAttributes(material, ddf->m_Attributes.m_Data, ddf->m_Attributes.m_Count);
 
         const char** textures = ddf->m_Textures.m_Data;
         uint32_t texture_count = ddf->m_Textures.m_Count;
