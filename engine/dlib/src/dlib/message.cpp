@@ -312,12 +312,12 @@ namespace dmMessage
     static Result GetSocketNoLock(dmhash_t name_hash, HSocket* out_socket)
     {
         MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
-        if (message_socket)
+        if (!message_socket)
         {
-            return RESULT_OK;
+            return RESULT_NAME_OK_SOCKET_NOT_FOUND;
         }
         *out_socket = name_hash;
-        return RESULT_NAME_OK_SOCKET_NOT_FOUND;
+        return RESULT_OK;
     }
 
     Result GetSocket(const char *name, HSocket* out_socket)
