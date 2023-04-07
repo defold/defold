@@ -12,20 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_ARCHIVE_H
-#define RESOURCE_ARCHIVE_H
+#ifndef DM_RESOURCE_ARCHIVE_H
+#define DM_RESOURCE_ARCHIVE_H
 
-#include <dmsdk/resource/resource_archive.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+
+#include "providers/provider.h"
+#include <dmsdk/resource/resource_archive.h>
+
+#include <dlib/uri.h>
 #include <dlib/align.h>
+#include <dlib/array.h>
 #include <dlib/path.h>
+
 
 namespace dmResource
 {
     struct Manifest;
+    typedef dmArray<char> LoadBufferType;
 }
 
 namespace dmResourceArchive
@@ -41,6 +48,8 @@ namespace dmResourceArchive
     // If this length changes the VERSION needs to be bumped.
     // Equivalent to 512 bits
     const static uint32_t MAX_HASH = 64;
+
+    typedef struct ResourceArchiveContext* HContext;
 
     enum EntryFlag
     {
@@ -66,20 +75,6 @@ namespace dmResourceArchive
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
 
-    typedef Result (*FManifestLoad)(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
-    typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* archive_name, const char* application_path, const char* application_support_path, HArchiveIndexContainer previous, HArchiveIndexContainer* out);
-    typedef Result (*FArchiveUnload)(HArchiveIndexContainer);
-    typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, uint32_t, EntryData*);
-    typedef Result (*FArchiveRead)(HArchiveIndexContainer, const uint8_t*, uint32_t, const EntryData*, void*);
-
-    struct ArchiveLoader
-    {
-        FManifestLoad       m_LoadManifest;
-        FArchiveLoad        m_Load;
-        FArchiveUnload      m_Unload;
-        FArchiveFindEntry   m_FindEntry;
-        FArchiveRead        m_Read;
-    };
 
     // For memory mapped files (or files read directly into memory)
     struct DM_ALIGNED(16) ArchiveIndex
@@ -124,7 +119,7 @@ namespace dmResourceArchive
         ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
         ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
 
-        ArchiveLoader       m_Loader;
+        //ArchiveLoader       m_Loader;
         void*               m_UserData;         // private to the loader
 
         uint32_t m_ArchiveIndexSize;            // kept for unmapping
@@ -167,18 +162,24 @@ namespace dmResourceArchive
         LiveUpdateResourceHeader* m_Header;
     };
 
-    // Clears all registered archive loaders
-    void ClearArchiveLoaders();
+    HContext    Create();
+    void        Destroy(HContext context);
+    void        RegisterArchiveLoaders(HContext ctx);
+    Result      AddMount(HContext ctx, dmResourceProvider::HArchive archive, int priority);
+    Result      RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
 
     /*#
-     * Registers an archive loader
+     * Mounts the archives in the previously specified order
+     * @param base_uri The uri of the base archive
      */
-    void RegisterArchiveLoader(ArchiveLoader loader);
+    Result MountArchive(HContext ctx, const dmURI::Parts* base_uri, int priority);
 
-    /*#
-     * Registers the default archive loader
-     */
-    void RegisterDefaultArchiveLoader();
+    Result UnmountArchives(HContext ctx);
+
+    Result GetResourceSize(HContext ctx, const char* path, uint32_t* resource_size);
+    Result ReadResource(HContext ctx, const char* path, uint8_t* buffer, uint32_t buffer_size);
+    Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmResource::LoadBufferType* buffer);
+
 
     // Sets the default format finder/reader for an archive (currently used for the builtins manifest/archive)
     void SetDefaultReader(HArchiveIndexContainer archive);
@@ -192,17 +193,11 @@ namespace dmResourceArchive
     // Loads a .arci and a .arcd into an HArchiveContainer
     Result LoadArchiveFromFile(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
 
-    // Finds an entry in a single archive
-    Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry);
-
     // Decrypts a buffer
     Result DecryptBuffer(void* buffer, uint32_t buffer_len);
 
     // Decompressed a buffer
     Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len);
-
-    // Reads an entry from a single archive
-    Result ReadEntryFromArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const EntryData* entry, void* buffer);
 
     // Calls each loader in sequence
 

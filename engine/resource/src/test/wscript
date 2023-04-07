@@ -50,16 +50,40 @@ def build(bld):
 
     bld.add_group()
 
-    test_resource = bld.program(features     = 'cxx embed test',
-                                includes     = '.. ../../proto',
-                                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
-                                web_libs     = ['library_sys.js'],
-                                proto_gen_py = True,
-                                target       = 'test_resource',
-                                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
-                                embed_source = 'resources.arci resources.arcd resources.dmanifest')
+    test_block_allocator = bld.program(features = 'cxx test',
+                                       includes = '..',
+                                       use      = 'TESTMAIN DLIB THREAD resource',
+                                       target   = 'test_block_allocator',
+                                       source   = 'test_block_allocator.cpp')
 
-    test_resource.install_path = None
+    test_block_allocator.install_path = None
+
+    # ******************************************************************************************************************************
+    # File Providers
+
+    test_provider_file = bld.program(features     = 'cxx embed test',
+                                        includes     = '.. ../../proto',
+                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                        proto_gen_py = True,
+                                        exported_symbols = ['ResourceProviderFile'],
+                                        target       = 'test_provider_file',
+                                        source       = 'test_provider_file.cpp',)
+
+    test_provider_file.install_path = None
+
+    test_provider_archive = bld.program(features     = 'cxx embed test',
+                                        includes     = '.. ../../proto',
+                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                        proto_gen_py = True,
+                                        exported_symbols = ['ResourceProviderArchive'],
+                                        target       = 'test_provider_archive',
+                                        source       = 'test_provider_archive.cpp',
+                                        embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+
+    test_provider_archive.install_path = None
+
+    # ******************************************************************************************************************************
+    # Integration tests
 
     test_resource_archive = bld.program(features     = 'cxx embed test',
                                         includes     = '.. ../../proto',
@@ -71,11 +95,16 @@ def build(bld):
 
     test_resource_archive.install_path = None
 
-    test_block_allocator = bld.program(features = 'cxx test',
-                                       includes = '..',
-                                       use      = 'TESTMAIN DLIB THREAD resource',
-                                       target   = 'test_block_allocator',
-                                       source   = 'test_block_allocator.cpp')
+    test_resource = bld.program(features     = 'cxx embed test',
+                                includes     = '.. ../../proto',
+                                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                web_libs     = ['library_sys.js'],
+                                proto_gen_py = True,
+                                target       = 'test_resource',
+                                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
+                                embed_source = 'resources.arci resources.arcd resources.dmanifest')
 
-    test_block_allocator.install_path = None
+    test_resource.install_path = None
+
+
 

@@ -14,6 +14,8 @@
 
 #include "testutil.h"
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
+#include <dlib/memory.h>
 
 #if !defined(DM_HOSTFS)
     #define DM_HOSTFS ""
@@ -56,6 +58,47 @@ const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
     dmStrlCpy(dst, DM_HOSTFS, dst_len);
     dmStrlCat(dst, path, dst_len);
     return dst;
+}
+
+uint8_t* ReadFile(const char* path, uint32_t* file_size)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f)
+    {
+        dmLogError("Failed to load file %s", path);
+        return 0;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0)
+    {
+        fclose(f);
+        dmLogError("Failed to seek to end of file %s", path);
+        return 0;
+    }
+
+    size_t size = (size_t)ftell(f);
+    if (fseek(f, 0, SEEK_SET) != 0)
+    {
+        fclose(f);
+        dmLogError("Failed to seek to start of file %s", path);
+        return 0;
+    }
+
+    uint8_t* buffer;
+    dmMemory::AlignedMalloc((void**)&buffer, 16, size);
+
+    size_t nread = fread(buffer, 1, size, f);
+    fclose(f);
+
+    if (nread != size)
+    {
+        dmMemory::AlignedFree((void*)buffer);
+        dmLogError("Failed to read %u bytes from file %s", (uint32_t)size, path);
+        return 0;
+    }
+
+    *file_size = size;
+    return buffer;
 }
 
 

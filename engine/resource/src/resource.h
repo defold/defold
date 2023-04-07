@@ -431,6 +431,7 @@ namespace dmResource
 
     /*# Get the support path for the project, with the hashed project name at the end
      */
+// TODO: Used by Live update only
     Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
 
     /**
@@ -440,8 +441,6 @@ namespace dmResource
      * @return the length of the buffer
      */
     uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
-
-    void RegisterArchiveLoader();
 }
 
 #endif // RESOURCE_H

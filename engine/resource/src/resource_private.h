@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_PRIVATE_H
-#define RESOURCE_PRIVATE_H
+#ifndef DM_RESOURCE_PRIVATE_H
+#define DM_RESOURCE_PRIVATE_H
 
 #include <ddf/ddf.h>
 #include "resource_archive.h"
@@ -75,12 +75,12 @@ namespace dmResource
      * If they don't match the bundle has changed, and we need to remove any liveupdate.manifest from the filesystem
      * and load the bundled manifest instead.
      */
-    Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
+    //Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
     /**
      * Exposed for unit tests
      */
-     Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive_index);
+    Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive_index);
 
     struct PreloadRequest;
     struct PreloadHintInfo

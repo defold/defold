@@ -51,6 +51,9 @@
 #include "resource_private.h"
 #include <resource/resource_ddf.h>
 
+#include "providers/provider.h"         // dmResourceProviderArchive::Result
+#include "providers/provider_archive.h" // dmResourceProviderArchive::LoadManifest
+
 /*
  * TODO:
  *
@@ -130,7 +133,7 @@ struct SResourceFactory
 
     // Resource manifest
     Manifest*                                    m_Manifest;
-    void*                                        m_ArchiveMountInfo;
+    dmResourceArchive::HContext                  m_ResourceArchive;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -295,6 +298,8 @@ void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_
     }
 }
 
+// TODO: Move elsewhere
+// TODO: Remove the dmLiveUpdateDDF dependency here!
 Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
 {
     // Read from manifest resource
@@ -413,7 +418,7 @@ Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const 
     return res;
 }
 
-
+// TODO: Move elsewhere. Used by Live update only
 Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len)
 {
     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
@@ -462,6 +467,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         dmMessage::DeleteSocket(socket);
         delete factory;
         return 0;
+    }
+
+    factory->m_ResourceArchive = dmResourceArchive::Create();
+    dmResourceArchive::RegisterArchiveLoaders(factory->m_ResourceArchive);
+
+    // Mount the base archive
+    dmResourceArchive::Result ar_result = dmResourceArchive::MountArchive(factory->m_ResourceArchive, &factory->m_UriParts, 1);
+    if (ar_result != dmResourceArchive::RESULT_OK)
+    {
+        dmLogError("Failed to mount base archive properly: %d", ar_result);
     }
 
     factory->m_HttpBuffer = 0;
@@ -530,75 +545,73 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
-        factory->m_ArchiveMountInfo = 0x0;
+        // const char* manifest_path = factory->m_UriParts.m_Path;
 
-        const char* manifest_path = factory->m_UriParts.m_Path;
+        // Manifest* manifest = 0;
+        // dmResourceArchive::Result r = dmResourceProviderArchive::LoadManifest(manifest_path, &manifest);
 
-        Manifest* manifest = 0;
-        dmResourceArchive::Result r = dmResourceArchive::LoadManifest(manifest_path, &manifest);
+        // // Nothing to do to recover here
+        // if (r != dmResourceArchive::RESULT_OK)
+        // {
+        //     dmLogError("Unable to load bundled manifest: %s with result: %i.", factory->m_UriParts.m_Path, r);
+        //     dmMessage::DeleteSocket(socket);
+        //     delete manifest;
+        //     delete factory;
+        //     return 0;
+        // }
 
-        // Nothing to do to recover here
-        if (r != dmResourceArchive::RESULT_OK)
-        {
-            dmLogError("Unable to load bundled manifest: %s with result: %i.", factory->m_UriParts.m_Path, r);
-            dmMessage::DeleteSocket(socket);
-            delete manifest;
-            delete factory;
-            return 0;
-        }
+        // char app_support_path[DMPATH_MAX_PATH];
+        // if (RESULT_OK != GetApplicationSupportPath(manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
+        // {
+        //     dmMessage::DeleteSocket(socket);
+        //     delete manifest;
+        //     delete factory;
+        //     return 0;
+        // }
 
-        char app_support_path[DMPATH_MAX_PATH];
-        if (RESULT_OK != GetApplicationSupportPath(manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-        {
-            dmMessage::DeleteSocket(socket);
-            delete manifest;
-            delete factory;
-            return 0;
-        }
+        // // We only needed this for getting the app support path
+        // // And although we'll load it again in the next step, the code gets a bit cleaner to delete it here
+        // DeleteManifest(manifest);
 
-        // We only needed this for getting the app support path
-        // And although we'll load it again in the next step, the code gets a bit cleaner to delete it here
-        DeleteManifest(manifest);
+        // char archive_name[64];
+        // const char* basename = strrchr(manifest_path, '/');
+        // if (!basename)
+        //     basename = strrchr(manifest_path, '\\');
+        // if (!basename)
+        //     basename = manifest_path;
+        // assert(basename);
+        // dmStrlCpy(archive_name, basename, sizeof(archive_name));
+        // char* archive_name_end = strchr(archive_name, '.');
+        // if (archive_name_end)
+        //     *archive_name_end = 0;
 
-        char archive_name[64];
-        const char* basename = strrchr(manifest_path, '/');
-        if (!basename)
-            basename = strrchr(manifest_path, '\\');
-        if (!basename)
-            basename = manifest_path;
-        assert(basename);
-        dmStrlCpy(archive_name, basename, sizeof(archive_name));
-        char* archive_name_end = strchr(archive_name, '.');
-        if (archive_name_end)
-            *archive_name_end = 0;
+        // size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
+        // char* app_path = (char*)alloca(manifest_path_len+1);
+        // dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
 
-        size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
-        char* app_path = (char*)alloca(manifest_path_len+1);
-        dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
+        // char* app_path_end = strrchr(app_path, '/');
+        // if (app_path_end)
+        //     *app_path_end = 0;
+        // else
+        //     app_path[0] = 0; // it only contained a filename
 
-        char* app_path_end = strrchr(app_path, '/');
-        if (app_path_end)
-            *app_path_end = 0;
-        else
-            app_path[0] = 0; // it only contained a filename
-
-        dmResourceArchive::HArchiveIndexContainer archive = 0;
-        dmResourceArchive::Result ra_result = dmResourceArchive::LoadArchives(archive_name, app_path, app_support_path, &factory->m_Manifest, &archive);
-        if (dmResourceArchive::RESULT_OK == ra_result)
-        {
-            factory->m_Manifest->m_ArchiveIndex = archive;
-            // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
-            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-            factory->m_Manifest->m_DDF = 0x0;
-        }
-        else
-        {
-            dmLogError("Failed to create factory %s with result %d", factory->m_UriParts.m_Path, ra_result);
-            dmMessage::DeleteSocket(socket);
-            DeleteManifest(factory->m_Manifest);
-            delete factory;
-            return 0;
-        }
+        // dmResourceArchive::HArchiveIndexContainer archive = 0;
+        // dmResourceArchive::Result ra_result = dmResourceArchive::LoadArchives(archive_name, app_path, app_support_path, &factory->m_Manifest, &archive);
+        // if (dmResourceArchive::RESULT_OK == ra_result)
+        // {
+        //     factory->m_Manifest->m_ArchiveIndex = archive;
+        //     // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
+        //     dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+        //     factory->m_Manifest->m_DDF = 0x0;
+        // }
+        // else
+        // {
+        //     dmLogError("Failed to create factory %s with result %d", factory->m_UriParts.m_Path, ra_result);
+        //     dmMessage::DeleteSocket(socket);
+        //     DeleteManifest(factory->m_Manifest);
+        //     delete factory;
+        //     return 0;
+        // }
     }
     else
     {
@@ -691,6 +704,8 @@ void DeleteFactory(HFactory factory)
     }
 
     ReleaseBuiltinsManifest(factory);
+
+    dmResourceArchive::Destroy(factory->m_ResourceArchive);
 
     if (!factory->m_Resources->Empty())
     {
@@ -815,6 +830,7 @@ static int FindEntryIndex(const Manifest* manifest, dmhash_t path_hash)
 
 Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
 {
+    printf("VerifyResourcesBundled: %d\n", num_entries);
     for(uint32_t i = 0; i < num_entries; ++i)
     {
         if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
@@ -845,6 +861,23 @@ Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_arc
     uint32_t hash_len = dmResource::HashLength(algorithm);
 
     return VerifyResourcesBundled(entries, entry_count, hash_len, base_archive);
+}
+
+static Result LoadFromArchive(dmResourceArchive::HContext archive_ctx, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
+{
+    dmhash_t path_hash = dmHashString64(path);
+    buffer->SetSize(0);
+    dmResourceArchive::Result result = dmResourceArchive::ReadResource(archive_ctx, path, path_hash, buffer);
+    if (result == dmResourceArchive::RESULT_OK)
+    {
+        *resource_size = buffer->Size();
+        return RESULT_OK;
+    }
+    if (result == dmResourceArchive::RESULT_NOT_FOUND)
+        return RESULT_RESOURCE_NOT_FOUND;
+    if (result == dmResourceArchive::RESULT_IO_ERROR)
+        return RESULT_IO_ERROR;
+    return RESULT_UNKNOWN_ERROR;
 }
 
 static Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
@@ -906,6 +939,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
 
     char factory_path[RESOURCE_PATH_MAX];
     GetCanonicalPathFromBase(factory->m_UriParts.m_Path, path, factory_path);
+
     // NOTE: No else if here. Fall through
     if (factory->m_HttpClient)
     {
@@ -957,43 +991,69 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
     }
     else
     {
-        const char* fs_path = factory_path;
-        char fs_mount_path[RESOURCE_PATH_MAX];
-        if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(fs_mount_path, sizeof(fs_mount_path), factory_path))
-        {
-            // on some platforms, performing operations on non existing files will halt the engine
-            // so we're better off returning here immediately
-            return RESULT_RESOURCE_NOT_FOUND;
-        }
-        fs_path = fs_mount_path;
+        // const char* fs_path = factory_path;
+        // char fs_mount_path[RESOURCE_PATH_MAX];
+        // if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(fs_mount_path, sizeof(fs_mount_path), factory_path))
+        // {
+        //     // on some platforms, performing operations on non existing files will halt the engine
+        //     // so we're better off returning here immediately
+        //     return RESULT_RESOURCE_NOT_FOUND;
+        // }
+        // fs_path = fs_mount_path;
 
-        // Load over local file system
-        uint32_t file_size;
-        dmSys::Result r = dmSys::ResourceSize(fs_path, &file_size);
-        if (r != dmSys::RESULT_OK) {
-            if (r == dmSys::RESULT_NOENT)
-                return RESULT_RESOURCE_NOT_FOUND;
-            else
-                return RESULT_IO_ERROR;
-        }
+        // // Load over local file system
+        // uint32_t file_size;
+        // dmSys::Result r = dmSys::ResourceSize(fs_path, &file_size);
+        // if (r != dmSys::RESULT_OK) {
+        //     if (r == dmSys::RESULT_NOENT)
+        //         return RESULT_RESOURCE_NOT_FOUND;
+        //     else
+        //         return RESULT_IO_ERROR;
+        // }
 
+        // if (buffer->Capacity() < file_size) {
+        //     buffer->SetCapacity(file_size);
+        // }
+        // buffer->SetSize(0);
+
+        // r = dmSys::LoadResource(fs_path, buffer->Begin(), file_size, &file_size);
+        // if (r == dmSys::RESULT_OK) {
+        //     buffer->SetSize(file_size);
+        //     *resource_size = file_size;
+        //     return RESULT_OK;
+        // } else {
+        //     if (r == dmSys::RESULT_NOENT)
+        //         return RESULT_RESOURCE_NOT_FOUND;
+        //     else
+        //         return RESULT_IO_ERROR;
+        // }
+    }
+
+    // Let's find the resource in the current mounts
+
+    uint32_t file_size;
+    dmResourceArchive::Result r = dmResourceArchive::GetResourceSize(factory->m_ResourceArchive, factory_path, &file_size);
+    if (r == dmResourceArchive::RESULT_OK)
+    {
         if (buffer->Capacity() < file_size) {
             buffer->SetCapacity(file_size);
         }
         buffer->SetSize(0);
 
-        r = dmSys::LoadResource(fs_path, buffer->Begin(), file_size, &file_size);
-        if (r == dmSys::RESULT_OK) {
+        r = dmResourceArchive::ReadResource(factory->m_ResourceArchive, factory_path, (uint8_t*)buffer->Begin(), file_size);
+        if (r == dmResourceArchive::RESULT_OK)
+        {
             buffer->SetSize(file_size);
             *resource_size = file_size;
             return RESULT_OK;
         } else {
-            if (r == dmSys::RESULT_NOENT)
+            if (r == dmResourceArchive::RESULT_NOT_FOUND)
                 return RESULT_RESOURCE_NOT_FOUND;
             else
                 return RESULT_IO_ERROR;
         }
     }
+    return RESULT_RESOURCE_NOT_FOUND;
 }
 
 // Takes the lock.

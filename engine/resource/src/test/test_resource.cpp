@@ -43,6 +43,7 @@
 
 #include <resource/resource_ddf.h>
 #include "../resource.h"
+#include "../resource_archive.h"
 #include "../resource_private.h"
 #include "test/test_resource_ddf.h"
 
@@ -83,8 +84,6 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
 
-        dmResourceArchive::ClearArchiveLoaders();
-        dmResourceArchive::RegisterDefaultArchiveLoader();
         factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((void*) 0, factory);
     }
@@ -229,8 +228,6 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
 
-        dmResourceArchive::ClearArchiveLoaders();
-        dmResourceArchive::RegisterDefaultArchiveLoader();
         m_Factory = dmResource::NewFactory(&params, GetParam());
         ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
@@ -1508,6 +1505,11 @@ int main(int argc, char **argv)
     #if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
     #endif
+
+    dmHashEnableReverseHash(true);
+
+    dmLog::LogParams logparams;
+    dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

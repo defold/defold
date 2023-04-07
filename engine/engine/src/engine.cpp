@@ -882,9 +882,6 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
 
-        dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
-        dmResourceArchive::RegisterDefaultArchiveLoader();
-
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;

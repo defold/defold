@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '. ../proto',
-                         source = bld.path.ant_glob('*.cpp'),
+                         source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob('providers/*.cpp'),
                          protoc_includes = '../proto',
                          proto_gen_py = True,
                          target = 'resource')
