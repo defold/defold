@@ -20,6 +20,10 @@ import java.util.logging.LogRecord;
 import java.util.logging.Formatter;
 
 
+/**
+ * Log formatter with format set from constructor instead of system
+ * property.
+ */
 public class LogFormatter extends Formatter {
     private String format = null;
     

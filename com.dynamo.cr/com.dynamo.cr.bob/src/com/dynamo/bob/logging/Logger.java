@@ -19,7 +19,7 @@ import java.util.logging.Level;
 import com.dynamo.bob.logging.LogHelper;
 
 /**
- * Extend the standard logger with functionality to log with varargs.
+ * Logger with support for varargs
  */
 public class Logger extends java.util.logging.Logger {
 
@@ -47,6 +47,10 @@ public class Logger extends java.util.logging.Logger {
 	public void severe(String message, Object... args) {
 		Object[] v = args;
 		super.log(Level.SEVERE, message, v);
+	}
+
+	public void severe(String message, Throwable t) {
+		super.log(Level.SEVERE, message, t);
 	}
 
 	public void warning(String message, Object... args) {

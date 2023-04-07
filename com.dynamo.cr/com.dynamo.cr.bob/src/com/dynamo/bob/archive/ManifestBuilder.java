@@ -38,8 +38,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.logging.Logger;
-import java.util.logging.Level;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -51,6 +49,7 @@ import javax.security.auth.DestroyFailedException;
 
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
@@ -595,7 +594,7 @@ public class ManifestBuilder {
         }
 
         long tend = System.currentTimeMillis();
-        logger.log(Level.INFO, "ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
+        logger.info("ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
 
         return builder.build();
     }
