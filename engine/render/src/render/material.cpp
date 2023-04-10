@@ -661,11 +661,12 @@ namespace dmRender
                 continue;
             }
 
-            dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
-            graphics_attribute.m_DataType = graphics_attribute_in.m_DataType;
-            // graphics_attribute.m_Type                       = dmGraphics::GetGraphicsType(graphics_attribute.m_DataType);
             // TODO: We can't reconfigure this with MORE elements than what the shader is specified to use..
-            graphics_attribute.m_ElementCount = graphics_attribute.m_ElementCount;
+            dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
+            graphics_attribute.m_DataType                   = graphics_attribute_in.m_DataType;
+            graphics_attribute.m_Normalize                  = graphics_attribute_in.m_Normalize;
+            graphics_attribute.m_ElementCount               = graphics_attribute_in.m_ElementCount;
+            graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
         }
 
         // Need to readjust value indices since the layout could have changed
