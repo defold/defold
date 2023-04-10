@@ -29,7 +29,46 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static dmGraphics::Type GetBaseDataType(dmGraphics::Type from_type)
+    struct HashToSemanticType
+    {
+        dmhash_t                                  m_NameHash;
+        dmGraphics::VertexAttribute::SemanticType m_SemanticType;
+    };
+
+    /*
+    SEMANTIC_TYPE_NONE
+    SEMANTIC_TYPE_BINORMAL
+    SEMANTIC_TYPE_BLEND_INDICES
+    SEMANTIC_TYPE_BLEND_WEIGHTS
+    SEMANTIC_TYPE_COLOR
+    SEMANTIC_TYPE_NORMAL
+    SEMANTIC_TYPE_POSITION_LOCAL
+    SEMANTIC_TYPE_POSITION_WORLD
+    SEMANTIC_TYPE_TANGENT
+    SEMANTIC_TYPE_TEXCOORD
+    */
+
+    static const HashToSemanticType g_DefaultAttributeHashToSemanticType[] = {
+        { dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_WORLD },
+        { dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD       },
+        { dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR          },
+        { dmHashString64("normal"),     dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL         },
+        { dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX     },
+    };
+
+    static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
+    {
+        for (int i = 0; i < DM_ARRAY_SIZE(g_DefaultAttributeHashToSemanticType); ++i)
+        {
+            if (g_DefaultAttributeHashToSemanticType[i].m_NameHash == from_hash)
+            {
+                return g_DefaultAttributeHashToSemanticType[i].m_SemanticType;
+            }
+        }
+        return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+    }
+
+    static inline dmGraphics::Type GetBaseGraphicsType(dmGraphics::Type from_type)
     {
         switch(from_type)
         {
@@ -41,7 +80,32 @@ namespace dmRender
             case dmGraphics::TYPE_FLOAT_MAT4:
                 return dmGraphics::TYPE_FLOAT;
         }
+
         return from_type;
+    }
+
+    static inline dmGraphics::VertexAttribute::DataType GetAttributeDataType(dmGraphics::Type from_type)
+    {
+        switch(from_type)
+        {
+            case dmGraphics::TYPE_BYTE:           return dmGraphics::VertexAttribute::TYPE_BYTE;
+            case dmGraphics::TYPE_UNSIGNED_BYTE:  return dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+            case dmGraphics::TYPE_SHORT:          return dmGraphics::VertexAttribute::TYPE_SHORT;
+            case dmGraphics::TYPE_UNSIGNED_SHORT: return dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+            case dmGraphics::TYPE_INT:            return dmGraphics::VertexAttribute::TYPE_INT;
+            case dmGraphics::TYPE_UNSIGNED_INT:   return dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+            case dmGraphics::TYPE_FLOAT:
+            case dmGraphics::TYPE_FLOAT_VEC2:
+            case dmGraphics::TYPE_FLOAT_VEC3:
+            case dmGraphics::TYPE_FLOAT_VEC4:
+            case dmGraphics::TYPE_FLOAT_MAT2:
+            case dmGraphics::TYPE_FLOAT_MAT3:
+            case dmGraphics::TYPE_FLOAT_MAT4:
+                return dmGraphics::VertexAttribute::TYPE_FLOAT;
+            default: assert(0 && "Type not supported");
+        }
+
+        return (dmGraphics::VertexAttribute::DataType) -1;
     }
 
     static void CreateVertexDeclaration(dmGraphics::HContext graphics_context, Material* m)
@@ -55,11 +119,14 @@ namespace dmRender
 
         for (int i = 0; i < m->m_Attributes.Size(); ++i)
         {
+            const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
+            const MaterialAttribute& material_attribute           = m->m_Attributes[i];
+
             dmGraphics::AddVertexStream(stream_declaration,
-                m->m_Attributes[i].m_NameHash,
-                m->m_Attributes[i].m_ElementCount,
-                m->m_Attributes[i].m_Type,
-                m->m_Attributes[i].m_Normalize);
+                graphics_attribute.m_NameHash,
+                graphics_attribute.m_ElementCount,
+                GetBaseGraphicsType(material_attribute.m_Type),
+                graphics_attribute.m_Normalize);
         }
 
         m->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
@@ -73,6 +140,8 @@ namespace dmRender
 
         m->m_Attributes.SetCapacity(num_program_attributes);
         m->m_Attributes.SetSize(num_program_attributes);
+        m->m_VertexAttributes.SetCapacity(num_program_attributes);
+        m->m_VertexAttributes.SetSize(num_program_attributes);
 
         for (int i = 0; i < num_program_attributes; ++i)
         {
@@ -84,16 +153,20 @@ namespace dmRender
 
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
 
-            VertexAttribute& attribute = m->m_Attributes[i];
-            attribute.m_NameHash       = name_hash;
-            attribute.m_Location       = location;
-            attribute.m_ValueIndex     = num_attribute_byte_size;
-            attribute.m_ValueCount     = num_values;
-            attribute.m_Type           = GetBaseDataType(type); // Convert from mat/vec to float if necessary
-            attribute.m_ElementCount   = element_count;
-            attribute.m_Normalize      = false;
+            dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
+            vertex_attribute.m_NameHash     = name_hash;
+            vertex_attribute.m_SemanticType = GetAttributeSemanticType(name_hash);
+            vertex_attribute.m_DataType     = GetAttributeDataType(type); // Convert from mat/vec to float if necessary
+            vertex_attribute.m_ElementCount = element_count;
+            vertex_attribute.m_Normalize    = false;
 
-            num_attribute_byte_size += dmGraphics::GetTypeSize(attribute.m_Type) * attribute.m_ElementCount;
+            MaterialAttribute& material_attribute = m->m_Attributes[i];
+            material_attribute.m_Type             = type;
+            material_attribute.m_Location         = location;
+            material_attribute.m_ValueIndex       = num_attribute_byte_size;
+            material_attribute.m_ValueCount       = num_values;
+
+            num_attribute_byte_size += dmGraphics::GetTypeSize(type) * element_count;
 
         #if 0
             dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
@@ -480,7 +553,7 @@ namespace dmRender
 
     int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
     {
-        dmArray<VertexAttribute>& attributes = material->m_Attributes;
+        dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
         for (int i = 0; i < attributes.Size(); ++i)
         {
             if (attributes[i].m_NameHash == name_hash)
@@ -560,43 +633,46 @@ namespace dmRender
         return false;
     }
 
-    void GetMaterialProgramAttributes(HMaterial material, const VertexAttribute** attributes, uint32_t* attribute_count)
+    void GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count)
     {
-        *attributes      = material->m_Attributes.Begin();
-        *attribute_count = material->m_Attributes.Size();
+        *attributes      = material->m_VertexAttributes.Begin();
+        *attribute_count = material->m_VertexAttributes.Size();
     }
 
     void GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* value_byte_size)
     {
         assert(index < material->m_Attributes.Size());
-        VertexAttribute& attribute = material->m_Attributes[index];
-        *value_byte_size           = dmGraphics::GetTypeSize(attribute.m_Type) * attribute.m_ElementCount;
-        *value_ptr                 = &material->m_AttributeValues[attribute.m_ValueIndex];
+        MaterialAttribute& material_attribute           = material->m_Attributes[index];
+        dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
+
+        dmGraphics::Type base_type = GetBaseGraphicsType(material_attribute.m_Type);
+        *value_byte_size = dmGraphics::GetTypeSize(base_type) * graphics_attribute.m_ElementCount;
+        *value_ptr       = &material->m_AttributeValues[material_attribute.m_ValueIndex];
     }
 
     void SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count) //dmhash_t name_hash, uint8_t* values, uint32_t value_byte_size)
     {
         for (int i = 0; i < attributes_count; ++i)
         {
-            const dmGraphics::VertexAttribute& graphics_attribute = attributes[i];
-            int32_t index = FindMaterialAttributeIndex(material, graphics_attribute.m_NameHash);
+            const dmGraphics::VertexAttribute& graphics_attribute_in = attributes[i];
+            int32_t index = FindMaterialAttributeIndex(material, graphics_attribute_in.m_NameHash);
             if (index < 0)
             {
                 continue;
             }
 
-            VertexAttribute& render_attribute = material->m_Attributes[index];
-            render_attribute.m_Type           = dmGraphics::GetGraphicsType(graphics_attribute.m_DataType);
-
+            dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
+            graphics_attribute.m_DataType = graphics_attribute_in.m_DataType;
+            // graphics_attribute.m_Type                       = dmGraphics::GetGraphicsType(graphics_attribute.m_DataType);
             // TODO: We can't reconfigure this with MORE elements than what the shader is specified to use..
-            render_attribute.m_ElementCount   = graphics_attribute.m_ElementCount;
+            graphics_attribute.m_ElementCount = graphics_attribute.m_ElementCount;
         }
 
         // Need to readjust value indices since the layout could have changed
         uint32_t value_byte_size = 0;
-        for (int i = 0; i < material->m_Attributes.Size(); ++i)
+        for (int i = 0; i < material->m_VertexAttributes.Size(); ++i)
         {
-            value_byte_size += dmGraphics::GetTypeSize(material->m_Attributes[i].m_Type) * material->m_Attributes[i].m_ElementCount;
+            value_byte_size += dmGraphics::GetTypeSize(material->m_Attributes[i].m_Type) * material->m_VertexAttributes[i].m_ElementCount;
         }
 
         material->m_AttributeValues.SetCapacity(value_byte_size);
@@ -605,22 +681,22 @@ namespace dmRender
         // And one more pass to set the new values from the incoming vertex declaration
         for (int i = 0; i < attributes_count; ++i)
         {
-            const dmGraphics::VertexAttribute& graphics_attribute = attributes[i];
-            int32_t index = FindMaterialAttributeIndex(material, graphics_attribute.m_NameHash);
+            const dmGraphics::VertexAttribute& graphics_attribute_in = attributes[i];
+            int32_t index = FindMaterialAttributeIndex(material, graphics_attribute_in.m_NameHash);
             if (index < 0)
             {
                 continue;
             }
 
-            VertexAttribute& render_attribute = material->m_Attributes[index];
+            MaterialAttribute& material_attribute = material->m_Attributes[index];
 
             const uint8_t* bytes;
             uint32_t byte_size;
-            dmGraphics::GetAttributeValues(graphics_attribute, &bytes, &byte_size);
+            dmGraphics::GetAttributeValues(graphics_attribute_in, &bytes, &byte_size);
 
-            uint32_t attribute_byte_size = dmGraphics::GetTypeSize(render_attribute.m_Type) * render_attribute.m_ValueCount;
+            uint32_t attribute_byte_size = dmGraphics::GetTypeSize(material_attribute.m_Type) * material_attribute.m_ValueCount;
             attribute_byte_size          = dmMath::Min(attribute_byte_size, byte_size);
-            memcpy(&material->m_AttributeValues[render_attribute.m_ValueIndex], bytes, attribute_byte_size);
+            memcpy(&material->m_AttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
         }
 
         CreateVertexDeclaration(GetGraphicsContext(material->m_RenderContext), material);

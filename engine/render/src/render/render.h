@@ -209,20 +209,8 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
-    dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material);
-
-    struct VertexAttribute
-    {
-        dmhash_t         m_NameHash;
-        dmGraphics::Type m_Type;
-        int32_t          m_Location;
-        uint16_t         m_ValueIndex;
-        uint16_t         m_ValueCount;
-        uint8_t          m_ElementCount : 7;
-        uint8_t          m_Normalize    : 1;
-    };
-
-    void                            GetMaterialProgramAttributes(HMaterial material, const VertexAttribute** attributes, uint32_t* attribute_count);
+    dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
+    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
     int32_t                         FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);

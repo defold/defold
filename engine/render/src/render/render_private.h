@@ -63,6 +63,14 @@ namespace dmRender
         }
     };
 
+    struct MaterialAttribute
+    {
+        dmGraphics::Type m_Type;
+        int32_t          m_Location;
+        uint16_t         m_ValueIndex;
+        uint16_t         m_ValueCount;
+    };
+
     struct Material
     {
         Material()
@@ -82,7 +90,8 @@ namespace dmRender
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmGraphics::HVertexDeclaration          m_VertexDeclaration;
         dmHashTable64<int32_t>                  m_NameHashToLocation;
-        dmArray<VertexAttribute>                m_Attributes;
+        dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
+        dmArray<MaterialAttribute>              m_Attributes;
         dmArray<uint8_t>                        m_AttributeValues;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;

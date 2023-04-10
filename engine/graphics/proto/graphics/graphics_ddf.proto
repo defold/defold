@@ -42,6 +42,7 @@ message VertexAttribute
         SEMANTIC_TYPE_POSITION_WORLD = 8;
         SEMANTIC_TYPE_TANGENT        = 9;
         SEMANTIC_TYPE_TEXCOORD       = 10;
+        SEMANTIC_TYPE_PAGE_INDEX     = 11;
     }
 
     message IntValues

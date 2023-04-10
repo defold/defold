@@ -123,9 +123,9 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_ANIMATION     = dmHashString64("animation");
 
-    static const dmhash_t SPRITE_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t SPRITE_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t SPRITE_STREAM_PAGE_INDEX = dmHashString64("page_index");
+    // static const dmhash_t SPRITE_STREAM_POSITION   = dmHashString64("position");
+    // static const dmhash_t SPRITE_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
+    // static const dmhash_t SPRITE_STREAM_PAGE_INDEX = dmHashString64("page_index");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
@@ -359,7 +359,7 @@ namespace dmGameSystem
 
         if (sprite_attribute_count > 0)
         {
-            const dmRender::VertexAttribute* render_attributes;
+            const dmGraphics::VertexAttribute* render_attributes;
             uint32_t render_attributes_count;
             dmRender::GetMaterialProgramAttributes(material, &render_attributes, &render_attributes_count);
 
@@ -381,7 +381,7 @@ namespace dmGameSystem
                     dmGraphics::AddVertexStream(stream_declaration,
                         render_attributes[i].m_NameHash,
                         render_attributes[i].m_ElementCount,
-                        render_attributes[i].m_Type,
+                        dmGraphics::GetGraphicsType(render_attributes[i].m_DataType),
                         render_attributes[i].m_Normalize);
                 }
             }
@@ -396,11 +396,11 @@ namespace dmGameSystem
         }
 
         /*
-        dmRender::VertexAttribute* attributes;
+        dmGraphics::VertexAttribute* attributes;
         uint32_t attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
 
-        dmHashUpdateBuffer32(&state, attributes, sizeof(dmRender::VertexAttribute) * attributes_count);
+        dmHashUpdateBuffer32(&state, attributes, sizeof(dmGraphics::VertexAttribute) * attributes_count);
 
         uint32_t vx_decl_hash                       = dmHashFinal32(&state);
         dmGraphics::HVertexDeclaration vx_decl      = 0;
@@ -412,7 +412,7 @@ namespace dmGameSystem
             dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
             for (uint32_t i = 0; i < attributes_count; ++i)
             {
-                dmRender::VertexAttribute& attr = attributes[i];
+                dmGraphics::VertexAttribute& attr = attributes[i];
                 if (attr.m_NameHash == SPRITE_STREAM_POSITION)
                 {
                     dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_POSITION, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
@@ -514,7 +514,7 @@ namespace dmGameSystem
 
     static void GetCustomAttribute(dmRender::HMaterial material,
         const uint32_t material_attr_index,
-        const dmRender::VertexAttribute& material_attr,
+        const dmGraphics::VertexAttribute& material_attr,
         const dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count,
         const uint8_t** value_ptr, uint32_t* value_byte_count,
         uint32_t* element_count, dmGraphics::VertexAttribute::SemanticType* semantic_type)
@@ -532,19 +532,19 @@ namespace dmGameSystem
 
         dmRender::GetMaterialProgramAttributeValues(material, material_attr_index, value_ptr, value_byte_count);
         *element_count = material_attr.m_ElementCount;
-        *semantic_type = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+        *semantic_type = material_attr.m_SemanticType;
     }
 
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
         const Point3& p, const Matrix4& w, const float* uv, float page_index,
-        const dmRender::VertexAttribute* attributes, uint32_t attributes_count,
+        const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count,
         const dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count)
     {
 
         // JG: We should optimize this somehow.. right now for EVERY vertex we loop over every attribute in both the material and the sprite
         for (int k = 0; k < attributes_count; ++k)
         {
-            const dmRender::VertexAttribute& attr = attributes[k];
+            const dmGraphics::VertexAttribute& attr = attributes[k];
 
             const uint8_t* value_ptr;
             uint32_t value_byte_count;
@@ -553,35 +553,27 @@ namespace dmGameSystem
 
             GetCustomAttribute(material, k, attr, sprite_attributes, sprite_attribute_count, &value_ptr, &value_byte_count, &element_count, &semantic_type);
 
-            if (attr.m_NameHash == SPRITE_STREAM_POSITION)
+            switch(semantic_type)
             {
-                Vector4 wp = w * p;
-                memcpy(vertices_write_ptr, &wp, value_byte_count);
-            }
-            else if (attr.m_NameHash == SPRITE_STREAM_TEXCOORD0)
-            {
-                memcpy(vertices_write_ptr, uv, value_byte_count);
-            }
-            else if (attr.m_NameHash == SPRITE_STREAM_PAGE_INDEX)
-            {
-                memcpy(vertices_write_ptr, &page_index, sizeof(float));
-            }
-            else
-            {
-                switch(semantic_type)
-                {
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_LOCAL:
-                        {
-                            memcpy(vertices_write_ptr, &p, value_byte_count);
-                        } break;
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_WORLD:
-                        {
-                            Vector4 wp = w * p;
-                            memcpy(vertices_write_ptr, &wp, value_byte_count);
-                        } break;
-                    default:
-                        memcpy(vertices_write_ptr, value_ptr, value_byte_count);
-                }
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_LOCAL:
+                    {
+                        memcpy(vertices_write_ptr, &p, value_byte_count);
+                    } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_WORLD:
+                    {
+                        Vector4 wp = w * p;
+                        memcpy(vertices_write_ptr, &wp, value_byte_count);
+                    } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                    {
+                        memcpy(vertices_write_ptr, uv, value_byte_count);
+                    } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+                    {
+                        memcpy(vertices_write_ptr, &page_index, value_byte_count);
+                    } break;
+                default:
+                    memcpy(vertices_write_ptr, value_ptr, value_byte_count);
             }
 
             vertices_write_ptr += sizeof(float) * element_count;
@@ -591,7 +583,7 @@ namespace dmGameSystem
     static void CreateVertexDataSlice9(dmRender::HMaterial material, uint8_t* vertices, uint8_t* indices, bool is_indices_16_bit,
         const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset, uint32_t vertex_stride,
         const float* tc, float texture_width, float texture_height, uint8_t page_index, bool flip_u, bool flip_v,
-        const dmRender::VertexAttribute* attributes, uint32_t attributes_count,
+        const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count,
         const dmGraphics::VertexAttribute* sprite_attributes, uint32_t sprite_attribute_count)
     {
         // render 9-sliced node
@@ -739,7 +731,7 @@ namespace dmGameSystem
             const dmGraphics::VertexAttribute* sprite_attributes = component->m_Resource->m_DDF->m_Attributes.m_Data;
             uint32_t sprite_attribute_count                     = component->m_Resource->m_DDF->m_Attributes.m_Count;
 
-            const dmRender::VertexAttribute* attributes;
+            const dmGraphics::VertexAttribute* attributes;
             uint32_t attributes_count;
             dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
 
