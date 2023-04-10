@@ -361,6 +361,7 @@
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:max-page-count :material-max-page-count]
+                                            [:attributes :material-attributes]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
@@ -401,6 +402,7 @@
                                               :min 0.0
                                               :max 1.0
                                               :precision 0.01})))
+  (property vertex-attributes g/Any)
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
@@ -413,6 +415,7 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
   (input material-max-page-count g/Int)
+  (input material-attributes g/Any)
   (input default-tex-params g/Any)
 
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
@@ -429,7 +432,17 @@
                                         (Point3d. half-width half-height half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-attributes]
+                                             (let [material-attribute-names (map :name material-attributes)
+                                                   ;; TODO vertex-attributes: Need to generate the attribute properties here somehow..
+                                                   prop-entry {:node-id _node-id
+                                                               :type :number
+                                                               :edit-type :property-type-vector4}]
+                                               (println material-attribute-names)
+                                               _declared-properties
+                                               #_(-> _declared-properties
+                                                   (update :properties into prop-entry))))))
 
 (defn load-sprite [project self resource sprite]
   (let [image    (workspace/resolve-resource resource (:tile-set sprite))

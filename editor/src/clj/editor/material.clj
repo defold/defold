@@ -29,6 +29,7 @@
             [util.coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
+           [com.dynamo.graphics.proto Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
            [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -188,6 +189,22 @@
          {:path [:fragment-program]
           :label "Fragment Program"
           :type :resource :filter "fp"}
+         {:path [:attributes]
+          :label "Vertex Attributes"
+          :type :table
+          :columns (let [attribute-data-type-options (protobuf/enum-values Graphics$VertexAttribute$DataType)
+                         attribute-semantic-type-options (protobuf/enum-values Graphics$VertexAttribute$SemanticType)]
+                     [{:path [:name] :label "Name" :type :string}
+                      {:path [:data-type]
+                       :label "Data Type"
+                       :type :choicebox
+                       :options (protobuf-forms/make-options attribute-data-type-options)
+                       :default (ffirst attribute-data-type-options)}
+                      {:path [:semantic-type]
+                       :label "Semantic Type"
+                       :type :choicebox
+                       :options (protobuf-forms/make-options attribute-semantic-type-options)
+                       :default (ffirst attribute-semantic-type-options)}])}
          {:path [:vertex-constants]
           :label "Vertex Constants"
           :type :table
@@ -259,7 +276,7 @@
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
+(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
   (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -325,6 +342,7 @@
                                     [:shader-source-info :fragment-shader-source-info]))))
 
   (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
+  (property attributes g/Any (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
   (property samplers g/Any (dynamic visible (g/constantly false)))
@@ -344,7 +362,8 @@
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
-  (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
+  (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers)))
+  (output attributes [g/KeywordMap] (g/fnk [attributes] (vec attributes))))
 
 (defn- make-sampler [name]
   (assoc default-sampler :name name))
@@ -356,7 +375,7 @@
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
     (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))
     (g/set-property self :fragment-constants (hack-downgrade-constants (:fragment-constants pb)))
-    (for [field [:name :samplers :tags :vertex-space :max-page-count]]
+    (for [field [:name :samplers :tags :vertex-space :max-page-count :attributes]]
       (g/set-property self field (field pb)))))
 
 (defn- sanitize-sampler [sampler]
