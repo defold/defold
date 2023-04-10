@@ -354,11 +354,7 @@ namespace dmGameSystem
 
     static void SetVertexDeclaration(SpriteWorld* sprite_world, SpriteComponent* component, dmGraphics::HContext graphics_context)
     {
-        dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
-
-        HashState32 state;
-        dmHashInit32(&state, false);
-
+        dmRender::HMaterial material   = GetMaterial(component, component->m_Resource);
         component->m_VertexDeclaration = dmRender::GetVertexDeclaration(material);
         component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(component->m_VertexDeclaration);
 
@@ -371,87 +367,68 @@ namespace dmGameSystem
             uint32_t render_attributes_count;
             dmRender::GetMaterialProgramAttributes(material, &render_attributes, &render_attributes_count);
 
-            dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+            HashState32 attributes_state;
+            dmHashInit32(&attributes_state, false);
 
+            // Create a hash of all specified attributes of the combination of material and sprite attributes
             for (int i = 0; i < render_attributes_count; ++i)
             {
+                const dmGraphics::VertexAttribute* attr;
                 int32_t sprite_attribute_index = FindSpriteAttributeIndex(sprite_attributes, sprite_attribute_count, render_attributes[i].m_NameHash);
                 if (sprite_attribute_index >= 0)
                 {
-                    dmGraphics::AddVertexStream(stream_declaration,
-                        sprite_attributes[sprite_attribute_index].m_NameHash,
-                        sprite_attributes[sprite_attribute_index].m_ElementCount,
-                        dmGraphics::GetGraphicsType(sprite_attributes[sprite_attribute_index].m_DataType),
-                        sprite_attributes[sprite_attribute_index].m_Normalize);
+                    attr = sprite_attributes + sprite_attribute_index;
                 }
                 else
                 {
-                    dmGraphics::AddVertexStream(stream_declaration,
-                        render_attributes[i].m_NameHash,
-                        render_attributes[i].m_ElementCount,
-                        dmGraphics::GetGraphicsType(render_attributes[i].m_DataType),
-                        render_attributes[i].m_Normalize);
+                    attr = render_attributes + i;
                 }
+
+                dmHashUpdateBuffer32(&attributes_state, attr, sizeof(dmGraphics::VertexAttribute));
             }
 
-            dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-            // sprite_world->m_VertexDeclarations.SetCapacity(16, dmMath::Max((uint32_t) 8, sprite_world->m_VertexDeclarations.Size() * 2));
-            // sprite_world->m_VertexDeclarations.Put(vx_decl_hash, vx_decl);
-            dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+            uint32_t attributes_hash = dmHashFinal32(&attributes_state);
+            dmGraphics::HVertexDeclaration* vx_decl_ptr = sprite_world->m_VertexDeclarations.Get(attributes_hash);
+            dmGraphics::HVertexDeclaration vx_decl;
+
+            if (vx_decl_ptr)
+            {
+                vx_decl = *vx_decl_ptr;
+            }
+            else
+            {
+                // Create a new vertex declaration if needed
+                dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+                for (int i = 0; i < render_attributes_count; ++i)
+                {
+                    int32_t sprite_attribute_index = FindSpriteAttributeIndex(sprite_attributes, sprite_attribute_count, render_attributes[i].m_NameHash);
+                    if (sprite_attribute_index >= 0)
+                    {
+                        dmGraphics::AddVertexStream(stream_declaration,
+                            sprite_attributes[sprite_attribute_index].m_NameHash,
+                            sprite_attributes[sprite_attribute_index].m_ElementCount,
+                            dmGraphics::GetGraphicsType(sprite_attributes[sprite_attribute_index].m_DataType),
+                            sprite_attributes[sprite_attribute_index].m_Normalize);
+                    }
+                    else
+                    {
+                        dmGraphics::AddVertexStream(stream_declaration,
+                            render_attributes[i].m_NameHash,
+                            render_attributes[i].m_ElementCount,
+                            dmGraphics::GetGraphicsType(render_attributes[i].m_DataType),
+                            render_attributes[i].m_Normalize);
+                    }
+                }
+
+                vx_decl = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+                sprite_world->m_VertexDeclarations.SetCapacity(16, dmMath::Max((uint32_t) 8, sprite_world->m_VertexDeclarations.Size() * 2));
+                sprite_world->m_VertexDeclarations.Put(attributes_hash, vx_decl);
+                dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+            }
 
             component->m_VertexDeclaration = vx_decl;
             component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(vx_decl);
         }
-
-        /*
-        dmGraphics::VertexAttribute* attributes;
-        uint32_t attributes_count;
-        dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
-
-        dmHashUpdateBuffer32(&state, attributes, sizeof(dmGraphics::VertexAttribute) * attributes_count);
-
-        uint32_t vx_decl_hash                       = dmHashFinal32(&state);
-        dmGraphics::HVertexDeclaration vx_decl      = 0;
-        dmGraphics::HVertexDeclaration* vx_decl_ptr = sprite_world->m_VertexDeclarations.Get(vx_decl_hash);
-
-        // Create a new vertex declaration for this component if the combination of attributes hasn't been seen yet
-        if (vx_decl_ptr == 0x0)
-        {
-            dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-            for (uint32_t i = 0; i < attributes_count; ++i)
-            {
-                dmGraphics::VertexAttribute& attr = attributes[i];
-                if (attr.m_NameHash == SPRITE_STREAM_POSITION)
-                {
-                    dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_POSITION, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-                }
-                else if (attr.m_NameHash == SPRITE_STREAM_TEXCOORD0)
-                {
-                    dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_TEXCOORD0, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-                }
-                else if (attr.m_NameHash == SPRITE_STREAM_PAGE_INDEX)
-                {
-                    dmGraphics::AddVertexStream(stream_declaration, SPRITE_STREAM_PAGE_INDEX, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-                }
-                else
-                {
-                    dmGraphics::AddVertexStream(stream_declaration, attr.m_NameHash, attr.m_ElementCount, dmGraphics::TYPE_FLOAT, false);
-                }
-            }
-
-            vx_decl = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-            sprite_world->m_VertexDeclarations.SetCapacity(16, dmMath::Max((uint32_t) 8, sprite_world->m_VertexDeclarations.Size() * 2));
-            sprite_world->m_VertexDeclarations.Put(vx_decl_hash, vx_decl);
-            dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
-        }
-        else
-        {
-            vx_decl = *vx_decl_ptr;
-        }
-
-        component->m_VertexDeclaration = vx_decl;
-        component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(vx_decl);
-        */
     }
 
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
