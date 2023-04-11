@@ -661,11 +661,11 @@ namespace dmGraphics
 
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_2D_ARRAY;
         default_texture_creation_params.m_Depth = 1;
-        vulkan_context->m_DefaultTexture2DArray        = VulkanNewTextureInternal(default_texture_creation_params);
+        vulkan_context->m_DefaultTexture2DArray = VulkanNewTextureInternal(default_texture_creation_params);
 
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_CUBE_MAP;
         default_texture_creation_params.m_Depth = 6;
-        vulkan_context->m_DefaultTextureCubeMap        = VulkanNewTextureInternal(default_texture_creation_params);
+        vulkan_context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
 
         memset(vulkan_context->m_TextureUnits, 0x0, sizeof(vulkan_context->m_TextureUnits));
 
@@ -3017,39 +3017,12 @@ bail:
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, new_texture_color);
                 CHECK_VK_ERROR(res);
 
-                /*
-                VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-                VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
-                uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
-                */
-
                 res = TransitionImageLayout(g_VulkanContext->m_LogicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_CommandPool,
                     g_VulkanContext->m_LogicalDevice.m_GraphicsQueue,
                     new_texture_color->m_Handle.m_Image,
                     VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 CHECK_VK_ERROR(res);
-
-                /*
-                VK_IMAGE_LAYOUT_UNDEFINE
-                if (res == VK_SUCCESS)
-                {
-                    res = TransitionImageLayout(vk_device, vulkan_context->m_LogicalDevice.m_CommandPool, vulkan_context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect,
-                        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-                    CHECK_VK_ERROR(res);
-                }
-                */
-        
-                /* // VK_IMAGE_LAYOUT_PREINITIALIZED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                res = TransitionImageLayout(g_VulkanContext->m_PhysicalDevice.m_Device,
-                    g_VulkanContext->m_LogicalDevice.m_CommandPool,
-                    g_VulkanContext->m_LogicalDevice.m_GraphicsQueue,
-                    new_texture_color->m_Handle.m_Image,
-                    VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_PREINITIALIZED,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                CHECK_VK_ERROR(res);
-                */
 
                 VulkanSetTextureParamsInternal(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
 
