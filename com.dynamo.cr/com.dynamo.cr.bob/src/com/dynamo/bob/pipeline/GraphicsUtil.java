@@ -63,9 +63,18 @@ public class GraphicsUtil {
     }
 
     public static void putFloatList(ByteBuffer buffer, List<Float> values) {
+        buffer.asFloatBuffer();
         for (int i = 0 ; i < values.size(); i++) {
             float v = (float) values.get(i);
             buffer.putFloat(v);
+        }
+    }
+
+    public static void putIntList(ByteBuffer buffer, List<Integer> values) {
+        buffer.asIntBuffer();
+        for (int i = 0 ; i < values.size(); i++) {
+            int v = (int) values.get(i);
+            buffer.putInt(v);
         }
     }
 
@@ -78,7 +87,6 @@ public class GraphicsUtil {
     }
 
     public static void putByteList(ByteBuffer buffer, List<Integer> values) {
-    	buffer.asShortBuffer();
         for (int i = 0 ; i < values.size(); i++) {
             char v = (char) (int) values.get(i);
             buffer.put( (byte) v);
@@ -90,11 +98,11 @@ public class GraphicsUtil {
 
         validateAttribute(attr);
 
-        if (attr.getDataType() == VertexAttribute.DataType.TYPE_FLOAT)
+        if (attr.getDataType() == VertexAttribute.DataType.TYPE_BYTE && !attr.hasByteValues())
         {
-            List<Float> values = attr.getFloatValues().getVList();
-            ByteBuffer buffer = newByteBuffer(values.size() * 4);
-            putFloatList(buffer, values);
+            List<Integer> values = attr.getIntValues().getVList();
+            ByteBuffer buffer = newByteBuffer(values.size());
+            putByteList(buffer, values);
             buffer.rewind();
             attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
         }
@@ -112,6 +120,38 @@ public class GraphicsUtil {
         	ByteBuffer buffer = newByteBuffer(values.size() * 2);
         	putShortList(buffer, values);
         	buffer.rewind();
+            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+        }
+        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT)
+        {
+            List<Integer> values = attr.getUintValues().getVList();
+            ByteBuffer buffer = newByteBuffer(values.size() * 2);
+            putShortList(buffer, values);
+            buffer.rewind();
+            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+        }
+        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_FLOAT)
+        {
+            List<Float> values = attr.getFloatValues().getVList();
+            ByteBuffer buffer = newByteBuffer(values.size() * 4);
+            putFloatList(buffer, values);
+            buffer.rewind();
+            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+        }
+        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_INT)
+        {
+            List<Integer> values = attr.getIntValues().getVList();
+            ByteBuffer buffer = newByteBuffer(values.size() * 4);
+            putIntList(buffer, values);
+            buffer.rewind();
+            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+        }
+        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_INT)
+        {
+            List<Integer> values = attr.getUintValues().getVList();
+            ByteBuffer buffer = newByteBuffer(values.size() * 4);
+            putIntList(buffer, values);
+            buffer.rewind();
             attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
         }
 

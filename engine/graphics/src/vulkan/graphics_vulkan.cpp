@@ -1585,7 +1585,7 @@ bail:
         return 0;
     }
 
-    static inline VkFormat GetVulkanFormatFromTypeAndSize(Type type, uint16_t size)
+    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
         if (type == TYPE_FLOAT)
         {
@@ -1609,14 +1609,36 @@ bail:
                 default:break;
             }
         }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R8_UNORM;
-                case 2: return VK_FORMAT_R8G8_UNORM;
-                case 3: return VK_FORMAT_R8G8B8_UNORM;
-                case 4: return VK_FORMAT_R8G8B8A8_UNORM;
+                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -1624,10 +1646,10 @@ bail:
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R16_UINT;
-                case 2: return VK_FORMAT_R16G16_UINT;
-                case 3: return VK_FORMAT_R16G16B16_UINT;
-                case 4: return VK_FORMAT_R16G16B16A16_UINT;
+                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
@@ -1653,9 +1675,23 @@ bail:
 
         for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
         {
-            VertexStream& stream        = stream_declaration->m_Streams[i];
+            VertexStream& stream = stream_declaration->m_Streams[i];
+
+        #if __MACH__
+            if (stream.m_Type == TYPE_UNSIGNED_BYTE && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type 'TYPE_UNSIGNED_BYTE' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_BYTE;
+            }
+            else if (stream.m_Type == TYPE_UNSIGNED_SHORT && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type 'TYPE_UNSIGNED_SHORT' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_SHORT;
+            }
+        #endif
+
             vd->m_Streams[i].m_NameHash = stream.m_NameHash;
-            vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(stream.m_Type, stream.m_Size);
+            vd->m_Streams[i].m_Format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;
             vd->m_Streams[i].m_Location = 0;
             vd->m_Stride               += stream.m_Size * GetGraphicsTypeSize(stream.m_Type);
