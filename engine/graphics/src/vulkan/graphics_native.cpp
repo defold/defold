@@ -32,16 +32,17 @@ namespace dmGraphics
         VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_MACOS_MVK)
         VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
-        VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+        // VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_METAL_EXT)
         VK_EXT_METAL_SURFACE_EXTENSION_NAME,
     #endif
     };
-    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation"; // "VK_LAYER_LUNARG_standard_validation";
+    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
+    // static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
     static const char* g_validation_layers[1];
-    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME };
+    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME }; // , VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME };
 
 
     extern VulkanContext* g_VulkanContext;

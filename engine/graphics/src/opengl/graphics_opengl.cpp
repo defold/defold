@@ -648,8 +648,8 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* opengl_context = (OpenGLContext*) context;
         switch (feature)
         {
-            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
-            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
+            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return opengl_context->m_MultiTargetRenderingSupport;
+            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return opengl_context->m_TextureArraySupport;
         }
         return false;
     }
@@ -2577,7 +2577,7 @@ static void LogFrameBufferError(GLenum status)
         #define DRAW_BUFFERS_FN PFN_glDrawBuffers
     #endif
 
-        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
+        if (rt != NULL && DRAW_BUFFERS_FN != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
