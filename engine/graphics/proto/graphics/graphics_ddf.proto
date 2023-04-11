@@ -72,6 +72,7 @@ message VertexAttribute
         IntValues   int_values   = 8;
         UIntValues  uint_values  = 9;
         FloatValues float_values = 10;
+        bytes       byte_values  = 11;
     }
 }
 

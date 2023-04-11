@@ -17,6 +17,8 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#include <dlib/log.h> // REMOVE
+
 namespace dmGraphics
 {
     void InitializeVulkanTexture(Texture* t)
@@ -62,10 +64,17 @@ namespace dmGraphics
                 continue;
             }
 
+            VertexDeclaration::Stream& stream_in   = vertexDeclaration->m_Streams[i];
+
+            if (stream_in.m_Format == VK_FORMAT_R8G8B8_UNORM)
+            {
+                dmLogInfo("It's a byte format!");
+            }
+
             vk_vertex_input_descs[num_attributes].binding  = 0;
-            vk_vertex_input_descs[num_attributes].location = vertexDeclaration->m_Streams[i].m_Location;
-            vk_vertex_input_descs[num_attributes].format   = vertexDeclaration->m_Streams[i].m_Format;
-            vk_vertex_input_descs[num_attributes].offset   = vertexDeclaration->m_Streams[i].m_Offset;
+            vk_vertex_input_descs[num_attributes].location = stream_in.m_Location;
+            vk_vertex_input_descs[num_attributes].format   = stream_in.m_Format;
+            vk_vertex_input_descs[num_attributes].offset   = stream_in.m_Offset;
 
             num_attributes++;
         }
@@ -908,6 +917,8 @@ bail:
 
         VkVertexInputBindingDescription vk_vx_input_description;
         memset(&vk_vx_input_description, 0, sizeof(vk_vx_input_description));
+
+        uint32_t stride = vertexDeclaration->m_Stride;
 
         vk_vx_input_description.binding   = 0;
         vk_vx_input_description.stride    = vertexDeclaration->m_Stride;

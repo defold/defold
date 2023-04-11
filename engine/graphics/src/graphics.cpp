@@ -312,13 +312,17 @@ namespace dmGraphics
 
     void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
     {
+        *data_ptr  = attribute.m_Values.m_ByteValues.m_Data;
+        *data_size = attribute.m_Values.m_ByteValues.m_Count;
+        /*
         switch(attribute.m_DataType)
         {
             case dmGraphics::VertexAttribute::TYPE_BYTE:
                 assert(0 && "Not supprted yet");
                 break;
             case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
-                assert(0 && "Not supprted yet");
+                *data_ptr  = (uint8_t*) attribute.m_Values.m_IntValues.m_V.m_Data;
+                *data_size = attribute.m_Values.m_IntValues.m_V.m_Count * sizeof(int32_t);
                 break;
             case dmGraphics::VertexAttribute::TYPE_SHORT:
                 assert(0 && "Not supprted yet");
@@ -342,6 +346,7 @@ namespace dmGraphics
                 assert(0 && "Unknown data type");
                 break;
         }
+        */
     }
 
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)

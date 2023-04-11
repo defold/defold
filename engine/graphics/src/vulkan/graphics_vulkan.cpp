@@ -1613,10 +1613,10 @@ bail:
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R8_UINT;
-                case 2: return VK_FORMAT_R8G8_UINT;
-                case 3: return VK_FORMAT_R8G8B8_UINT;
-                case 4: return VK_FORMAT_R8G8B8A8_UINT;
+                case 1: return VK_FORMAT_R8_UNORM;
+                case 2: return VK_FORMAT_R8G8_UNORM;
+                case 3: return VK_FORMAT_R8G8B8_UNORM;
+                case 4: return VK_FORMAT_R8G8B8A8_UNORM;
                 default:break;
             }
         }
@@ -1664,6 +1664,8 @@ bail:
             dmHashUpdateBuffer64(hash, &stream.m_Type, sizeof(stream.m_Type));
             dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Format, sizeof(vd->m_Streams[i].m_Format));
         }
+
+        vd->m_Stride = DM_ALIGN(vd->m_Stride, 4);
 
         return vd;
     }

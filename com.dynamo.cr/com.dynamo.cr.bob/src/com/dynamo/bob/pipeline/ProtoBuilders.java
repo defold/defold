@@ -331,10 +331,8 @@ public class ProtoBuilders {
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
 
             for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
-                VertexAttribute attr = messageBuilder.getAttributes(i);
-                VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
-                attributeBuilder.setNameHash(MurmurHash.hash64(attr.getName()));
-                messageBuilder.setAttributes(i, attributeBuilder.build());
+                VertexAttribute attr = GraphicsUtil.buildVertexAttribute(messageBuilder.getAttributes(i));
+                messageBuilder.setAttributes(i, attr);
             }
 
             return messageBuilder;
