@@ -400,40 +400,72 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def ^:private pb->clj-without-defaults-fn (memoize #(pb->clj-fn % #{})))
 
-(declare ^:private clear-defaults-from-message)
+(defn- clear-defaults-from-builder! [^Message$Builder builder]
+  (reduce (fn [is-default ^Descriptors$FieldDescriptor field-desc]
+            (if (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+              ;; Message field.
+              (cond
+                (.isOptional field-desc)
+                (if-not (.hasField builder field-desc)
+                  is-default
+                  (let [field-builder (.toBuilder ^Message (.getField builder field-desc))
+                        field-is-default (clear-defaults-from-builder! field-builder)]
+                    (if field-is-default
+                      (do
+                        (.clearField builder field-desc)
+                        is-default)
+                      (do
+                        (.setField builder field-desc (.build field-builder))
+                        false))))
 
-(defn- clear-defaults-from-builder!
-  ^Message$Builder [^Message$Builder builder]
-  (let [descriptor (.getDescriptorForType builder)
-        field-descs (.getFields descriptor)]
-    (doseq [^Descriptors$FieldDescriptor field-desc field-descs]
-      (cond
-        (and (.isOptional field-desc)
-             (.hasField builder field-desc))
-        (cond
-          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-          (let [^Message without-defaults (clear-defaults-from-message (.getField builder field-desc))]
-            (if (zero? (.getSerializedSize without-defaults))
-              (.clearField builder field-desc)
-              (.setField builder field-desc without-defaults)))
+                (.isRequired field-desc)
+                (let [field-builder (.toBuilder ^Message (.getField builder field-desc))
+                      field-is-default (clear-defaults-from-builder! field-builder)]
+                  (.setField builder field-desc (.build field-builder))
+                  (and is-default field-is-default))
 
-          (= (.getDefaultValue field-desc) (.getField builder field-desc))
-          (.clearField builder field-desc))
+                (.isRepeated field-desc)
+                (let [item-count (.getRepeatedFieldCount builder field-desc)]
+                  (doseq [index (range item-count)]
+                    (let [item-builder (.toBuilder ^Message (.getRepeatedField builder field-desc index))]
+                      (clear-defaults-from-builder! item-builder)
+                      (.setRepeatedField builder field-desc index (.build item-builder))))
+                  (and is-default (zero? item-count)))
 
-        (and (.isRepeated field-desc)
-             (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc)))
-        (doseq [index (range (.getRepeatedFieldCount builder field-desc))]
-          (let [item-with-defaults (.getRepeatedField builder field-desc index)
-                item-without-defaults (clear-defaults-from-message item-with-defaults)]
-            (.setRepeatedField builder field-desc index item-without-defaults)))))
-    builder))
+                :else
+                is-default)
+
+              ;; Non-message field.
+              (cond
+                (.isOptional field-desc)
+                (cond
+                  (not (.hasField builder field-desc))
+                  is-default
+
+                  (= (.getDefaultValue field-desc) (.getField builder field-desc))
+                  (do
+                    (.clearField builder field-desc)
+                    is-default)
+
+                  :else
+                  false)
+
+                (.isRequired field-desc)
+                (and is-default (= (.getDefaultValue field-desc) (.getField builder field-desc)))
+
+                (.isRepeated field-desc)
+                (and is-default (zero? (.getRepeatedFieldCount builder field-desc)))
+
+                :else
+                is-default)))
+          true
+          (.getFields (.getDescriptorForType builder))))
 
 (defn- clear-defaults-from-message
   ^Message [^Message message]
-  (-> message
-      (.toBuilder)
-      (clear-defaults-from-builder!)
-      (.build)))
+  (let [builder (.toBuilder message)]
+    (clear-defaults-from-builder! builder)
+    (.build builder)))
 
 (defn pb->map-with-defaults
   [^Message pb]
