@@ -167,5 +167,6 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
 
     int ret = jc_test_run_all();
+    dmLog::LogFinalize();
     return ret;
 }

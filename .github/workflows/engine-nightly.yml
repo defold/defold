@@ -59,7 +59,7 @@ jobs:
       },
       {
         name: 'TSAN',
-        run: 'ci/ci.sh --platform=x86_64-macos --with-tsan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-linux --with-tsan --skip-builtins --skip-docs engine'
       },
       {
         name: 'VALGRIND',
