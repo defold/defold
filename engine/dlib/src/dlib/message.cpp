@@ -269,6 +269,11 @@ namespace dmMessage
 
     static MessageSocket* AcquireSocket(HSocket socket)
     {
+        if (dmAtomicGet32(&g_ContextDestroyer.m_Deleted))
+        {
+            return 0; // The system has already been shut down
+        }
+
         DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
 
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
@@ -311,12 +316,13 @@ namespace dmMessage
 
     static Result GetSocketNoLock(dmhash_t name_hash, HSocket* out_socket)
     {
+        *out_socket = name_hash; // to silence an existing test
+
         MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
         if (!message_socket)
         {
             return RESULT_NAME_OK_SOCKET_NOT_FOUND;
         }
-        *out_socket = name_hash;
         return RESULT_OK;
     }
 
