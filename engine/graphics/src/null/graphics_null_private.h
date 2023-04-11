@@ -20,6 +20,9 @@
 
 namespace dmGraphics
 {
+    const static uint32_t MAX_REGISTER_COUNT = 16;
+    const static uint32_t MAX_TEXTURE_COUNT  = 32;
+
     struct Texture
     {
         void* m_Data;
@@ -40,9 +43,6 @@ namespace dmGraphics
         uint16_t m_Stride;
     };
 
-    const static uint32_t MAX_REGISTER_COUNT = 16;
-    const static uint32_t MAX_TEXTURE_COUNT = 32;
-
     struct FrameBuffer
     {
         void*       m_ColorBuffer[MAX_BUFFER_COLOR_ATTACHMENTS];
@@ -60,15 +60,15 @@ namespace dmGraphics
 
     struct VertexBuffer
     {
-        char* m_Buffer;
-        char* m_Copy;
+        char*    m_Buffer;
+        char*    m_Copy;
         uint32_t m_Size;
     };
 
     struct IndexBuffer
     {
-        char* m_Buffer;
-        char* m_Copy;
+        char*    m_Buffer;
+        char*    m_Copy;
         uint32_t m_Size;
     };
 

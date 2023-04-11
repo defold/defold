@@ -124,6 +124,7 @@ namespace dmGraphics
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
     };
 
+    // JG: dmsdk/graphics.h defines this as a struct ptr so don't want to rename it yet..
     struct VertexDeclaration
     {
         struct Stream

@@ -1153,7 +1153,7 @@ namespace dmGraphics
             memcpy(tex->m_Data, params.m_Data, params.m_DataSize);
         tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        // The width/height of the tex can change from this function as well
+        // The width/height of the texture can change from this function as well
         if (!params.m_SubUpdate && params.m_MipMap == 0)
         {
             tex->m_Width  = params.m_Width;
