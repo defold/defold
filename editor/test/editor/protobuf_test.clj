@@ -426,56 +426,55 @@ repeated_message {
 }"))))
 
 (deftest read-map-with-defaults-specified-equals-defaults-test
-  ;; TODO(save-value): This test is wrong? We should be specifying each value in the text, but the specified value should be the pb-default.
   (is (= {:required-string ""
-          :optional-with-default "overridden with_default"
-          :optional-without-default "overridden without_default"
-          :optional-message {:optional-string "overridden optional_string"
-                             :optional-int 11
-                             :optional-quat [1.0 2.0 3.0 4.0]
-                             :optional-enum :enum-val0
-                             :optional-bool false}
+          :optional-with-default "default"
+          :optional-without-default ""
+          :optional-message {:optional-string "default"
+                             :optional-int 10
+                             :optional-quat [0.0 0.0 0.0 1.0]
+                             :optional-enum :enum-val1
+                             :optional-bool true}
           :repeated-message [{:optional-string "default"
                               :optional-int 10
                               :optional-quat [0.0 0.0 0.0 1.0]
                               :optional-enum :enum-val1
                               :optional-bool true}
-                             {:optional-string "overridden optional_string"
-                              :optional-int 11
-                              :optional-quat [1.0 2.0 3.0 4.0]
-                              :optional-enum :enum-val0
-                              :optional-bool false}]
+                             {:optional-string "default"
+                              :optional-int 10
+                              :optional-quat [0.0 0.0 0.0 1.0]
+                              :optional-enum :enum-val1
+                              :optional-bool true}]
           :repeated-int [0
                          0]}
          (read-map-with-defaults TestDdf$NestedDefaults "
 required_string: ''
-optional_with_default: 'overridden with_default'
-optional_without_default: 'overridden without_default'
+optional_with_default: 'default'
+optional_without_default: ''
 optional_message {
-  optional_string: 'overridden optional_string'
-  optional_int: 11
+  optional_string: 'default'
+  optional_int: 10
   optional_quat {
-    x: 1.0
-    y: 2.0
-    z: 3.0
-    w: 4.0
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
   }
-  optional_enum: ENUM_VAL0
-  optional_bool: false
+  optional_enum: ENUM_VAL1
+  optional_bool: true
 }
 repeated_message {
 }
 repeated_message {
-  optional_string: 'overridden optional_string'
-  optional_int: 11
+  optional_string: 'default'
+  optional_int: 10
   optional_quat {
-    x: 1.0
-    y: 2.0
-    z: 3.0
-    w: 4.0
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
   }
-  optional_enum: ENUM_VAL0
-  optional_bool: false
+  optional_enum: ENUM_VAL1
+  optional_bool: true
 }
 repeated_int: 0
 repeated_int: 0")))
