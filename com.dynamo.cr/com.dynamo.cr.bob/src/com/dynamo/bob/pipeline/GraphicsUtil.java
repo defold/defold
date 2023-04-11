@@ -26,7 +26,7 @@ import com.google.protobuf.ByteString;
 
 public class GraphicsUtil {
 
-	public static void validateAttribute(VertexAttribute attr) throws CompileExceptionError
+	private static void validateAttribute(VertexAttribute attr) throws CompileExceptionError
     {
         VertexAttribute.DataType dataType = attr.getDataType();
 
@@ -57,12 +57,7 @@ public class GraphicsUtil {
         }
     }
 
-    public static ByteBuffer newByteBuffer(int byteCount) {
-        ByteBuffer bb = ByteBuffer.allocateDirect(byteCount);
-        return bb.order(ByteOrder.LITTLE_ENDIAN);
-    }
-
-    public static void putFloatList(ByteBuffer buffer, List<Float> values) {
+    private static void putFloatList(ByteBuffer buffer, List<Float> values) {
         buffer.asFloatBuffer();
         for (int i = 0 ; i < values.size(); i++) {
             float v = (float) values.get(i);
@@ -70,7 +65,7 @@ public class GraphicsUtil {
         }
     }
 
-    public static void putIntList(ByteBuffer buffer, List<Integer> values) {
+    private static void putIntList(ByteBuffer buffer, List<Integer> values) {
         buffer.asIntBuffer();
         for (int i = 0 ; i < values.size(); i++) {
             int v = (int) values.get(i);
@@ -78,7 +73,7 @@ public class GraphicsUtil {
         }
     }
 
-    public static void putShortList(ByteBuffer buffer, List<Integer> values) {
+    private static void putShortList(ByteBuffer buffer, List<Integer> values) {
     	buffer.asShortBuffer();
         for (int i = 0 ; i < values.size(); i++) {
             short v = (short) (int) values.get(i);
@@ -86,11 +81,17 @@ public class GraphicsUtil {
         }
     }
 
-    public static void putByteList(ByteBuffer buffer, List<Integer> values) {
+    private static void putByteList(ByteBuffer buffer, List<Integer> values) {
         for (int i = 0 ; i < values.size(); i++) {
             char v = (char) (int) values.get(i);
             buffer.put( (byte) v);
         }
+    }
+
+    // JG: Maybe shouldn't be here but in a more non-pipeline-util-esque location
+    public static ByteBuffer newByteBuffer(int byteCount) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(byteCount);
+        return bb.order(ByteOrder.LITTLE_ENDIAN);
     }
 
     public static VertexAttribute buildVertexAttribute(VertexAttribute attr) throws CompileExceptionError {
