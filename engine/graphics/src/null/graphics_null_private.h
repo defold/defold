@@ -16,6 +16,7 @@
 #define GRAPHICS_DEVICE_NULL
 
 #include <dmsdk/dlib/vmath.h>
+#include <dlib/opaque_handle_container.h>
 
 namespace dmGraphics
 {
@@ -78,10 +79,33 @@ namespace dmGraphics
         FrameBuffer     m_FrameBuffer;
     };
 
-    struct Context
+    struct NullSharedAsset
     {
-        Context(const ContextParams& params);
+        enum AssetType
+        {
+            ASSET_TYPE_TEXTURE,
+            ASSET_TYPE_RENDER_TARGET,
+        };
 
+        NullSharedAsset()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+
+        union
+        {
+            RenderTarget m_RenderTarget;
+            Texture      m_Texture;
+        };
+
+        AssetType m_Type;
+    };
+
+    struct NullContext
+    {
+        NullContext(const ContextParams& params);
+
+        dmOpaqueHandleContainer<NullSharedAsset> m_AssetHandleContainer;
         VertexStreamBuffer          m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4            m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];

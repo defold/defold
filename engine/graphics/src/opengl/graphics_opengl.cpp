@@ -2314,9 +2314,8 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static HOpaqueHandle StoreAssetInContainer(HContext context, OpenGLSharedAsset* asset)
+    static HOpaqueHandle StoreAssetInContainer(OpenGLContext* opengl_context, OpenGLSharedAsset* asset)
     {
-        OpenGLContext* opengl_context = (OpenGLContext*) context;
         if (opengl_context->m_AssetHandleContainer.Full())
         {
             opengl_context->m_AssetHandleContainer.Allocate(8);
@@ -2503,7 +2502,7 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR;
 
-        return StoreAssetInContainer(context, asset);
+        return StoreAssetInContainer(opengl_context, asset);
     }
 
     static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
@@ -2526,6 +2525,8 @@ static void LogFrameBufferError(GLenum status)
             glDeleteRenderbuffers(1, &rt->m_DepthBuffer);
         if (rt->m_StencilBuffer)
             glDeleteRenderbuffers(1, &rt->m_StencilBuffer);
+
+        g_Context->m_AssetHandleContainer.Release(render_target);
 
         delete rt;
     }
@@ -2699,7 +2700,7 @@ static void LogFrameBufferError(GLenum status)
         tex.m_DataState = 0;
         tex.m_ResourceSize = 0;
 
-        return StoreAssetInContainer(context, asset);
+        return StoreAssetInContainer(opengl_context, asset);
     }
 
     static void OpenGLDoDeleteTexture(void* context)
