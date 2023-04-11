@@ -307,7 +307,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         default:
-            assert(0);
+            dmLogError("gl error 0x%08x: <unknown>", status);
             break;
     }
 }
@@ -648,8 +648,8 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* opengl_context = (OpenGLContext*) context;
         switch (feature)
         {
-            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return PFN_glDrawBuffers != 0x0;
-            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return opengl_context->m_TextureArraySupport;
+            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
+            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
         }
         return false;
     }
@@ -1271,7 +1271,8 @@ static void LogFrameBufferError(GLenum status)
 
         if (opengl_context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_EXT_texture_array"))
         {
-            opengl_context->m_TextureArraySupport = 1;
+            opengl_context->m_TextureArraySupport         = 1;
+            opengl_context->m_MultiTargetRenderingSupport = 1;
         #ifdef ANDROID
             opengl_context->m_TextureArraySupport &= PFN_glTexSubImage3D           != 0;
             opengl_context->m_TextureArraySupport &= PFN_glTexImage3D              != 0;
@@ -2324,6 +2325,75 @@ static void LogFrameBufferError(GLenum status)
         return opengl_context->m_AssetHandleContainer.Put(asset);
     }
 
+#if __EMSCRIPTEN__
+    // Only used for webgl currently
+    static bool ValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    {
+        uint32_t attachment_width  = -1;
+        uint32_t attachment_height = -1;
+
+        for (int i = 0; i < max_color_attachments; ++i)
+        {
+            if (buffer_type_flags & color_buffer_flags[i])
+            {
+                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
+                TextureCreationParams params = creation_params[color_buffer_index];
+
+                if (attachment_width == -1)
+                {
+                    attachment_width  = params.m_Width;
+                    attachment_height = params.m_Height;
+                }
+                else if (attachment_width != params.m_Width || attachment_height != params.m_Height)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
+        {
+            if(!(buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
+            {
+                uint32_t depth_param_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+
+                if (attachment_width != -1)
+                {
+                    return attachment_width  == creation_params[depth_param_index].m_Width &&
+                           attachment_height == creation_params[depth_param_index].m_Height;
+                }
+            }
+            else if(!(buffer_type_flags & BUFFER_TYPE_DEPTH_BIT))
+            {
+                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
+                if (attachment_width != -1)
+                {
+                    return attachment_width  == creation_params[stencil_param_index].m_Width &&
+                           attachment_height == creation_params[stencil_param_index].m_Height;
+                }
+            }
+            else
+            {
+                uint32_t depth_param_index   = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
+
+                if (attachment_width == -1)
+                {
+                    return creation_params[depth_param_index].m_Width == creation_params[stencil_param_index].m_Width &&
+                           creation_params[depth_param_index].m_Height == creation_params[stencil_param_index].m_Height;
+                }
+
+                return attachment_width  == creation_params[depth_param_index].m_Width &&
+                       attachment_height == creation_params[depth_param_index].m_Height &&
+                       attachment_width  == creation_params[stencil_param_index].m_Width &&
+                       attachment_height == creation_params[stencil_param_index].m_Height;
+            }
+        }
+
+        return true;
+    }
+#endif
+
     static HRenderTarget OpenGLNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         OpenGLContext* opengl_context = (OpenGLContext*) context;
@@ -2357,6 +2427,22 @@ static void LogFrameBufferError(GLenum status)
         };
 
         uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+
+        // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
+        //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
+    #if __EMSCRIPTEN__
+        if (context->m_MultiTargetRenderingSupport)
+        {
+            max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
+
+            if (!ValidateFramebufferAttachments(max_color_attachments, buffer_type_flags, color_buffer_flags, creation_params))
+            {
+                dmLogError("All attachments must have the same size!");
+                return 0;
+            }
+        }
+    #endif
+
         for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
@@ -2485,7 +2571,13 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? glfwGetDefaultFramebuffer() : rt->m_Id);
         CHECK_GL_ERROR;
 
-        if (rt != NULL && PFN_glDrawBuffers != 0x0)
+    #if __EMSCRIPTEN__
+        #define DRAW_BUFFERS_FN glDrawBuffers
+    #else
+        #define DRAW_BUFFERS_FN PFN_glDrawBuffers
+    #endif
+
+        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
@@ -2505,9 +2597,11 @@ static void LogFrameBufferError(GLenum status)
 
             if (num_buffers > 1)
             {
-                PFN_glDrawBuffers(num_buffers, buffers);
+                DRAW_BUFFERS_FN(num_buffers, buffers);
             }
         }
+
+    #undef DRAW_BUFFERS_FN
 
         CHECK_GL_FRAMEBUFFER_ERROR;
     }

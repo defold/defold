@@ -218,7 +218,7 @@ public class BundleHelper {
         bundler.updateManifestProperties(project, platform, this.projectProperties, this.propertiesMap, properties);
 
         // First, list all extension manifests
-        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, bundler.getMainManifestName(platform));
+        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform);
         // Put the main manifest in front
         sourceManifests.add(0, mainManifest);
 

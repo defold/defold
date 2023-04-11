@@ -33,6 +33,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
@@ -174,7 +175,7 @@ public class ProtoBuilders {
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
         private void ValidateShapeTypes(List<Shape> shapeList, IResource resource) throws IOException, CompileExceptionError {
-            String physicsTypeStr = this.project.getProjectProperties().getStringValue("physics", "type", "2D").toUpperCase();
+            String physicsTypeStr = StringUtil.toUpperCase(this.project.getProjectProperties().getStringValue("physics", "type", "2D"));
             for(Shape shape : shapeList) {
                 if(shape.getShapeType() == Type.TYPE_CAPSULE) {
                     if(physicsTypeStr.contains("2D")) {

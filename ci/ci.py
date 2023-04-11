@@ -448,15 +448,13 @@ def main(argv):
     # configure build flags based on the branch
     release_channel = None
     skip_editor_tests = False
+    make_release = False
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
-        release_channel = "editor-stable"
-        make_release = False
+        release_channel = "stable"
+        make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
-        if is_repo_private():
-            release_channel = "stable"
-            make_release = True
     elif branch == "beta":
         engine_channel = "beta"
         editor_channel = "beta"
@@ -478,12 +476,10 @@ def main(argv):
     elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
         engine_channel = None
         editor_channel = "editor-dev"
-        make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
         engine_channel = "dev"
         editor_channel = "dev"
-        make_release = False
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))

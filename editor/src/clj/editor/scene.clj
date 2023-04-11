@@ -27,6 +27,7 @@
             [editor.handler :as handler]
             [editor.input :as i]
             [editor.math :as math]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.render :as render]
             [editor.resource :as resource]
@@ -48,6 +49,7 @@
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
+           [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
            [java.lang Math Runnable]
@@ -1510,6 +1512,9 @@
 (g/defnk produce-transform [position rotation scale]
   (math/clj->mat4 position rotation scale))
 
+(g/defnk produce-pose [position rotation scale]
+  (pose/make position rotation scale))
+
 (def produce-no-transform-properties (g/constantly #{}))
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))
 (def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
@@ -1534,6 +1539,7 @@
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
+  (output pose Pose produce-pose)
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform})))
 
 (defmethod scene-tools/manip-movable? ::SceneNode [node-id]

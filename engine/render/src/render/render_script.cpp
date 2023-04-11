@@ -1077,6 +1077,11 @@ namespace dmRender
 
         lua_pushinteger(L, render_target);
 
+        if (render_target == 0)
+        {
+            luaL_error(L, "Unable to create render target.");
+        }
+
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
