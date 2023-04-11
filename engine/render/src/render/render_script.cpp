@@ -1075,6 +1075,11 @@ namespace dmRender
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
 
+        if (render_target == 0)
+        {
+            luaL_error(L, "Unable to create render target.");
+        }
+
         lua_pushlightuserdata(L, (void*)render_target);
 
         assert(top + 1 == lua_gettop(L));
