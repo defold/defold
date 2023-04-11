@@ -140,6 +140,23 @@
       (a/close! base-sink))
     client))
 
+(def ^:const error-code-response-timeout -30000)
+(def ^:const error-code-server-not-running -30001)
+
+(defn error
+  "Create JSON-RPC error response"
+  ([code message]
+   (error code message nil))
+  ([code message data]
+   {:pre [(int? code) (string? message)]}
+   {:error (cond-> {:code code
+                    :message message}
+                   (some? data)
+                   (assoc :data data))}))
+
+(defn notification->request [notification response-ch]
+  (assoc notification :response-ch response-ch))
+
 (defn request!
   "Send a request to a JSON-RPC message sink
 
@@ -171,12 +188,12 @@
          ([response] response)
 
          (a/timeout timeout-ms)
-         {:error {:code -30000 ;; I made it up
-                  :message (str "Client response timeout: " method)
-                  :data (cond-> {:timeout-ms timeout-ms
-                                 :method method}
-                                (some? params)
-                                (assoc :params params))}})))))
+         (error error-code-response-timeout
+                (str "Client response timeout: " method)
+                (cond-> {:timeout-ms timeout-ms
+                         :method method}
+                        (some? params)
+                        (assoc :params params))))))))
 
 (defn notification
   "Create a notification that can be submitted to a JSON-RPC message sink

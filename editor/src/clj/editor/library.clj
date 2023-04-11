@@ -122,7 +122,8 @@
       (doseq [[header value] http-headers]
         (.setRequestProperty http-connection header value))
       (when tag
-        (.setRequestProperty http-connection "If-None-Match" tag)))
+        (.setRequestProperty http-connection "If-None-Match" tag))
+      (.setRequestProperty http-connection "Accept" "application/zip"))
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)
