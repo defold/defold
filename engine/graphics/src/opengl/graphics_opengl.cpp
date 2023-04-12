@@ -2417,7 +2417,7 @@ static void LogFrameBufferError(GLenum status)
         // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
         //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
     #if __EMSCRIPTEN__
-        if (context->m_MultiTargetRenderingSupport)
+        if (opengl_context->m_MultiTargetRenderingSupport)
         {
             max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
 
