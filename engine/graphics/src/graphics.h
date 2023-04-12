@@ -523,9 +523,9 @@ namespace dmGraphics
 
     // Test functions:
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool UnmapVertexBuffer(HVertexBuffer buffer);
+    bool  UnmapVertexBuffer(HVertexBuffer buffer);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool UnmapIndexBuffer(HIndexBuffer buffer);
+    bool  UnmapIndexBuffer(HIndexBuffer buffer);
     // <- end test functions
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);

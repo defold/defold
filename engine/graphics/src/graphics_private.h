@@ -48,6 +48,9 @@ namespace dmGraphics
     void SetForceVertexReloadFail(bool should_fail);
     bool IsTextureFormatCompressed(TextureFormat format);
 
+    // For tests
+    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+
     static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
     {
         assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");

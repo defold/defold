@@ -972,6 +972,8 @@ namespace dmGraphics
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
         delete rt;
+
+        g_NullContext->m_AssetHandleContainer.Release(render_target);
     }
 
     static void NullSetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
@@ -1098,6 +1100,8 @@ namespace dmGraphics
             delete [] (char*)tex->m_Data;
         }
         delete tex;
+
+        g_NullContext->m_AssetHandleContainer.Release(texture);
     }
 
     static HandleResult NullGetTextureHandle(HTexture texture, void** out_handle)
@@ -1395,16 +1399,31 @@ namespace dmGraphics
         return true;
     }
 
+    // For unit tests only
+    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
+    {
+        AssetType type = GetAssetType(asset_handle);
+        if (type == ASSET_TYPE_TEXTURE)
+        {
+            return GetAssetFromContainer<Texture>(((NullContext*) context)->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        else if (type == ASSET_TYPE_RENDER_TARGET)
+        {
+            return GetAssetFromContainer<RenderTarget>(((NullContext*) context)->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        return false;
+    }
+
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Null);
 
         // Add test functions
-        fn_table.m_MapVertexBuffer   = NullMapVertexBuffer;
-        fn_table.m_UnmapVertexBuffer = NullUnmapVertexBuffer;
-        fn_table.m_MapIndexBuffer    = NullMapIndexBuffer;
-        fn_table.m_UnmapIndexBuffer  = NullUnmapIndexBuffer;
+        fn_table.m_MapVertexBuffer    = NullMapVertexBuffer;
+        fn_table.m_UnmapVertexBuffer  = NullUnmapVertexBuffer;
+        fn_table.m_MapIndexBuffer     = NullMapIndexBuffer;
+        fn_table.m_UnmapIndexBuffer   = NullUnmapIndexBuffer;
 
         return fn_table;
     }

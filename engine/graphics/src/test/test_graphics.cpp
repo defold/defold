@@ -779,6 +779,75 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     }
 }
 
+TEST_F(dmGraphicsTest, TestGraphicsHandles)
+{
+    const uint32_t texture_width  = 16;
+    const uint32_t texture_height = 16;
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, 0));
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, 0xFFFF));
+
+    // Test textures
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        dmGraphics::TextureParams params;
+
+        creation_params.m_Width          = texture_width;
+        creation_params.m_Height         = texture_height;
+        creation_params.m_OriginalWidth  = texture_width;
+        creation_params.m_OriginalHeight = texture_height;
+
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+        dmGraphics::DeleteTexture(texture);
+
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+        dmGraphics::HTexture texture_2 = dmGraphics::NewTexture(m_Context, creation_params);
+        ASSERT_NE(texture, texture_2);
+    }
+
+    // Test render targets
+    {
+        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+        dmGraphics::TextureParams         params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            creation_params[i].m_Width  = texture_width;
+            creation_params[i].m_Height = texture_height;
+            params[i].m_Width           = texture_width;
+            params[i].m_Height          = texture_height;
+        }
+
+        params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format  = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+        params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+        params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+        uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT |
+                         dmGraphics::BUFFER_TYPE_COLOR1_BIT |
+                         dmGraphics::BUFFER_TYPE_DEPTH_BIT  |
+                         dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+
+        dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, target));
+
+        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color0));
+
+        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color1));
+
+        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color2_not_exist));
+
+        dmGraphics::DeleteRenderTarget(target);
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, target));
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color0));
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color1));
+    }
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
