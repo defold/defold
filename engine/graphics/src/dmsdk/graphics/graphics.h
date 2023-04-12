@@ -41,14 +41,14 @@ namespace dmGraphics
      * @typedef
      * @name HTexture
      */
-    typedef uint32_t HTexture;
+    typedef uint64_t HTexture;
 
     /*#
      * Rendertarget handle
      * @typedef
      * @name HRenderTarget
      */
-    typedef uint32_t HRenderTarget; // Where is this currently used?
+    typedef uint64_t HRenderTarget; // Where is this currently used?
 
     /*#
      * Vertex program handle

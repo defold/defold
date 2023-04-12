@@ -705,7 +705,8 @@ static void LogFrameBufferError(GLenum status)
             tcp.m_Type = TEXTURE_TYPE_2D;
             HTexture texture_handle = dmGraphics::NewTexture(context, tcp);
 
-            OpenGLTexture* tex = &opengl_context->m_AssetHandleContainer.Get(texture_handle)->m_Texture;
+            assert(ASSET_TYPE_TEXTURE == GetAssetType(texture_handle));
+            OpenGLTexture* tex = (OpenGLTexture*) opengl_context->m_AssetHandleContainer.Get(texture_handle);
 
             DM_ALIGNED(16) const uint32_t data[] = { 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff };
             TextureParams params;
@@ -2314,16 +2315,6 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static HOpaqueHandle StoreAssetInContainer(OpenGLContext* opengl_context, OpenGLSharedAsset* asset)
-    {
-        if (opengl_context->m_AssetHandleContainer.Full())
-        {
-            opengl_context->m_AssetHandleContainer.Allocate(8);
-        }
-
-        return opengl_context->m_AssetHandleContainer.Put(asset);
-    }
-
 #if __EMSCRIPTEN__
     // Only used for webgl currently
     static bool ValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
@@ -2397,13 +2388,9 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* opengl_context = (OpenGLContext*) context;
 
-        OpenGLSharedAsset* asset = new OpenGLSharedAsset();
-        asset->m_Type = OpenGLSharedAsset::ASSET_TYPE_RENDER_TARGET;
-
-        OpenGLRenderTarget* rt = &asset->m_RenderTarget;
-
-        rt->m_BufferTypeFlags = buffer_type_flags;
-        rt->m_DepthBufferBits = opengl_context->m_DepthBufferBits;
+        OpenGLRenderTarget* rt = new OpenGLRenderTarget();
+        rt->m_BufferTypeFlags  = buffer_type_flags;
+        rt->m_DepthBufferBits  = opengl_context->m_DepthBufferBits;
 
         glGenFramebuffers(1, &rt->m_Id);
         CHECK_GL_ERROR;
@@ -2451,8 +2438,7 @@ static void LogFrameBufferError(GLenum status)
                 SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
                 // attach the texture to FBO color attachment point
 
-                OpenGLTexture* attachment_tex = &opengl_context->m_AssetHandleContainer.Get(rt->m_ColorBufferTexture[i])->m_Texture;
-
+                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(opengl_context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, attachment_tex->m_TextureIds[0], 0);
                 CHECK_GL_ERROR;
             }
@@ -2502,12 +2488,12 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR;
 
-        return StoreAssetInContainer(opengl_context, asset);
+        return StoreAssetInContainer(opengl_context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
     {
-        OpenGLRenderTarget* rt = &g_Context->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
         glDeleteFramebuffers(1, &rt->m_Id);
 
@@ -2534,7 +2520,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         OpenGLContext* opengl_context = (OpenGLContext*) context;
-        OpenGLRenderTarget* rt = &opengl_context->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        OpenGLRenderTarget* rt        = GetAssetFromContainer<OpenGLRenderTarget>(opengl_context->m_AssetHandleContainer, render_target);
 
         if(PFN_glInvalidateFramebuffer != NULL)
         {
@@ -2618,13 +2604,13 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        OpenGLRenderTarget* rt = &g_Context->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
         return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        OpenGLRenderTarget* rt = &g_Context->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);;
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
         width = rt->m_BufferTextureParams[i].m_Width;
@@ -2633,7 +2619,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        OpenGLRenderTarget* rt = &g_Context->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);;
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             rt->m_BufferTextureParams[i].m_Width = width;
@@ -2674,50 +2660,43 @@ static void LogFrameBufferError(GLenum status)
             texture_type    = TEXTURE_TYPE_2D;
         }
 
-        GLuint* t = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
-        glGenTextures(num_texture_ids, t);
+        GLuint* gl_texture_ids = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
+        glGenTextures(num_texture_ids, gl_texture_ids);
         CHECK_GL_ERROR;
 
-        OpenGLSharedAsset* asset = new OpenGLSharedAsset();
-        asset->m_Type            = OpenGLSharedAsset::ASSET_TYPE_TEXTURE;
-
-        OpenGLTexture& tex  = asset->m_Texture;
-        tex.m_Type          = texture_type;
-        tex.m_TextureIds    = t;
-        tex.m_Width         = params.m_Width;
-        tex.m_Height        = params.m_Height;
-        tex.m_NumTextureIds = num_texture_ids;
+        OpenGLTexture* tex   = new OpenGLTexture();
+        tex->m_Type          = texture_type;
+        tex->m_TextureIds    = gl_texture_ids;
+        tex->m_Width         = params.m_Width;
+        tex->m_Height        = params.m_Height;
+        tex->m_NumTextureIds = num_texture_ids;
 
         if (params.m_OriginalWidth == 0){
-            tex.m_OriginalWidth = params.m_Width;
-            tex.m_OriginalHeight = params.m_Height;
+            tex->m_OriginalWidth = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
         } else {
-            tex.m_OriginalWidth = params.m_OriginalWidth;
-            tex.m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_OriginalWidth = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        tex.m_MipMapCount = 0;
-        tex.m_DataState = 0;
-        tex.m_ResourceSize = 0;
+        tex->m_MipMapCount = 0;
+        tex->m_DataState = 0;
+        tex->m_ResourceSize = 0;
 
-        return StoreAssetInContainer(opengl_context, asset);
+        return StoreAssetInContainer(opengl_context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void OpenGLDoDeleteTexture(void* context)
     {
-        HTexture texture = (HTexture) (size_t) context;
-
-        OpenGLSharedAsset* asset = g_Context->m_AssetHandleContainer.Get(texture);
-        assert(asset->m_Type == OpenGLSharedAsset::ASSET_TYPE_TEXTURE);
-
-        OpenGLTexture* tex = &asset->m_Texture;
+        HTexture texture   = (HTexture) (size_t) context;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
         CHECK_GL_ERROR;
         free(tex->m_TextureIds);
 
         g_Context->m_AssetHandleContainer.Release(texture);
-        delete asset;
+        delete tex;
     }
 
     static void OpenGLDeleteTextureAsync(HTexture texture)
@@ -2810,7 +2789,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         GLenum type = GetOpenGLTextureType(tex->m_Type);
 
@@ -2835,13 +2814,14 @@ static void LogFrameBufferError(GLenum status)
 
     static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        assert(tex);
         return tex->m_NumTextureIds;
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if(tex->m_DataState)
         {
@@ -2862,14 +2842,14 @@ static void LogFrameBufferError(GLenum status)
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
 
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(ap.m_Texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, ap.m_Texture);
 
         tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
     }
 
     static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         tex->m_DataState |= 1<<params.m_MipMap;
         uint16_t param_array_index;
@@ -2896,7 +2876,7 @@ static void LogFrameBufferError(GLenum status)
 
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
         if (!texture) {
@@ -2951,7 +2931,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
         }
 
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
@@ -3241,7 +3221,7 @@ static void LogFrameBufferError(GLenum status)
     // NOTE: This is an approximation
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t size_total = 0;
         uint32_t size = tex->m_ResourceSize; // Size for mip 0
         for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)
@@ -3258,38 +3238,38 @@ static void LogFrameBufferError(GLenum status)
 
     static uint16_t OpenGLGetTextureWidth(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex->m_Width;
     }
 
     static uint16_t OpenGLGetTextureHeight(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex->m_Height;
     }
 
     static uint16_t OpenGLGetOriginalTextureWidth(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex->m_OriginalWidth;
     }
 
     static uint16_t OpenGLGetOriginalTextureHeight(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex->m_OriginalHeight;
     }
 
     static TextureType OpenGLGetTextureType(HTexture texture)
     {
-        OpenGLTexture* tex = &g_Context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex->m_Type;
     }
 
     static void OpenGLEnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         OpenGLContext* opengl_context = (OpenGLContext*) context;
-        OpenGLTexture* tex = &opengl_context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(opengl_context->m_AssetHandleContainer, texture);
         assert(id_index < tex->m_NumTextureIds);
 
 #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
@@ -3315,9 +3295,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 #endif
 
-        OpenGLContext* opengl_context = (OpenGLContext*) context;
-
-        OpenGLTexture* tex = &opengl_context->m_AssetHandleContainer.Get(texture)->m_Texture;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(((OpenGLContext*) context)->m_AssetHandleContainer, texture);
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;

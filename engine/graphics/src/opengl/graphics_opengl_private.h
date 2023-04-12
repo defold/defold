@@ -52,28 +52,6 @@ namespace dmGraphics
         uint32_t        m_DepthBufferBits;
     };
 
-    struct OpenGLSharedAsset
-    {
-        enum AssetType
-        {
-            ASSET_TYPE_TEXTURE,
-            ASSET_TYPE_RENDER_TARGET,
-        };
-
-        OpenGLSharedAsset()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        union
-        {
-            OpenGLTexture      m_Texture;
-            OpenGLRenderTarget m_RenderTarget;
-        };
-
-        AssetType m_Type;
-    };
-
     struct OpenGLContext
     {
         OpenGLContext(const ContextParams& params);
@@ -83,7 +61,7 @@ namespace dmGraphics
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
 
-        dmOpaqueHandleContainer<OpenGLSharedAsset> m_AssetHandleContainer;
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;

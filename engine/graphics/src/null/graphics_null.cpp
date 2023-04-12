@@ -894,20 +894,9 @@ namespace dmGraphics
     {
     }
 
-    static HOpaqueHandle StoreAssetInContainer(NullContext* null_context, NullSharedAsset* asset)
-    {
-        if (null_context->m_AssetHandleContainer.Full())
-        {
-            null_context->m_AssetHandleContainer.Allocate(8);
-        }
-        return null_context->m_AssetHandleContainer.Put(asset);
-    }
-
     static HRenderTarget NullNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        NullSharedAsset* rt_asset = new NullSharedAsset();
-        rt_asset->m_Type          = NullSharedAsset::ASSET_TYPE_RENDER_TARGET;
-        RenderTarget* rt          = &rt_asset->m_RenderTarget;
+        RenderTarget* rt          = new RenderTarget();
         NullContext* null_context = (NullContext*) context;
 
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {
@@ -956,8 +945,7 @@ namespace dmGraphics
                 {
                     rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
                     rt->m_ColorBufferTexture[i]             = NewTexture(context, creation_params[i]);
-
-                    Texture* attachment_tex = &null_context->m_AssetHandleContainer.Get(rt->m_ColorBufferTexture[i])->m_Texture;
+                    Texture* attachment_tex                 = GetAssetFromContainer<Texture>(null_context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
 
                     SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
                     *(buffers[i]) = attachment_tex->m_Data;
@@ -967,12 +955,12 @@ namespace dmGraphics
             }
         }
 
-        return StoreAssetInContainer(null_context, rt_asset);
+        return StoreAssetInContainer(null_context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
     static void NullDeleteRenderTarget(HRenderTarget render_target)
     {
-        RenderTarget* rt = &g_NullContext->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -986,17 +974,17 @@ namespace dmGraphics
         delete rt;
     }
 
-    static void NullSetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
+    static void NullSetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         (void) transient_buffer_types;
         assert(context);
 
         NullContext* null_context = (NullContext*) context;
-        RenderTarget* rt = &null_context->m_AssetHandleContainer.Get(rendertarget)->m_RenderTarget;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(null_context->m_AssetHandleContainer, render_target);
         null_context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
     }
 
-    static HTexture NullGetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
+    static HTexture NullGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
         if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT ||
              buffer_type == BUFFER_TYPE_COLOR1_BIT ||
@@ -1006,7 +994,7 @@ namespace dmGraphics
             return 0;
         }
 
-        RenderTarget* rt = &g_NullContext->m_AssetHandleContainer.Get(rendertarget)->m_RenderTarget;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
         return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
@@ -1015,14 +1003,14 @@ namespace dmGraphics
         assert(render_target);
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
-        RenderTarget* rt = &g_NullContext->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
         width = rt->m_BufferTextureParams[i].m_Width;
         height = rt->m_BufferTextureParams[i].m_Height;
     }
 
     static void NullSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        RenderTarget* rt = &g_NullContext->m_AssetHandleContainer.Get(render_target)->m_RenderTarget;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {
@@ -1058,7 +1046,7 @@ namespace dmGraphics
                     {
                         rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
                         SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
-                        Texture* tex = &g_NullContext->m_AssetHandleContainer.Get(rt->m_ColorBufferTexture[i])->m_Texture;
+                        Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
                         *(buffers[i]) = tex->m_Data;
                     }
                 } else {
@@ -1082,9 +1070,7 @@ namespace dmGraphics
     static HTexture NullNewTexture(HContext context, const TextureCreationParams& params)
     {
         NullContext* null_context  = (NullContext*) context;
-        NullSharedAsset* tex_asset = new NullSharedAsset();
-        tex_asset->m_Type          = NullSharedAsset::ASSET_TYPE_TEXTURE;
-        Texture* tex               = &tex_asset->m_Texture;
+        Texture* tex               = new Texture();
 
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
@@ -1100,12 +1086,12 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        return StoreAssetInContainer(null_context, tex_asset);
+        return StoreAssetInContainer(null_context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void NullDeleteTexture(HTexture texture)
     {
-        Texture* tex = &g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture;
+        Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         if (tex->m_Data != 0x0)
         {
@@ -1117,7 +1103,7 @@ namespace dmGraphics
     static HandleResult NullGetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
-        Texture* tex = &g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture;
+        Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
 
         if (!tex)
         {
@@ -1136,7 +1122,7 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
-        Texture* tex = &g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture;
+        Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Width));
         assert(!params.m_SubUpdate || (params.m_Y + params.m_Height <= tex->m_Height));
@@ -1163,7 +1149,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
-        Texture* tex = &g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture;
+        Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
 
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Format)/8);
@@ -1181,22 +1167,22 @@ namespace dmGraphics
 
     static uint16_t NullGetTextureWidth(HTexture texture)
     {
-        return g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture.m_Width;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Width;
     }
 
     static uint16_t NullGetTextureHeight(HTexture texture)
     {
-        return g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture.m_Height;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Height;
     }
 
     static uint16_t NullGetOriginalTextureWidth(HTexture texture)
     {
-        return g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture.m_OriginalWidth;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
     static uint16_t NullGetOriginalTextureHeight(HTexture texture)
     {
-        return g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture.m_OriginalHeight;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
     static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
@@ -1204,7 +1190,7 @@ namespace dmGraphics
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(((NullContext*) context)->m_AssetHandleContainer.Get(texture)->m_Texture.m_Data);
+        assert(GetAssetFromContainer<Texture>(((NullContext*) context)->m_AssetHandleContainer, texture)->m_Data);
         ((NullContext*) context)->m_Textures[unit] = texture;
     }
 
@@ -1386,7 +1372,7 @@ namespace dmGraphics
 
     static TextureType NullGetTextureType(HTexture texture)
     {
-        return g_NullContext->m_AssetHandleContainer.Get(texture)->m_Texture.m_Type;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Type;
     }
 
     static uint32_t NullGetNumSupportedExtensions(HContext context)

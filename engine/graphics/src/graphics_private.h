@@ -16,11 +16,15 @@
 #define DM_GRAPHICS_PRIVATE_H
 
 #include <stdint.h>
+#include <dlib/opaque_handle_container.h>
 #include "graphics.h"
 
 namespace dmGraphics
 {
     const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
+
+    // Decorated asset handle with 32 bits meta | 32 bits opaque handle
+    typedef uint64_t HAssetHandle;
 
     struct VertexStream
     {
@@ -43,6 +47,40 @@ namespace dmGraphics
     void SetForceFragmentReloadFail(bool should_fail);
     void SetForceVertexReloadFail(bool should_fail);
     bool IsTextureFormatCompressed(TextureFormat format);
+
+    static inline uint64_t MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
+    {
+        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
+        return ((uint64_t) asset_type) << 32 | opaque_handle;
+    }
+
+    static inline AssetType GetAssetType(uint64_t asset_handle)
+    {
+        return (AssetType) (asset_handle >> 32);
+    }
+
+    static inline HOpaqueHandle GetOpaqueHandle(uint64_t asset_handle)
+    {
+        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
+
+    template <typename T>
+    static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
+    {
+        if (container.Full())
+        {
+            container.Allocate(8);
+        }
+        HOpaqueHandle opaque_handle = container.Put((uintptr_t*) asset);
+        return MakeAssetHandle(opaque_handle, type);
+    }
+
+    template <typename T>
+    static inline T* GetAssetFromContainer(dmOpaqueHandleContainer<uintptr_t>& container, HAssetHandle asset_handle)
+    {
+        HOpaqueHandle opaque_handle = GetOpaqueHandle(asset_handle);
+        return (T*) container.Get(opaque_handle);
+    }
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

@@ -70,6 +70,13 @@ namespace dmGraphics
         ADAPTER_TYPE_VULKAN,
     };
 
+    enum AssetType
+    {
+        ASSET_TYPE_NONE          = 0,
+        ASSET_TYPE_TEXTURE       = 1,
+        ASSET_TYPE_RENDER_TARGET = 2,
+    };
+
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
     {

@@ -26,6 +26,7 @@ namespace dmGraphics
     const static uint8_t DM_MAX_SET_COUNT              = 2;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
+    static const uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
 
     enum VulkanResourceType
     {
@@ -344,28 +345,19 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    // In flight frames - number of concurrent frames being processed
-    static const uint8_t g_max_frames_in_flight       = 2;
-
-    struct VulkanSharedAsset
-    {
-        void*              m_Asset;
-        VulkanResourceType m_Type;
-    };
-
     struct VulkanContext
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
         HTexture                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        dmOpaqueHandleContainer<VulkanSharedAsset> m_AssetHandleContainer;
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                   m_PipelineCache;
         PipelineState                   m_PipelineState;
         SwapChain*                      m_SwapChain;
         SwapChainCapabilities           m_SwapChainCapabilities;
         PhysicalDevice                  m_PhysicalDevice;
         LogicalDevice                   m_LogicalDevice;
-        FrameResource                   m_FrameResources[g_max_frames_in_flight];
+        FrameResource                   m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
         VkInstance                      m_Instance;
         VkSurfaceKHR                    m_WindowSurface;
         dmArray<TextureSampler>         m_TextureSamplers;
@@ -521,7 +513,7 @@ namespace dmGraphics
     int OnWindowClose();
     void OnWindowFocus(int focus);
 
-    inline void SynchronizeDevice(VkDevice vk_device)
+    static inline void SynchronizeDevice(VkDevice vk_device)
     {
         vkDeviceWaitIdle(vk_device);
     }
@@ -559,19 +551,5 @@ namespace dmGraphics
     void         VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
     void         VulkanIconifyWindow(HContext context);
     uint32_t     VulkanGetWindowState(HContext context, WindowState state);
-
-    static inline Texture* VulkanTextureFromhandle(VulkanContext* context, HTexture texture)
-    {
-        VulkanSharedAsset* asset = context->m_AssetHandleContainer.Get(texture);
-        assert(asset->m_Type == RESOURCE_TYPE_TEXTURE);
-        return (Texture*) asset->m_Asset;
-    }
-
-    static inline RenderTarget* VulkanRenderTargetFromhandle(VulkanContext* context, HRenderTarget render_target)
-    {
-        VulkanSharedAsset* asset = context->m_AssetHandleContainer.Get(render_target);
-        assert(asset->m_Type == RESOURCE_TYPE_RENDER_TARGET);
-        return (RenderTarget*) asset->m_Asset;
-    }
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

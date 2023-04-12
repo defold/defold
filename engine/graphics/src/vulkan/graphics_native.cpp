@@ -238,7 +238,7 @@ namespace dmGraphics
                 FlushResourcesToDestroy(vk_device, g_VulkanContext->m_MainResourcesToDestroy[i]);
             }
 
-            for (size_t i = 0; i < g_max_frames_in_flight; i++) {
+            for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
                 FrameResource& frame_resource = g_VulkanContext->m_FrameResources[i];
                 vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
                 vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
