@@ -306,14 +306,18 @@ public class HTML5Bundler implements IBundler {
         }
 
         // Copy debug symbols if they were generated
+        String symbolsName = "dmengine.js.symbols";
+        if (variant.equals(Bob.VARIANT_RELEASE)) {
+            symbolsName = "dmengine_release.js.symbols";
+        }
         String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
-        File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        File bundleSymbols = new File(zipDir, symbolsName);
         if (!bundleSymbols.exists()) {
             zipDir = FilenameUtils.concat(extenderExeDir, Platform.WasmWeb.getExtenderPair());
-            bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+            bundleSymbols = new File(zipDir, symbolsName);
         }
         if (bundleSymbols.exists()) {
-            File symbolsOut = new File(appDir, enginePrefix + ".symbols");
+            File symbolsOut = new File(appDir.getParentFile(), enginePrefix + ".symbols");
             FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 
