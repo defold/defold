@@ -19,6 +19,20 @@
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 
+/*****************************************************************************************************************
+ * JG: When we update to newer MVK we need to do these changes to get validation layers to work (for MVK at least):
+ * in g_extension_names:
+ *   - add VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+ * use this validation layer:
+ *   - static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
+ * add this in g_validation_layer_ext:
+ *   - VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+ * in vulkan_graphics, we need to add these:
+ *   - device_extensions.OffsetCapacity(2);
+ *   - device_extensions.Push("VK_KHR_portability_subset");
+ *   - device_extensions.Push("VK_KHR_get_physical_device_properties2");
+ *****************************************************************************************************************/
+
 namespace dmGraphics
 {
     static const char*   g_extension_names[] = {
@@ -32,18 +46,16 @@ namespace dmGraphics
         VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_MACOS_MVK)
         VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
-        // VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_METAL_EXT)
         VK_EXT_METAL_SURFACE_EXTENSION_NAME,
     #endif
     };
-    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
-    // static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
-    static const char* g_validation_layers[1];
-    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME }; // , VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME };
 
+    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
+    static const char* g_validation_layers[1];
+    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
     extern VulkanContext* g_VulkanContext;
 

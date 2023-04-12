@@ -979,10 +979,6 @@ namespace dmGraphics
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
         }
-
-        // device_extensions.OffsetCapacity(2);
-        // device_extensions.Push("VK_KHR_portability_subset");
-        // device_extensions.Push("VK_KHR_get_physical_device_properties2");
     #endif
 
         res = CreateLogicalDevice(selected_device, vulkan_context->m_WindowSurface, selected_queue_family,

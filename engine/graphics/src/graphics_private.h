@@ -48,18 +48,18 @@ namespace dmGraphics
     void SetForceVertexReloadFail(bool should_fail);
     bool IsTextureFormatCompressed(TextureFormat format);
 
-    static inline uint64_t MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
+    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
     {
         assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
         return ((uint64_t) asset_type) << 32 | opaque_handle;
     }
 
-    static inline AssetType GetAssetType(uint64_t asset_handle)
+    static inline AssetType GetAssetType(HAssetHandle asset_handle)
     {
         return (AssetType) (asset_handle >> 32);
     }
 
-    static inline HOpaqueHandle GetOpaqueHandle(uint64_t asset_handle)
+    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
     {
         return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
     }
