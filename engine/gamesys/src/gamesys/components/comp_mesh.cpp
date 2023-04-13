@@ -1075,7 +1075,7 @@ namespace dmGameSystem
                 {
                     dmGraphics::HTexture texture = GetTexture(component, component->m_Resource, i);
 
-                    if (texture == (size_t) params.m_Resource->m_Resource)
+                    if (texture == (uintptr_t) params.m_Resource->m_Resource)
                     {
                         component->m_ReHash = 1;
                         break;
