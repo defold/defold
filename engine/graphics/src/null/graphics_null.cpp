@@ -402,23 +402,6 @@ namespace dmGraphics
             memcpy(&(vb->m_Buffer)[offset], data, size);
     }
 
-    static void* NullMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        vb->m_Copy = new char[vb->m_Size];
-        memcpy(vb->m_Copy, vb->m_Buffer, vb->m_Size);
-        return vb->m_Copy;
-    }
-
-    static bool NullUnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
-        delete [] vb->m_Copy;
-        vb->m_Copy = 0x0;
-        return true;
-    }
-
     static uint32_t NullGetMaxElementsVertices(HContext context)
     {
         return 65536;
@@ -460,23 +443,6 @@ namespace dmGraphics
         IndexBuffer* ib = (IndexBuffer*)buffer;
         if (offset + size <= ib->m_Size && data != 0x0)
             memcpy(&(ib->m_Buffer)[offset], data, size);
-    }
-
-    static void* NullMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        ib->m_Copy = new char[ib->m_Size];
-        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
-        return ib->m_Copy;
-    }
-
-    static bool NullUnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
-        delete [] ib->m_Copy;
-        ib->m_Copy = 0x0;
-        return true;
     }
 
     static bool NullIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1398,7 +1364,9 @@ namespace dmGraphics
         return true;
     }
 
-    // For unit tests only
+    ////////////////////////////////
+    // UNIT TEST FUNCTIONS
+    ////////////////////////////////
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         AssetType type = GetAssetType(asset_handle);
@@ -1413,17 +1381,44 @@ namespace dmGraphics
         return false;
     }
 
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        IndexBuffer* ib = (IndexBuffer*)buffer;
+        ib->m_Copy = new char[ib->m_Size];
+        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
+        return ib->m_Copy;
+    }
+
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        IndexBuffer* ib = (IndexBuffer*)buffer;
+        memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
+        delete [] ib->m_Copy;
+        ib->m_Copy = 0x0;
+        return true;
+    }
+
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        VertexBuffer* vb = (VertexBuffer*)buffer;
+        vb->m_Copy = new char[vb->m_Size];
+        memcpy(vb->m_Copy, vb->m_Buffer, vb->m_Size);
+        return vb->m_Copy;
+    }
+
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        VertexBuffer* vb = (VertexBuffer*)buffer;
+        memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
+        delete [] vb->m_Copy;
+        vb->m_Copy = 0x0;
+        return true;
+    }
+
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Null);
-
-        // Add test functions
-        fn_table.m_MapVertexBuffer    = NullMapVertexBuffer;
-        fn_table.m_UnmapVertexBuffer  = NullUnmapVertexBuffer;
-        fn_table.m_MapIndexBuffer     = NullMapIndexBuffer;
-        fn_table.m_UnmapIndexBuffer   = NullUnmapIndexBuffer;
-
         return fn_table;
     }
 }

@@ -48,8 +48,13 @@ namespace dmGraphics
     void SetForceVertexReloadFail(bool should_fail);
     bool IsTextureFormatCompressed(TextureFormat format);
 
-    // For tests
-    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+    // Test functions:
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HVertexBuffer buffer);
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HIndexBuffer buffer);
+    bool  IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+    // <- end test functions
 
     static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
     {
