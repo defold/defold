@@ -61,7 +61,7 @@
 
 (defn- start-tree-update-timer! [tree-views progress-indicators results-fn]
   (let [timer (ui/->timer 5 "tree-update-timer"
-                          (fn [^AnimationTimer timer elapsed-time]
+                          (fn [^AnimationTimer timer elapsed-time _]
                             ;; Delay showing the progress indicator a bit to avoid flashing for
                             ;; searches that complete quickly.
                             (when (< 0.2 elapsed-time)

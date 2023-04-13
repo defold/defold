@@ -1942,7 +1942,7 @@ command."
                                      (when (or (nil? interval) (> delta interval))
                                        (run-later
                                          (try
-                                           (tick-fn this (* elapsed 1e-9))
+                                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
                                            (reset! last (- now (if interval
                                                                  (- delta interval)
                                                                  0)))

@@ -1558,7 +1558,7 @@
                     g/tx-nodes-added
                     first)
         repaint-timer (ui/->timer 30 "refresh-form-view"
-                                  (fn [_timer _elapsed]
+                                  (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
     (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)
