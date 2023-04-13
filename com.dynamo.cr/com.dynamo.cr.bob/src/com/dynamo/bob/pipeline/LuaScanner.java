@@ -24,6 +24,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -47,6 +49,7 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class LuaScanner extends LuaParserBaseListener {
 
@@ -77,6 +80,11 @@ public class LuaScanner extends LuaParserBaseListener {
             "jit"               // LuaJIT
         }
     ));
+
+    private static final Map<Integer, String> QUOTES = new HashMap<Integer, String>() {{
+        put(LuaParser.NORMALSTRING, "\"");
+        put(LuaParser.CHARSTRING, "'");
+    }};
 
     private static Pattern propertyDeclPattern = Pattern.compile("go.property\\s*?\\((.*?)\\);?(\\s*?--.*?)?$");
     private static Pattern propertyArgsPattern = Pattern.compile("[\"'](.*?)[\"']\\s*,(.*)");
@@ -217,6 +225,22 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
+    // returns first function argument only if it's a string, otherwise null
+    private String getFirstStringArg(LuaParser.FunctioncallContext ctx) {
+        LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
+        ParserRuleContext firstCtx = argsCtx.getRuleContext(ParserRuleContext.class, 0);
+        if (firstCtx.getRuleIndex() == LuaParser.RULE_explist)
+        {
+            firstCtx = ((LuaParser.ExplistContext)firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
+        }
+        if (firstCtx.getRuleIndex() != LuaParser.RULE_lstring)
+        {
+            return null;
+        }
+        Token initialToken = firstCtx.getStart();
+        return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
+    }
+
     /**
      * Callback from ANTLR when a Lua chunk is encountered. We start from the
      * main chunk when we call parse() above. This means that the ChunkContext
@@ -235,75 +259,62 @@ public class LuaScanner extends LuaParserBaseListener {
         TimeProfiler.stop();
     }
 
+    private void logWarning(String fmt, Object... args) {
+        System.err.println(String.format(fmt, args));
+    }
+
     /**
      * Callback from ANTLR when a function is entered. We use this to grab all
      * require() calls and all go.property() calls.
      */
     @Override
     public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
-        TimeProfiler.start("Lua Function Parser");
-        String text = ctx.getText();
-        // require() call?
-        final boolean startsWithRequire = text.startsWith("require");
-        final boolean startsWithGlobalRequire = text.startsWith("_G.require");
-        if (startsWithRequire || startsWithGlobalRequire) {
-            TimeProfiler.start("Lua Function Require Parser");
-            List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-            // in case of _G.require:
-            // - token 0 is _G
-            // - token 1 is .
-            // - token 3 is the require function
-            //
-            // in case of require:
-            // - token 0 is the require function
-            //
-            // next token is either the first token of the require argument or the
-            // parenthesis
-            // if it is a parenthesis we make sure to skip over both the start
-            // and end parenthesis
-            int startIndex = startsWithRequire ? 1 : 3;
-            int endIndex = tokens.size() - 1;
-            if (tokens.get(startIndex).getText().equals("(")) {
-                startIndex++;
-
-                // find matching right parenthesis
-                int open = 1;
-                for (int i=startIndex; i<=endIndex; i++) {
-                    String token = tokens.get(i).getText();
-                    if (token.equals(")")) {
-                        open = open - 1;
-                        if (open == 0) {
-                            endIndex = i - 1;
-                            break;
-                        }
-                    }
-                    else if (token.equals("(")) {
-                        open = open + 1;
-                    }
-                }
-            }
-
-            // get the module name from the individual tokens
-            String module = "";
-            for (int i=startIndex; i<=endIndex; i++) {
-                module += tokens.get(i).getText();
-            }
-
-            // check that it is a string and not a variable
-            // remove the single or double quotes around the string
-            if (module.startsWith("\"") || module.startsWith("'")) {
-                module = module.replace("\"", "").replace("'", "");
-                // ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
-                // and also don't add the same module twice
-                if (!LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
-                    modules.add(module);
-                }
-            }
-            TimeProfiler.stop();
+        LuaParser.VariableContext variableCtx = ctx.variable();
+        // simple function call, like `require()`
+        String varName = null;
+        if(variableCtx.getClass() == LuaParser.NamedvariableContext.class) {
+            varName = ((LuaParser.NamedvariableContext)variableCtx).NAME().getText();
         }
+
+        // indexed function call, like `_G.require()` or `go.property()` where 
+        // `indexVar` is `go` and `indexName` is `property`
+        String indexName = null;
+        String indexVar = null;
+        if(variableCtx.getClass() == LuaParser.IndexContext.class) {
+            LuaParser.IndexContext indexVariableCtx = (LuaParser.IndexContext)variableCtx;
+            TerminalNode nameNode = indexVariableCtx.NAME();
+            if (nameNode != null) {
+                indexName = nameNode.getText();
+            }
+            indexVar = indexVariableCtx.variable().getText();
+        }
+
+        final String functionName = (indexName == null) ?  varName : indexName;
+
+        if (functionName == null) {
+            return;
+        }
+
+        switch(functionName) {
+            case "require":
+                String module = getFirstStringArg(ctx);
+                if (module != null) {
+                    if (!LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
+                        modules.add(module);
+                    }
+                }
+                break;
+            case "property":
+                if (indexVar != null && indexVar.equals("go")) {
+                    logWarning("go.property: %s", getFirstStringArg(ctx));
+                }
+                break;
+        }
+
         // go.property() call?
-        else if (text.startsWith("go.property")) {
-            TimeProfiler.start("Lua Function Property Parser");
+        String text = ctx.getText();
+        logWarning("--text FunctioncallContext %s", text);
+        if (text.startsWith("go.property")) {
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             Property property = parseProperty(text, tokens.get(0).getLine() - 1);
             if (property != null) {
@@ -313,12 +324,8 @@ public class LuaScanner extends LuaParserBaseListener {
             for (Token token : tokens) {
                 removeToken(token);
             }
-            TimeProfiler.stop();
         }
-        TimeProfiler.stop();
     }
-
-
 
     private static Property parseProperty(String propString, int line) {
         TimeProfiler.start("parseProperty");
