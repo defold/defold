@@ -120,7 +120,6 @@ namespace dmGraphics
             bool layer_found = false;
             for(uint32_t layer_index=0; layer_index < vk_layer_count; ++layer_index)
             {
-                // dmLogInfo("layer: %s", vk_layer_properties[layer_index].layerName);
                 if (strcmp(vk_layer_properties[layer_index].layerName, validationLayers[ext]) == 0)
                 {
                     layer_found = true;
@@ -207,7 +206,6 @@ namespace dmGraphics
         vk_instance_create_info.ppEnabledExtensionNames = vk_required_extensions.Begin();
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
         vk_instance_create_info.ppEnabledLayerNames     = validationLayers;
-        // vk_instance_create_info.flags                   = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
         VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)

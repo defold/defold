@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,13 +24,15 @@
  * in g_extension_names:
  *   - add VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
  * use this validation layer:
- *   - static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
+ *   - static const char* DM_VULKAN_LAYER_VALIDATION = "VK_LAYER_KHRONOS_validation";
  * add this in g_validation_layer_ext:
  *   - VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
  * in vulkan_graphics, we need to add these:
  *   - device_extensions.OffsetCapacity(2);
  *   - device_extensions.Push("VK_KHR_portability_subset");
  *   - device_extensions.Push("VK_KHR_get_physical_device_properties2");
+ * in graphics_vulkan_context, need this flag:
+ *   - vk_instance_create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
  *****************************************************************************************************************/
 
 namespace dmGraphics
@@ -141,10 +143,9 @@ namespace dmGraphics
         }
     }
 
-    uint32_t VulkanGetWindowRefreshRate(HContext context)
+    uint32_t VulkanGetWindowRefreshRate(HContext _context)
     {
-        assert(g_VulkanContext == (VulkanContext*) context);
-        if (g_VulkanContext->m_WindowOpened)
+        if (((VulkanContext*) _context)->m_WindowOpened)
         {
             return glfwGetWindowRefreshRate();
         }
@@ -154,9 +155,10 @@ namespace dmGraphics
         }
     }
 
-    WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
+    WindowResult VulkanOpenWindow(HContext _context, WindowParams* params)
     {
-        assert(g_VulkanContext->m_WindowSurface == VK_NULL_HANDLE);
+        VulkanContext* context = (VulkanContext*) _context;
+        assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
@@ -183,103 +185,103 @@ namespace dmGraphics
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
 
-        g_VulkanContext->m_WindowOpened                  = 1;
-        g_VulkanContext->m_Width                         = params->m_Width;
-        g_VulkanContext->m_Height                        = params->m_Height;
-        g_VulkanContext->m_WindowWidth                   = g_VulkanContext->m_SwapChain->m_ImageExtent.width;
-        g_VulkanContext->m_WindowHeight                  = g_VulkanContext->m_SwapChain->m_ImageExtent.height;
-        g_VulkanContext->m_WindowResizeCallback          = params->m_ResizeCallback;
-        g_VulkanContext->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
-        g_VulkanContext->m_WindowCloseCallback           = params->m_CloseCallback;
-        g_VulkanContext->m_WindowCloseCallbackUserData   = params->m_CloseCallbackUserData;
-        g_VulkanContext->m_WindowFocusCallback           = params->m_FocusCallback;
-        g_VulkanContext->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
-        g_VulkanContext->m_WindowIconifyCallback         = params->m_IconifyCallback;
-        g_VulkanContext->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
-        g_VulkanContext->m_CurrentRenderTarget           = g_VulkanContext->m_MainRenderTarget;
+        context->m_WindowOpened                  = 1;
+        context->m_Width                         = params->m_Width;
+        context->m_Height                        = params->m_Height;
+        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
+        context->m_WindowResizeCallback          = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback           = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData   = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback           = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
+        context->m_WindowIconifyCallback         = params->m_IconifyCallback;
+        context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
+        context->m_CurrentRenderTarget           = context->m_MainRenderTarget;
 
         return WINDOW_RESULT_OK;
     }
 
-    void VulkanCloseWindow(HContext context)
+    void VulkanCloseWindow(HContext _context)
     {
-        assert(g_VulkanContext == (VulkanContext*) context);
-        if (g_VulkanContext->m_WindowOpened)
+        VulkanContext* context = (VulkanContext*) _context;
+        if (context->m_WindowOpened)
         {
-            VkDevice vk_device = g_VulkanContext->m_LogicalDevice.m_Device;
+            VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
             SynchronizeDevice(vk_device);
 
             glfwCloseWindow();
 
-            g_VulkanContext->m_PipelineCache.Iterate(DestroyPipelineCacheCb, g_VulkanContext);
+            context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, g_VulkanContext);
 
-            DestroyDeviceBuffer(vk_device, &g_VulkanContext->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
-            DestroyTexture(vk_device, &g_VulkanContext->m_MainTextureDepthStencil.m_Handle);
-            DestroyTexture(vk_device, &g_VulkanContext->m_DefaultTexture2D->m_Handle);
-            DestroyTexture(vk_device, &g_VulkanContext->m_DefaultTexture2DArray->m_Handle);
-            DestroyTexture(vk_device, &g_VulkanContext->m_DefaultTextureCubeMap->m_Handle);
+            DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
+            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
 
-            vkDestroyRenderPass(vk_device, g_VulkanContext->m_MainRenderPass, 0);
+            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
-            vkFreeCommandBuffers(vk_device, g_VulkanContext->m_LogicalDevice.m_CommandPool, g_VulkanContext->m_MainCommandBuffers.Size(), g_VulkanContext->m_MainCommandBuffers.Begin());
-            vkFreeCommandBuffers(vk_device, g_VulkanContext->m_LogicalDevice.m_CommandPool, 1, &g_VulkanContext->m_MainCommandBufferUploadHelper);
+            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
+            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
-            for (uint8_t i=0; i < g_VulkanContext->m_MainFrameBuffers.Size(); i++)
+            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
             {
-                vkDestroyFramebuffer(vk_device, g_VulkanContext->m_MainFrameBuffers[i], 0);
+                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
             }
 
-            for (uint8_t i=0; i < g_VulkanContext->m_TextureSamplers.Size(); i++)
+            for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
             {
-                DestroyTextureSampler(vk_device, &g_VulkanContext->m_TextureSamplers[i]);
+                DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
             }
 
-            for (uint8_t i=0; i < g_VulkanContext->m_MainScratchBuffers.Size(); i++)
+            for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
             {
-                DestroyDeviceBuffer(vk_device, &g_VulkanContext->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
+                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
             }
 
-            for (uint8_t i=0; i < g_VulkanContext->m_MainDescriptorAllocators.Size(); i++)
+            for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
             {
-                DestroyDescriptorAllocator(vk_device, &g_VulkanContext->m_MainDescriptorAllocators[i].m_Handle);
+                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
             }
 
-            for (uint8_t i=0; i < g_VulkanContext->m_MainCommandBuffers.Size(); i++)
+            for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
             {
-                FlushResourcesToDestroy(vk_device, g_VulkanContext->m_MainResourcesToDestroy[i]);
+                FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
             }
 
             for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
-                FrameResource& frame_resource = g_VulkanContext->m_FrameResources[i];
+                FrameResource& frame_resource = context->m_FrameResources[i];
                 vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
                 vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
                 vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
 
-            DestroySwapChain(vk_device, g_VulkanContext->m_SwapChain);
-            DestroyLogicalDevice(&g_VulkanContext->m_LogicalDevice);
-            DestroyPhysicalDevice(&g_VulkanContext->m_PhysicalDevice);
+            DestroySwapChain(vk_device, context->m_SwapChain);
+            DestroyLogicalDevice(&context->m_LogicalDevice);
+            DestroyPhysicalDevice(&context->m_PhysicalDevice);
 
-            vkDestroySurfaceKHR(g_VulkanContext->m_Instance, g_VulkanContext->m_WindowSurface, 0);
+            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
-            DestroyInstance(&g_VulkanContext->m_Instance);
+            DestroyInstance(&context->m_Instance);
 
-            g_VulkanContext->m_WindowOpened = 0;
+            context->m_WindowOpened = 0;
 
-            if (g_VulkanContext->m_DynamicOffsetBuffer)
+            if (context->m_DynamicOffsetBuffer)
             {
-                free(g_VulkanContext->m_DynamicOffsetBuffer);
+                free(context->m_DynamicOffsetBuffer);
             }
 
-            DestroyTexture(vk_device, &g_VulkanContext->m_SwapChain->m_ResolveTexture->m_Handle);
-            delete g_VulkanContext->m_SwapChain;
+            DestroyTexture(vk_device, &context->m_SwapChain->m_ResolveTexture->m_Handle);
+            delete context->m_SwapChain;
         }
     }
 
     void VulkanIconifyWindow(HContext context)
     {
-        if (g_VulkanContext->m_WindowOpened)
+        if (((VulkanContext*) context)->m_WindowOpened)
         {
             glfwIconifyWindow();
         }
@@ -287,7 +289,7 @@ namespace dmGraphics
 
     uint32_t VulkanGetWindowState(HContext context, WindowState state)
     {
-        if (g_VulkanContext->m_WindowOpened)
+        if (((VulkanContext*) context)->m_WindowOpened)
         {
             return glfwGetWindowParam(state);
         }
@@ -304,22 +306,22 @@ namespace dmGraphics
 
     uint32_t VulkanGetWidth(HContext context)
     {
-        return g_VulkanContext->m_Width;
+        return ((VulkanContext*) context)->m_Width;
     }
 
     uint32_t VulkanGetHeight(HContext context)
     {
-        return g_VulkanContext->m_Height;
+        return ((VulkanContext*) context)->m_Height;
     }
 
     uint32_t VulkanGetWindowWidth(HContext context)
     {
-        return g_VulkanContext->m_WindowWidth;
+        return ((VulkanContext*) context)->m_WindowWidth;
     }
 
     uint32_t VulkanGetWindowHeight(HContext context)
     {
-        return g_VulkanContext->m_WindowHeight;
+        return ((VulkanContext*) context)->m_WindowHeight;
     }
 
     float VulkanGetDisplayScaleFactor(HContext context)
@@ -335,31 +337,33 @@ namespace dmGraphics
         *height = h;
     }
 
-    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
+    void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
-        if (g_VulkanContext->m_WindowOpened)
+        VulkanContext* context = (VulkanContext*) _context;
+
+        if (context->m_WindowOpened)
         {
-            g_VulkanContext->m_Width  = width;
-            g_VulkanContext->m_Height = height;
+            context->m_Width  = width;
+            context->m_Height = height;
             glfwSetWindowSize((int)width, (int)height);
             int window_width, window_height;
             glfwGetWindowSize(&window_width, &window_height);
-            g_VulkanContext->m_WindowWidth  = window_width;
-            g_VulkanContext->m_WindowHeight = window_height;
+            context->m_WindowWidth  = window_width;
+            context->m_WindowHeight = window_height;
 
-            SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
+            SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
 
             // The callback is not called from glfw when the size is set manually
-            if (g_VulkanContext->m_WindowResizeCallback)
+            if (context->m_WindowResizeCallback)
             {
-                g_VulkanContext->m_WindowResizeCallback(g_VulkanContext->m_WindowResizeCallbackUserData, window_width, window_height);
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
             }
         }
     }
 
     void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
-        if (g_VulkanContext->m_WindowOpened)
+        if (((VulkanContext*) context)->m_WindowOpened)
         {
             VulkanSetWindowSize(context, width, height);
         }
