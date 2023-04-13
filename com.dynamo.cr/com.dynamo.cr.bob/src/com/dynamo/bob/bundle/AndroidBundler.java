@@ -36,8 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.security.KeyStore;
@@ -52,6 +50,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -75,12 +74,10 @@ public class AndroidBundler implements IBundler {
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
     }
 
-    private static void log(String s) { logger.log(Level.INFO, s); }
-
     private static void logResourceMap(Map<String, IResource> map) {
         for (String key : map.keySet()) {
             IResource value = map.get(key);
-            log("key = " + key + " value = " + value);
+            logger.info("key = " + key + " value = " + value);
         }
     }
 
@@ -114,7 +111,7 @@ public class AndroidBundler implements IBundler {
     }
 
     private static Result exec(List<String> args) throws IOException {
-        log("exec: " + String.join(" ", args));
+        logger.info("exec: " + String.join(" ", args));
         Map<String, String> env = new HashMap<String, String>();
         if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
             env.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
@@ -311,7 +308,7 @@ public class AndroidBundler implements IBundler {
                 }
             }
             else {
-                log("Using extender binary for architecture: " + architecture.toString());
+                logger.info("Using extender binary for architecture: " + architecture.toString());
                 if (classesDex.isEmpty()) {
                     int i = 1;
                     while(true) {
@@ -381,7 +378,7 @@ public class AndroidBundler implements IBundler {
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
     private static File compileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
-        log("Compiling resources from " + androidResDir.getAbsolutePath());
+        logger.info("Compiling resources from " + androidResDir.getAbsolutePath());
         try {
             // compile the resources using aapt2 to flat format files
             File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
@@ -397,11 +394,11 @@ public class AndroidBundler implements IBundler {
                 args.add("-o"); args.add(compiledResourceDir.getAbsolutePath());
                 args.add("--dir"); args.add(packageDir.getAbsolutePath());
 
-                log("Compiling " + packageDir.getAbsolutePath() + " to " + compiledResourceDir.getAbsolutePath());
+                logger.info("Compiling " + packageDir.getAbsolutePath() + " to " + compiledResourceDir.getAbsolutePath());
                 Result res = exec(args);
                 if (res.ret != 0) {
                     String stdout = new String(res.stdOutErr, StandardCharsets.UTF_8);
-                    log("Failed compiling " + compiledResourceDir.getAbsolutePath() + ", code: " + res.ret + ", error: " + stdout);
+                    logger.info("Failed compiling " + compiledResourceDir.getAbsolutePath() + ", code: " + res.ret + ", error: " + stdout);
                     throw new IOException(stdout);
                 }
                 BundleHelper.throwIfCanceled(canceled);
@@ -419,7 +416,7 @@ public class AndroidBundler implements IBundler {
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
     private static File linkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
-        log("Linking resources from " + compiledResourcesDir.getAbsolutePath());
+        logger.info("Linking resources from " + compiledResourcesDir.getAbsolutePath());
         try {
             File aabDir = new File(outDir, "aab");
             File apkDir = createDir(aabDir, "aapt2/apk");
@@ -467,7 +464,7 @@ public class AndroidBundler implements IBundler {
     * https://developer.android.com/studio/build/building-cmdline#package_pre-compiled_code_and_resources
     */
     private static File createAppBundleBaseZip(Project project, File outDir, File apk, ICanceled canceled) throws CompileExceptionError {
-        log("Creating AAB base.zip");
+        logger.info("Creating AAB base.zip");
         try {
             File aabDir = new File(outDir, "aab");
 
@@ -491,7 +488,7 @@ public class AndroidBundler implements IBundler {
             // copy classes.dex
             ArrayList<File> classesDex = getClassesDex(project);
             for (File classDex : classesDex) {
-                log("Copying dex to " + classDex);
+                logger.info("Copying dex to " + classDex);
                 FileUtils.copyFile(classDex, new File(dexDir, classDex.getName()));
                 BundleHelper.throwIfCanceled(canceled);
             }
@@ -520,7 +517,7 @@ public class AndroidBundler implements IBundler {
                 else  {
                     file = new File(rootDir, filename);
                 }
-                log("Copying resource '" + filename + "' to " + file);
+                logger.info("Copying resource '" + filename + "' to " + file);
                 ExtenderUtil.writeResourceToFile(resource, file);
                 BundleHelper.throwIfCanceled(canceled);
             }
@@ -530,7 +527,7 @@ public class AndroidBundler implements IBundler {
                 for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                     File source = new File(buildDir, name);
                     File dest = new File(assetsDir, name);
-                    log("Copying asset " + source + " to " + dest);
+                    logger.info("Copying asset " + source + " to " + dest);
                     FileUtils.copyFile(source, dest);
                     BundleHelper.throwIfCanceled(canceled);
                 }
@@ -538,7 +535,7 @@ public class AndroidBundler implements IBundler {
             // copy assets from extender (from resolved gradle dependencies)
             for(File asset : getExtenderAssets(project)) {
                 File dest = new File(assetsDir, asset.getName());
-                log("Copying asset " + asset + " to " + dest);
+                logger.info("Copying asset " + asset + " to " + dest);
                 if (asset.isDirectory()) {
                     FileUtils.copyDirectory(asset, dest);
                 }
@@ -549,7 +546,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // copy resources
-            log("Copying resources to " + resDir);
+            logger.info("Copying resources to " + resDir);
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
             BundleHelper.throwIfCanceled(canceled);
 
@@ -558,7 +555,7 @@ public class AndroidBundler implements IBundler {
             for (Platform architecture : getArchitectures(project)) {
                 File architectureDir = createDir(libDir, platformToLibMap.get(architecture));
                 File dest = new File(architectureDir, "lib" + exeName + ".so");
-                log("Copying engine to " + dest);
+                logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest);
                 BundleHelper.throwIfCanceled(canceled);
             }
@@ -580,7 +577,7 @@ public class AndroidBundler implements IBundler {
                         File architectureDir = new File(jniDir, architectureLibName);
                         if (architectureDir.exists()) {
                             File dest = new File(libDir, architectureLibName);
-                            log("Copying shared library dir " + architectureDir + " to " + dest);
+                            logger.info("Copying shared library dir " + architectureDir + " to " + dest);
                             FileUtils.copyDirectory(architectureDir, dest);
                         }
                     }
@@ -589,7 +586,7 @@ public class AndroidBundler implements IBundler {
 
             // create base.zip
             File baseZip = new File(aabDir, "base.zip");
-            log("Zipping " + baseDir + " to " + baseZip);
+            logger.info("Zipping " + baseDir + " to " + baseZip);
             if (baseZip.exists()) {
                 baseZip.delete();
             }
@@ -609,7 +606,7 @@ public class AndroidBundler implements IBundler {
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
     */
     private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
-        log("Creating Android Application Bundle");
+        logger.info("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
             File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
@@ -644,7 +641,7 @@ public class AndroidBundler implements IBundler {
     * Sign file using jarsigner and keystore
     */
     private static void signFile(Project project, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
-        log("Sign " + signFile);
+        logger.info("Sign " + signFile);
         BundleHelper.throwIfCanceled(canceled);
 
         String keystore = getKeystore(project);
@@ -685,7 +682,7 @@ public class AndroidBundler implements IBundler {
             }
             File exe = bundleExe.get(0);
             File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
-            log("Copy debug symbols " + symbolExe);
+            logger.info("Copy debug symbols " + symbolExe);
             BundleHelper.throwIfCanceled(canceled);
             FileUtils.copyFile(exe, symbolExe);
         }
@@ -703,7 +700,7 @@ public class AndroidBundler implements IBundler {
     * Cleanup bundle folder from intermediate folders and artifacts.
     */
     private static void cleanupBundleFolder(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        log("Cleanup bundle folder");
+        logger.info("Cleanup bundle folder");
         BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(new File(outDir, "aab"));
@@ -759,7 +756,7 @@ public class AndroidBundler implements IBundler {
      * configurations the app supports.
      */
     private static File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        log("Creating universal APK set");
+        logger.info("Creating universal APK set");
         String keystore = getKeystore(project);
         String keystorePasswordFile = getKeystorePasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
@@ -807,7 +804,7 @@ public class AndroidBundler implements IBundler {
      * Extract the universal APK from an APK set
      */
     private static File extractUniversalApk(File apks, File outDir, ICanceled canceled) throws IOException {
-        log("Extracting universal APK from APK set");
+        logger.info("Extracting universal APK from APK set");
         File apksDir = createDir(outDir, "apks");
         BundleHelper.unzip(new FileInputStream(apks), apksDir.toPath());
 
