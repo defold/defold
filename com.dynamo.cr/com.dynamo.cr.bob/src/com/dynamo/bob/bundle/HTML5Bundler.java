@@ -32,8 +32,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -45,6 +43,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -260,7 +260,7 @@ public class HTML5Bundler implements IBundler {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for Asm.js");
+                logger.info("Using extender binary for Asm.js");
             }
             ;
         }
@@ -274,7 +274,7 @@ public class HTML5Bundler implements IBundler {
                 binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for WASM");
+                logger.info("Using extender binary for WASM");
             }
         }
 

@@ -36,10 +36,6 @@ import java.util.Locale;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.LogManager;
-import java.util.logging.Handler;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -57,6 +53,9 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.logging.LogFormatter;
+import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -69,10 +68,9 @@ public class Bob {
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
-    private static boolean verbose = false;
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
-
+    
     public Bob() {
     }
 
@@ -209,7 +207,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -662,14 +660,7 @@ public class Bob {
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
-        verbose = cmd.hasOption('v');
 
-        // setup logger based on presence of verbose option or not
-        Logger rootLogger = LogManager.getLogManager().getLogger("");
-        rootLogger.setLevel(verbose ? Level.CONFIG : Level.WARNING);
-        for (Handler h : rootLogger.getHandlers()) {
-            h.setLevel(verbose ? Level.CONFIG : Level.WARNING);
-        }
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
             String path = cmd.getOptionValue("build-report");
@@ -712,6 +703,9 @@ public class Bob {
                 break;
             }
         }
+
+        boolean verbose = cmd.hasOption('v');
+        LogHelper.setVerboseLogging(verbose);
 
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
@@ -904,7 +898,7 @@ public class Bob {
         if (e.getCause() != null) {
             System.err.println("Cause: " + e.getCause());
         }
-        logger.log(Level.INFO, e.getMessage(), e);
+        logger.severe(e.getMessage(), e);
         System.exit(1);
     }
 
@@ -916,7 +910,6 @@ public class Bob {
         } catch (Exception e) {
             logErrorAndExit(e);
         }
-
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
@@ -927,9 +920,4 @@ public class Bob {
         }
         return value;
     }
-
-    public static void verbose(String message, Object... args) {
-        logger.info(String.format(message, args));
-    }
-
 }
