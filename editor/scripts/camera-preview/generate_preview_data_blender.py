@@ -43,6 +43,8 @@ def generate(path, outpath):
             p_0 = x.data.vertices[vx_0].co
             p_1 = x.data.vertices[vx_1].co
 
+            # Note: The y and z are flipped here
+            #       Blender has a right handed coordinate system so we need to account for that
             edge_list.append([p_0.x, p_0.z, p_0.y])
             edge_list.append([p_1.x, p_1.z, p_1.y])
 
