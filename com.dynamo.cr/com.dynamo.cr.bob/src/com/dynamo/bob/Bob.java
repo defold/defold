@@ -507,7 +507,8 @@ public class Bob {
 
         addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
 
-        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", false);
+        addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
+        addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
         addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
@@ -661,14 +662,16 @@ public class Bob {
         }
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
-            String path = cmd.getOptionValue("build-report");
-            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
-            if (path == null) {
-                path = cmd.getOptionValue("build-report-html");
-                format = TimeProfiler.ReportFormat.HTML;
+            List<File> reportFiles = new ArrayList<>();
+            String jsonReportPath = cmd.getOptionValue("build-report");
+            if (jsonReportPath != null) {
+                reportFiles.add(new File(jsonReportPath));
             }
-            File report = new File(path);
-            TimeProfiler.init(report, format, false);
+            String htmlReportPath = cmd.getOptionValue("build-report-html");
+            if (htmlReportPath != null) {
+                reportFiles.add(new File(htmlReportPath));
+            }
+            TimeProfiler.init(reportFiles, false);
         }
 
         if (cmd.hasOption("version")) {
@@ -732,6 +735,11 @@ public class Bob {
         if (cmd.hasOption("use-vanilla-lua")) {
             System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
             project.setOption("use-uncompressed-lua-source", "true");
+        }
+
+        if (cmd.hasOption("build-report")) {
+            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
+            project.setOption("build-report-json", "true");
         }
 
         Option[] options = cmd.getOptions();
