@@ -652,7 +652,9 @@ public class Project {
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
             if (this.hasOption("build-report-html")) {
-                TimeProfiler.init(new File(this.option("build-report-html", "report.html")), TimeProfiler.ReportFormat.HTML, true);
+                List<File> reportFiles = new ArrayList<>();
+                reportFiles.add(new File(this.option("build-report-html", "report.html")));
+                TimeProfiler.init(reportFiles, true);
             }
             loadProjectFile();
             return doBuild(monitor, commands);
