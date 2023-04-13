@@ -13,12 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.camera-editor
-  (:require [clojure.string :as s]
-            [plumbing.core :as pc]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.colors :as colors]
-            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -27,21 +26,28 @@
             [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
-            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene-shapes :as scene-shapes]
-            [editor.types :as types]
-            [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point3d Vector3d Vector4d Quat4d]))
+           [javax.vecmath Matrix4d Vector3d Vector4d Quat4d]))
 
 (set! *warn-on-reflection* true)
 
 (def camera-icon "icons/32/Icons_20-Camera.png")
+
+(defn- get-camera-mesh-lines-json [path]
+  (with-open [reader (io/reader (io/resource path))]
+    (json/read reader)))
+(def camera-mesh-lines
+  (let [camera-json-path "camera-preview-edge-list.json"
+        camera-json-data (first (get-camera-mesh-lines-json camera-json-path))
+        camera-edge-list (concat (second camera-json-data))
+        camera-mesh-lines-v4 (map (fn [p]
+                                    (Vector4d. (get p 0) (get p 1) (get p 2) 1))
+                                  camera-edge-list)]
+    camera-mesh-lines-v4))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))
@@ -109,42 +115,31 @@
       :user-data {:pb-msg pb-msg}})])
 
 (shader/defshader outline-vertex-shader
-                  (attribute vec4 position)
-                  (attribute vec4 color)
-                  (varying vec4 var_color)
-                  (defn void main []
-                    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-                    (setq var_color color)))
+  (attribute vec4 position)
+  (attribute vec4 color)
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_color color)))
 
 (shader/defshader outline-fragment-shader
-                  (varying vec4 var_color)
-                  (defn void main []
-                    (setq gl_FragColor var_color)))
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_FragColor var_color)))
 
-; Copied from editor.sprite, comment left as-is
-; TODO - macro of this
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
-(defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
-  (.set pt x y 0)
-  (.transform wt pt)
-  [(.x pt) (.y pt) (.z pt) cr cg cb 1])
-
-(defn- gen-outline-vertex-raw [x y z w cr cg cb]
+(defn- gen-outline-vertex [x y z w cr cg cb]
   [(/ x w) (/ y w) (/ z w) cr cg cb 1])
 
-(defn- conj-outline-quad! [vbuf ^Matrix4d wt ^Point3d pt cr cg cb]
-  (let [x1 (* 0.5 1.0)
-        y1 (* 0.5 1.0)
-        x0 (- x1)
-        y0 (- y1)
-        v0 (gen-outline-vertex wt pt x0 y0 cr cg cb)
-        v1 (gen-outline-vertex wt pt x1 y0 cr cg cb)
-        v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
-        v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
-    (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
+(defn- conj-camera-mesh-vertices! [vbuf ^Matrix4d inv-view cr cg cb]
+  (mapv (fn [^Vector4d p]
+          (let [tp (math/transform-vector-v4 inv-view p)
+                camera-mesh-vx (gen-outline-vertex (.x tp) (.y tp) (.z tp) (.w tp) cr cg cb)]
+            (-> vbuf (conj! camera-mesh-vx))))
+        camera-mesh-lines))
 
-(defn- conj-outline-frustum! [vbuf ^Vector3d camera-pos ^Matrix4d inv-proj-view cr cg cb]
+(defn- conj-camera-outline! [vbuf ^Vector3d camera-pos ^Matrix4d inv-view ^Matrix4d inv-proj-view cr cg cb]
   (let [far-p0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 1.0 1.0))
         far-p1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 1.0 1.0))
         far-p2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 1.0 1.0))
@@ -155,42 +150,60 @@
         near-p2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 -1.0 1.0))
         near-p3 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0 -1.0 -1.0 1.0))
         ;; far vertices
-        far-v0 (gen-outline-vertex-raw (.x far-p0) (.y far-p0) (.z far-p0) (.w far-p0) cr cg cb)
-        far-v1 (gen-outline-vertex-raw (.x far-p1) (.y far-p1) (.z far-p1) (.w far-p1) cr cg cb)
-        far-v2 (gen-outline-vertex-raw (.x far-p2) (.y far-p2) (.z far-p2) (.w far-p2) cr cg cb)
-        far-v3 (gen-outline-vertex-raw (.x far-p3) (.y far-p3) (.z far-p3) (.w far-p3) cr cg cb)
+        far-v0 (gen-outline-vertex (.x far-p0) (.y far-p0) (.z far-p0) (.w far-p0) cr cg cb)
+        far-v1 (gen-outline-vertex (.x far-p1) (.y far-p1) (.z far-p1) (.w far-p1) cr cg cb)
+        far-v2 (gen-outline-vertex (.x far-p2) (.y far-p2) (.z far-p2) (.w far-p2) cr cg cb)
+        far-v3 (gen-outline-vertex (.x far-p3) (.y far-p3) (.z far-p3) (.w far-p3) cr cg cb)
         ;; near vertices
-        near-v0 (gen-outline-vertex-raw (.x near-p0) (.y near-p0) (.z near-p0) (.w near-p0) cr cg cb)
-        near-v1 (gen-outline-vertex-raw (.x near-p1) (.y near-p1) (.z near-p1) (.w near-p1) cr cg cb)
-        near-v2 (gen-outline-vertex-raw (.x near-p2) (.y near-p2) (.z near-p2) (.w near-p2) cr cg cb)
-        near-v3 (gen-outline-vertex-raw (.x near-p3) (.y near-p3) (.z near-p3) (.w near-p3) cr cg cb)
-        ;: camera center position
-        camera-v0 (gen-outline-vertex-raw (.x camera-pos) (.y camera-pos) (.z camera-pos) 1 cr cg cb)
-        ]
-    ; Add square for near plane
-    ; Add square for far plane
-    ; Add lines for frustum from center to far plane corners
-    (-> vbuf (conj! near-v0) (conj! near-v1) (conj! near-v1) (conj! near-v2) (conj! near-v2) (conj! near-v3) (conj! near-v3) (conj! near-v0)
+        near-v0 (gen-outline-vertex (.x near-p0) (.y near-p0) (.z near-p0) (.w near-p0) cr cg cb)
+        near-v1 (gen-outline-vertex (.x near-p1) (.y near-p1) (.z near-p1) (.w near-p1) cr cg cb)
+        near-v2 (gen-outline-vertex (.x near-p2) (.y near-p2) (.z near-p2) (.w near-p2) cr cg cb)
+        near-v3 (gen-outline-vertex (.x near-p3) (.y near-p3) (.z near-p3) (.w near-p3) cr cg cb)
+
+        cr-less (* cr 0.75)
+        cg-less (* cg 0.75)
+        cb-less (* cb 0.75)
+
+        ;; camera vertices from center to near
+        camera-near-v0 (gen-outline-vertex (.x near-p0) (.y near-p0) (.z near-p0) (.w near-p0) cr-less cg-less cb-less)
+        camera-near-v1 (gen-outline-vertex (.x near-p1) (.y near-p1) (.z near-p1) (.w near-p1) cr-less cg-less cb-less)
+        camera-near-v2 (gen-outline-vertex (.x near-p2) (.y near-p2) (.z near-p2) (.w near-p2) cr-less cg-less cb-less)
+        camera-near-v3 (gen-outline-vertex (.x near-p3) (.y near-p3) (.z near-p3) (.w near-p3) cr-less cg-less cb-less)
+
+        ;; camera vertex for center
+        camera-v (gen-outline-vertex (.x camera-pos) (.y camera-pos) (.z camera-pos) 1 cr-less cg-less cb-less)]
+    ;; Add camera mesh vertices
+    (conj-camera-mesh-vertices! vbuf inv-view cr cg cb)
+    (-> vbuf
+        ;; Add square for near plane
+        (conj! near-v0) (conj! near-v1) (conj! near-v1) (conj! near-v2) (conj! near-v2) (conj! near-v3) (conj! near-v3) (conj! near-v0)
+        ;; Add square for far plane
         (conj! far-v0) (conj! far-v1) (conj! far-v1) (conj! far-v2) (conj! far-v2) (conj! far-v3) (conj! far-v3) (conj! far-v0)
+        ;; Add lines for frustum from near to far plane corners
         (conj! near-v0) (conj! far-v0)
         (conj! near-v1) (conj! far-v1)
         (conj! near-v2) (conj! far-v2)
-        (conj! near-v3) (conj! far-v3))))
+        (conj! near-v3) (conj! far-v3)
+        ;; Add lines from camera position to near plane
+        (conj! camera-v) (conj! camera-near-v0)
+        (conj! camera-v) (conj! camera-near-v1)
+        (conj! camera-v) (conj! camera-near-v2)
+        (conj! camera-v) (conj! camera-near-v3))))
 
 (vtx/defvertex color-vtx
-               (vec3 position)
-               (vec4 color))
+  (vec3 position)
+  (vec4 color))
 
 (defn- camera-view-matrix [^Vector3d position ^Quat4d rotation]
-        (let [m (Matrix4d.)
-              p (Vector3d. position)]
-          (.setIdentity m)
-          (.set m rotation)
-          (.transpose m)
-          (.transform m p)
-          (.negate p)
-          (.setColumn m 3 (.x p) (.y p) (.z p) 1.0)
-          m))
+  (let [m (Matrix4d.)
+        p (Vector3d. position)]
+    (.setIdentity m)
+    (.set m rotation)
+    (.transpose m)
+    (.transform m p)
+    (.negate p)
+    (.setColumn m 3 (.x p) (.y p) (.z p) 1.0)
+    m))
 
 (defn- camera-perspective-projection-matrix [near far fov]
   (let [fov-deg (math/rad->deg fov)
@@ -232,34 +245,34 @@
     m))
 
 (defn- camera-orthographic-projection-matrix [near far fov]
-        (let [fov-deg (math/rad->deg fov)
-              fov-x  fov-deg
-              fov-y  fov-deg
-              right  (/ fov-x 2.0)
-              left   (- right)
-              top    (/ fov-y 2.0)
-              bottom (- top)
-              m      (Matrix4d.)]
-          (set! (. m m00) (/ 2.0 (- right left)))
-          (set! (. m m01) 0.0)
-          (set! (. m m02) 0.0)
-          (set! (. m m03) (/ (- (+ right left)) (- right left)))
+  (let [fov-deg (math/rad->deg fov)
+        fov-x  fov-deg
+        fov-y  fov-deg
+        right  (/ fov-x 2.0)
+        left   (- right)
+        top    (/ fov-y 2.0)
+        bottom (- top)
+        m      (Matrix4d.)]
+    (set! (. m m00) (/ 2.0 (- right left)))
+    (set! (. m m01) 0.0)
+    (set! (. m m02) 0.0)
+    (set! (. m m03) (/ (- (+ right left)) (- right left)))
 
-          (set! (. m m10) 0.0)
-          (set! (. m m11) (/ 2.0 (- top bottom)))
-          (set! (. m m12) 0.0)
-          (set! (. m m13) (/ (- (+ top bottom)) (- top bottom)))
+    (set! (. m m10) 0.0)
+    (set! (. m m11) (/ 2.0 (- top bottom)))
+    (set! (. m m12) 0.0)
+    (set! (. m m13) (/ (- (+ top bottom)) (- top bottom)))
 
-          (set! (. m m20) 0.0)
-          (set! (. m m21) 0.0)
-          (set! (. m m22) (/ 2.0 (- near far)))
-          (set! (. m m23) (/ (+ near far) (- near far)))
+    (set! (. m m20) 0.0)
+    (set! (. m m21) 0.0)
+    (set! (. m m22) (/ 2.0 (- near far)))
+    (set! (. m m23) (/ (+ near far) (- near far)))
 
-          (set! (. m m30) 0.0)
-          (set! (. m m31) 0.0)
-          (set! (. m m32) 0.0)
-          (set! (. m m33) 1.0)
-          m))
+    (set! (. m m30) 0.0)
+    (set! (. m m31) 0.0)
+    (set! (. m m32) 0.0)
+    (set! (. m m33) 1.0)
+    m))
 
 (defn- camera-projection-matrix [is-orthographic near far fov]
   (if (true? is-orthographic)
@@ -268,30 +281,32 @@
 
 (defn- gen-outline-vertex-buffer
   [renderables count]
-  (let [tmp-point (Point3d.)]
+  (let [camera-mesh-vertices-count 212 ;(count camera-mesh-lines) ; why doesn't this work?
+        color-vertices-count (+ camera-mesh-vertices-count 32)]
     (loop [renderables renderables
-           vbuf (->color-vtx (* count 24))]
+           vbuf (->color-vtx (* count color-vertices-count))]
       (if-let [renderable (first renderables)]
         (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
               cr (get color 0)
               cg (get color 1)
               cb (get color 2)
               user-data (:user-data renderable)
-              world-transform (:world-transform renderable)
               world-translation (:world-translation renderable)
               world-rotation (:world-rotation renderable)
               ^Matrix4d proj-matrix (camera-projection-matrix (:is-orthographic user-data) (:near-z user-data) (:far-z user-data) (:fov user-data))
               ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
+              ^Matrix4d inv-view-matrix (math/inverse view-matrix)
               ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
               ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
-          (recur (rest renderables) (conj-outline-frustum! vbuf world-translation inv-view-proj-matrix cr cg cb)))
+          (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))
         (persistent! vbuf)))))
 
 (defn- render-frustum-outlines [^GL2 gl render-args renderables count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
+  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables count) outline-shader)
+        vertices-count (+ 212 32)] ; Same here as above!!
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 24)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count vertices-count)))))
 
 (g/defnk produce-camera-scene
   [_node-id fov near-z far-z orthographic-projection]
@@ -302,7 +317,6 @@
         ext [ext-x ext-y ext-z]
         neg-ext [(- ext-x) (- ext-y) (- ext-z)]
         aabb (geom/coords->aabb neg-ext ext)]
-    (prn aabb)
     {:node-id _node-id
      :aabb aabb
      :children [{:node-id _node-id
@@ -354,13 +368,13 @@
 (defn register-resource-types
   [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "camera"
-                                    :node-type CameraNode
-                                    :ddf-type Camera$CameraDesc
-                                    :load-fn load-camera
-                                    :icon camera-icon
-                                    :view-types [:cljfx-form-view :text]
-                                    :view-opts {}
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Camera"))
+    :ext "camera"
+    :node-type CameraNode
+    :ddf-type Camera$CameraDesc
+    :load-fn load-camera
+    :icon camera-icon
+    :view-types [:cljfx-form-view :text]
+    :view-opts {}
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{}}}
+    :label "Camera"))
