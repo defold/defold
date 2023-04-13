@@ -29,6 +29,7 @@
           <entry key="editor.fs/maybe-silently" value="-1" />
           <entry key="editor.git-test/with-git" value="-1" />
           <entry key="editor.gl.shader/defshader" value="-1" />
+          <entry key="editor.gl.vertex/defvertex" value="-1" />
           <entry key="editor.gl.vertex2/defvertex" value="-1" />
           <entry key="editor.gl/gl-push-matrix" value="-1" />
           <entry key="editor.gl/with-gl-bindings" value="-1" />

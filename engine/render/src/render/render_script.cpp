@@ -554,6 +554,16 @@ namespace dmRender
         return 1;
     }
 
+    static int RenderScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_RenderScriptDataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg RenderScriptInstance_methods[] =
     {
         {0,0}
@@ -568,6 +578,7 @@ namespace dmRender
         {dmScript::META_TABLE_RESOLVE_PATH,             RenderScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 RenderScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, RenderScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    RenderScriptGetInstanceDataTableRef},
         {0, 0}
     };
 
@@ -1063,6 +1074,11 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+
+        if (render_target == 0)
+        {
+            luaL_error(L, "Unable to create render target.");
+        }
 
         lua_pushlightuserdata(L, (void*)render_target);
 
@@ -2934,7 +2950,7 @@ namespace dmRender
         REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR_BIT); // For backwards compatability
         REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR0_BIT);
         // These depend on driver and context support
-        if (dmGraphics::IsMultiTargetRenderingSupported(graphics_context))
+        if (dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_MULTI_TARGET_RENDERING))
         {
             REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
             REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);

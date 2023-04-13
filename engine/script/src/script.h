@@ -55,6 +55,7 @@ namespace dmScript
     extern const char META_TABLE_GET_URL[];
     extern const char META_TABLE_GET_USER_DATA[];
     extern const char META_TABLE_IS_VALID[];
+    extern const char META_GET_INSTANCE_DATA_TABLE_REF[];
 
     /**
      * Implementor should return a Ref to the instance context table.

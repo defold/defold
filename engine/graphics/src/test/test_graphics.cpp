@@ -405,6 +405,7 @@ TEST_F(dmGraphicsTest, TestProgram)
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
+
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
@@ -479,7 +480,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
-    dmGraphics::EnableTexture(m_Context, 0, texture);
+    dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
@@ -548,7 +549,7 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
-    dmGraphics::EnableTexture(m_Context, 0, texture);
+    dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }

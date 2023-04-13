@@ -16,6 +16,7 @@ package com.dynamo.bob.bundle.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.ByteArrayInputStream;
@@ -258,4 +259,75 @@ public class BundleHelperTest {
         List<String> result = BundleHelper.excludeItems(input, expressions);
         assertEquals(Arrays.asList(new String[]{"com.other.package"}), result);
     }
-}
+
+    @Test
+    public void testValidAndroidPackageName() {
+        // two or more segments
+        assertTrue(BundleHelper.isValidAndroidPackageName("a.b"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo.bar"));
+        assertFalse(BundleHelper.isValidAndroidPackageName(""));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com."));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com.foo."));
+
+        // numbers
+        assertTrue(BundleHelper.isValidAndroidPackageName("com1.foo"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo1"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("1com.foo"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com.1foo"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("123.456"));
+        
+        // underscore
+        assertTrue(BundleHelper.isValidAndroidPackageName("com_.foo"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("com.foo_"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("c_m.f_o"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("_com.foo"));
+        assertFalse(BundleHelper.isValidAndroidPackageName("com._foo"));
+
+        // uppercase
+        assertTrue(BundleHelper.isValidAndroidPackageName("A.B"));
+        assertTrue(BundleHelper.isValidAndroidPackageName("CoM.fOo"));
+
+        // only a-z, A-Z, 0-9, _
+        assertFalse(BundleHelper.isValidAndroidPackageName("cöm.föö"));
+    }
+
+    public void testValidBundleIdentifier() {
+        // two or more segments
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("a.b"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo.bar"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier(""));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com."));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com.foo."));
+
+        // numbers
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com1.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo1"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("1com.foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com.1foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("123.456"));
+        
+        // underscore
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com_.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo_"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("c_m.f_o"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("_com.foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com._foo"));
+
+        // hypen
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com-.foo"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("com.foo-"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("c-m.f-o"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("-com.foo"));
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("com.-foo"));
+
+        // uppercase
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("A.B"));
+        assertTrue(BundleHelper.isValidAppleBundleIdentifier("CoM.fOo"));
+
+        // only a-z, A-Z, 0-9, _
+        assertFalse(BundleHelper.isValidAppleBundleIdentifier("cöm.föö"));
+    }}

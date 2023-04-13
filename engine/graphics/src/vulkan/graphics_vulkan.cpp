@@ -436,7 +436,7 @@ namespace dmGraphics
             vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
         }
 
-        VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
+        VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
@@ -618,24 +618,31 @@ namespace dmGraphics
         TextureCreationParams default_texture_creation_params;
         default_texture_creation_params.m_Width          = 1;
         default_texture_creation_params.m_Height         = 1;
+        default_texture_creation_params.m_Depth          = 1;
         default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
         default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
 
-        const uint8_t default_texture_data[] = { 255, 0, 255, 255 };
+        const uint8_t default_texture_data[4 * 6] = {0}; // RGBA * 6 (for cubemap)
 
         TextureParams default_texture_params;
         default_texture_params.m_Width  = 1;
         default_texture_params.m_Height = 1;
+        default_texture_params.m_Depth  = 1;
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
 
-        context->m_DefaultTexture = VulkanNewTexture(context, default_texture_creation_params);
-        VulkanSetTexture(context->m_DefaultTexture, default_texture_params);
+        context->m_DefaultTexture2D = VulkanNewTexture(context, default_texture_creation_params);
+        VulkanSetTexture(context->m_DefaultTexture2D, default_texture_params);
 
-        for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
-        {
-            context->m_TextureUnits[i] = context->m_DefaultTexture;
-        }
+        default_texture_creation_params.m_Type  = TEXTURE_TYPE_2D_ARRAY;
+        default_texture_creation_params.m_Depth = 1;
+        context->m_DefaultTexture2DArray        = VulkanNewTexture(context, default_texture_creation_params);
+
+        default_texture_creation_params.m_Type  = TEXTURE_TYPE_CUBE_MAP;
+        default_texture_creation_params.m_Depth = 6;
+        context->m_DefaultTextureCubeMap        = VulkanNewTexture(context, default_texture_creation_params);
+
+        memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
 
         return res;
     }
@@ -767,11 +774,6 @@ namespace dmGraphics
     static const char* VulkanGetSupportedExtension(HContext context, uint32_t index)
     {
         return context->m_PhysicalDevice.m_DeviceExtensions[index].extensionName;
-    }
-
-    static bool VulkanIsMultiTargetRenderingSupported(HContext context)
-    {
-        return true;
     }
 
     static PipelineState VulkanGetPipelineState(HContext context)
@@ -943,7 +945,6 @@ namespace dmGraphics
 
         uint16_t validation_layers_count;
         const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
-        Texture* resolveTexture = new Texture;
 
         if (selected_device == NULL)
         {
@@ -977,9 +978,9 @@ namespace dmGraphics
         vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
-        InitializeVulkanTexture(resolveTexture);
+        InitializeVulkanTexture(&context->m_ResolveTexture);
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, resolveTexture);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, &context->m_ResolveTexture);
 
         res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
@@ -1472,6 +1473,12 @@ bail:
         return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
+    // NOTE: This function doesn't seem to be used anywhere?
+    static uint32_t VulkanGetMaxElementsIndices(HContext context)
+    {
+        return -1;
+    }
+
     static HIndexBuffer VulkanNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(size > 0);
@@ -1546,6 +1553,7 @@ bail:
             4,  // SHADER_TYPE_SAMPLER2D
             4,  // SHADER_TYPE_SAMPLER3D
             4,  // SHADER_TYPE_SAMPLER_CUBE
+            4,  // SHADER_TYPE_SAMPLER_ARRAY_2D
         };
 
         return conversion_table[type];
@@ -1581,24 +1589,47 @@ bail:
     {
         if (type == TYPE_FLOAT)
         {
-            if (size == 1)     return VK_FORMAT_R32_SFLOAT;
-            else if(size == 2) return VK_FORMAT_R32G32_SFLOAT;
-            else if(size == 3) return VK_FORMAT_R32G32B32_SFLOAT;
-            else if(size == 4) return VK_FORMAT_R32G32B32A32_SFLOAT;
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SFLOAT;
+                case 2: return VK_FORMAT_R32G32_SFLOAT;
+                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SINT;
+                case 2: return VK_FORMAT_R32G32_SINT;
+                case 3: return VK_FORMAT_R32G32B32_SINT;
+                case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                default:break;
+            }
         }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
-            if (size == 1)     return VK_FORMAT_R8_UINT;
-            else if(size == 2) return VK_FORMAT_R8G8_UINT;
-            else if(size == 3) return VK_FORMAT_R8G8B8_UINT;
-            else if(size == 4) return VK_FORMAT_R8G8B8A8_UINT;
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R8_UINT;
+                case 2: return VK_FORMAT_R8G8_UINT;
+                case 3: return VK_FORMAT_R8G8B8_UINT;
+                case 4: return VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
         }
         else if (type == TYPE_UNSIGNED_SHORT)
         {
-            if (size == 1)     return VK_FORMAT_R16_UINT;
-            else if(size == 2) return VK_FORMAT_R16G16_UINT;
-            else if(size == 3) return VK_FORMAT_R16G16B16_UINT;
-            else if(size == 4) return VK_FORMAT_R16G16B16A16_UINT;
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R16_UINT;
+                case 2: return VK_FORMAT_R16G16_UINT;
+                case 3: return VK_FORMAT_R16G16B16_UINT;
+                case 4: return VK_FORMAT_R16G16B16A16_UINT;
+                default:break;
+            }
         }
         else if (type == TYPE_FLOAT_MAT4)
         {
@@ -1709,9 +1740,22 @@ bail:
 
     static inline bool IsUniformTextureSampler(ShaderResourceBinding uniform)
     {
-        return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D ||
+        return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+    }
+
+    static Texture* GetDefaultTexture(HContext context, ShaderDesc::ShaderDataType type)
+    {
+        switch(type)
+        {
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
+            default:break;
+        }
+        return 0x0;
     }
 
     static void UpdateDescriptorSets(
@@ -1760,8 +1804,8 @@ bail:
 
         while(uniforms_to_write > 0)
         {
-            ShaderResourceBinding& res = shader_module->m_Uniforms[uniform_index++];
-            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index++];
+            ShaderResourceBinding& res = shader_module->m_Uniforms[uniform_index];
+            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
             vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext            = 0;
             vk_write_desc_info.dstSet           = vk_descriptor_set;
@@ -1775,6 +1819,11 @@ bail:
             if (IsUniformTextureSampler(res))
             {
                 Texture* texture = g_VulkanContext->m_TextureUnits[res.m_TextureUnit];
+                if (texture == 0x0)
+                {
+                    texture = GetDefaultTexture(g_VulkanContext, res.m_Type);
+                }
+
                 VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
                 vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 vk_image_info.imageView           = texture->m_Handle.m_ImageView;
@@ -1810,6 +1859,8 @@ bail:
             }
 
             uniforms_to_write--;
+            uniform_index++;
+            uniform_to_write_index++;
 
             // Commit and restart if we reached max descriptors per batch
             if (uniform_to_write_index == max_write_descriptors)
@@ -2074,7 +2125,7 @@ bail:
 
                 if (IsUniformTextureSampler(res))
                 {
-                    res.m_TextureUnit = 0;
+                    res.m_TextureUnit = texture_sampler_count;
                     texture_sampler_count++;
                 }
                 else
@@ -2403,17 +2454,19 @@ bail:
         return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
     }
 
+    // TODO: Move to graphics.cpp
     static Type shaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
     {
         switch(shader_type)
         {
-            case ShaderDesc::SHADER_TYPE_INT:          return TYPE_INT;
-            case ShaderDesc::SHADER_TYPE_UINT:         return TYPE_UNSIGNED_INT;
-            case ShaderDesc::SHADER_TYPE_FLOAT:        return TYPE_FLOAT;
-            case ShaderDesc::SHADER_TYPE_VEC4:         return TYPE_FLOAT_VEC4;
-            case ShaderDesc::SHADER_TYPE_MAT4:         return TYPE_FLOAT_MAT4;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D:    return TYPE_SAMPLER_2D;
-            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE: return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
+            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
+            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             default: break;
         }
 
@@ -2903,7 +2956,7 @@ bail:
 
                 Texture* new_texture_color = NewTexture(context, creation_params[color_buffer_index]);
                 VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                    new_texture_color->m_Width, new_texture_color->m_Height, new_texture_color->m_MipMapCount,
+                    new_texture_color->m_Width, new_texture_color->m_Height, 1, new_texture_color->m_MipMapCount,
                     VK_SAMPLE_COUNT_1_BIT, vk_color_format,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, new_texture_color);
@@ -3017,7 +3070,7 @@ bail:
 
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
-                    width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
+                    width, height, texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
                 CHECK_VK_ERROR(res);
@@ -3062,12 +3115,13 @@ bail:
 
     static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params)
     {
-        Texture* tex = new Texture;
+        Texture* tex = (Texture*) malloc(sizeof(Texture));
         InitializeVulkanTexture(tex);
 
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
+        tex->m_Depth       = dmMath::Max((uint16_t) 1, params.m_Depth);
         tex->m_MipMapCount = params.m_MipMapCount;
 
         if (params.m_OriginalWidth == 0)
@@ -3087,7 +3141,7 @@ bail:
     static void VulkanDeleteTexture(HTexture t)
     {
         DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], t);
-        delete t;
+        free(t);
     }
 
     static inline uint32_t GetOffsetFromMipmap(Texture* texture, uint8_t mipmap)
@@ -3108,16 +3162,12 @@ bail:
         return offset;
     }
 
-    static inline uint8_t GetLayerCount(Texture* texture)
-    {
-        return texture->m_Type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
-    }
-
     static void CopyToTexture(HContext context, const TextureParams& params,
         bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        uint8_t layer_count = GetLayerCount(textureOut);
+        uint8_t layer_count = textureOut->m_Depth;
+        assert(layer_count > 0);
 
         // TODO There is potentially a bunch of redundancy here.
         //      * Can we use a single command buffer for these updates,
@@ -3127,6 +3177,19 @@ bail:
         //        per mipmap instead of batching in one cmd
         if (useStageBuffer)
         {
+            uint32_t slice_size = texDataSize / layer_count;
+
+        #ifdef __MACH__
+            // Note: There is an annoying validation issue on osx for layered compressed data that causes a validation error
+            //       due to misalignment of the data when using a stage buffer. The offsets in the stage buffer needs to be
+            //       8 byte aligned but for compressed data that is not the case for the lowest mipmaps.
+            //       This might need some more investigation, but for now we don't want a crash at least...
+            if (slice_size < 8 && layer_count > 1)
+            {
+                return;
+            }
+        #endif
+
             // Create one-time commandbuffer to carry the copy command
             VkCommandBuffer vk_command_buffer;
             CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
@@ -3145,6 +3208,7 @@ bail:
             vk_submit_info.pCommandBuffers    = &vk_command_buffer;
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
             CHECK_VK_ERROR(res);
@@ -3158,9 +3222,8 @@ bail:
                 params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
 
-            uint32_t slice_size = texDataSize / layer_count;
-
-            VkBufferImageCopy vk_copy_regions[6];
+            // NOTE: We should check max layer count in the device properties!
+            VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
             for (int i = 0; i < layer_count; ++i)
             {
                 VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
@@ -3199,6 +3262,8 @@ bail:
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+
+            delete[] vk_copy_regions;
         }
         else
         {
@@ -3247,8 +3312,8 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
+        uint16_t tex_layer_count    = dmMath::Max(texture->m_Depth, params.m_Depth);
         uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
-        uint8_t tex_layer_count     = GetLayerCount(texture);
         size_t tex_data_size        = 0;
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
@@ -3279,6 +3344,7 @@ bail:
         tex_data_size             = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        texture->m_Depth          = tex_layer_count;
 
         SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3347,7 +3413,7 @@ bail:
             }
 
             VkResult res = CreateTexture2D(vk_physical_device, logical_device.m_Device,
-                texture->m_Width, texture->m_Height, texture->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT,
+                texture->m_Width, texture->m_Height, tex_layer_count, texture->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT,
                 vk_format, vk_image_tiling, vk_usage_flags,
                 vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
             CHECK_VK_ERROR(res);
@@ -3433,7 +3499,22 @@ bail:
         return texture->m_OriginalHeight;
     }
 
-    static void VulkanEnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static TextureType VulkanGetTextureType(HTexture texture)
+    {
+        return texture->m_Type;
+    }
+
+    static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
+    {
+        return HANDLE_RESULT_NOT_AVAILABLE;
+    }
+
+    static uint8_t VulkanGetNumTextureHandles(HTexture texture)
+    {
+        return 1;
+    }
+
+    static void VulkanEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
         context->m_TextureUnits[unit] = texture;
@@ -3442,7 +3523,7 @@ bail:
     static void VulkanDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
-        context->m_TextureUnits[unit] = context->m_DefaultTexture;
+        context->m_TextureUnits[unit] = 0x0;
     }
 
     static uint32_t VulkanGetMaxTextureSize(HContext context)
@@ -3471,114 +3552,15 @@ bail:
         DestroyPipeline(context->m_LogicalDevice.m_Device, value);
     }
 
+    static bool VulkanIsContextFeatureSupported(HContext context, ContextFeature feature)
+    {
+        return true;
+    }
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
-        GraphicsAdapterFunctionTable fn_table;
-        memset(&fn_table,0,sizeof(fn_table));
-        fn_table.m_NewContext = VulkanNewContext;
-        fn_table.m_DeleteContext = VulkanDeleteContext;
-        fn_table.m_Initialize = VulkanInitialize;
-        fn_table.m_Finalize = VulkanFinalize;
-        fn_table.m_GetWindowRefreshRate = VulkanGetWindowRefreshRate;
-        fn_table.m_OpenWindow = VulkanOpenWindow;
-        fn_table.m_CloseWindow = VulkanCloseWindow;
-        fn_table.m_IconifyWindow = VulkanIconifyWindow;
-        fn_table.m_GetWindowState = VulkanGetWindowState;
-        fn_table.m_GetDisplayDpi = VulkanGetDisplayDpi;
-        fn_table.m_GetWidth = VulkanGetWidth;
-        fn_table.m_GetHeight = VulkanGetHeight;
-        fn_table.m_GetWindowWidth = VulkanGetWindowWidth;
-        fn_table.m_GetWindowHeight = VulkanGetWindowHeight;
-        fn_table.m_GetDisplayScaleFactor = VulkanGetDisplayScaleFactor;
-        fn_table.m_SetWindowSize = VulkanSetWindowSize;
-        fn_table.m_ResizeWindow = VulkanResizeWindow;
-        fn_table.m_GetDefaultTextureFilters = VulkanGetDefaultTextureFilters;
-        fn_table.m_BeginFrame = VulkanBeginFrame;
-        fn_table.m_Flip = VulkanFlip;
-        fn_table.m_SetSwapInterval = VulkanSetSwapInterval;
-        fn_table.m_Clear = VulkanClear;
-        fn_table.m_NewVertexBuffer = VulkanNewVertexBuffer;
-        fn_table.m_DeleteVertexBuffer = VulkanDeleteVertexBuffer;
-        fn_table.m_SetVertexBufferData = VulkanSetVertexBufferData;
-        fn_table.m_SetVertexBufferSubData = VulkanSetVertexBufferSubData;
-        fn_table.m_GetMaxElementsVertices = VulkanGetMaxElementsVertices;
-        fn_table.m_NewIndexBuffer = VulkanNewIndexBuffer;
-        fn_table.m_DeleteIndexBuffer = VulkanDeleteIndexBuffer;
-        fn_table.m_SetIndexBufferData = VulkanSetIndexBufferData;
-        fn_table.m_SetIndexBufferSubData = VulkanSetIndexBufferSubData;
-        fn_table.m_IsIndexBufferFormatSupported = VulkanIsIndexBufferFormatSupported;
-        fn_table.m_NewVertexDeclaration = VulkanNewVertexDeclaration;
-        fn_table.m_NewVertexDeclarationStride = VulkanNewVertexDeclarationStride;
-        fn_table.m_SetStreamOffset = VulkanSetStreamOffset;
-        fn_table.m_DeleteVertexDeclaration = VulkanDeleteVertexDeclaration;
-        fn_table.m_EnableVertexDeclaration = VulkanEnableVertexDeclaration;
-        fn_table.m_EnableVertexDeclarationProgram = VulkanEnableVertexDeclarationProgram;
-        fn_table.m_DisableVertexDeclaration = VulkanDisableVertexDeclaration;
-        fn_table.m_HashVertexDeclaration = VulkanHashVertexDeclaration;
-        fn_table.m_DrawElements = VulkanDrawElements;
-        fn_table.m_Draw = VulkanDraw;
-        fn_table.m_NewVertexProgram = VulkanNewVertexProgram;
-        fn_table.m_NewFragmentProgram = VulkanNewFragmentProgram;
-        fn_table.m_NewProgram = VulkanNewProgram;
-        fn_table.m_DeleteProgram = VulkanDeleteProgram;
-        fn_table.m_ReloadVertexProgram = VulkanReloadVertexProgram;
-        fn_table.m_ReloadFragmentProgram = VulkanReloadFragmentProgram;
-        fn_table.m_DeleteVertexProgram = VulkanDeleteVertexProgram;
-        fn_table.m_DeleteFragmentProgram = VulkanDeleteFragmentProgram;
-        fn_table.m_GetShaderProgramLanguage = VulkanGetShaderProgramLanguage;
-        fn_table.m_EnableProgram = VulkanEnableProgram;
-        fn_table.m_DisableProgram = VulkanDisableProgram;
-        fn_table.m_ReloadProgram = VulkanReloadProgram;
-        fn_table.m_GetUniformName = VulkanGetUniformName;
-        fn_table.m_GetUniformCount = VulkanGetUniformCount;
-        fn_table.m_GetUniformLocation = VulkanGetUniformLocation;
-        fn_table.m_SetConstantV4 = VulkanSetConstantV4;
-        fn_table.m_SetConstantM4 = VulkanSetConstantM4;
-        fn_table.m_SetSampler = VulkanSetSampler;
-        fn_table.m_SetViewport = VulkanSetViewport;
-        fn_table.m_EnableState = VulkanEnableState;
-        fn_table.m_DisableState = VulkanDisableState;
-        fn_table.m_SetBlendFunc = VulkanSetBlendFunc;
-        fn_table.m_SetColorMask = VulkanSetColorMask;
-        fn_table.m_SetDepthMask = VulkanSetDepthMask;
-        fn_table.m_SetDepthFunc = VulkanSetDepthFunc;
-        fn_table.m_SetScissor = VulkanSetScissor;
-        fn_table.m_SetStencilMask = VulkanSetStencilMask;
-        fn_table.m_SetStencilFunc = VulkanSetStencilFunc;
-        fn_table.m_SetStencilFuncSeparate = VulkanSetStencilFuncSeparate;
-        fn_table.m_SetStencilOp = VulkanSetStencilOp;
-        fn_table.m_SetStencilOpSeparate = VulkanSetStencilOpSeparate;
-        fn_table.m_SetCullFace = VulkanSetCullFace;
-        fn_table.m_SetFaceWinding = VulkanSetFaceWinding;
-        fn_table.m_SetPolygonOffset = VulkanSetPolygonOffset;
-        fn_table.m_NewRenderTarget = VulkanNewRenderTarget;
-        fn_table.m_DeleteRenderTarget = VulkanDeleteRenderTarget;
-        fn_table.m_SetRenderTarget = VulkanSetRenderTarget;
-        fn_table.m_GetRenderTargetTexture = VulkanGetRenderTargetTexture;
-        fn_table.m_GetRenderTargetSize = VulkanGetRenderTargetSize;
-        fn_table.m_SetRenderTargetSize = VulkanSetRenderTargetSize;
-        fn_table.m_IsTextureFormatSupported = VulkanIsTextureFormatSupported;
-        fn_table.m_NewTexture = VulkanNewTexture;
-        fn_table.m_DeleteTexture = VulkanDeleteTexture;
-        fn_table.m_SetTexture = VulkanSetTexture;
-        fn_table.m_SetTextureAsync = VulkanSetTextureAsync;
-        fn_table.m_SetTextureParams = VulkanSetTextureParams;
-        fn_table.m_GetTextureResourceSize = VulkanGetTextureResourceSize;
-        fn_table.m_GetTextureWidth = VulkanGetTextureWidth;
-        fn_table.m_GetTextureHeight = VulkanGetTextureHeight;
-        fn_table.m_GetOriginalTextureWidth = VulkanGetOriginalTextureWidth;
-        fn_table.m_GetOriginalTextureHeight = VulkanGetOriginalTextureHeight;
-        fn_table.m_EnableTexture = VulkanEnableTexture;
-        fn_table.m_DisableTexture = VulkanDisableTexture;
-        fn_table.m_GetMaxTextureSize = VulkanGetMaxTextureSize;
-        fn_table.m_GetTextureStatusFlags = VulkanGetTextureStatusFlags;
-        fn_table.m_ReadPixels = VulkanReadPixels;
-        fn_table.m_RunApplicationLoop = VulkanRunApplicationLoop;
-        fn_table.m_IsExtensionSupported = VulkanIsExtensionSupported;
-        fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
-        fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
-        fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
-        fn_table.m_GetPipelineState = VulkanGetPipelineState;
+        GraphicsAdapterFunctionTable fn_table = {};
+        DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
         return fn_table;
     }
 }

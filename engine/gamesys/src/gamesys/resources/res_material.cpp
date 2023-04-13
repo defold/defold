@@ -58,6 +58,13 @@ namespace dmGameSystem
         return filter_lut[mag_filter];
     }
 
+    static bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
+    {
+        if (strlen(material_desc->m_Name) == 0)
+            return false;
+        return true;
+    }
+
     struct MaterialResources
     {
         MaterialResources() : m_FragmentProgram(0), m_VertexProgram(0) {}
@@ -66,14 +73,7 @@ namespace dmGameSystem
         dmGraphics::HVertexProgram m_VertexProgram;
     };
 
-    bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
-    {
-        if (strlen(material_desc->m_Name) == 0)
-            return false;
-        return true;
-    }
-
-    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
         dmResource::Result factory_e;
         factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
@@ -115,7 +115,7 @@ namespace dmGameSystem
         }
     }
 
-    void SetMaterial(const char* path, dmRender::HMaterial material, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
+    static void SetMaterial(const char* path, dmRender::HMaterial material, dmRenderDDF::MaterialDesc* ddf)
     {
         dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
         uint32_t tag_count = ddf->m_Tags.m_Count;
@@ -175,17 +175,29 @@ namespace dmGameSystem
         }
 
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
-        uint32_t sampler_count = ddf->m_Samplers.m_Count;
-        for (uint32_t i = 0; i < sampler_count; i++)
+
+        uint32_t sampler_unit = 0;
+        for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
-            dmhash_t name_hash = dmHashString64(sampler[i].m_Name);
-            dmGraphics::TextureWrap uwrap = WrapFromDDF(sampler[i].m_WrapU);
-            dmGraphics::TextureWrap vwrap = WrapFromDDF(sampler[i].m_WrapV);
+            dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
+            dmGraphics::TextureWrap uwrap       = WrapFromDDF(sampler[i].m_WrapU);
+            dmGraphics::TextureWrap vwrap       = WrapFromDDF(sampler[i].m_WrapV);
             dmGraphics::TextureFilter minfilter = FilterMinFromDDF(sampler[i].m_FilterMin);
             dmGraphics::TextureFilter magfilter = FilterMagFromDDF(sampler[i].m_FilterMag);
-            float anisotropy = sampler[i].m_MaxAnisotropy;
+            float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
-            dmRender::SetMaterialSampler(material, name_hash, i, uwrap, vwrap, minfilter, magfilter, anisotropy);
+            if (dmRender::SetMaterialSampler(material, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+            {
+                sampler_unit++;
+            }
+
+            for (int j = 0; j < sampler[i].m_NameIndirections.m_Count; ++j)
+            {
+                if (dmRender::SetMaterialSampler(material, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+                {
+                    sampler_unit++;
+                }
+            }
         }
     }
 
@@ -212,7 +224,7 @@ namespace dmGameSystem
 
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
 
-            SetMaterial(params.m_Filename, material, ddf, &resources);
+            SetMaterial(params.m_Filename, material, ddf);
             params.m_Resource->m_Resource = (void*) material;
         }
         dmDDF::FreeMessage(ddf);
@@ -254,7 +266,7 @@ namespace dmGameSystem
             dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialFragmentProgram(material));
             dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
             dmRender::ClearMaterialTags(material);
-            SetMaterial(params.m_Filename, material, ddf, &resources);
+            SetMaterial(params.m_Filename, material, ddf);
         }
         dmDDF::FreeMessage(ddf);
         return r;

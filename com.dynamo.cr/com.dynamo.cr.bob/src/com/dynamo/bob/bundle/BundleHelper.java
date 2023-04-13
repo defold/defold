@@ -218,7 +218,7 @@ public class BundleHelper {
         bundler.updateManifestProperties(project, platform, this.projectProperties, this.propertiesMap, properties);
 
         // First, list all extension manifests
-        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, bundler.getMainManifestName(platform));
+        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform);
         // Put the main manifest in front
         sourceManifests.add(0, mainManifest);
 
@@ -901,5 +901,24 @@ public class BundleHelper {
     public static boolean isArchiveExcluded(Project project) {
         return project.option("exclude-archive", "false").equals("false");
     }
+
+
+    // must have two or more segments
+    // each segment must start with a letter
+    // all characters must be alphanumeric or an underscore
+    public static boolean isValidAndroidPackageName(String packageName) {
+        return packageName.matches("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$");
+    }
+
+
+    // must have two or more segments
+    // each segment must start with a letter
+    // all characters must be alphanumeric, an underscore or a hyphen
+    public static boolean isValidAppleBundleIdentifier(String bundleIdentifier) {
+        return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
+    }
+
+
+
 
 }

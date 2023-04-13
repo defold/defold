@@ -209,22 +209,30 @@ namespace dmGameSystem
             resource->m_Materials.Push(material);
         }
 
-        dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
+        TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
+
         for (uint32_t i = 0; i < resource->m_Model->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             const char* texture_path = resource->m_Model->m_Textures[i];
             if (*texture_path != 0)
             {
-                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
+                TextureResource* texture_res;
+                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &texture_res);
                 if (r != dmResource::RESULT_OK)
                 {
-                    if (result == dmResource::RESULT_OK) {
+                    if (result == dmResource::RESULT_OK)
+                    {
                         result = r;
                     }
-                } else {
+                }
+                else
+                {
+                    textures[i] = texture_res;
                     r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
-                    if (r != dmResource::RESULT_OK) {
+
+                    if (r != dmResource::RESULT_OK)
+                    {
                        result = r;
                     }
                 }
@@ -233,10 +241,13 @@ namespace dmGameSystem
         if (result != dmResource::RESULT_OK)
         {
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+            {
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
+            }
             return result;
         }
-        memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+
+        memcpy(resource->m_Textures, textures, sizeof(TextureResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
         {
@@ -282,7 +293,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             if (resource->m_Textures[i])
-                dmResource::Release(factory, (void*)resource->m_Textures[i]);
+            {
+                dmResource::Release(factory, (void*) resource->m_Textures[i]);
+            }
             resource->m_Textures[i] = 0x0;
         }
     }

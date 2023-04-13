@@ -48,14 +48,16 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.digestable :as digestable])
-  (:import [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
+           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
            [java.util List]
-           [javax.vecmath Point3d]))
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -67,28 +69,53 @@
 
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0))
+  (vec2 texcoord0)
+  (vec1 page_index))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
   (attribute vec2 texcoord0)
+  (attribute float page_index)
   (varying vec2 var_texcoord0)
+  (varying float var_page_index)
   (defn void main []
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
+    (setq var_texcoord0 texcoord0)
+    (setq var_page_index page_index)))
 
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
+  (varying float var_page_index)
+  (uniform sampler2DArray texture_sampler)
   (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
+    (setq gl_FragColor (texture2DArray texture_sampler (vec3 var_texcoord0.xy var_page_index)))))
+
+(defn- get-rect-page-offset [layout-width page-index]
+  (let [page-margin 32]
+    (+ (* page-margin page-index) (* layout-width page-index))))
+
+(defn- get-rect-transform [width page-index]
+  (let [page-offset (get-rect-page-offset width page-index)]
+    (doto (Matrix4d.)
+      (.setIdentity)
+      (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
+
+(defn- array-sampler-name->uniform-names [array-sampler-uniform-name page-count]
+  (mapv #(str array-sampler-uniform-name "_" %) (range page-count)))
 
 ; TODO - macro of this
-(def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
+(def atlas-shader
+  (let [transformed-shader-result (ShaderUtil$VariantTextureArrayFallback/transform pos-uv-frag ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
+        augmented-fragment-source (.source transformed-shader-result)
+        array-sampler-names (vec (.arraySamplers transformed-shader-result))
+        array-sampler-uniform-names (into {}
+                                          (map (fn [item] [item (array-sampler-name->uniform-names item ShaderUtil$Common/MAX_ARRAY_SAMPLERS)])
+                                               array-sampler-names))]
+    (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-source {} array-sampler-uniform-names)))
 
 (defn- render-rect
-  [^GL2 gl rect color]
-  (let [x0 (:x rect)
+  [^GL2 gl rect color offset-x]
+  (let [x0 (+ offset-x (:x rect))
         y0 (:y rect)
         x1 (+ x0 (:width rect))
         y1 (+ y0 (:height rect))
@@ -104,10 +131,14 @@
 (defn render-image-outline
   [^GL2 gl render-args renderables]
   (doseq [renderable renderables]
-    (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) colors/selected-outline-color colors/outline-color)))
+    (let [user-data (-> renderable :user-data)
+          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]
+      (render-rect gl (:rect user-data) (if (:selected renderable) colors/selected-outline-color colors/outline-color) page-offset-x)))
   (doseq [renderable renderables]
-    (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
-      (render-rect gl (-> renderable :user-data :rect) colors/defold-pink))))
+    (let [user-data (-> renderable :user-data)
+          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]
+      (when (= (-> renderable :updatable :state :frame) (:order user-data))
+        (render-rect gl (:rect user-data) colors/defold-pink page-offset-x)))))
 
 (defn- render-image-outlines
   [^GL2 gl render-args renderables n]
@@ -121,27 +152,38 @@
   (assert (= n 1))
   (let [renderable (first renderables)
         picking-id (:picking-id renderable)
-        id-color (scene-picking/picking-id->color picking-id)]
-    (render-rect gl (-> renderable :user-data :rect) id-color)))
+        id-color (scene-picking/picking-id->color picking-id)
+        user-data (-> renderable :user-data)
+        rect (:rect user-data)
+        page-offset-x (get-rect-page-offset (:layout-width user-data) (:page rect))]
+    (render-rect gl (:rect user-data) id-color page-offset-x)))
+
+(defn- atlas-rect->editor-rect [rect]
+  (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
 (g/defnk produce-image-scene
-  [_node-id image-resource order image-path->rect animation-updatable]
+  [_node-id image-resource order layout-size image-path->rect animation-updatable]
   (let [path (resource/proj-path image-resource)
         rect (get image-path->rect path)
-        aabb (geom/rect->aabb rect)]
+        editor-rect (atlas-rect->editor-rect rect)
+        aabb (geom/rect->aabb editor-rect)
+        [layout-width _] layout-size]
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-image-outlines
                   :tags #{:atlas :outline}
                   :batch-key ::atlas-image
                   :user-data {:rect rect
-                              :order order}
+                              :order order
+                              :layout-width layout-width
+                              :page-index (:page rect)}
                   :passes [pass/outline]}
      :children [{:aabb aabb
                  :node-id _node-id
                  :renderable {:render-fn render-image-selection
                               :tags #{:atlas}
-                              :user-data {:rect rect}
+                              :user-data {:rect rect
+                                          :layout-width layout-width}
                               :passes [pass/selection]}}]
      :updatable animation-updatable}))
 
@@ -158,7 +200,7 @@
                          :fps             30
                          :flip-horizontal false
                          :flip-vertical   false
-                         :playback        :playback-once-forward}))
+                         :playback        :playback-none}))
 
 (defn- unique-id-error [node-id id id-counts]
   (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
@@ -216,6 +258,8 @@
 
   (input animation-updatable g/Any)
 
+  (input layout-size g/Any)
+
   (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
                               (with-meta
                                 (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
@@ -266,6 +310,7 @@
     (g/connect image-node :image-resource   atlas-node :image-resources)
     (g/connect image-node :node-outline     atlas-node :child-outlines)
     (g/connect image-node :scene            atlas-node :child-scenes)
+    (g/connect atlas-node :layout-size      image-node :layout-size)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
     (g/connect atlas-node :image-path->rect image-node :image-path->rect)
@@ -282,6 +327,7 @@
     (g/connect image-node     :scene            animation-node :child-scenes)
     (g/connect animation-node :child->order     image-node     :child->order)
     (g/connect animation-node :image-path->rect image-node     :image-path->rect)
+    (g/connect animation-node :layout-size      image-node     :layout-size)
     (g/connect animation-node :updatable        image-node     :animation-updatable)))
 
 (defn- attach-animation-to-atlas [atlas-node animation-node]
@@ -298,6 +344,7 @@
     (g/connect atlas-node     :anim-data        animation-node :anim-data)
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
+    (g/connect atlas-node     :layout-size      animation-node :layout-size)
     (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)))
 
 (defn render-animation
@@ -352,6 +399,8 @@
   (input child-build-errors g/Any :array)
   (input id-counts NameCounts)
   (input anim-data g/Any)
+  (input layout-size g/Any)
+  (output layout-size g/Any (gu/passthrough layout-size))
 
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
@@ -386,12 +435,18 @@
                                                  child-build-errors
                                                  own-build-errors))))
 
-(g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
-  {:margin margin
-   :inner-padding inner-padding
-   :extrude-borders extrude-borders
-   :images (sort-by-and-strip-order img-ddf)
-   :animations anim-ddf})
+(defn- v3->v2 [v3]
+  (subvec v3 0 2))
+
+(g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf]
+  (cond-> {:margin margin
+           :inner-padding inner-padding
+           :extrude-borders extrude-borders
+           :images (sort-by-and-strip-order img-ddf)
+           :animations anim-ddf}
+
+          (not= [0.0 0.0] max-page-size)
+          (assoc :max-page-width (get max-page-size 0) :max-page-height (get max-page-size 1))))
 
 (defn- validate-margin [node-id margin]
   (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
@@ -402,6 +457,15 @@
 (defn- validate-extrude-borders [node-id extrude-borders]
   (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
 
+(defn- max-page-size-error-message [[x y]]
+  (cond
+    (neg? x) "'Max Page Width' cannot be negative"
+    (neg? y) "'Max Page Height' cannot be negative"
+    :else nil))
+
+(defn- validate-max-page-size [node-id page-size]
+  (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
+
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
                            (validate-inner-padding node-id inner-padding)
@@ -410,12 +474,12 @@
                           (not-empty))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-image-generator texture-profile build-settings build-errors]
+(g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
     (let [project           (project/get-project _node-id)
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
-          texture-target    (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)
+          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
           pb-msg            texture-set
           dep-build-targets [texture-target]]
       [(pipeline/make-protobuf-build-target resource dep-build-targets
@@ -430,21 +494,23 @@
     content-pb))
 
 (defn gen-renderable-vertex-buffer
-  [width height]
-  (let [x0 0
+  [width height page-index]
+  (let [page-offset-x (get-rect-page-offset width page-index)
+        x0 page-offset-x
         y0 0
-        x1 width
+        x1 (+ width page-offset-x)
         y1 height]
     (persistent!
       (doto (->texture-vtx 6)
-           (conj! [x0 y0 0 1 0 0])
-           (conj! [x0 y1 0 1 0 1])
-           (conj! [x1 y1 0 1 1 1])
+           (conj! [x0 y0 0 1 0 0 page-index])
+           (conj! [x0 y1 0 1 0 1 page-index])
+           (conj! [x1 y1 0 1 1 1 page-index])
 
-           (conj! [x1 y1 0 1 1 1])
-           (conj! [x1 y0 0 1 1 0])
-           (conj! [x0 y0 0 1 0 0])))))
+           (conj! [x1 y1 0 1 1 1 page-index])
+           (conj! [x1 y0 0 1 1 0 page-index])
+           (conj! [x0 y0 0 1 0 0 page-index])))))
 
+;; This is for rendering atlas texture pages!
 (defn- render-atlas
   [^GL2 gl render-args [renderable] n]
   (let [{:keys [pass]} render-args]
@@ -454,7 +520,7 @@
             {:keys [vbuf gpu-texture]} user-data
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
         (gl/with-gl-bindings gl render-args [atlas-shader vertex-binding gpu-texture]
-          (shader/set-uniform atlas-shader gl "texture_sampler" 0)
+          (shader/set-samplers-by-index atlas-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 
 (defn- render-atlas-outline
@@ -474,29 +540,40 @@
         (.glVertex3d gl x1 y0 0)
         (.glEnd gl)))))
 
-(g/defnk produce-scene
-  [_node-id aabb layout-size gpu-texture child-scenes texture-profile]
-  (let [[width height] layout-size]
+(defn- produce-page-renderables
+  [aabb layout-width layout-height page-index page-rects gpu-texture]
     {:aabb aabb
-     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+     :transform (get-rect-transform layout-width page-index)
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
-                              :vbuf        (gen-renderable-vertex-buffer width height)}
+                              :vbuf        (gen-renderable-vertex-buffer layout-width layout-height page-index)}
                   :tags #{:atlas}
                   :passes [pass/transparent]}
-     :children (into [{:aabb aabb
-                       :renderable {:render-fn render-atlas-outline
-                                    :tags #{:atlas :outline}
-                                    :passes [pass/outline]}}]
+     :children [{:aabb aabb
+                 :renderable {:render-fn render-atlas-outline
+                              :tags #{:atlas :outline}
+                              :passes [pass/outline]}}]})
+
+(g/defnk produce-scene
+  [_node-id aabb layout-rects layout-size gpu-texture child-scenes texture-profile]
+  (let [[width height] layout-size
+        pages (group-by :page layout-rects)
+        child-renderables (into [] (for [[page-index page-rects] pages] (produce-page-renderables aabb width height page-index page-rects gpu-texture)))]
+    {:aabb aabb
+     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+     :children (into child-renderables
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders]}]
-  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders))
+(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
+  (try
+    (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders max-page-size)
+    (catch Exception error
+      (g/->error _node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-image [{:keys [_node-id image-resources layout-data-generator]}]
+(defn- generate-packed-page-images [{:keys [_node-id image-resources layout-data-generator]}]
   (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
                                  (image-util/read-image %))
                               image-resources)]
@@ -504,10 +581,10 @@
       (let [layout-data (call-generator layout-data-generator)]
         (g/precluding-errors layout-data
           (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
-            (texture-set-gen/layout-images (:layout layout-data) id->image)))))))
+            (texture-set-gen/layout-atlas-pages (:layout layout-data) id->image)))))))
 
 (g/defnk produce-layout-data-generator
-  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin :as args]
+  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
   ;; compiles a TextureSetProto$TextureSet including the animation data in
   ;; addition to generating the layout. This means that modifying a property on
@@ -526,6 +603,28 @@
                                (assoc :animations fake-animations))]
         {:f generate-texture-set-data
          :args augmented-args})))
+
+(g/defnk produce-packed-page-images-generator
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
+  (let [flat-image-resources (filterv some? (flatten image-resources))
+        image-sha1s (map (fn [resource]
+                           (resource-io/with-error-translation resource _node-id nil
+                             (resource/resource->path-inclusive-sha1-hex resource)))
+                         flat-image-resources)
+        errors (filter g/error? image-sha1s)]
+    (if (seq errors)
+      (g/error-aggregate errors)
+      (let [packed-image-sha1 (digestable/sha1-hash
+                                {:extrude-borders extrude-borders
+                                 :image-sha1s image-sha1s
+                                 :inner-padding inner-padding
+                                 :margin margin
+                                 :type :packed-atlas-image})]
+        {:f generate-packed-page-images
+         :sha1 packed-image-sha1
+         :args {:_node-id _node-id
+                :image-resources flat-image-resources
+                :layout-data-generator layout-data-generator}}))))
 
 (defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
   (assert (boolean? flip-horizontal))
@@ -563,11 +662,19 @@
   [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))
 
+(s/defrecord AtlasRect
+  [path     :- s/Any
+   x        :- types/Int32
+   y        :- types/Int32
+   width    :- types/Int32
+   height   :- types/Int32
+   page     :- types/Int32])
+
 (g/defnk produce-image-path->rect
   [layout-size layout-rects]
   (let [[w h] layout-size]
-    (into {} (map (fn [{:keys [path x y width height]}]
-                    [path (types/->Rect path x (- h height y) width height)]))
+    (into {} (map (fn [{:keys [path x y width height page]}]
+                    [path (->AtlasRect path x (- h height y) width height page)]))
           layout-rects)))
 
 (defn- atlas-outline-sort-by-fn [v]
@@ -589,6 +696,9 @@
   (property extrude-borders g/Int
             (default 0)
             (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
+  (property max-page-size types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+            (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -617,31 +727,14 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
-                                         (let [flat-image-resources (filterv some? (flatten image-resources))
-                                               image-sha1s (map (fn [resource]
-                                                                  (resource-io/with-error-translation resource _node-id nil
-                                                                    (resource/resource->path-inclusive-sha1-hex resource)))
-                                                                flat-image-resources)
-                                               errors (filter g/error? image-sha1s)]
-                                           (if (seq errors)
-                                             (g/error-aggregate errors)
-                                             (let [packed-image-sha1 (digestable/sha1-hash
-                                                                       {:extrude-borders extrude-borders
-                                                                        :image-sha1s image-sha1s
-                                                                        :inner-padding inner-padding
-                                                                        :margin margin
-                                                                        :type :packed-atlas-image})]
-                                               {:f generate-packed-image
-                                                :sha1 packed-image-sha1
-                                                :args {:_node-id _node-id
-                                                       :image-resources flat-image-resources
-                                                       :layout-data-generator layout-data-generator}})))))
+  (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
+                                                 (if (every? pos? max-page-size)
+                                                   (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
+                                                   0))) ; Not a paged atlas. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
-  (output packed-image     BufferedImage       :cached (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
+  (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-images-generator] (call-generator packed-page-images-generator)))
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
@@ -651,11 +744,15 @@
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
-  (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-image]
-                                                         (texture/texture-image->gpu-texture _node-id
-                                                                                             texture-image
-                                                                                             {:min-filter gl/nearest
-                                                                                              :mag-filter gl/nearest})))
+  (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-page-images texture-profile]
+                                                         (let [page-texture-images
+                                                               (mapv #(tex-gen/make-preview-texture-image % texture-profile)
+                                                                     packed-page-images)]
+                                                           (texture/texture-images->gpu-texture
+                                                             _node-id
+                                                             page-texture-images
+                                                             {:min-filter gl/nearest
+                                                              :mag-filter gl/nearest}))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
@@ -676,11 +773,12 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size]
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
-                                                              (validate-extrude-borders _node-id extrude-borders))))
+                                                              (validate-extrude-borders _node-id extrude-borders)
+                                                              (validate-max-page-size _node-id max-page-size))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
                                                               child-build-errors
@@ -744,6 +842,7 @@
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
+      (g/set-property self :max-page-size [(:max-page-width atlas) (:max-page-height atlas)])
       (make-image-nodes-in-atlas self image-msgs)
       (map (comp (partial make-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))

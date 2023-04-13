@@ -473,7 +473,7 @@
 
 (defn find-perspective-frame-distance
   ^double [points point->coord ^double fov-deg]
-  (let [^double half-fov-rad (math/deg->rad (* fov-deg 0.5))
+  (let [half-fov-rad (math/deg->rad (* fov-deg 0.5))
         comp-half-fov-rad (- ^double math/half-pi half-fov-rad)
         tan-comp-half-fov-rad (Math/tan comp-half-fov-rad)]
     (reduce (fn [^double max-distance ^Point3d point]
@@ -538,7 +538,7 @@
   (assert (= :orthographic (:type camera)))
   (let [^double fov-x-distance (:fov-x camera)
         ^double fov-y-distance (:fov-y camera)
-        ^double half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
+        half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
         aspect (/ fov-x-distance fov-y-distance)
         focus-distance (/ fov-y-distance 2.0 (Math/tan half-fov-y-rad))
         focus-pos (camera-focus-point camera)
@@ -559,8 +559,8 @@
         focus-distance (.length (math/subtract-vector focus-pos (:position camera)))
         ^double fov-x-deg (:fov-x camera)
         ^double fov-y-deg (:fov-y camera)
-        ^double half-fov-x-rad (math/deg->rad (* fov-x-deg 0.5))
-        ^double half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
+        half-fov-x-rad (math/deg->rad (* fov-x-deg 0.5))
+        half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
         fov-x-distance (* focus-distance 2.0 (Math/tan half-fov-x-rad))
         fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
         cam-forward (camera-forward-vector camera)

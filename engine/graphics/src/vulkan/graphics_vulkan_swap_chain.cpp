@@ -240,7 +240,7 @@ namespace dmGraphics
         if (swapChain->HasMultiSampling())
         {
             VkResult res = CreateTexture2D(vk_physical_device, vk_device,
-                vk_extent.width, vk_extent.height, 1,
+                vk_extent.width, vk_extent.height, 1, 1,
                 swapChain->m_SampleCountFlag, swapChain->m_SurfaceFormat.format, VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, swapChain->m_ResolveTexture);
