@@ -58,6 +58,7 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -87,6 +88,8 @@ import com.google.protobuf.Message;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         handle.deleteOnExit();
@@ -199,7 +202,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
-        Bob.verbose("GameProjectBuilder.createArchive\n");
+        logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
@@ -243,7 +246,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         long tend = System.currentTimeMillis();
-        Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
+        logger.info("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
         TimeProfiler.stop();
     }
 
@@ -484,7 +487,7 @@ public class GameProjectBuilder extends Builder<Void> {
             publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
 
             if (!privateKeyFileHandle.exists() || !publicKeyFileHandle.exists()) {
-                Bob.verbose("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
+                logger.info("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
                 try {
                     ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
                 } catch (NoSuchAlgorithmException exception) {

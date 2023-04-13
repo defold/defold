@@ -18,10 +18,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.List;
 import java.util.Map;
+
+import com.dynamo.bob.logging.Logger;
 
 public class Exec {
 
@@ -40,7 +40,7 @@ public class Exec {
 
     public static int exec(String... args) throws IOException {
         if (getVerbosity() >= 2) {
-            logger.log(Level.INFO, "CMD: " + String.join(" ", args));
+            logger.info("CMD: " + String.join(" ", args));
         }
 
         Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
@@ -54,7 +54,7 @@ public class Exec {
             }
             ret = p.waitFor();
         } catch (InterruptedException e) {
-            logger.log(Level.SEVERE, "Unexpected interruption", e);
+            logger.severe("Unexpected interruption", e);
         }
 
         return ret;
@@ -77,7 +77,7 @@ public class Exec {
      */
     public static Result execResult(String... args) throws IOException {
         if (getVerbosity() >= 2) {
-            logger.log(Level.INFO, "CMD: " + String.join(" ", args));
+            logger.info("CMD: " + String.join(" ", args));
         }
         Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
         int ret = 127;
@@ -92,7 +92,7 @@ public class Exec {
             }
             ret = p.waitFor();
         } catch (InterruptedException e) {
-            logger.log(Level.SEVERE, "Unexpected interruption", e);
+            logger.severe("Unexpected interruption", e);
         }
 
         return new Result(ret, out.toByteArray());
@@ -100,7 +100,7 @@ public class Exec {
 
     private static ProcessBuilder processBuilderWithArgs(Map<String, String> env, String[] args) {
         if (getVerbosity() >= 2) {
-            logger.log(Level.INFO, "CMD: " + String.join(" ", args));
+            logger.info("CMD: " + String.join(" ", args));
         }
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
@@ -128,7 +128,7 @@ public class Exec {
             }
             ret = p.waitFor();
         } catch (InterruptedException e) {
-            logger.log(Level.SEVERE, "Unexpected interruption", e);
+            logger.severe("Unexpected interruption", e);
         }
 
         return new Result(ret, out.toByteArray());

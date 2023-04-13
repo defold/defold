@@ -80,6 +80,7 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
@@ -96,6 +97,8 @@ import com.dynamo.bob.cache.ResourceCacheKey;
  *
  */
 public class Project {
+
+    private static Logger logger = Logger.getLogger(Project.class.getName());
 
     public final static String LIB_DIR = ".internal/lib";
     public final static String CACHE_DIR = ".internal/cache";
@@ -1077,7 +1080,7 @@ public class Project {
 
         // Set the concatenated jna.library path
         System.setProperty(variable, newPath);
-        Bob.verbose("Set %s to '%s'", variable, newPath);
+        logger.info("Set %s to '%s'", variable, newPath);
     }
 
     private void registerPipelinePlugins() throws CompileExceptionError {
@@ -1085,7 +1088,7 @@ public class Project {
         BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
         List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
         if (!plugins.isEmpty()) {
-            Bob.verbose("\nFound plugins:");
+            logger.info("\nFound plugins:");
         }
 
         String hostPlatform = Platform.getHostPlatform().getExtenderPair();
@@ -1103,9 +1106,9 @@ public class Project {
             }
 
             String relativePath = new File(rootDirectory).toURI().relativize(plugin.toURI()).getPath();
-            Bob.verbose("  %s", relativePath);
+            logger.info("  %s", relativePath);
         }
-        Bob.verbose("");
+        logger.info("");
     }
 
     private boolean shouldBuildArtifact(String artifact) {
@@ -1190,7 +1193,7 @@ public class Project {
                         buildEngine(monitor, architectures, appmanifestOptions);
 
                         long tend = System.currentTimeMillis();
-                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
+                        logger.info("Engine build took %f s", (tend-tstart)/1000.0);
                         TimeProfiler.stop();
 
                         if (!shouldBuildEngine()) {

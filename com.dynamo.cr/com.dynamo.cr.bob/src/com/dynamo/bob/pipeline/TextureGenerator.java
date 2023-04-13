@@ -35,8 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.EnumSet;
 
 import javax.imageio.ImageIO;
@@ -48,6 +46,7 @@ import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -311,7 +310,7 @@ public class TextureGenerator {
                 textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
 
                 Logger logger = Logger.getLogger(TextureGenerator.class.getName());
-                logger.log(Level.WARNING, "PVR compressed texture is not square and will be resized.");
+                logger.warning("PVR compressed texture is not square and will be resized.");
 
                 newWidth = Math.max(newWidth, newHeight);
                 newHeight = newWidth;
