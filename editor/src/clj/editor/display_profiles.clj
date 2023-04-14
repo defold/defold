@@ -13,15 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.display-profiles
-  (:require [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.workspace :as workspace]
+            [editor.graph-util :as gu]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.graph-util :as gu]
+            [editor.workspace :as workspace]
             [util.text-util :as text-util])
-  (:import (com.dynamo.render.proto Render$DisplayProfiles)))
+  (:import [com.dynamo.render.proto Render$DisplayProfiles]))
 
 (set! *warn-on-reflection* true)
 
@@ -31,6 +31,17 @@
              :icon "icons/32/Icons_50-Display-profiles.png"
              :pb-class Render$DisplayProfiles})
 
+(def ^:private comma-separated-string->non-empty-vector
+  (comp not-empty text-util/parse-comma-separated-string))
+
+(defn- qualifier-form-value->pb [qualifier]
+  (protobuf/sanitize qualifier :device-models comma-separated-string->non-empty-vector))
+
+(g/defnk produce-pb-msg [form-values]
+  (-> form-values
+      (dissoc :node-id)
+      (protobuf/sanitize-repeated :qualifiers qualifier-form-value->pb)))
+
 (g/defnode ProfileNode
   (property name g/Str)
   (property qualifiers g/Any)
@@ -39,13 +50,7 @@
                               {:node-id _node-id
                                :name name
                                :qualifiers qualifiers}))
-  (output pb-msg g/Any (g/fnk [form-values]
-                         (-> form-values
-                             (dissoc :node-id)
-                             (update :qualifiers
-                                     (fn [qualifiers]
-                                       (mapv #(update % :device-models text-util/parse-comma-separated-string)
-                                             qualifiers))))))
+  (output pb-msg g/Any produce-pb-msg)
   (output profile-data g/Any (g/fnk [_node-id pb-msg]
                                     (assoc pb-msg :node-id _node-id))))
 
@@ -116,9 +121,9 @@
   (inherits resource-node/ResourceNode)
 
   (input profile-msgs g/Any :array)
-  (output pb-msg g/Any (g/fnk [profile-msgs]
-                         (protobuf/make-map-with-defaults Render$DisplayProfiles
-                           :profiles profile-msgs)))
+  (output pb-msg g/Any :cached (g/fnk [profile-msgs]
+                                 (protobuf/make-map-with-defaults Render$DisplayProfiles
+                                   :profiles profile-msgs)))
   (input profile-form-values g/Any :array)
   (output form-values g/Any (g/fnk [profile-form-values] {[:profiles] profile-form-values}))
   (output form-data-desc g/Any :cached produce-form-data-desc)
@@ -134,12 +139,13 @@
     (add-profile self (:name p) (:qualifiers p))))
 
 (defn register-resource-types [workspace]
+  ;; TODO(save-value): This needs some attention. :device-models [] in :qualifiers entries. Port over to stripped-defaults?
   (resource-node/register-ddf-resource-type workspace
     :ext (:ext pb-def)
     :label (:label pb-def)
     :build-ext (:build-ext pb-def)
     :node-type DisplayProfilesNode
     :ddf-type Render$DisplayProfiles
-    :load-fn (fn [project self resource pb] (load-display-profiles project self resource pb))
+    :load-fn load-display-profiles
     :icon (:icon pb-def)
     :view-types (:view-types pb-def)))

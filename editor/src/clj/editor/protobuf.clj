@@ -235,6 +235,7 @@ Macros currently mean no foreseeable performance gain, however."
 (declare default resource-field-paths)
 
 (defn resource-field-paths-raw
+  ;; TODO(save-value): Update this comment to reflect that the return value includes field default values.
   "Returns a list of path expressions pointing out all resource fields.
 
   path-expr := '[' elem+ ']'

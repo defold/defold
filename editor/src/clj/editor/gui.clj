@@ -913,7 +913,7 @@
             ;; size field as overridden, the manual size stored in the file will
             ;; be overwritten by the size of its auto-sized original (which will
             ;; be zero now that we strip away auto-sized node sizes).
-            (and (= :size-mode-manual size-mode)
+            (and (not= :size-mode-auto size-mode) ; May be nil, which means :size-mode-manual.
                  (some is-size-mode-prop-index? overridden-fields)
                  (not-any? is-size-prop-index? overridden-fields))
             (add-size-to-overridden-fields-in-node-desc))))

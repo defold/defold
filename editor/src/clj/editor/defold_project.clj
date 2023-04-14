@@ -61,19 +61,22 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-registered-resource-node [resource-type project node-id resource]
+(defn- load-registered-resource-node [resource-type project node-id resource node-id->source-value]
   (let [read-fn (:read-fn resource-type)
         load-fn (:load-fn resource-type)]
     (concat
-      (if read-fn
-        (load-fn project node-id resource (read-fn resource)) ; TODO: We also read for the dependencies-fn. Merge reads.
-        (load-fn project node-id resource))
+      (if (nil? read-fn)
+        (load-fn project node-id resource)
+        (let [source-value (if node-id->source-value
+                             (node-id->source-value node-id)
+                             (read-fn resource))]
+          (load-fn project node-id resource source-value)))
       (when (and (resource/file-resource? resource)
                  (resource/editable? resource)
                  (:auto-connect-save-data? resource-type))
         (g/connect node-id :save-data project :save-data)))))
 
-(defn load-node [project node-id node-type resource]
+(defn load-node [project node-id node-type resource node-id->source-value]
   ;; Note that node-id here may be temporary (a make-node not
   ;; g/transact'ed) here, so we can't use (node-value node-id :...)
   ;; to inspect it. That's why we pass in node-type, resource.
@@ -90,7 +93,7 @@
             (doall
               (if (nil? (:load-fn resource-type))
                 (placeholder-resource/load-node project node-id resource)
-                (load-registered-resource-node resource-type project node-id resource)))
+                (load-registered-resource-node resource-type project node-id resource node-id->source-value)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
@@ -162,6 +165,7 @@
                                 (map (fn [node-id]
                                        [node-id (g/node-value node-id :resource evaluation-context)]))
                                 node-ids)
+        node-id->source-value #(g/node-value % :source-value evaluation-context)
         old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
         loaded-nodes-by-resource-path (into {}
                                             (map (fn [[node-id resource]]
@@ -202,10 +206,10 @@
                            [(g/callback render-processing-progress! processing-progress)
                             (g/callback start-resource-metrics-load-timer!)
                             (du/measuring resource-metrics resource-path :generate-load-tx-data
-                              (load-node project node-id (g/node-type* basis node-id) resource))
+                              (load-node project node-id (g/node-type* basis node-id) resource node-id->source-value))
                             (g/callback stop-resource-metrics-load-timer! resource-path)]
                            [(g/callback render-processing-progress! processing-progress)
-                            (load-node project node-id (g/node-type* basis node-id) resource)])))))]
+                            (load-node project node-id (g/node-type* basis node-id) resource node-id->source-value)])))))]
     (g/update-cache-from-evaluation-context! evaluation-context)
     load-txs))
 
@@ -833,7 +837,7 @@
          :tx-data (concat
                     creation-tx-data
                     (when (or creation-tx-data *load-cache*)
-                      (load-node project node-id node-type resource))
+                      (load-node project node-id node-type resource nil))
                     (connect-if-output node-type node-id consumer-node connections))}))))
 
 (deftype ProjectResourceListener [project-id]

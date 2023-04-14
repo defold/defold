@@ -57,6 +57,9 @@
   (output undecorated-save-data g/Any produce-undecorated-save-data)
   (output save-data g/Any :cached produce-save-data)
   (output source-value g/Any :cached :unjammable (g/fnk [_node-id resource editable]
+                                                   ;; TODO(save-value): It's a problem that this is invalidated from the
+                                                   ;; editable property changing, because we want the cached value we pulled
+                                                   ;; into the cache when reading to persist after the load-fn has run.
                                                    (when-some [read-fn (:read-fn (resource/resource-type resource))]
                                                      (when (and editable (resource/exists? resource))
                                                        (resource-io/with-error-translation resource _node-id :source-value

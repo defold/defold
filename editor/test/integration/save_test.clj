@@ -263,6 +263,7 @@
                ["/editor1/test.gui" delete-first-child!]
                ["/editor1/template_test.gui" delete-first-child!]
                ["/gui/legacy_alpha.gui" delete-first-child!]
+               ["/gui/size_mode.gui" delete-first-child!]
                ["/model/empty_mesh.model" (set-prop-fn :name "new-name")]
                ["/script/props.script" append-lua-code-line!]
                ["/logic/default.render_script" append-lua-code-line!]
