@@ -30,6 +30,7 @@ namespace dmGraphics
         uint16_t    m_NumTextureIds;
         uint16_t    m_Width;
         uint16_t    m_Height;
+        uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint16_t    m_MipMapCount;

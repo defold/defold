@@ -215,6 +215,7 @@ namespace dmGameSystem
 struct ResourceModule
 {
     dmResource::HFactory m_Factory;
+    dmGraphics::HContext m_GraphicsContext;
 } g_ResourceModule;
 
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
@@ -522,7 +523,7 @@ static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageForma
     return (dmGraphics::TextureImage::TextureFormat) -1;
 }
 
-static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(int texturetype)
+static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype)
 {
     switch(texturetype)
     {
@@ -714,11 +715,17 @@ static int CreateTexture(lua_State* L)
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
-    uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height      = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    dmGraphics::TextureType type = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
+    uint32_t width               = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height              = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format              = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t max_mipmaps         = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+
+    // TODO: Texture arrays
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    {
+        return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+    }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
@@ -755,7 +762,7 @@ static int CreateTexture(lua_State* L)
     if ((tex_type == dmGraphics::TextureImage::TYPE_CUBEMAP || tex_type == dmGraphics::TextureImage::TYPE_2D_ARRAY) && compression_type != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT)
     {
         return luaL_error(L, "Compression type %d requested for texture %s with type '%s', but this is currently not supported.",
-            (int) compression_type, path_str, dmGraphics::GetTextureTypeLiteral((dmGraphics::TextureType) type));
+            (int) compression_type, path_str, dmGraphics::GetTextureTypeLiteral(type));
     }
 
     MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, buffer, &texture_image);
@@ -935,13 +942,19 @@ static int SetTexture(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type   = (uint32_t) CheckTableInteger(L, 2, "type");
-    uint32_t width  = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t format = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t mipmap = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
-    int32_t x       = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
-    int32_t y       = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
+    dmGraphics::TextureType type = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
+    uint32_t width               = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height              = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format              = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t mipmap              = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t x                    = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
+    int32_t y                    = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
+
+    // TODO: Texture arrays
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    {
+        return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+    }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
@@ -1001,6 +1014,127 @@ static int SetTexture(lua_State* L)
 
     assert(top == lua_gettop(L));
     return 0;
+}
+
+/*# get texture info
+ * Gets texture info from a texture resource path or a texture handle
+ *
+ * @name resource.get_texture_info
+ *
+ * @param path [type:hash|string|handle] The path to the resource or a texture handle
+ * @return table [type:table] A table containing info about the texture:
+ *
+ * `handle`
+ * : [type:handle] the opaque handle to the texture resource
+ *
+ * `width`
+ * : [type:integer] width of the texture
+ *
+ * `height`
+ * : [type:integer] height of the texture
+ *
+ * `mipmaps`
+ * : [type:integer] number of mipmaps of the texture
+ *
+ * `type`
+ * : [type:number] The texture type. Supported values:
+ *
+ * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ *
+ * @examples
+ * Create a new texture and get the metadata from it
+ *
+ * ```lua
+ * function init(self)
+ *     -- create an empty texture
+ *     local tparams = {
+ *         width          = 128,
+ *         height         = 128,
+ *         type           = resource.TEXTURE_TYPE_2D,
+ *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *     }
+ *
+ *     local my_texture_path = resource.create_texture("/my_texture.texturec", tparams)
+ *     local my_texture_info = resource.get_texture_info(my_texture_path)
+ *
+ *     -- my_texture_info now contains
+ *     -- {
+ *     --      handle = <the-numeric-handle>,
+ *     --      width = 128,
+ *     --      height = 128,
+ *     --      depth = 1
+ *     --      mipmaps = 1,
+ *     --      type = resource.TEXTURE_TYPE_2D
+ *     -- }
+ * end
+ * ```
+ *
+ * @examples
+ * Get the meta data from an atlas resource
+ *
+ * ```lua
+ * function init(self)
+ *     local my_atlas_info   = resource.get_atlas("/my_atlas.a.texturesetc")
+ *     local my_texture_info = resource.get_texture_info(my_atlas_info.texture)
+ *
+ *     -- my_texture_info now contains the information about the texture that is backing the atlas
+ * end
+ * ```
+ */
+static int GetTextureInfo(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmGraphics::HTexture texture_handle = 0;
+
+    if (lua_isnumber(L, 1))
+    {
+        texture_handle = lua_tonumber(L, 1);
+        if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, texture_handle))
+        {
+            return luaL_error(L, "Texture handle is not valid.");
+        }
+    }
+    else
+    {
+        dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
+        TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+        texture_handle               = texture_res->m_Texture;
+
+        if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, texture_handle))
+        {
+            return luaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
+        }
+    }
+
+    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
+    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
+    uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
+    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
+    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+
+    lua_newtable(L);
+
+    lua_pushinteger(L, texture_handle);
+    lua_setfield(L, -2, "handle");
+
+    lua_pushinteger(L, texture_width);
+    lua_setfield(L, -2, "width");
+
+    lua_pushinteger(L, texture_height);
+    lua_setfield(L, -2, "height");
+
+    lua_pushinteger(L, texture_depth);
+    lua_setfield(L, -2, "depth");
+
+    lua_pushinteger(L, texture_mipmaps);
+    lua_setfield(L, -2, "mipmaps");
+
+    lua_pushinteger(L, texture_type);
+    lua_setfield(L, -2, "type");
+
+    assert((top + 1) == lua_gettop(L));
+    return 1;
 }
 
 // Allocates a new array and fills it with data from a lua table at top of stack.
@@ -1414,7 +1548,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
         }
     }
 
-    delete geometry_scratch_ptr;
+    delete[] geometry_scratch_ptr;
 
     assert(top == lua_gettop(L));
 }
@@ -2379,6 +2513,7 @@ static const luaL_reg Module_methods[] =
     {"set_atlas", SetAtlas},
     {"get_atlas", GetAtlas},
     {"set_texture", SetTexture},
+    {"get_texture_info", GetTextureInfo},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
@@ -2403,6 +2538,12 @@ static const luaL_reg Module_methods[] =
 /*# Cube map texture type
  *
  * @name resource.TEXTURE_TYPE_CUBE_MAP
+ * @variable
+ */
+
+/*# 2D Array texture type
+ *
+ * @name resource.TEXTURE_TYPE_2D_ARRAY
  * @variable
  */
 
@@ -2573,6 +2714,7 @@ static void LuaInit(lua_State* L)
 
     SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D);
     SETGRAPHICSCONSTANT(TEXTURE_TYPE_CUBE_MAP);
+    SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D_ARRAY);
 
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_LUMINANCE);
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB);
@@ -2627,7 +2769,8 @@ static void LuaInit(lua_State* L)
 void ScriptResourceRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
-    g_ResourceModule.m_Factory = context.m_Factory;
+    g_ResourceModule.m_Factory         = context.m_Factory;
+    g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

@@ -31,7 +31,14 @@ local tparams = {
 	format         = resource.TEXTURE_FORMAT_RGBA,
 }
 
-local args_compressed = {
+local tparams_cube = {
+	width          = 128,
+	height         = 128,
+	type           = resource.TEXTURE_TYPE_CUBE_MAP,
+	format         = resource.TEXTURE_FORMAT_RGBA,
+}
+
+local tparams_compressed = {
 	type             = resource.TEXTURE_TYPE_2D,
 	width            = 32,
 	height           = 32,
@@ -87,13 +94,51 @@ function test_compressed()
 		stream[i] = c:byte(i)
 	end
 
-    resource.create_texture("/test_compressed.texturec", args_compressed, tex_buffer)
+    resource.create_texture("/test_compressed.texturec", tparams_compressed, tex_buffer)
 end
 
 function test_compressed_fail()
 	-- Note: res_texture won't yield an error here, we need to check the result of this operation on the C side
 	local tex_buffer = buffer.create(128, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
-	resource.create_texture("/test_compressed_fail.texturec", args_compressed, tex_buffer)
+	resource.create_texture("/test_compressed_fail.texturec", tparams_compressed, tex_buffer)
+end
+
+function test_get_texture_info()
+	local t_id   = resource.create_texture("/test_get_texture_info.texturec", tparams)
+	local t_info = resource.get_texture_info(t_id)
+
+	assert(t_info.width  == tparams.width)
+	assert(t_info.height == tparams.height)
+	assert(t_info.type   == tparams.type)
+
+	local t_info_by_handle = resource.get_texture_info(t_info.handle)
+	assert(t_info_by_handle.width   == 128)
+	assert(t_info_by_handle.height  == 128)
+	assert(t_info_by_handle.depth   == 1)
+	assert(t_info_by_handle.mipmaps == 1)
+	assert(t_info_by_handle.type    == resource.TEXTURE_TYPE_2D)
+
+	resource.release(t_id)
+
+	local t_id_cube   = resource.create_texture("/test_get_texture_info_cube.texturec", tparams_cube)
+	local t_info_cube = resource.get_texture_info(t_id_cube)
+
+	assert(t_info_cube.width   == 128)
+	assert(t_info_cube.height  == 128)
+	assert(t_info_cube.depth   == 6)
+	assert(t_info_cube.mipmaps == 1)
+	assert(t_info_cube.type    == resource.TEXTURE_TYPE_CUBE_MAP)
+
+	resource.release(t_id_cube)
+
+	-- test incorrect handles
+	assert_error(function()
+		resource.get_texture_info(1)
+	end)
+
+	assert_error(function()
+		resource.get_texture_info(t_id)
+	end)
 end
 
 function update(self)
@@ -107,6 +152,7 @@ function update(self)
 		test_release_not_found,
 		test_compressed,
 		test_compressed_fail,
+		test_get_texture_info,
 	}
 
 	if tests[self.update_counter] ~= nil then

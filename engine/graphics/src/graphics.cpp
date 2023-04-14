@@ -913,6 +913,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHeight(texture);
     }
+    uint16_t GetTextureDepth(HTexture texture)
+    {
+        return g_functions.m_GetTextureDepth(texture);
+    }
     uint16_t GetOriginalTextureWidth(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureWidth(texture);
@@ -920,6 +924,10 @@ namespace dmGraphics
     uint16_t GetOriginalTextureHeight(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureHeight(texture);
+    }
+    uint8_t GetTextureMipmapCount(HTexture texture)
+    {
+        return g_functions.m_GetTextureMipmapCount(texture);
     }
     TextureType GetTextureType(HTexture texture)
     {
@@ -976,6 +984,10 @@ namespace dmGraphics
     uint8_t GetNumTextureHandles(HTexture texture)
     {
         return g_functions.m_GetNumTextureHandles(texture);
+    }
+    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
+    {
+        return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))

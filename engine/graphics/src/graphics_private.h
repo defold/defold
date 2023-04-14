@@ -23,9 +23,6 @@ namespace dmGraphics
 {
     const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
 
-    // Decorated asset handle with 32 bits meta | 32 bits opaque handle
-    typedef uint64_t HAssetHandle;
-
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -53,7 +50,6 @@ namespace dmGraphics
     bool  UnmapVertexBuffer(HVertexBuffer buffer);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool  UnmapIndexBuffer(HIndexBuffer buffer);
-    bool  IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
     // <- end test functions
 
     static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
