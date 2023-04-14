@@ -368,18 +368,21 @@ public class LuaScanner extends LuaParserBaseListener {
                             v.set(args);
                             property.value = v;
                             property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
+                            result = true;
                         } else if (fnDesc.isName("vector4")) {
                             Vector4d v = new Vector4d();
                             double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
                             v.set(args);
                             property.value = v;
                             property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
+                            result = true;
                         } else if (fnDesc.isName("quat")) {
                             Quat4d q = new Quat4d();
                             double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
                             q.set(args);
                             property.value = q;
                             property.type = PropertyType.PROPERTY_TYPE_QUAT;
+                            result = true;
                         }
                     }
                     else {
