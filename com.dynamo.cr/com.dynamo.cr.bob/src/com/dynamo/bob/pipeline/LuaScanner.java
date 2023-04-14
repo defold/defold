@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -50,6 +51,7 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.antlr.v4.runtime.RecognitionException;
 
 public class LuaScanner extends LuaParserBaseListener {
 
@@ -86,25 +88,6 @@ public class LuaScanner extends LuaParserBaseListener {
         put(LuaParser.CHARSTRING, "'");
     }};
 
-    private static Pattern propertyDeclPattern = Pattern.compile("go.property\\s*?\\((.*?)\\);?(\\s*?--.*?)?$");
-    private static Pattern propertyArgsPattern = Pattern.compile("[\"'](.*?)[\"']\\s*,(.*)");
-
-    // http://docs.python.org/dev/library/re.html#simulating-scanf
-    private static Pattern numPattern = Pattern.compile("[-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?");
-    private static Pattern hashPattern = Pattern.compile("hash\\s*\\([\"'](.*?)[\"']\\)");
-    private static Pattern urlPattern = Pattern.compile("msg\\.url\\s*\\(([\"'](.*?)[\"']|)?\\)");
-    private static Pattern vec3Pattern1 = Pattern.compile("vmath\\.vector3\\s*\\(((.+?),(.+?),(.+?))\\)");
-    private static Pattern vec3Pattern2 = Pattern.compile("vmath\\.vector3\\s*\\(((.+?))\\)");
-    private static Pattern vec3Pattern3 = Pattern.compile("vmath\\.vector3\\s*\\(()\\)");
-    private static Pattern vec4Pattern1 = Pattern.compile("vmath\\.vector4\\s*\\(((.+?),(.+?),(.+?),(.+?))\\)");
-    private static Pattern vec4Pattern2 = Pattern.compile("vmath\\.vector4\\s*\\(((.+?))\\)");
-    private static Pattern vec4Pattern3 = Pattern.compile("vmath\\.vector4\\s*\\(()\\)");
-    private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
-    private static Pattern boolPattern = Pattern.compile("(false|true)");
-    private static Pattern resourcePattern = Pattern.compile("resource\\.(.*?)\\s*\\(([\"'](.*?)[\"']|)?\\)");
-    private static Pattern[] patterns = new Pattern[] { numPattern, hashPattern, urlPattern,
-            vec3Pattern1, vec3Pattern2, vec3Pattern3, vec4Pattern1, vec4Pattern2, vec4Pattern3, quatPattern, boolPattern, resourcePattern};
-
     private StringBuffer parsedBuffer = null;
     private CommonTokenStream tokenStream = null;
 
@@ -118,13 +101,11 @@ public class LuaScanner extends LuaParserBaseListener {
             INVALID_VALUE
         }
 
-        /// Set iff status != INVALID_ARGS
+        /// Set if status != INVALID_ARGS
         public String name;
-        /// Set iff status == OK
+        /// Set if status == OK
         public PropertyType type;
-        /// Set iff status != INVALID_ARGS
-        public String rawValue;
-        /// Set iff status == OK
+        /// Set if status == OK
         public Object value;
         /// Always set
         public int line;
@@ -136,6 +117,48 @@ public class LuaScanner extends LuaParserBaseListener {
 
         public Property(int line) {
             this.line = line;
+        }
+    }
+
+    public static class FunctionDescriptor {
+
+        public String functionName;
+        public String objectName;
+
+        public FunctionDescriptor(LuaParser.VariableContext variableCtx) {
+            // simple function call, like `require()`
+            String varName = null;
+            if(variableCtx.getClass() == LuaParser.NamedvariableContext.class) {
+                varName = ((LuaParser.NamedvariableContext)variableCtx).NAME().getText();
+            }
+
+            // indexed function call, like `_G.require()` or `go.property()` where 
+            // `objectName` is `go` and `indexName` is `property`
+            String indexName = null;
+            if(variableCtx.getClass() == LuaParser.IndexContext.class) {
+                LuaParser.IndexContext indexVariableCtx = (LuaParser.IndexContext)variableCtx;
+                TerminalNode nameNode = indexVariableCtx.NAME();
+                if (nameNode != null) {
+                    indexName = nameNode.getText();
+                }
+                objectName = indexVariableCtx.variable().getText();
+            }
+            functionName = (indexName == null) ?  varName : indexName;
+        }
+
+        public boolean is(String name, String objName)
+        {
+            return Objects.equals(name, functionName) && Objects.equals(objName, objectName);
+        }
+
+        public boolean isObject(String objName)
+        {
+            return Objects.equals(objName, objectName);
+        }
+
+        public boolean isName(String fnName)
+        {
+            return Objects.equals(fnName, functionName);
         }
     }
 
@@ -158,19 +181,11 @@ public class LuaScanner extends LuaParserBaseListener {
         // walk the generated parse tree from the
         // first Lua chunk
 
-        TimeProfiler.start("Create LuaLexer");
         LuaLexer lexer = new LuaLexer(CharStreams.fromString(str));
-        TimeProfiler.stop();
-        TimeProfiler.start("Create CommonTokenStream");
         tokenStream = new CommonTokenStream(lexer);
-        TimeProfiler.stop();
-        TimeProfiler.start("Create LuaParser");
         LuaParser parser = new LuaParser(tokenStream);
-        TimeProfiler.stop();
-        TimeProfiler.start("ParseTreeWalker");
         ParseTreeWalker walker = new ParseTreeWalker();
         walker.walk(this, parser.chunk());
-        TimeProfiler.stop();
         TimeProfiler.stop();
         // return the parsed string
         return parsedBuffer.toString();
@@ -226,9 +241,16 @@ public class LuaScanner extends LuaParserBaseListener {
     }
 
     // returns first function argument only if it's a string, otherwise null
-    private String getFirstStringArg(LuaParser.FunctioncallContext ctx) {
-        LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
+    private String getFirstStringArg(LuaParser.ArgsContext argsCtx) {
+        if (argsCtx == null)
+        {
+            return null;
+        }
         ParserRuleContext firstCtx = argsCtx.getRuleContext(ParserRuleContext.class, 0);
+        if (firstCtx == null)
+        {
+            return null;
+        }
         if (firstCtx.getRuleIndex() == LuaParser.RULE_explist)
         {
             firstCtx = ((LuaParser.ExplistContext)firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
@@ -241,6 +263,24 @@ public class LuaScanner extends LuaParserBaseListener {
         return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
     }
 
+    // returns double[] t filled with parsed values with needed length
+    private double[] getNumArgs(LuaParser.ArgsContext argsCtx, int size) {
+        List<LuaParser.ExpContext> args = argsCtx.explist().exp();
+        double[] result = new double[size];
+        int count = 0;
+        for(LuaParser.ExpContext val : args) {
+            LuaParser.NumberContext num = val.number();
+            result[count] = Double.parseDouble(num.getText());
+            count++;
+        }
+        if (count == 1) {
+            for (int i = count; i < size; i ++) {
+               result[i] = result[0]; 
+            }
+        }
+        return result;
+    }
+
     /**
      * Callback from ANTLR when a Lua chunk is encountered. We start from the
      * main chunk when we call parse() above. This means that the ChunkContext
@@ -249,18 +289,12 @@ public class LuaScanner extends LuaParserBaseListener {
      */
     @Override
     public void enterChunk(LuaParser.ChunkContext ctx) {
-        TimeProfiler.start("Lua Chunk Parser");
         List<Token> tokens = getTokens(ctx);
         for(Token token : tokens) {
             if (token.getChannel() == LuaLexer.COMMENT) {
                 removeToken(token);
             }
         }
-        TimeProfiler.stop();
-    }
-
-    private void logWarning(String fmt, Object... args) {
-        System.err.println(String.format(fmt, args));
     }
 
     /**
@@ -269,165 +303,100 @@ public class LuaScanner extends LuaParserBaseListener {
      */
     @Override
     public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
-        LuaParser.VariableContext variableCtx = ctx.variable();
-        // simple function call, like `require()`
-        String varName = null;
-        if(variableCtx.getClass() == LuaParser.NamedvariableContext.class) {
-            varName = ((LuaParser.NamedvariableContext)variableCtx).NAME().getText();
-        }
+        LuaParser.VariableContext varCtx = ctx.variable();
+        FunctionDescriptor fnDesc = new FunctionDescriptor(varCtx);
 
-        // indexed function call, like `_G.require()` or `go.property()` where 
-        // `indexVar` is `go` and `indexName` is `property`
-        String indexName = null;
-        String indexVar = null;
-        if(variableCtx.getClass() == LuaParser.IndexContext.class) {
-            LuaParser.IndexContext indexVariableCtx = (LuaParser.IndexContext)variableCtx;
-            TerminalNode nameNode = indexVariableCtx.NAME();
-            if (nameNode != null) {
-                indexName = nameNode.getText();
-            }
-            indexVar = indexVariableCtx.variable().getText();
-        }
-
-        final String functionName = (indexName == null) ?  varName : indexName;
-
-        if (functionName == null) {
+        if (fnDesc.functionName == null) {
             return;
         }
 
-        switch(functionName) {
-            case "require":
-                String module = getFirstStringArg(ctx);
-                if (module != null) {
-                    if (!LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
-                        modules.add(module);
-                    }
-                }
-                break;
-            case "property":
-                if (indexVar != null && indexVar.equals("go")) {
-                    logWarning("go.property: %s", getFirstStringArg(ctx));
-                }
-                break;
-        }
-
-        // go.property() call?
-        String text = ctx.getText();
-        logWarning("--text FunctioncallContext %s", text);
-        if (text.startsWith("go.property")) {
-            List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-            Property property = parseProperty(text, tokens.get(0).getLine() - 1);
-            if (property != null) {
-                properties.add(property);
+        if (fnDesc.is("require", null)) {
+            String module = getFirstStringArg(ctx.nameAndArgs().args());
+            if (module != null && !LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
+                modules.add(module);
             }
+        }
+        else if (fnDesc.is("property", "go")) {
+            LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
+            String firstArg = getFirstStringArg(argsCtx);
+
+            List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
+            Property property = new Property(tokens.get(0).getLine() - 1);
+            property.name = firstArg;
+            if (firstArg == null) {
+                property.status = Status.INVALID_ARGS;
+            } else {
+                if (parsePropertyValue(argsCtx, property)) {
+                    property.status = Status.OK;
+                } else {
+                    property.status = Status.INVALID_VALUE;
+                }
+            }
+            properties.add(property);
+
             // strip property from code
             for (Token token : tokens) {
                 removeToken(token);
             }
+
         }
     }
 
-    private static Property parseProperty(String propString, int line) {
-        TimeProfiler.start("parseProperty");
-        Matcher propDeclMatcher = propertyDeclPattern.matcher(propString);
-        if (!propDeclMatcher.matches()) {
-            return null;
-        }
-        Property property = new Property(line);
-        Matcher propArgsMatcher = propertyArgsPattern.matcher(propDeclMatcher.group(1).trim());
-        if (!propArgsMatcher.matches()) {
-            property.status = Status.INVALID_ARGS;
-        } else {
-            property.name = propArgsMatcher.group(1).trim();
-            property.rawValue = propArgsMatcher.group(2).trim();
-            if (parsePropertyValue(property.rawValue, property)) {
-                property.status = Status.OK;
-            } else {
-                property.status = Status.INVALID_VALUE;
-            }
-        }
-        TimeProfiler.stop();
-        return property;
-    }
-
-
-    private static boolean parsePropertyValue(String rawValue, Property property) {
-        TimeProfiler.start("parsePropertyValue");
+    private boolean parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) {
         boolean result = false;
-        for (Pattern pattern : patterns) {
-            Matcher matcher = pattern.matcher(property.rawValue);
-            if (matcher.matches()) {
-                try {
-                    final Pattern matchedPattern = matcher.pattern();
-                    if (matchedPattern == numPattern) {
-                        property.type = PropertyType.PROPERTY_TYPE_NUMBER;
-                        property.value = Double.parseDouble(property.rawValue);
-                    } else if (matchedPattern == hashPattern) {
-                        property.type = PropertyType.PROPERTY_TYPE_HASH;
-                        property.value = matcher.group(1).trim();
-                    } else if (matchedPattern == urlPattern) {
-                        property.type = PropertyType.PROPERTY_TYPE_URL;
-                        if (matcher.group(2) != null) {
-                            property.value = matcher.group(2).trim();
-                        } else {
-                            property.value = "";
+        LuaParser.ExpContext expCtx = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp(1);
+        if (expCtx != null)
+        {
+            Token initialToken = expCtx.getStart();
+            int type = initialToken.getType();
+            if (type == LuaParser.INT || type == LuaParser.FLOAT) {
+                property.type = PropertyType.PROPERTY_TYPE_NUMBER;
+                property.value = Double.parseDouble(initialToken.getText());
+                result = true;
+            } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
+                property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
+                property.value = Boolean.parseBoolean(initialToken.getText());
+                result = true;
+            } else if (type == LuaParser.NAME) {
+                LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)expCtx.variable();
+                FunctionDescriptor fnDesc = new FunctionDescriptor(ctx.variable());
+                if (fnDesc.functionName != null) {
+                    if (fnDesc.isObject("vmath")){
+                         if (fnDesc.isName("vector3")) {
+                            Vector3d v = new Vector3d();
+                            double[] args = getNumArgs(ctx.nameAndArgs().args(), 3);
+                            v.set(args);
+                            property.value = v;
+                        } else if (fnDesc.isName("vector4")) {
+                            Vector4d v = new Vector4d();
+                            double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
+                            v.set(args);
+                            property.value = v;
+                        } else if (fnDesc.isName("quat")) {
+                            Quat4d q = new Quat4d();
+                            double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
+                            q.set(args);
+                            property.value = q;
                         }
-                    } else if ((matchedPattern == vec3Pattern1) || (matchedPattern == vec3Pattern2) || (matchedPattern == vec3Pattern3)) {
-                        property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
-                        Vector3d v = new Vector3d();
-                        if (matchedPattern == vec3Pattern1) {
-                            v.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(3)),
-                                    Double.parseDouble(matcher.group(4)));
-                        }
-                        else if (matchedPattern == vec3Pattern2) {
-                            v.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)));
-                        }
-                        property.value = v;
-                    } else if ((matchedPattern == vec4Pattern1) || (matchedPattern == vec4Pattern2) || (matchedPattern == vec4Pattern3)) {
-                        property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
-                        Vector4d v = new Vector4d();
-                        if (matchedPattern == vec4Pattern1) {
-                            v.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(3)),
-                                    Double.parseDouble(matcher.group(4)),
-                                    Double.parseDouble(matcher.group(5)));
-                        }
-                        else if (matchedPattern == vec4Pattern2) {
-                            v.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(2)));
-                        }
-                        property.value = v;
-                    } else if (matchedPattern == quatPattern) {
-                        property.type = PropertyType.PROPERTY_TYPE_QUAT;
-                        Quat4d q = new Quat4d();
-                        if (matcher.group(2) != null) {
-                            q.set(Double.parseDouble(matcher.group(2)),
-                                    Double.parseDouble(matcher.group(3)),
-                                    Double.parseDouble(matcher.group(4)),
-                                    Double.parseDouble(matcher.group(5)));
-                        }
-                        property.value = q;
-                    } else if (matchedPattern == boolPattern) {
-                        property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
-                        property.value = Boolean.parseBoolean(rawValue);
-                    } else if (matchedPattern == resourcePattern) {
-                        property.type = PropertyType.PROPERTY_TYPE_HASH;
-                        property.value = matcher.group(3) == null ? "" :  matcher.group(3).trim();
-                        property.isResource = true;
                     }
-                    result = true;
-                } catch (NumberFormatException e) {
-                    result = false;
+                    else {
+                        if (fnDesc.isObject("resource")) {
+                            property.type = PropertyType.PROPERTY_TYPE_HASH;
+                            property.isResource = true;
+                        }
+                        else if (fnDesc.is("hash", null)) {
+                            property.type = PropertyType.PROPERTY_TYPE_HASH;
+                        }
+                        else if (fnDesc.is("hash", null)) {
+                            property.type = PropertyType.PROPERTY_TYPE_URL;
+                        }
+                        String firstArg = getFirstStringArg(ctx.nameAndArgs().args());
+                        property.value = firstArg == null ? "" : firstArg;
+                        result = true;
+                    }
                 }
-                break;
             }
         }
-        TimeProfiler.stop();
         return result;
     }
 
