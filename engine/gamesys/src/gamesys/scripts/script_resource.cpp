@@ -1033,6 +1033,9 @@ static int SetTexture(lua_State* L)
  * `height`
  * : [type:integer] height of the texture
  *
+ * `depth`
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ *
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
  *
@@ -1041,6 +1044,7 @@ static int SetTexture(lua_State* L)
  *
  * - `resource.TEXTURE_TYPE_2D`
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `resource.TEXTURE_TYPE_2D_ARRAY`
  *
  * @examples
  * Create a new texture and get the metadata from it
