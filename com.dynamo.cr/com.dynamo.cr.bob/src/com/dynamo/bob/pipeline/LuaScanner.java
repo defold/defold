@@ -263,7 +263,7 @@ public class LuaScanner extends LuaParserBaseListener {
         return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
     }
 
-    // returns double[] t filled with parsed values with needed length
+    // returns double[] filled with parsed values with needed length
     private double[] getNumArgs(LuaParser.ArgsContext argsCtx, int size) {
         List<LuaParser.ExpContext> args = argsCtx.explist().exp();
         double[] result = new double[size];
@@ -310,7 +310,7 @@ public class LuaScanner extends LuaParserBaseListener {
             return;
         }
 
-        if (fnDesc.is("require", null)) {
+        if (fnDesc.is("require", null) || fnDesc.is("require", "_G")) {
             String module = getFirstStringArg(ctx.nameAndArgs().args());
             if (module != null && !LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
                 modules.add(module);
