@@ -372,7 +372,7 @@
     (let [[^Region toggles update-fn] (make-visibility-toggles-list scene-visibility)
           popup (popup/make-popup owner toggles)
           anchor (pref-popup-position owner (.getMinWidth toggles) -5)
-          refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _] (update-fn)))]
+          refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
       (update-fn)
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))

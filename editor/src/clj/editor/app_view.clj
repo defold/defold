@@ -1704,11 +1704,11 @@ If you do not specifically require different script states, consider changing th
       (profiler/profile "view" (:name @(g/node-type* node))
         (g/node-value node label)))))
 
-(defn- refresh-scene-views! [app-view]
+(defn- refresh-scene-views! [app-view dt]
   (profiler/begin-frame)
   (doseq [view-id (g/node-value app-view :scene-view-ids)]
     (try
-      (scene/refresh-scene-view! view-id)
+      (scene/refresh-scene-view! view-id dt)
       (catch Throwable error
         (error-reporting/report-exception! error))))
   (scene-cache/prune-context! nil))
@@ -1815,14 +1815,14 @@ If you do not specifically require different script states, consider changing th
 
       (let [refresh-timer (ui/->timer
                             "refresh-app-view"
-                            (fn [_ _]
+                            (fn [_ elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))
-                                  (refresh-scene-views! app-view)
+                                  (refresh-scene-views! app-view dt)
                                   (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         (ui/timer-start! refresh-timer))
@@ -1945,7 +1945,7 @@ If you do not specifically require different script states, consider changing th
                (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
                (focus (ui/user-data tab ::view) opts))
              ;; Do an initial rendering so it shows up as fast as possible.
-             (ui/run-later (refresh-scene-views! app-view)
+             (ui/run-later (refresh-scene-views! app-view 1/60)
                            (ui/run-later (slog/smoke-log "opened-resource")))
              true)
            (let [^String path (or (resource/abs-path resource)
