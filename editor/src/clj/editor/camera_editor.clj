@@ -17,6 +17,7 @@
             [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.camera :as camera]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -34,19 +35,22 @@
            [javax.vecmath Matrix4d Vector3d Vector4d Quat4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def camera-icon "icons/32/Icons_20-Camera.png")
 
-(defn- get-camera-mesh-lines-json [path]
+(def camera-mesh-json "meshes/camera-preview-edge-list.json")
+
+(defn- read-json-resource [path]
   (with-open [reader (io/reader (io/resource path))]
     (json/read reader)))
-(def camera-mesh-lines
-  (let [camera-json-path "camera-preview-edge-list.json"
-        camera-json-data (first (get-camera-mesh-lines-json camera-json-path))
-        camera-edge-list (concat (second camera-json-data))
-        camera-mesh-lines-v4 (map (fn [p]
-                                    (Vector4d. (get p 0) (get p 1) (get p 2) 1))
-                                  camera-edge-list)]
+
+(def ^:private camera-mesh-lines
+  (let [camera-name+edge-list (first (read-json-resource camera-mesh-json)) ; First mesh name + edge-list.
+        camera-edge-list (second camera-name+edge-list)
+        camera-mesh-lines-v4 (mapv (fn [p]
+                                     (Vector4d. (p 0) (p 1) (p 2) 1.0))
+                                   camera-edge-list)]
     camera-mesh-lines-v4))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
@@ -129,14 +133,14 @@
 
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
-(defn- gen-outline-vertex [x y z w cr cg cb]
-  [(/ x w) (/ y w) (/ z w) cr cg cb 1])
+(defmacro ^:private gen-outline-vertex [x y z w cr cg cb]
+  `[(/ ~x ~w) (/ ~y ~w) (/ ~z ~w) ~cr ~cg ~cb 1.0])
 
 (defn- conj-camera-mesh-vertices! [vbuf ^Matrix4d inv-view cr cg cb]
   (mapv (fn [^Vector4d p]
           (let [tp (math/transform-vector-v4 inv-view p)
                 camera-mesh-vx (gen-outline-vertex (.x tp) (.y tp) (.z tp) (.w tp) cr cg cb)]
-            (-> vbuf (conj! camera-mesh-vx))))
+            (conj! vbuf camera-mesh-vx)))
         camera-mesh-lines))
 
 (defn- conj-camera-outline! [vbuf ^Vector3d camera-pos ^Matrix4d inv-view ^Matrix4d inv-proj-view cr cg cb]
@@ -160,9 +164,9 @@
         near-v2 (gen-outline-vertex (.x near-p2) (.y near-p2) (.z near-p2) (.w near-p2) cr cg cb)
         near-v3 (gen-outline-vertex (.x near-p3) (.y near-p3) (.z near-p3) (.w near-p3) cr cg cb)
 
-        cr-less (* cr 0.75)
-        cg-less (* cg 0.75)
-        cb-less (* cb 0.75)
+        cr-less (* ^double cr 0.55)
+        cg-less (* ^double cg 0.55)
+        cb-less (* ^double cb 0.55)
 
         ;; camera vertices from center to near
         camera-near-v0 (gen-outline-vertex (.x near-p0) (.y near-p0) (.z near-p0) (.w near-p0) cr-less cg-less cb-less)
@@ -190,6 +194,10 @@
         (conj! camera-v) (conj! camera-near-v2)
         (conj! camera-v) (conj! camera-near-v3))))
 
+(def ^:private ^:const camera-frustum-vertices-count 32) ; This should correspond to the number of conj! in the last expression above.
+
+(def ^:private ^:const camera-preview-mesh-vertices-count (+ camera-frustum-vertices-count (count camera-mesh-lines)))
+
 (vtx/defvertex color-vtx
   (vec3 position)
   (vec4 color))
@@ -205,115 +213,46 @@
     (.setColumn m 3 (.x p) (.y p) (.z p) 1.0)
     m))
 
-(defn- camera-perspective-projection-matrix [near far fov]
-  (let [fov-deg (math/rad->deg fov)
-        fov-x  fov-deg
-        fov-y  fov-deg
-        aspect (/ fov-x fov-y)
-
-        ymax (* near (Math/tan (/ (* fov-y Math/PI) 360.0)))
-        ymin (- ymax)
-        xmin (* ymin aspect)
-        xmax (* ymax aspect)
-
-        x    (/ (* 2.0 near) (- xmax xmin))
-        y    (/ (* 2.0 near) (- ymax ymin))
-        a    (/ (+ xmin xmax) (- xmax xmin))
-        b    (/ (+ ymin ymax) (- ymax ymin))
-        c    (/ (- (+     near far)) (- far near))
-        d    (/ (- (* 2.0 near far)) (- far near))
-        m    (Matrix4d.)]
-    (set! (. m m00) x)
-    (set! (. m m01) 0.0)
-    (set! (. m m02) a)
-    (set! (. m m03) 0.0)
-
-    (set! (. m m10) 0.0)
-    (set! (. m m11) y)
-    (set! (. m m12) b)
-    (set! (. m m13) 0.0)
-
-    (set! (. m m20) 0.0)
-    (set! (. m m21) 0.0)
-    (set! (. m m22) c)
-    (set! (. m m23) d)
-
-    (set! (. m m30) 0.0)
-    (set! (. m m31) 0.0)
-    (set! (. m m32) -1.0)
-    (set! (. m m33) 0.0)
-    m))
-
-(defn- camera-orthographic-projection-matrix [near far fov]
-  (let [fov-deg (math/rad->deg fov)
-        fov-x  fov-deg
-        fov-y  fov-deg
-        right  (/ fov-x 2.0)
-        left   (- right)
-        top    (/ fov-y 2.0)
-        bottom (- top)
-        m      (Matrix4d.)]
-    (set! (. m m00) (/ 2.0 (- right left)))
-    (set! (. m m01) 0.0)
-    (set! (. m m02) 0.0)
-    (set! (. m m03) (/ (- (+ right left)) (- right left)))
-
-    (set! (. m m10) 0.0)
-    (set! (. m m11) (/ 2.0 (- top bottom)))
-    (set! (. m m12) 0.0)
-    (set! (. m m13) (/ (- (+ top bottom)) (- top bottom)))
-
-    (set! (. m m20) 0.0)
-    (set! (. m m21) 0.0)
-    (set! (. m m22) (/ 2.0 (- near far)))
-    (set! (. m m23) (/ (+ near far) (- near far)))
-
-    (set! (. m m30) 0.0)
-    (set! (. m m31) 0.0)
-    (set! (. m m32) 0.0)
-    (set! (. m m33) 1.0)
-    m))
-
-(defn- camera-projection-matrix [is-orthographic near far fov]
-  (if (true? is-orthographic)
-    (camera-orthographic-projection-matrix near far fov)
-    (camera-perspective-projection-matrix near far fov)))
+(defn- camera-projection-matrix [is-orthographic near far fov-deg aspect-ratio]
+  ;; TODO: Derive aspect-ratio from display setting in game.project when auto-aspect-ratio is enabled.
+  (let [fov-y (double fov-deg)
+        fov-x (* fov-y (double aspect-ratio))]
+    (if (true? is-orthographic)
+      (camera/simple-orthographic-projection-matrix near far fov-x fov-y)
+      (camera/simple-perspective-projection-matrix near far fov-x fov-y))))
 
 (defn- gen-outline-vertex-buffer
-  [renderables count]
-  (let [camera-mesh-vertices-count 212 ;(count camera-mesh-lines) ; why doesn't this work?
-        color-vertices-count (+ camera-mesh-vertices-count 32)]
-    (loop [renderables renderables
-           vbuf (->color-vtx (* count color-vertices-count))]
-      (if-let [renderable (first renderables)]
-        (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
-              cr (get color 0)
-              cg (get color 1)
-              cb (get color 2)
-              user-data (:user-data renderable)
-              world-translation (:world-translation renderable)
-              world-rotation (:world-rotation renderable)
-              ^Matrix4d proj-matrix (camera-projection-matrix (:is-orthographic user-data) (:near-z user-data) (:far-z user-data) (:fov user-data))
-              ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
-              ^Matrix4d inv-view-matrix (math/inverse view-matrix)
-              ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
-              ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
-          (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))
-        (persistent! vbuf)))))
+  [renderables ^long renderable-count]
+  (loop [renderables renderables
+         vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
+    (if-let [renderable (first renderables)]
+      (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
+            cr (get color 0)
+            cg (get color 1)
+            cb (get color 2)
+            {:keys [is-orthographic near-z far-z fov aspect-ratio]} (:user-data renderable)
+            world-translation (:world-translation renderable)
+            world-rotation (:world-rotation renderable)
+            ^Matrix4d proj-matrix (camera-projection-matrix is-orthographic near-z far-z fov aspect-ratio)
+            ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
+            ^Matrix4d inv-view-matrix (math/inverse view-matrix)
+            ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
+            ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
+        (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix cr cg cb)))
+      (persistent! vbuf))))
 
-(defn- render-frustum-outlines [^GL2 gl render-args renderables count]
+(defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables count) outline-shader)
-        vertices-count (+ 212 32)] ; Same here as above!!
+  (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables renderable-count) outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count vertices-count)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* renderable-count camera-preview-mesh-vertices-count)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov near-z far-z orthographic-projection]
+  [_node-id fov aspect-ratio near-z far-z orthographic-projection]
   ;; TODO: Better AABB calculation
-  (let [ext-x far-z
-        ext-y far-z
-        ext-z far-z
+  (let [^double ext-x far-z
+        ^double ext-y far-z
+        ^double ext-z far-z
         ext [ext-x ext-y ext-z]
         neg-ext [(- ext-x) (- ext-y) (- ext-z)]
         aabb (geom/coords->aabb neg-ext ext)]
@@ -325,7 +264,8 @@
                               :batch-key [outline-shader]
                               :tags #{:camera :outline}
                               :select-batch-key _node-id
-                              :user-data {:fov fov
+                              :user-data {:fov (math/rad->deg fov) ; TODO: FOV should be edited as degrees, not radians.
+                                          :aspect-ratio aspect-ratio
                                           :near-z near-z
                                           :far-z far-z
                                           :is-orthographic orthographic-projection}
@@ -337,8 +277,8 @@
     :fov (:fov camera)
     :near-z (:near-z camera)
     :far-z (:far-z camera)
-    :auto-aspect-ratio (not (zero? (:auto-aspect-ratio camera)))
-    :orthographic-projection (not (zero? (:orthographic-projection camera)))
+    :auto-aspect-ratio (not= 0 (:auto-aspect-ratio camera))
+    :orthographic-projection (not= 0 (:orthographic-projection camera))
     :orthographic-zoom (:orthographic-zoom camera)))
 
 (g/defnode CameraNode

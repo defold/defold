@@ -35,7 +35,7 @@ def run_blender_script(path, args):
 
 def main():
     scene_input  = "preview_camera_scene.blend"
-    scene_output = "../../resources/camera-preview-edge-list.json"
+    scene_output = "../../resources/meshes/camera-preview-edge-list.json"
     run_blender_script("generate_preview_data_blender.py", [scene_input, scene_output])
 
 if __name__ == '__main__':
