@@ -2026,7 +2026,7 @@ command."
           root-pane ^Pane (.getRoot scene)
           menu-bar (doto (MenuBar.)
                      (.setUseSystemMenuBar true))
-          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _] (refresh scene)))]
+          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _ _] (refresh scene)))]
       (.. root-pane getChildren (add menu-bar))
       (register-menubar scene menu-bar (main-menu-id))
       (refresh scene)
