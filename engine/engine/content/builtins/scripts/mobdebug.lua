@@ -6,11 +6,13 @@
 
 -- use loaded modules or load explicitly on those systems that require that
 local require = require
+-- DEFOLD BEGIN
 --local io = io or require "io"
 --local table = table or require "table"
 --local string = string or require "string"
 --local coroutine = coroutine or require "coroutine"
 --local debug = require "debug"
+-- DEFOLD END
 -- protect require "os" as it may fail on embedded systems without os module
 local os = os or (function(module)
   local ok, res = pcall(require, module)
@@ -99,7 +101,10 @@ local iscasepreserving = win or (mac and io.open('/library') ~= nil)
 -- reliable hook calls at any later point in time."
 if jit and jit.off then jit.off() end
 
+-- DEFOLD BEGIN
 local socket = require "builtins.scripts.socket"
+--local socket = require "socket"
+-- DEFOLD END
 local coro_debugger
 local coro_debugee
 local coroutines = {}; setmetatable(coroutines, {__mode = "k"}) -- "weak" keys
@@ -330,7 +335,10 @@ local function stack(start)
     if not source then break end
 
     local src = source.source
+    -- DEFOLD BEGIN
     if src:find("[@=]") == 1 then
+    --if src:find("@") == 1 then
+    -- DEFOLD END
       src = src:sub(2):gsub("\\", "/")
       if src:find("%./") == 1 then src = src:sub(3) end
     end
@@ -351,7 +359,9 @@ local function set_breakpoint(file, line)
   elseif iscasepreserving then file = string.lower(file) end
   if not breakpoints[line] then breakpoints[line] = {} end
   breakpoints[line][file] = true
+  -- DEFOLD BEGIN
   if mobdebug.setbreakpoint_hook then mobdebug.setbreakpoint_hook(line, file) end
+  -- DEFOLD END
 end
 
 local function remove_breakpoint(file, line)
@@ -359,7 +369,9 @@ local function remove_breakpoint(file, line)
   elseif file == '*' and line == 0 then breakpoints = {}
   elseif iscasepreserving then file = string.lower(file) end
   if breakpoints[line] then breakpoints[line][file] = nil end
+  -- DEFOLD BEGIN
   if mobdebug.removebreakpoint_hook then mobdebug.removebreakpoint_hook(line, file) end
+  -- DEFOLD END
 end
 
 local function has_breakpoint(file, line)
@@ -557,6 +569,7 @@ local function normalize_path(file)
   return (file:gsub("^(/?)%.%./", "%1"))
 end
 
+-- DEFOLD BEGIN
 local function get_filename(file)
   -- technically, users can supply names that may not use '@',
   -- for example when they call loadstring('...', 'filename.lua').
@@ -606,6 +619,7 @@ local function get_server_data(file)
     handle_breakpoint(server)
   end
 end
+-- DEFOLD END
 
 local function debug_hook(event, line)
   -- (1) LuaJIT needs special treatment. Because debug_hook is set for
@@ -641,7 +655,9 @@ local function debug_hook(event, line)
     stack_level = stack_level + 1
   elseif event == "return" or event == "tail return" then
     stack_level = stack_level - 1
+    -- DEFOLD BEGIN
     if mobdebug.on_return_hook then mobdebug.on_return_hook() end
+    -- DEFOLD END
   elseif event == "line" then
     if mobdebug.linemap then
       local ok, mappedline = pcall(mobdebug.linemap, line, debug.getinfo(2, "S").source)
@@ -680,8 +696,36 @@ local function debug_hook(event, line)
     -- grab the filename and fix it if needed
     local file = lastfile
     if (lastsource ~= caller.source) then
+      -- DEBUG START
       lastsource = caller.source
       file = get_filename(caller.source)
+      --file, lastsource = caller.source, caller.source
+      ---- technically, users can supply names that may not use '@',
+      ---- for example when they call loadstring('...', 'filename.lua').
+      ---- Unfortunately, there is no reliable/quick way to figure out
+      ---- what is the filename and what is the source code.
+      ---- If the name doesn't start with `@`, assume it's a file name if it's all on one line.
+      --if find(file, "^@") or not find(file, "[\r\n]") then
+      --  file = gsub(gsub(file, "^@", ""), "\\", "/")
+      --  -- normalize paths that may include up-dir or same-dir references
+      --  -- if the path starts from the up-dir or reference,
+      --  -- prepend `basedir` to generate absolute path to keep breakpoints working.
+      --  -- ignore qualified relative path (`D:../`) and UNC paths (`\\?\`)
+      --  if find(file, "^%.%./") then file = basedir..file end
+      --  if find(file, "/%.%.?/") then file = normalize_path(file) end
+      --  -- need this conversion to be applied to relative and absolute
+      --  -- file names as you may write "require 'Foo'" to
+      --  -- load "foo.lua" (on a case insensitive file system) and breakpoints
+      --  -- set on foo.lua will not work if not converted to the same case.
+      --  if iscasepreserving then file = string.lower(file) end
+      --  if find(file, "^%./") then file = sub(file, 3)
+      --  else file = gsub(file, "^"..q(basedir), "") end
+      --  -- some file systems allow newlines in file names; remove these.
+      --  file = gsub(file, "\n", ' ')
+      --else
+      --  file = mobdebug.line(file)
+      --end
+      -- DEBUG END
 
       -- set to true if we got here; this only needs to be done once per
       -- session, so do it here to at least avoid setting it for every line.
@@ -758,11 +802,14 @@ local function stringify_results(params, status, ...)
   local t = {...}
   for i,v in pairs(t) do -- stringify each of the returned values
     local ok, res = pcall(mobdebug.line, v, params)
+    -- DEFOLD BEGIN
     if ok and res ~= nil then
       t[i] = res
     else
       t[i] = ("%q"):format(res):gsub("\010","n"):gsub("\026","\\026")
     end
+    --t[i] = ok and res or ("%q"):format(res):gsub("\010","n"):gsub("\026","\\026")
+    -- DEFOLD END
   end
   -- stringify table with all returned values
   -- this is done to allow each returned value to be used (serialized or not)
@@ -840,7 +887,9 @@ local function debugger_loop(sev, svars, sfile, sline)
     end
     if server.settimeout then server:settimeout() end -- back to blocking
     command = string.sub(line, string.find(line, "^[A-Z]+"))
+    -- DEFOLD BEGIN
     if mobdebug.command_hook then mobdebug.command_hook(command) end
+    -- DEFOLD END
     if command == "SETB" then
       local _, _, _, file, line = string.find(line, "^([A-Z]+)%s+(.-)%s+(%d+)%s*$")
       if file and line then
@@ -1159,6 +1208,7 @@ local function start(controller_host, controller_port)
   end
 end
 
+-- DEFOLD BEGIN
 -- Starts a debug session by waiting for a controller to connect
 local function listen(port)
   -- only one debugging session can be run (as there is only one debug hook)
@@ -1221,6 +1271,7 @@ local function listen(port)
       :format(controller_host, controller_port, err or "unknown error"))
   end
 end
+-- DEFOLD END
 
 local function controller(controller_host, controller_port, scratchpad)
   -- only one debugging session can be run (as there is only one debug hook)
@@ -1308,11 +1359,15 @@ local function on()
   if co then
     coroutines[co] = true
     debug.sethook(co, debug_hook, HOOKMASK)
+    -- DEFOLD BEGIN
     return true
+    -- DEFOLD END
   else
     if jit then coroutines.main = true end
     debug.sethook(debug_hook, HOOKMASK)
+    -- DEFOLD BEGIN
     return true
+    -- DEFOLD END
   end
 end
 
@@ -1707,6 +1762,7 @@ local function handle(params, client, options)
   return file, line
 end
 
+-- DEFOLD BEGIN
 -- Starts debugging server
 -- local function listen(host, port)
 --   host = host or "*"
@@ -1744,6 +1800,7 @@ end
 
 --   client:close()
 -- end
+-- DEFOLD END
 
 local cocreate
 local function coro()
@@ -1799,6 +1856,7 @@ mobdebug.onexit = os and os.exit or done
 mobdebug.onscratch = nil -- callback
 mobdebug.basedir = function(b) if b then basedir = b end return basedir end
 
+-- DEFOLD BEGIN
 mobdebug.setbreakpoint_hook = nil
 mobdebug.removebreakpoint_hook = nil
 mobdebug.command_hook = nil
@@ -1806,5 +1864,6 @@ mobdebug.on_return_hook = nil
 mobdebug.iscasepreserving = iscasepreserving
 mobdebug.get_filename = get_filename
 mobdebug.get_server_data = get_server_data
+-- DEFOLD END
 
 return mobdebug
