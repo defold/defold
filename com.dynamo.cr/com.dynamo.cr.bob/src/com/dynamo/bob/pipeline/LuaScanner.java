@@ -360,46 +360,50 @@ public class LuaScanner extends LuaParserBaseListener {
             } else if (type == LuaParser.NAME) {
                 LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)expCtx.variable();
                 FunctionDescriptor fnDesc = new FunctionDescriptor(ctx.variable());
-                if (fnDesc.functionName != null) {
-                    if (fnDesc.isObject("vmath")){
-                         if (fnDesc.isName("vector3")) {
-                            Vector3d v = new Vector3d();
-                            double[] args = getNumArgs(ctx.nameAndArgs().args(), 3);
-                            v.set(args);
-                            property.value = v;
-                            property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
-                            result = true;
-                        } else if (fnDesc.isName("vector4")) {
-                            Vector4d v = new Vector4d();
-                            double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
-                            v.set(args);
-                            property.value = v;
-                            property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
-                            result = true;
-                        } else if (fnDesc.isName("quat")) {
-                            Quat4d q = new Quat4d();
-                            double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
-                            q.set(args);
-                            property.value = q;
-                            property.type = PropertyType.PROPERTY_TYPE_QUAT;
-                            result = true;
-                        }
-                    }
-                    else {
-                        if (fnDesc.isObject("resource")) {
-                            property.type = PropertyType.PROPERTY_TYPE_HASH;
-                            property.isResource = true;
-                        }
-                        else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
-                            property.type = PropertyType.PROPERTY_TYPE_HASH;
-                        }
-                        else if (fnDesc.is("url", "msg")) {
-                            property.type = PropertyType.PROPERTY_TYPE_URL;
-                        }
-                        String firstArg = getFirstStringArg(ctx.nameAndArgs().args());
-                        property.value = firstArg == null ? "" : firstArg;
+                if (fnDesc.functionName == null) {
+                    return result;
+                }
+                if (fnDesc.isObject("vmath")){
+                     if (fnDesc.isName("vector3")) {
+                        Vector3d v = new Vector3d();
+                        double[] args = getNumArgs(ctx.nameAndArgs().args(), 3);
+                        v.set(args);
+                        property.value = v;
+                        property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
+                        result = true;
+                    } else if (fnDesc.isName("vector4")) {
+                        Vector4d v = new Vector4d();
+                        double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
+                        v.set(args);
+                        property.value = v;
+                        property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
+                        result = true;
+                    } else if (fnDesc.isName("quat")) {
+                        Quat4d q = new Quat4d();
+                        double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
+                        q.set(args);
+                        property.value = q;
+                        property.type = PropertyType.PROPERTY_TYPE_QUAT;
                         result = true;
                     }
+                }
+                else {
+                    if (fnDesc.isObject("resource")) {
+                        property.type = PropertyType.PROPERTY_TYPE_HASH;
+                        property.isResource = true;
+                        result = true;
+                    }
+                    else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
+                        property.type = PropertyType.PROPERTY_TYPE_HASH;
+                        result = true;
+                    }
+                    else if (fnDesc.is("url", "msg")) {
+                        property.type = PropertyType.PROPERTY_TYPE_URL;
+                        result = true;
+                    }
+                    String firstArg = getFirstStringArg(ctx.nameAndArgs().args());
+                    property.value = firstArg == null ? "" : firstArg;
+                }
                 }
             }
         }
