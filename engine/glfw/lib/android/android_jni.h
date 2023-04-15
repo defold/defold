@@ -12,33 +12,16 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PROFILER_H
-#define DM_PROFILER_H
+#ifndef _ANDROID_JNI_H_
+#define _ANDROID_JNI_H_
 
-#include <stdint.h>
+#include "internal.h"
+#include <jni.h>
 
-namespace dmRender
-{
-    typedef struct RenderContext*   HRenderContext;
-    typedef struct FontMap*         HFontMap;
-} // dmRender
+extern struct android_app* g_AndroidApp;
 
-namespace dmGraphics
-{
-    typedef void* HContext;
-} // dmGraphics
+JNIEnv* JNIAttachCurrentThread();
+void JNIDetachCurrentThread();
+jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature);
 
-namespace dmProfile
-{
-    typedef void* HProfile;
-} // dmProfile
-
-namespace dmProfiler
-{
-    void SetUpdateFrequency(uint32_t update_frequency);
-    void ToggleProfiler();
-    void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
-
-} // dmProfiler
-
-#endif // DM_PROFILER_H
+#endif // _ANDROID_JNI_H_

@@ -213,15 +213,18 @@ namespace dmHID
 
     void Final(HContext context)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
-
-        for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+        if (g_HidContext)
         {
-            user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
-        }
+            NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
 
-        delete user_data;
-        g_HidContext->m_NativeContextUserData = 0;
+            for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+            {
+                user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
+            }
+
+            delete user_data;
+            g_HidContext->m_NativeContextUserData = 0;
+        }
     }
 
     void Update(HContext context)

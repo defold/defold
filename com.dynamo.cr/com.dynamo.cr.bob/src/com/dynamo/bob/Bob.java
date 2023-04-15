@@ -36,10 +36,6 @@ import java.util.Locale;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.LogManager;
-import java.util.logging.Handler;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -57,6 +53,9 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.logging.LogFormatter;
+import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -69,10 +68,9 @@ public class Bob {
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
-    private static boolean verbose = false;
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
-
+    
     public Bob() {
     }
 
@@ -209,7 +207,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -507,7 +505,8 @@ public class Bob {
 
         addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
 
-        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", false);
+        addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
+        addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
         addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
@@ -651,24 +650,19 @@ public class Bob {
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
-        verbose = cmd.hasOption('v');
 
-        // setup logger based on presence of verbose option or not
-        Logger rootLogger = LogManager.getLogManager().getLogger("");
-        rootLogger.setLevel(verbose ? Level.CONFIG : Level.WARNING);
-        for (Handler h : rootLogger.getHandlers()) {
-            h.setLevel(verbose ? Level.CONFIG : Level.WARNING);
-        }
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
-            String path = cmd.getOptionValue("build-report");
-            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
-            if (path == null) {
-                path = cmd.getOptionValue("build-report-html");
-                format = TimeProfiler.ReportFormat.HTML;
+            List<File> reportFiles = new ArrayList<>();
+            String jsonReportPath = cmd.getOptionValue("build-report");
+            if (jsonReportPath != null) {
+                reportFiles.add(new File(jsonReportPath));
             }
-            File report = new File(path);
-            TimeProfiler.init(report, format, false);
+            String htmlReportPath = cmd.getOptionValue("build-report-html");
+            if (htmlReportPath != null) {
+                reportFiles.add(new File(htmlReportPath));
+            }
+            TimeProfiler.init(reportFiles, false);
         }
 
         if (cmd.hasOption("version")) {
@@ -702,6 +696,9 @@ public class Bob {
             }
         }
 
+        boolean verbose = cmd.hasOption('v');
+        LogHelper.setVerboseLogging(verbose);
+
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
         Project project = createProject(rootDirectory, buildDirectory, email, auth);
@@ -732,6 +729,11 @@ public class Bob {
         if (cmd.hasOption("use-vanilla-lua")) {
             System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
             project.setOption("use-uncompressed-lua-source", "true");
+        }
+
+        if (cmd.hasOption("build-report")) {
+            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
+            project.setOption("build-report-json", "true");
         }
 
         Option[] options = cmd.getOptions();
@@ -893,7 +895,7 @@ public class Bob {
         if (e.getCause() != null) {
             System.err.println("Cause: " + e.getCause());
         }
-        logger.log(Level.INFO, e.getMessage(), e);
+        logger.severe(e.getMessage(), e);
         System.exit(1);
     }
 
@@ -905,7 +907,6 @@ public class Bob {
         } catch (Exception e) {
             logErrorAndExit(e);
         }
-
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
@@ -916,9 +917,4 @@ public class Bob {
         }
         return value;
     }
-
-    public static void verbose(String message, Object... args) {
-        logger.info(String.format(message, args));
-    }
-
 }

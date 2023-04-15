@@ -51,8 +51,7 @@ public class ZipPublisher extends Publisher {
             FileOutputStream resourcePackOutputStream = new FileOutputStream(this.resourcePackZip);
             ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
             try {
-                for (String hexDigest : this.getEntries().keySet()) {
-                    File fhandle = this.getEntries().get(hexDigest);
+                for (File fhandle : this.getEntries().keySet()) {
                     ZipEntry currentEntry = new ZipEntry(fhandle.getName());
                     zipOutputStream.putNextEntry(currentEntry);
                     FileUtil.writeToStream(fhandle, zipOutputStream);

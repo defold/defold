@@ -31,6 +31,7 @@
     [util.http-util :as http-util])
   (:import
     [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob.logging LogHelper]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
@@ -42,17 +43,7 @@
 (set! *warn-on-reflection* true)
 
 (defn set-verbose-logging! [enable]
-  (doto (.getDeclaredField Bob "verbose")
-    (.setAccessible true)
-    (.setBoolean nil enable)))
-
-;; Disable verbose logging in Bob by default. Doing this here will let us know
-;; if the verbose field is no longer in Bob. We enable verbose logging while a
-;; Bob build is in progress, but disable it otherwise because it can be a lot.
-(try
-  (set-verbose-logging! false)
-  (catch Exception e
-    (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
+  (LogHelper/setVerboseLogging enable))
 
 (def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
@@ -201,8 +192,7 @@
                 log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
                 build-out (PrintStream-on
                             #(doseq [line (util/split-lines %)]
-                               (when (string/starts-with? line "Bob: ")
-                                 (.println log-stream-writer (subs line 5)))))
+                               (.println log-stream-writer line)))
                 build-err (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))]
@@ -237,9 +227,9 @@
         (catch Throwable error
           {:exception error})
         (finally
-          (reset! build-in-progress-atom false)
           (System/setOut prev-out)
-          (System/setErr prev-err))))))
+          (System/setErr prev-err)
+          (reset! build-in-progress-atom false))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
