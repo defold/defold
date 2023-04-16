@@ -312,6 +312,8 @@ public class LuaScanner extends LuaParserBaseListener {
 
         if (fnDesc.is("require", null) || fnDesc.is("require", "_G")) {
             String module = getFirstStringArg(ctx.nameAndArgs().args());
+            // ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
+            // and also don't add the same module twice
             if (module != null && !LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
                 modules.add(module);
             }
