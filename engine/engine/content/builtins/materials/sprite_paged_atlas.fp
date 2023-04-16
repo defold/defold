@@ -1,5 +1,5 @@
-varying mediump vec2  var_texcoord0;
-varying mediump float var_page_index;
+varying mediump vec2 var_texcoord0;
+varying lowp float   var_page_index;
 
 uniform lowp sampler2DArray texture_sampler;
 uniform lowp vec4           tint;
