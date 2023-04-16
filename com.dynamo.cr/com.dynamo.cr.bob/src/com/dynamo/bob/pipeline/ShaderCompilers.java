@@ -55,7 +55,7 @@ public class ShaderCompilers {
     }
 
     // Generate a shader desc struct that consists of either the built shader desc, or a list of compile warnings/errors
-    static private ArrayList<ShaderProgramBuilder.ShaderBuildResult> getBaseShaderBuildResults(String resourceOutputPath, String fullShaderSource,
+    public static ArrayList<ShaderProgramBuilder.ShaderBuildResult> getBaseShaderBuildResults(String resourceOutputPath, String fullShaderSource,
             ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language[] shaderLanguages,
             String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
 
