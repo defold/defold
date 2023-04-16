@@ -111,14 +111,14 @@ public class ArchiveReader {
         for (int i = 0; i < entryCount; ++i) {
             archiveIndexFile.seek(hashOffset + i * HASH_BUFFER_BYTESIZE);
             ArchiveEntry e = new ArchiveEntry("");
-            e.hash = new byte[HASH_BUFFER_BYTESIZE];
-            archiveIndexFile.read(e.hash, 0, hashLength);
+            e.setHash(new byte[HASH_BUFFER_BYTESIZE]);
+            archiveIndexFile.read(e.getHash(), 0, hashLength);
 
             if (this.manifestFile != null) {
                 for (ResourceEntry resource : manifestData.getResourcesList()) {
-	            	if (matchHash(e.hash, resource.getHash().getData().toByteArray(), this.hashLength)) {
-	            		e.fileName = resource.getUrl();
-	            		e.relName = resource.getUrl();
+	            	if (matchHash(e.getHash(), resource.getHash().getData().toByteArray(), this.hashLength)) {
+	            		e.setFilename(resource.getUrl());
+	            		e.setRelativeFilename(resource.getUrl());
                         break;
 	            	}
 	            }
@@ -132,10 +132,10 @@ public class ArchiveReader {
         for (int i=0; i<entryCount; ++i) {
             ArchiveEntry e = entries.get(i);
 
-            e.resourceOffset = archiveIndexFile.readInt();
-            e.size = archiveIndexFile.readInt();
-            e.compressedSize = archiveIndexFile.readInt();
-            e.flags = archiveIndexFile.readInt();
+            e.setResourceOffset(archiveIndexFile.readInt());
+            e.setSize(archiveIndexFile.readInt());
+            e.setCompressedSize(archiveIndexFile.readInt());
+            e.setFlags(archiveIndexFile.readInt());
         }
     }
 
@@ -144,9 +144,9 @@ public class ArchiveReader {
     }
 
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {
-        byte[] buf = new byte[entry.size];
-        archiveDataFile.seek(entry.resourceOffset);
-        archiveDataFile.read(buf, 0, entry.size);
+        byte[] buf = new byte[entry.getSize()];
+        archiveDataFile.seek(entry.getResourceOffset());
+        archiveDataFile.read(buf, 0, entry.getSize());
 
         return buf;
     }
@@ -158,13 +158,13 @@ public class ArchiveReader {
         System.out.println("Extracting entries to " + path + ": ");
         for (int i = 0; i < entryCount; i++) {
             ArchiveEntry entry = entries.get(i);
-            String outdir = path + entry.fileName;
-            System.out.println("> " + entry.fileName);
-            int readSize = entry.compressedSize;
+            String outdir = path + entry.getFilename();
+            System.out.println("> " + entry.getFilename());
+            int readSize = entry.getCompressedSize();
 
             // extract
-            byte[] buf = new byte[entry.size];
-            archiveDataFile.seek(entry.resourceOffset);
+            byte[] buf = new byte[entry.getSize()];
+            archiveDataFile.seek(entry.getResourceOffset());
             archiveDataFile.read(buf, 0, readSize);
 
             File fo = new File(outdir);

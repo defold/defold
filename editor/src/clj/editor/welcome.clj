@@ -46,7 +46,7 @@
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.control Button ButtonBase Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image ImageView Image]
            [javafx.scene.input KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
@@ -429,13 +429,16 @@
         (ui/add-child! (ui/load-svg-path image-path))))))
 
 (defn- make-description-view
-  ^Node [^String name ^String description]
+  ^Node [^String name ^String description ^String zip-url]
   (doto (VBox.)
     (ui/add-style! "description")
     (ui/children! [(doto (Text. name)
                      (ui/add-style! "header"))
                    (doto (TextFlow.)
-                     (ui/add-child! (Text. description)))])))
+                     (ui/add-child! (Text. description))
+                     (VBox/setVgrow Priority/ALWAYS))
+                   (doto (Hyperlink. zip-url)
+                     (ui/on-action! (fn [_] (ui/open-url zip-url))))])))
 
 (defn- make-template-entry
   ^Node [project-template]
@@ -443,7 +446,8 @@
     (ui/add-style! "template-entry")
     (ui/children! [(make-icon-view (:image project-template))
                    (make-description-view (:name project-template)
-                                          (:description project-template))])))
+                                          (:description project-template)
+                                          (:zip-url project-template))])))
 
 (defn- make-category-button
   ^RadioButton [{:keys [label templates] :as template-project-category}]

@@ -32,8 +32,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -45,6 +43,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
@@ -261,7 +260,7 @@ public class HTML5Bundler implements IBundler {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for Asm.js");
+                logger.info("Using extender binary for Asm.js");
             }
             ;
         }
@@ -275,7 +274,7 @@ public class HTML5Bundler implements IBundler {
                 binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for WASM");
+                logger.info("Using extender binary for WASM");
             }
         }
 
@@ -306,14 +305,18 @@ public class HTML5Bundler implements IBundler {
         }
 
         // Copy debug symbols if they were generated
+        String symbolsName = "dmengine.js.symbols";
+        if (variant.equals(Bob.VARIANT_RELEASE)) {
+            symbolsName = "dmengine_release.js.symbols";
+        }
         String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
-        File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        File bundleSymbols = new File(zipDir, symbolsName);
         if (!bundleSymbols.exists()) {
             zipDir = FilenameUtils.concat(extenderExeDir, Platform.WasmWeb.getExtenderPair());
-            bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+            bundleSymbols = new File(zipDir, symbolsName);
         }
         if (bundleSymbols.exists()) {
-            File symbolsOut = new File(appDir, enginePrefix + ".symbols");
+            File symbolsOut = new File(appDir.getParentFile(), enginePrefix + ".symbols");
             FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 

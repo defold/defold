@@ -17,6 +17,7 @@ package com.dynamo.android;
 
 import android.app.Activity;
 import android.app.NativeActivity;
+import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
 import android.content.Context;
 import android.content.Intent;
@@ -521,5 +522,40 @@ public class DefoldActivity extends NativeActivity {
             name = device.getName();
         }
         return name;
+    }
+
+    /**
+     * Method to get meta-data value by key from AndroidManifest.xml
+     * @param key
+     * @return String
+     */
+    protected String getMetadata(String key) {
+        try {
+            PackageManager packageManager = getPackageManager();
+            ApplicationInfo appInfo = packageManager.getApplicationInfo(getPackageName(),
+                    PackageManager.GET_META_DATA);
+            Bundle metaData = appInfo.metaData;
+            if (metaData != null) {
+                Object value = metaData.get(key);
+                if (value != null) {
+                    return value.toString();
+                }
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * Method checks if alpha transparency is enabled for DefoldActivity
+     * @return boolean
+     */
+    public boolean isAlphaTransparencyEnabled() {
+        String alpha = getMetadata("alpha.transparency");
+        if (alpha != null) {
+            return alpha.equals("true");
+        }
+        return false;
     }
 }

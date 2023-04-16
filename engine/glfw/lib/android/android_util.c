@@ -13,11 +13,30 @@
 // specific language governing permissions and limitations under the License.
 
 #include "android_util.h"
-
+#include "android_jni.h"
 #include "android_log.h"
 
+#include <stdbool.h>
 #include <pthread.h>
 #include <unistd.h>
+
+
+static bool is_alpha_transparency_enabled()
+{
+    bool result = false;
+    JNIEnv* env = JNIAttachCurrentThread();
+    if (env)
+    {
+        jobject native_activity = g_AndroidApp->activity->clazz;
+        jmethodID is_alpha_transparency_enabled_method = JNIGetMethodID(env, native_activity, "isAlphaTransparencyEnabled", "()Z");
+        if (is_alpha_transparency_enabled_method) {
+            jboolean jresult = (*env)->CallBooleanMethod(env, native_activity, is_alpha_transparency_enabled_method);
+            result = (JNI_TRUE == jresult);
+        }
+        JNIDetachCurrentThread();
+    }
+    return result;
+}
 
 typedef struct EglAttribSetting_t {
     EGLint m_Attribute;
@@ -64,6 +83,12 @@ static int add_egl_colour_attrib(EglAttribSetting* buffer, int size, int offset)
     return offset;
 }
 
+static int add_egl_alpha_attrib(EglAttribSetting* buffer, int size, int offset)
+{
+    const EglAttribSetting alpha = {EGL_ALPHA_SIZE, 8};
+    return add_egl_attrib(buffer, size, offset, &alpha);
+}
+
 static int add_egl_depth_attrib(EglAttribSetting* buffer, int size, int offset)
 {
     const EglAttribSetting depth = {EGL_DEPTH_SIZE, 16};
@@ -99,18 +124,24 @@ static int add_egl_concluding_attrib(EglAttribSetting* buffer, int size, int off
 static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
 {
     EGLint result = 0;
-    const int max_settings = 9;
+    const int max_settings = 10;
     EglAttribSetting settings[max_settings];
+
+    bool is_alpha_enabled = is_alpha_transparency_enabled();
+    int actual_settings = is_alpha_enabled ? max_settings : max_settings - 1;
 
     int offset = 0;
     int stencil_offset;
 
-    offset = add_egl_base_attrib((EglAttribSetting*)&settings, max_settings, offset);
-    offset = add_egl_colour_attrib((EglAttribSetting*)&settings, max_settings, offset);
-    offset = add_egl_depth_attrib((EglAttribSetting*)&settings, max_settings, offset);
+    offset = add_egl_base_attrib((EglAttribSetting*)&settings, actual_settings, offset);
+    offset = add_egl_colour_attrib((EglAttribSetting*)&settings, actual_settings, offset);
+    if (is_alpha_enabled) {
+        offset = add_egl_alpha_attrib((EglAttribSetting*)&settings, actual_settings, offset);
+    }
+    offset = add_egl_depth_attrib((EglAttribSetting*)&settings, actual_settings, offset);
     stencil_offset = offset;
-    offset = add_egl_stencil_attrib((EglAttribSetting*)&settings, max_settings, offset);
-    offset = add_egl_concluding_attrib((EglAttribSetting*)&settings, max_settings, offset);
+    offset = add_egl_stencil_attrib((EglAttribSetting*)&settings, actual_settings, offset);
+    offset = add_egl_concluding_attrib((EglAttribSetting*)&settings, actual_settings, offset);
 
     eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
     CHECK_EGL_ERROR
@@ -118,7 +149,7 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     {
         // Something along this sort of line when adding Tegra support?
         LOGV("egl config choice failed - removing stencil");
-        add_egl_concluding_attrib((EglAttribSetting*)&settings, max_settings, stencil_offset);
+        add_egl_concluding_attrib((EglAttribSetting*)&settings, actual_settings, stencil_offset);
         eglChooseConfig(display, (const EGLint *)&settings[0], config, 1, &result);
         CHECK_EGL_ERROR
     }

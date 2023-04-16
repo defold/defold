@@ -21,13 +21,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 
 public abstract class Publisher {
 
     private final PublisherSettings settings;
-    private final Map<String, File> entries = new HashMap<String, File>();
+    private final Map<File, ArchiveEntry> entries = new HashMap<File, ArchiveEntry>();
     protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
@@ -50,7 +51,7 @@ public abstract class Publisher {
         return this.settings;
     }
 
-    protected final Map<String, File> getEntries() {
+    public final Map<File, ArchiveEntry> getEntries() {
         return this.entries;
     }
     
@@ -74,8 +75,7 @@ public abstract class Publisher {
         return outputs;
     }
 
-    public final void AddEntry(String hexDigest, File fhandle) {
-        this.entries.put(hexDigest, fhandle);
+    public final void AddEntry(File fhandle, ArchiveEntry archiveEntry) {
+        this.entries.put(fhandle, archiveEntry);
     }
-
 }

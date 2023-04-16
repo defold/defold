@@ -200,27 +200,19 @@ public class ResourceUnpacker {
         }
 
         if (unpackPath != null) {
-            return ensureDirectory(Paths.get(unpackPath), true);
+            return ensureDirectory(Paths.get(unpackPath));
         }
 
-        Path supportPath = Editor.getSupportPath();
         String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
-        if (sha1 != null) {
-            return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)), false);
-        }
-
-        Path tmpDir = Files.createTempDirectory("defold-unpack");
+        Path tmpDir = Files.createTempDirectory("defold-unpack" + (sha1 == null ? "" : "-" + sha1));
         deleteOnExit(tmpDir);
         return tmpDir;
     }
 
-    private static Path ensureDirectory(Path path, boolean userDir) throws IOException {
+    private static Path ensureDirectory(Path path) {
         File f = path.toFile();
         if (!f.exists()) {
             f.mkdirs();
-            if (!userDir) {
-                deleteOnExit(path);
-            }
         }
         return path;
     }
