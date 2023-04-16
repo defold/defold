@@ -272,12 +272,17 @@ public class LuaScanner extends LuaParserBaseListener {
             int count = 0;
             for(LuaParser.ExpContext val : args) {
                 LuaParser.NumberContext num = val.number();
-                // the value isn't a number
-                if (num == null) {
+                LuaParser.ExpContext exp = val.exp(0);
+                int firstTokenType = val.getStart().getType();
+                if (num != null || (exp != null && exp.number() != null && firstTokenType == LuaParser.MINUS)) {
+                    resultArgs[count] = Double.parseDouble(val.getText());
+                    count++;
+                }
+                else {
+                    // the value isn't a number
                     return false;
                 }
-                resultArgs[count] = Double.parseDouble(num.getText());
-                count++;
+                
             }
             // one value for example vmath.vector3(1), is valid, and all the values should be filled
             if (count == 1) {

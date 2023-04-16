@@ -56,6 +56,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"url\", msg.url())\n");
         src.append("go.property(\"vec3\", vmath.vector3(1, 2, 3))\n");
         src.append("go.property(\"vec3empt\", vmath.vector3())\n");
+        src.append("go.property(\"vec3negative\", vmath.vector3(-1))\n");
         src.append("go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n");
         src.append("go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n");
         src.append("go.property(\"bool\", true)\n");
@@ -74,6 +75,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertURL(properties, "", 0);
         PropertiesTestUtil.assertVector3(properties, 1, 2, 3, 0);
         PropertiesTestUtil.assertVector3(properties, 0, 0, 0, 1);
+        PropertiesTestUtil.assertVector3(properties, -1, -1, -1, 2);
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
