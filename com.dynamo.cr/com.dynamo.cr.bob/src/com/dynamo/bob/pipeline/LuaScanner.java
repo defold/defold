@@ -265,17 +265,20 @@ public class LuaScanner extends LuaParserBaseListener {
 
     // returns double[] filled with parsed values with needed length
     private double[] getNumArgs(LuaParser.ArgsContext argsCtx, int size) {
-        List<LuaParser.ExpContext> args = argsCtx.explist().exp();
         double[] result = new double[size];
-        int count = 0;
-        for(LuaParser.ExpContext val : args) {
-            LuaParser.NumberContext num = val.number();
-            result[count] = Double.parseDouble(num.getText());
-            count++;
-        }
-        if (count == 1) {
-            for (int i = count; i < size; i ++) {
-               result[i] = result[0]; 
+        LuaParser.ExplistContext expListCtx = argsCtx.explist();
+        if (expListCtx != null) {
+            List<LuaParser.ExpContext> args = expListCtx.exp();
+            int count = 0;
+            for(LuaParser.ExpContext val : args) {
+                LuaParser.NumberContext num = val.number();
+                result[count] = Double.parseDouble(num.getText());
+                count++;
+            }
+            if (count == 1) {
+                for (int i = count; i < size; i ++) {
+                   result[i] = result[0]; 
+                }
             }
         }
         return result;
