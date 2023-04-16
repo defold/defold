@@ -263,25 +263,33 @@ public class LuaScanner extends LuaParserBaseListener {
         return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
     }
 
-    // returns double[] filled with parsed values with needed length
-    private double[] getNumArgs(LuaParser.ArgsContext argsCtx, int size) {
-        double[] result = new double[size];
+    // returns boolean if parsing successfull and fill double[] with parsed values with needed length.
+    private boolean getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
         LuaParser.ExplistContext expListCtx = argsCtx.explist();
+        // no values for example vmath.vector3()
         if (expListCtx != null) {
             List<LuaParser.ExpContext> args = expListCtx.exp();
             int count = 0;
             for(LuaParser.ExpContext val : args) {
                 LuaParser.NumberContext num = val.number();
-                result[count] = Double.parseDouble(num.getText());
+                // the value isn't a number
+                if (num == null) {
+                    return false;
+                }
+                resultArgs[count] = Double.parseDouble(num.getText());
                 count++;
             }
+            // one value for example vmath.vector3(1), is valid, and all the values should be filled
             if (count == 1) {
-                for (int i = count; i < size; i ++) {
-                   result[i] = result[0]; 
+                for (int i = count; i < resultArgs.length; i ++) {
+                   resultArgs[i] = resultArgs[0]; 
                 }
             }
+            else if (count != resultArgs.length) {
+                return false;
+            }
         }
-        return result;
+        return true;
     }
 
     /**
@@ -324,7 +332,6 @@ public class LuaScanner extends LuaParserBaseListener {
         else if (fnDesc.is("property", "go")) {
             LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
             String firstArg = getFirstStringArg(argsCtx);
-
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             Property property = new Property(tokens.get(0).getLine() - 1);
             property.name = firstArg;
@@ -349,21 +356,36 @@ public class LuaScanner extends LuaParserBaseListener {
 
     private boolean parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) {
         boolean result = false;
-        LuaParser.ExpContext expCtx = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp(1);
-        if (expCtx != null)
+        List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
+        // go.property(name, vaule) should have a value and only one value
+        if (expCtxList.size() == 2)
         {
+            LuaParser.ExpContext expCtx = expCtxList.get(1);
             Token initialToken = expCtx.getStart();
             int type = initialToken.getType();
-            if (type == LuaParser.INT || type == LuaParser.FLOAT) {
+            // for negative numbers we should take token #2
+            if (type == LuaParser.MINUS) {
+                List<Token> tokens = getTokens(expCtx, Token.DEFAULT_CHANNEL);
+                if (tokens.size() > 1) {
+                    initialToken = tokens.get(1);
+                    type = initialToken.getType();
+                }
+            }
+            if (type == LuaParser.INT || type == LuaParser.HEX || type == LuaParser.FLOAT || type == LuaParser.HEX_FLOAT) {
                 property.type = PropertyType.PROPERTY_TYPE_NUMBER;
-                property.value = Double.parseDouble(initialToken.getText());
+                property.value = Double.parseDouble(expCtx.getText());
                 result = true;
             } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
                 property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
                 property.value = Boolean.parseBoolean(initialToken.getText());
                 result = true;
             } else if (type == LuaParser.NAME) {
-                LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)expCtx.variable();
+                LuaParser.VariableContext varCtx = expCtx.variable();
+                // function expected
+                if (!(varCtx instanceof LuaParser.FunctioncallContext)) {
+                    return false;
+                }
+                LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)varCtx;
                 FunctionDescriptor fnDesc = new FunctionDescriptor(ctx.variable());
                 if (fnDesc.functionName == null) {
                     return result;
@@ -371,28 +393,29 @@ public class LuaScanner extends LuaParserBaseListener {
                 if (fnDesc.isObject("vmath")){
                      if (fnDesc.isName("vector3")) {
                         Vector3d v = new Vector3d();
-                        double[] args = getNumArgs(ctx.nameAndArgs().args(), 3);
-                        v.set(args);
+                        double[] resultArgs = new double[3];
+                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        v.set(resultArgs);
                         property.value = v;
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
-                        result = true;
                     } else if (fnDesc.isName("vector4")) {
                         Vector4d v = new Vector4d();
-                        double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
-                        v.set(args);
+                        double[] resultArgs = new double[4];
+                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        v.set(resultArgs);
                         property.value = v;
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
-                        result = true;
                     } else if (fnDesc.isName("quat")) {
                         Quat4d q = new Quat4d();
-                        double[] args = getNumArgs(ctx.nameAndArgs().args(), 4);
-                        q.set(args);
+                        double[] resultArgs = new double[4];
+                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        q.set(resultArgs);
                         property.value = q;
                         property.type = PropertyType.PROPERTY_TYPE_QUAT;
-                        result = true;
                     }
                 }
                 else {
+                    String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
                     if (fnDesc.isObject("resource")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.isResource = true;
@@ -400,14 +423,16 @@ public class LuaScanner extends LuaParserBaseListener {
                     }
                     else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
-                        result = true;
+                        // hash(arg) requires an argument
+                        if (firstStrArg != null) {
+                            result = true;
+                        }
                     }
                     else if (fnDesc.is("url", "msg")) {
                         property.type = PropertyType.PROPERTY_TYPE_URL;
                         result = true;
                     }
-                    String firstArg = getFirstStringArg(ctx.nameAndArgs().args());
-                    property.value = firstArg == null ? "" : firstArg;
+                    property.value = firstStrArg == null ? "" : firstStrArg;
                 }
             }
         }
