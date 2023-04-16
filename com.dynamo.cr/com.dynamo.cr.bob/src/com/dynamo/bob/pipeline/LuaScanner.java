@@ -404,7 +404,6 @@ public class LuaScanner extends LuaParserBaseListener {
                     String firstArg = getFirstStringArg(ctx.nameAndArgs().args());
                     property.value = firstArg == null ? "" : firstArg;
                 }
-                }
             }
         }
         return result;
