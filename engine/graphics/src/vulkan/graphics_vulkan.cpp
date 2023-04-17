@@ -1702,13 +1702,26 @@ bail:
         #if __MACH__
             if (stream.m_Type == TYPE_UNSIGNED_BYTE && !stream.m_Normalize)
             {
-                dmLogWarning("Using the type 'TYPE_UNSIGNED_BYTE' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", dmHashReverseSafe64(stream.m_NameHash));
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
                 stream.m_Type = TYPE_BYTE;
             }
             else if (stream.m_Type == TYPE_UNSIGNED_SHORT && !stream.m_Normalize)
             {
-                dmLogWarning("Using the type 'TYPE_UNSIGNED_SHORT' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", dmHashReverseSafe64(stream.m_NameHash));
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
                 stream.m_Type = TYPE_SHORT;
+            }
+        #else
+
+            // JG: Not sure this is what we want to do, OpenGL performs automatic conversion to float regardless of type, but Vulkan doesn't seem to do that
+            //     unless we use the normalized format variants of these types.. which in turn means that we will have different looks between the adapters if we use the narrower formats
+            //     Alternatively, we could force OpenGL to behave like vulkan?
+            if ((stream.m_Type == TYPE_BYTE           ||
+                 stream.m_Type == TYPE_UNSIGNED_BYTE  ||
+                 stream.m_Type == TYPE_SHORT          ||
+                 stream.m_Type == TYPE_UNSIGNED_SHORT) && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to normalize:true.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Normalize = 1;
             }
         #endif
 

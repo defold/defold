@@ -45,6 +45,7 @@ namespace dmGraphics
     void          SetForceFragmentReloadFail(bool should_fail);
     void          SetForceVertexReloadFail(bool should_fail);
     bool          IsTextureFormatCompressed(TextureFormat format);
+    const char*   GetGraphicsTypeLiteral(Type type);
 
     // Test functions:
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);

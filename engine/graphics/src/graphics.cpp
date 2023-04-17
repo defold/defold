@@ -109,17 +109,73 @@ namespace dmGraphics
         return true;
     }
 
+    #define GRAPHICS_CASE_LITERAL_TYPE(x) case x: return #x
+
     static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
-            case ADAPTER_TYPE_NULL:   return "null";
-            case ADAPTER_TYPE_OPENGL: return "opengl";
-            case ADAPTER_TYPE_VULKAN: return "vulkan";
+            GRAPHICS_CASE_LITERAL_TYPE(ADAPTER_TYPE_NULL);
+            GRAPHICS_CASE_LITERAL_TYPE(ADAPTER_TYPE_OPENGL);
+            GRAPHICS_CASE_LITERAL_TYPE(ADAPTER_TYPE_VULKAN);
             default: break;
         }
-        return "<unknown adapter type>";
+        return "<unknown dmGraphics::AdapterType>";
     }
+
+    const char* GetTextureTypeLiteral(TextureType texture_type)
+    {
+        switch(texture_type)
+        {
+            GRAPHICS_CASE_LITERAL_TYPE(TEXTURE_TYPE_2D);
+            GRAPHICS_CASE_LITERAL_TYPE(TEXTURE_TYPE_2D_ARRAY);
+            GRAPHICS_CASE_LITERAL_TYPE(TEXTURE_TYPE_CUBE_MAP);
+            default:break;
+        }
+        return "<unknown dmGraphics::TextureType>";
+    }
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            GRAPHICS_CASE_LITERAL_TYPE(BUFFER_TYPE_COLOR0_BIT);
+            GRAPHICS_CASE_LITERAL_TYPE(BUFFER_TYPE_COLOR1_BIT);
+            GRAPHICS_CASE_LITERAL_TYPE(BUFFER_TYPE_COLOR2_BIT);
+            GRAPHICS_CASE_LITERAL_TYPE(BUFFER_TYPE_COLOR3_BIT);
+            GRAPHICS_CASE_LITERAL_TYPE(BUFFER_TYPE_DEPTH_BIT);
+            GRAPHICS_CASE_LITERAL_TYPE(BUFFER_TYPE_STENCIL_BIT);
+            default:break;
+        }
+        return "<unknown dmGraphics::BufferType>";
+    }
+
+    const char* GetGraphicsTypeLiteral(Type type)
+    {
+        switch(type)
+        {
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_BYTE);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_UNSIGNED_BYTE);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_SHORT);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_UNSIGNED_SHORT);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_INT);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_UNSIGNED_INT);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT_VEC4);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT_MAT4);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_SAMPLER_2D);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_SAMPLER_CUBE);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_SAMPLER_2D_ARRAY);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT_VEC2);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT_VEC3);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT_MAT2);
+            GRAPHICS_CASE_LITERAL_TYPE(TYPE_FLOAT_MAT3);
+            default:break;
+        }
+        return "<unknown dmGraphics::Type>";
+    }
+
+    #undef GRAPHICS_CASE_LITERAL_TYPE
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -203,33 +259,6 @@ namespace dmGraphics
         return selected_shader;
     }
 
-    const char* GetTextureTypeLiteral(TextureType texture_type)
-    {
-        switch(texture_type)
-        {
-            case TEXTURE_TYPE_2D:       return "TEXTURE_TYPE_2D";
-            case TEXTURE_TYPE_2D_ARRAY: return "TEXTURE_TYPE_2D_ARRAY";
-            case TEXTURE_TYPE_CUBE_MAP: return "TEXTURE_TYPE_CUBE_MAP";
-            default:break;
-        }
-        return "<unknown texture type>";
-    }
-
-    const char* GetBufferTypeLiteral(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
-            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
-            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
-            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default:break;
-        }
-        return "<unknown buffer type>";
-    }
-
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
         switch(buffer_type)
@@ -244,24 +273,6 @@ namespace dmGraphics
         }
         return ~0u;
     }
-
-    /*
-    enum Type
-    {
-        TYPE_BYTE             = 0,
-        TYPE_UNSIGNED_BYTE    = 1,
-        TYPE_SHORT            = 2,
-        TYPE_UNSIGNED_SHORT   = 3,
-        TYPE_INT              = 4,
-        TYPE_UNSIGNED_INT     = 5,
-        TYPE_FLOAT            = 6,
-        TYPE_FLOAT_VEC4       = 7,
-        TYPE_FLOAT_MAT4       = 8,
-        TYPE_SAMPLER_2D       = 9,
-        TYPE_SAMPLER_CUBE     = 10,
-        TYPE_SAMPLER_2D_ARRAY = 11,
-    };
-    */
 
     uint32_t GetTypeSize(dmGraphics::Type type)
     {
@@ -314,39 +325,6 @@ namespace dmGraphics
     {
         *data_ptr  = attribute.m_Values.m_ByteValues.m_Data;
         *data_size = attribute.m_Values.m_ByteValues.m_Count;
-        /*
-        switch(attribute.m_DataType)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_IntValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_IntValues.m_V.m_Count * sizeof(int32_t);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_SHORT:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
-                assert(0 && "Not supprted yet");
-                break;
-            case dmGraphics::VertexAttribute::TYPE_INT:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_IntValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_IntValues.m_V.m_Count * sizeof(int32_t);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_UintValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_UintValues.m_V.m_Count * sizeof(uint32_t);
-                break;
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:
-                *data_ptr  = (uint8_t*) attribute.m_Values.m_FloatValues.m_V.m_Data;
-                *data_size = attribute.m_Values.m_FloatValues.m_V.m_Count * sizeof(uint32_t);
-                break;
-            default:
-                assert(0 && "Unknown data type");
-                break;
-        }
-        */
     }
 
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
