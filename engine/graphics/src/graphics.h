@@ -60,7 +60,9 @@ namespace dmGraphics
     typedef int (*EngineUpdate)(void* engine);
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
-    // Decorated asset handle with 32 bits meta | 32 bits opaque handle
+    // Decorated asset handle with 21 bits meta | 32 bits opaque handle
+    // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
+    //       to the users via lua. (See graphics_private.h::MAX_ASSET_HANDLE_VAL)
     typedef uint64_t HAssetHandle;
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
