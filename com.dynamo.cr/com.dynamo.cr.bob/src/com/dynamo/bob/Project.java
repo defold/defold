@@ -80,6 +80,8 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.IShaderCompiler;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -134,6 +136,8 @@ public class Project {
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private ClassLoader classLoader = null;
+
+    private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -322,6 +326,14 @@ public class Project {
                             bundlerClasses.add( (Class<? extends IBundler>) klass);
                         }
                     }
+
+                    if (IShaderCompiler.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IShaderCompiler.class)) {
+                            shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -821,6 +833,40 @@ public class Project {
         m.done();
     }
 
+    private Class<? extends IShaderCompiler> getShaderCompilerClass(Platform platform) {
+        for (Class<? extends IShaderCompiler> klass : shaderCompilerClasses) {
+            BundlerParams bundlerParams = klass.getAnnotation(BundlerParams.class);
+            if (bundlerParams == null) {
+                continue;
+            }
+            for (Platform supportedPlatform : bundlerParams.platforms()) {
+                if (supportedPlatform == platform)
+                    return klass;
+            }
+        }
+        return null;
+    }
+
+    public IShaderCompiler getShaderCompiler(Platform platform) throws CompileExceptionError {
+        // Look for a shader compiler plugin for this platform
+        Class<? extends IShaderCompiler> shaderCompilerClass = getShaderCompilerClass(platform);
+        if (shaderCompilerClass != null) {
+            try {
+                return shaderCompilerClass.newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        // If not found, try to get a built-in shader compiler for this platform
+        IShaderCompiler commonShaderCompiler = ShaderCompilers.getCommonShaderCompiler(platform);
+        if (commonShaderCompiler != null) {
+            return commonShaderCompiler;
+        }
+
+        throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
+    }
+
     private static boolean anyFailing(Collection<TaskResult> results) {
         for (TaskResult taskResult : results) {
             if (!taskResult.isOk()) {
@@ -1126,6 +1172,14 @@ public class Project {
         return shouldBuildArtifact("plugins");
     }
 
+    public void scanJavaClasses() throws IOException, CompileExceptionError {
+        createClassLoaderScanner();
+        registerPipelinePlugins();
+        scan(scanner, "com.dynamo.bob");
+        scan(scanner, "com.dynamo.bob.pipeline");
+        scan(scanner, "com.defold.extension.pipeline");
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
@@ -1142,11 +1196,7 @@ public class Project {
         {
             IProgress mrep = monitor.subProgress(1);
             mrep.beginTask("Reading classes...", 1);
-            createClassLoaderScanner();
-            registerPipelinePlugins();
-            scan(scanner, "com.dynamo.bob");
-            scan(scanner, "com.dynamo.bob.pipeline");
-            scan(scanner, "com.defold.extension.pipeline");
+            scanJavaClasses();
             mrep.done();
         }
 

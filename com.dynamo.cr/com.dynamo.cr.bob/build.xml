@@ -118,6 +118,7 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-macos">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
+                <include name="spirv-opt"/>
                 <include name="luac-32"/>
                 <include name="luajit-32"/>
                 <include name="luajit-64"/>
@@ -127,6 +128,7 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
+                <include name="spirv-opt"/>
                 <include name="luac-32"/>
                 <include name="luajit-32"/>
                 <include name="luajit-64"/>
@@ -136,6 +138,7 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-win32">
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
+                <include name="spirv-opt.exe"/>
                 <include name="luac-32.exe"/>
                 <include name="luajit-64.exe"/>
             </fileset>
@@ -147,6 +150,7 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
+                <include name="spirv-opt.exe"/>
             </fileset>
         </copy>
 
@@ -295,6 +299,7 @@
             <fileset dir="${bob.dir}">
                 <include name="libexec/**/glslc*"/>
                 <include name="libexec/**/spirv-cross*"/>
+                <include name="libexec/**/spirv-opt*"/>
                 <include name="libexec/**/luajit*"/>
                 <include name="libexec/**/luac-32*"/>
             </fileset>
