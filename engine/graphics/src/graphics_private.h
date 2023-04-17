@@ -21,8 +21,6 @@
 
 namespace dmGraphics
 {
-    const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
-
     // Decorated asset handle with 32 bits meta | 32 bits opaque handle
     typedef uint64_t HAssetHandle;
 
