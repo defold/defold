@@ -230,6 +230,17 @@ namespace dmGraphics
         return "<unknown buffer type>";
     }
 
+    const char* GetAssetTypeLiteral(AssetType type)
+    {
+        switch(type)
+        {
+            case ASSET_TYPE_TEXTURE:       return "ASSET_TYPE_TEXTURE";
+            case ASSET_TYPE_RENDER_TARGET: return "ASSET_TYPE_RENDER_TARGET";
+            default:break;
+        }
+        return "<unknown asset type>";
+    }
+
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
         switch(buffer_type)

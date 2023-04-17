@@ -1074,6 +1074,7 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        assert(dmGraphics::GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
 
         if (render_target == 0)
         {
@@ -1084,6 +1085,35 @@ namespace dmRender
 
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    static inline const char* AssetHandleToString(dmGraphics::HAssetHandle asset_handle, char* buf, uint32_t buf_size)
+    {
+        dmSnPrintf(buf, buf_size, "(asset %d type=%s)",
+            dmGraphics::GetOpaqueHandle(asset_handle),
+            dmGraphics::GetAssetTypeLiteral(dmGraphics::GetAssetType(asset_handle)));
+        return buf;
+    }
+
+    static dmGraphics::HAssetHandle CheckAssetHandle(lua_State* L, int index, dmGraphics::HContext graphics_context, dmGraphics::AssetType expected_type)
+    {
+        // NOTE: We don't check if incoming value is a number in order to output a more fitting message when the argument is the wrong type
+        //       This function simply checks validity and types of the asset handle
+
+        dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 1);
+        if (!dmGraphics::IsAssetHandleValid(graphics_context, asset_handle))
+        {
+            char buf[128];
+            luaL_error(L, "Asset handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            return (dmGraphics::HAssetHandle) -1;
+        }
+        else if (dmGraphics::GetAssetType(asset_handle) != expected_type)
+        {
+            char buf[128];
+            luaL_error(L, "Asset handle '%s' does not have the correct type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            return (dmGraphics::HAssetHandle) -1;
+        }
+        return asset_handle;
     }
 
     /*# deletes a render target
@@ -1104,15 +1134,13 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_isnumber(L, 1))
+        if (!lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 1);
-        }
-        if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
+        }
 
+        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
         dmGraphics::DeleteRenderTarget(render_target);
         return 0;
     }
@@ -1170,7 +1198,7 @@ namespace dmRender
         {
             if(lua_isnumber(L, 1))
             {
-                render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 1);
+                render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
             }
             else
             {
@@ -1233,20 +1261,23 @@ namespace dmRender
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
         DM_LUA_STACK_CHECK(L, 0);
 
-        if (lua_isnumber(L, 1))
+        if (!lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 1);
-        }
-        if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
+        }
+
+        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)render_target, 0)))
+        {
             return 0;
+        }
         else
+        {
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
     }
 
     /* DEPRECATED. NO API DOC GENERATED.
@@ -1309,21 +1340,16 @@ namespace dmRender
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
-
-        if (lua_isnumber(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 1);
-            uint32_t width = luaL_checknumber(L, 2);
-            uint32_t height = luaL_checknumber(L, 3);
-            dmGraphics::SetRenderTargetSize(render_target, width, height);
-            return 0;
-        }
-        else
+        if (!lua_isnumber(L, 1))
         {
             return luaL_error(L, "Expected render target as the second argument to %s.set_render_target_size.", RENDER_SCRIPT_LIB_NAME);
         }
+
+        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        uint32_t width = luaL_checknumber(L, 2);
+        uint32_t height = luaL_checknumber(L, 3);
+        dmGraphics::SetRenderTargetSize(render_target, width, height);
+        return 0;
     }
 
     /*# enables a texture for a render target
@@ -1334,8 +1360,8 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param unit [type:number] texture unit to enable texture for
-     * @param render_target [type:render_target] render target from which to enable the specified texture unit
-     * @param buffer_type [type:constant] buffer type from which to enable the texture
+     * @param render_target [type:render_target|texture] render target or texture from which to enable the specified texture unit
+     * @param buffer_type [type:constant] buffer type from which to enable the texture. Note that this argument only applies to render targets, and not textures
      *
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
@@ -1372,29 +1398,49 @@ namespace dmRender
     int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
 
         uint32_t unit = luaL_checknumber(L, 1);
         if (lua_isnumber(L, 2))
         {
-            render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 2);
-            int buffer_type_value = (int)luaL_checknumber(L, 3);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
+            dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
+            dmGraphics::HTexture texture          = 0;
 
-            dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+            if (dmGraphics::GetAssetType(asset_handle) == dmGraphics::ASSET_TYPE_RENDER_TARGET)
+            {
+                int buffer_type_value              = (int) luaL_checknumber(L, 3);
+                dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
+                dmGraphics::HTexture texture       = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
+
+                if (texture == 0)
+                {
+                    char buf[128];
+                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.",
+                        AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                }
+            }
+            else if (dmGraphics::GetAssetType(asset_handle) == dmGraphics::ASSET_TYPE_TEXTURE)
+            {
+                texture = (dmGraphics::HTexture) asset_handle;
+            }
 
             if(texture != 0)
             {
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
+                {
                     return 0;
+                }
                 else
+                {
                     return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                }
             }
-            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
+
+            char buf[128];
+            return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, render_target, buffer_type) called with illegal parameters.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
         }
     }
 
@@ -1454,16 +1500,13 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_isnumber(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 1);
-        }
-        else
+        if (!lua_isnumber(L, 1))
         {
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
+
+        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
         if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
@@ -1472,7 +1515,7 @@ namespace dmRender
             return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType) buffer_type, width, height);
         lua_pushnumber(L, width);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1505,16 +1548,13 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_isnumber(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget) lua_tonumber(L, 1);
-        }
-        else
+        if (!lua_isnumber(L, 1))
         {
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
+
+        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
         if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
