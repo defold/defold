@@ -212,13 +212,13 @@ namespace dmGraphics
     struct TextureParams
     {
         TextureParams()
-        : m_Format(TEXTURE_FORMAT_RGBA)
+        : m_Data(0x0)
+        , m_DataSize(0)
+        , m_Format(TEXTURE_FORMAT_RGBA)
         , m_MinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
         , m_MagFilter(TEXTURE_FILTER_LINEAR)
         , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
-        , m_Data(0x0)
-        , m_DataSize(0)
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
@@ -229,13 +229,13 @@ namespace dmGraphics
         , m_SubUpdate(false)
         {}
 
+        const void*   m_Data;
+        uint32_t      m_DataSize;
         TextureFormat m_Format;
         TextureFilter m_MinFilter;
         TextureFilter m_MagFilter;
         TextureWrap   m_UWrap;
         TextureWrap   m_VWrap;
-        const void*   m_Data;
-        uint32_t      m_DataSize;
 
         // For sub texture updates
         uint32_t m_X;
