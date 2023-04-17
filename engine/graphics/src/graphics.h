@@ -17,9 +17,11 @@
 
 #include <stdint.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
-
 #include <dmsdk/graphics/graphics.h>
+
 #include <dlib/hash.h>
+#include <dlib/opaque_handle_container.h>
+
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
@@ -632,7 +634,20 @@ namespace dmGraphics
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);
 
-    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+
+    // Asset handle helpers
+    const char* GetAssetTypeLiteral(AssetType type);
+    bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+
+    static inline AssetType GetAssetType(HAssetHandle asset_handle)
+    {
+        return (AssetType) (asset_handle >> 32);
+    }
+
+    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
+    {
+        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
 
     /**
      * Get status of texture.

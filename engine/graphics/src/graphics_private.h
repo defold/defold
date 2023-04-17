@@ -16,7 +16,6 @@
 #define DM_GRAPHICS_PRIVATE_H
 
 #include <stdint.h>
-#include <dlib/opaque_handle_container.h>
 #include "graphics.h"
 
 namespace dmGraphics
@@ -59,16 +58,6 @@ namespace dmGraphics
     {
         assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
         return ((uint64_t) asset_type) << 32 | opaque_handle;
-    }
-
-    static inline AssetType GetAssetType(HAssetHandle asset_handle)
-    {
-        return (AssetType) (asset_handle >> 32);
-    }
-
-    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
-    {
-        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
     }
 
     template <typename T>
