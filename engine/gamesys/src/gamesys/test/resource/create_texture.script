@@ -131,14 +131,14 @@ function test_get_texture_info()
 
 	resource.release(t_id_cube)
 
-	-- test incorrect handles
-	assert_error(function()
-		resource.get_texture_info(1)
-	end)
+	-- test incorrect handles by basic types
+	assert_error(function() resource.get_texture_info(nil) end)
+	assert_error(function() resource.get_texture_info(false) end)
+	assert_error(function() resource.get_texture_info("invalid_type") end)
+	assert_error(function() resource.get_texture_info(1) end)
 
-	assert_error(function()
-		resource.get_texture_info(t_id)
-	end)
+	-- test incorrect handles by explicitly removed resource id
+	assert_error(function() resource.get_texture_info(t_id) end)
 end
 
 function update(self)
