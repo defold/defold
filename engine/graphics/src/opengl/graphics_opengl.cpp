@@ -2651,7 +2651,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDoDeleteTexture(void* context)
     {
-        HTexture texture   = (HTexture) (size_t) context;
+        HTexture texture   = (HTexture) context;
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
@@ -2665,7 +2665,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteTextureAsync(HTexture texture)
     {
         JobDesc j;
-        j.m_Context = (void*)(size_t)texture;
+        j.m_Context = (void*)texture;
         j.m_Func = OpenGLDoDeleteTexture;
         j.m_FuncComplete = 0;
         JobQueuePush(j);

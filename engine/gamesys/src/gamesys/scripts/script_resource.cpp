@@ -1119,7 +1119,7 @@ static int GetTextureInfo(lua_State* L)
 
     lua_newtable(L);
 
-    lua_pushinteger(L, texture_handle);
+    lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
 
     lua_pushinteger(L, texture_width);
