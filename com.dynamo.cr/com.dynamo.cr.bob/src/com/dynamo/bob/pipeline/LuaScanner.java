@@ -51,7 +51,6 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.antlr.v4.runtime.RecognitionException;
 
 public class LuaScanner extends LuaParserBaseListener {
 
@@ -146,18 +145,15 @@ public class LuaScanner extends LuaParserBaseListener {
             functionName = (indexName == null) ?  varName : indexName;
         }
 
-        public boolean is(String name, String objName)
-        {
+        public boolean is(String name, String objName) {
             return Objects.equals(name, functionName) && Objects.equals(objName, objectName);
         }
 
-        public boolean isObject(String objName)
-        {
+        public boolean isObject(String objName) {
             return Objects.equals(objName, objectName);
         }
 
-        public boolean isName(String fnName)
-        {
+        public boolean isName(String fnName) {
             return Objects.equals(fnName, functionName);
         }
     }
@@ -242,21 +238,17 @@ public class LuaScanner extends LuaParserBaseListener {
 
     // returns first function argument only if it's a string, otherwise null
     private String getFirstStringArg(LuaParser.ArgsContext argsCtx) {
-        if (argsCtx == null)
-        {
+        if (argsCtx == null) {
             return null;
         }
         ParserRuleContext firstCtx = argsCtx.getRuleContext(ParserRuleContext.class, 0);
-        if (firstCtx == null)
-        {
+        if (firstCtx == null) {
             return null;
         }
-        if (firstCtx.getRuleIndex() == LuaParser.RULE_explist)
-        {
+        if (firstCtx.getRuleIndex() == LuaParser.RULE_explist) {
             firstCtx = ((LuaParser.ExplistContext)firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
         }
-        if (firstCtx.getRuleIndex() != LuaParser.RULE_lstring)
-        {
+        if (firstCtx.getRuleIndex() != LuaParser.RULE_lstring) {
             return null;
         }
         Token initialToken = firstCtx.getStart();
@@ -363,8 +355,7 @@ public class LuaScanner extends LuaParserBaseListener {
         boolean result = false;
         List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
         // go.property(name, vaule) should have a value and only one value
-        if (expCtxList.size() == 2)
-        {
+        if (expCtxList.size() == 2) {
             LuaParser.ExpContext expCtx = expCtxList.get(1);
             Token initialToken = expCtx.getStart();
             int type = initialToken.getType();
