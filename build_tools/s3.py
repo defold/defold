@@ -103,7 +103,7 @@ def get_files(archive_path, bucket, sha1):
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
     return files
 
-def get_tagged_releases(archive_path, pattern=None):
+def get_tagged_releases(archive_path, pattern=None, num_releases=10):
     u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
 
@@ -126,7 +126,7 @@ def get_tagged_releases(archive_path, pattern=None):
         sha1, tag = m.groups()
         matches.append((sha1, tag))
 
-    for sha1, tag in matches[:10]: # Only the first releases
+    for sha1, tag in matches[:num_releases]: # Only the first releases
         epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
         date = datetime.fromtimestamp(float(epoch))
         files = get_files(archive_path, bucket, sha1)

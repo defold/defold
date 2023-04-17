@@ -401,21 +401,25 @@ TEST(dmHashTable, Iterator)
             ht.SetCapacity(table_size, capacity);
 
             int sum = 0;
-
+            uint32_t key_sum = 0;
             for (uint32_t i = 0; i < capacity; ++i)
             {
                 int x = rand();
                 ht.Put(i, x);
                 sum += x;
+                key_sum += i;
             }
 
-            int context = 0;
+            int result = 0;
+            int keyresult = 0;
             dmHashTable<uint32_t, int>::Iterator iter = ht.GetIterator();
             while(iter.Next())
             {
-                context += iter.GetValue();
+                keyresult += iter.GetKey();
+                result += iter.GetValue();
             }
-            ASSERT_EQ(sum, context);
+            ASSERT_EQ(sum, result);
+            ASSERT_EQ(key_sum, keyresult);
         }
     }
 }

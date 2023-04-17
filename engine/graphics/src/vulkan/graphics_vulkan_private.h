@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dlib/hashtable.h>
+#include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
 
@@ -25,6 +26,7 @@ namespace dmGraphics
     const static uint8_t DM_MAX_SET_COUNT              = 2;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
+    static const uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
 
     enum VulkanResourceType
     {
@@ -32,6 +34,7 @@ namespace dmGraphics
         RESOURCE_TYPE_TEXTURE              = 1,
         RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR = 2,
         RESOURCE_TYPE_PROGRAM              = 3,
+        RESOURCE_TYPE_RENDER_TARGET        = 4,
     };
 
     struct DeviceBuffer
@@ -163,7 +166,7 @@ namespace dmGraphics
     struct RenderTarget
     {
     	RenderTarget(const uint32_t rtId);
-        Texture*       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         Texture*       m_TextureDepthStencil;
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
@@ -174,6 +177,8 @@ namespace dmGraphics
         uint8_t        m_IsBound              : 1;
         uint8_t        m_ColorAttachmentCount : 2;
         uint8_t                               : 5; // unused
+
+        const VulkanResourceType GetType();
     };
 
     struct Viewport
@@ -340,21 +345,19 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    // In flight frames - number of concurrent frames being processed
-    static const uint8_t g_max_frames_in_flight       = 2;
-
-    struct Context
+    struct VulkanContext
     {
-        Context(const ContextParams& params, const VkInstance vk_instance);
+        VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        HTexture                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                   m_PipelineCache;
         PipelineState                   m_PipelineState;
         SwapChain*                      m_SwapChain;
         SwapChainCapabilities           m_SwapChainCapabilities;
         PhysicalDevice                  m_PhysicalDevice;
         LogicalDevice                   m_LogicalDevice;
-        FrameResource                   m_FrameResources[g_max_frames_in_flight];
+        FrameResource                   m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
         VkInstance                      m_Instance;
         VkSurfaceKHR                    m_WindowSurface;
         dmArray<TextureSampler>         m_TextureSamplers;
@@ -378,10 +381,10 @@ namespace dmGraphics
         dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
         VkRenderPass                    m_MainRenderPass;
         Texture                         m_MainTextureDepthStencil;
-        RenderTarget                    m_MainRenderTarget;
+        HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
         // Rendering state
-        RenderTarget*                   m_CurrentRenderTarget;
+        HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer;
         VertexDeclaration*              m_CurrentVertexDeclaration;
         Program*                        m_CurrentProgram;
@@ -419,9 +422,9 @@ namespace dmGraphics
     void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan.cpp
-    VkResult CreateMainFrameBuffers(HContext context);
-    VkResult DestroyMainFrameBuffers(HContext context);
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+    VkResult CreateMainFrameBuffers(VulkanContext* context);
+    VkResult DestroyMainFrameBuffers(VulkanContext* context);
+    void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
@@ -490,7 +493,7 @@ namespace dmGraphics
         uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
-    void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value);
+    void DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
@@ -510,7 +513,7 @@ namespace dmGraphics
     int OnWindowClose();
     void OnWindowFocus(int focus);
 
-    inline void SynchronizeDevice(VkDevice vk_device)
+    static inline void SynchronizeDevice(VkDevice vk_device)
     {
         vkDeviceWaitIdle(vk_device);
     }
@@ -534,19 +537,19 @@ namespace dmGraphics
     void NativeBeginFrame(HContext context);
 
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
-    void VulkanCloseWindow(HContext context);
-    uint32_t VulkanGetDisplayDpi(HContext context);
-    uint32_t VulkanGetWidth(HContext context);
-    uint32_t VulkanGetHeight(HContext context);
-    uint32_t VulkanGetWindowWidth(HContext context);
-    uint32_t VulkanGetWindowHeight(HContext context);
-    float VulkanGetDisplayScaleFactor(HContext context);
-    uint32_t VulkanGetWindowRefreshRate(HContext context);
-    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
-    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
-    void VulkanIconifyWindow(HContext context);
-    uint32_t VulkanGetWindowState(HContext context, WindowState state);
+    void         VulkanCloseWindow(HContext context);
+    uint32_t     VulkanGetDisplayDpi(HContext context);
+    uint32_t     VulkanGetWidth(HContext context);
+    uint32_t     VulkanGetHeight(HContext context);
+    uint32_t     VulkanGetWindowWidth(HContext context);
+    uint32_t     VulkanGetWindowHeight(HContext context);
+    float        VulkanGetDisplayScaleFactor(HContext context);
+    uint32_t     VulkanGetWindowRefreshRate(HContext context);
+    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
+    void         VulkanIconifyWindow(HContext context);
+    uint32_t     VulkanGetWindowState(HContext context, WindowState state);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

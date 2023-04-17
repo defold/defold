@@ -552,7 +552,7 @@ namespace dmGameSystem
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (void*)texture;
+                texture_source      = (void*) texture;
             }
 
             dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
@@ -1022,7 +1022,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material = gui_context->m_Material;
-        ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
+        ro.m_Textures[0] = (dmGraphics::HTexture) first_emitter_render_data->m_Texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;

@@ -5,11 +5,6 @@ on:
     branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
-  pull_request_target:
-    branches:
-       - 'DEFEDIT-*'
-       - 'editor-dev'
-    types: [labeled]
 
 env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
@@ -30,7 +25,6 @@ env:
 
 jobs:
   build-editor:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
@@ -49,7 +43,6 @@ jobs:
       }]
 
   sign-editor-macos:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
     needs: [build-editor]
     runs-on: macOS-latest
     strategy:
@@ -81,7 +74,6 @@ jobs:
       }]
 
   sign-editor-windows:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
     needs: [build-editor]
     runs-on: windows-latest
     strategy:
@@ -120,11 +112,11 @@ jobs:
 # ---- RELEASE ------------------
 
   release:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
     needs: [sign-editor-macos, sign-editor-windows]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
+      { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {

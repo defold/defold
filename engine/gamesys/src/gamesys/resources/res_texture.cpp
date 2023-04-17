@@ -24,7 +24,7 @@
 
 namespace dmGameSystem
 {
-    static const uint32_t MAX_MIPMAP_COUNT = 14; // 2^14 => 16384
+    static const uint32_t MAX_MIPMAP_COUNT = 15; // 2^14 => 16384 (+1 for base mipmap)
 
     struct ImageDesc
     {
@@ -130,8 +130,6 @@ namespace dmGameSystem
             params.m_SubUpdate = upload_params.m_SubUpdate;
             params.m_MipMap    = specific_mip_requested ? upload_params.m_MipMap : 0;
 
-            assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
-
             if (!texture)
             {
                 dmGraphics::TextureCreationParams creation_params;
@@ -197,6 +195,9 @@ namespace dmGameSystem
                 SetBlankTexture(texture, params);
                 break;
             }
+
+            // This should not be happening if the max width/height check goes through
+            assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
 
             // If we requested to upload a specific mipmap, upload only that level
             // It is expected that we only have offsets for that level in the image desc as well
