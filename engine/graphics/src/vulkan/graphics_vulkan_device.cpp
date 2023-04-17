@@ -138,6 +138,11 @@ namespace dmGraphics
         return RESOURCE_TYPE_PROGRAM;
     }
 
+    const VulkanResourceType RenderTarget::GetType()
+    {
+        return RESOURCE_TYPE_RENDER_TARGET;
+    }
+
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
     {
         uint32_t vk_device_count = 0;

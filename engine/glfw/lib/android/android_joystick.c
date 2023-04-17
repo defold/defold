@@ -14,11 +14,9 @@
 
 #include "internal.h"
 #include "android_joystick.h"
+#include "android_jni.h"
 #include "android_log.h"
 
-#include <jni.h>
-
-extern struct android_app* g_AndroidApp;
 
 static int glfwAndroidJoystickPresent( int joy )
 {
@@ -271,33 +269,6 @@ void glfwAndroidUpdateJoystick(const AInputEvent* event)
 // Discover connected joysticks
 // Called from android_window.c each frame
 //========================================================================
-
-static JNIEnv* JNIAttachCurrentThread()
-{
-    JavaVM* vm = g_AndroidApp->activity->vm;
-    JNIEnv* env = 0;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    (*vm)->AttachCurrentThread(vm, &env, &lJavaVMAttachArgs);
-    return env;
-}
-
-static void JNIDetachCurrentThread()
-{
-    JavaVM* vm = g_AndroidApp->activity->vm;
-    (*vm)->DetachCurrentThread(vm);
-}
-
-static jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature)
-{
-    if (instance == 0) return 0;
-    jclass clazz = (*env)->GetObjectClass(env, instance);
-    return (*env)->GetMethodID(env, clazz, method, signature);
-}
 
 void glfwAndroidDiscoverJoysticks()
 {

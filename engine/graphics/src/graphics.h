@@ -70,6 +70,13 @@ namespace dmGraphics
         ADAPTER_TYPE_VULKAN,
     };
 
+    enum AssetType
+    {
+        ASSET_TYPE_NONE          = 0,
+        ASSET_TYPE_TEXTURE       = 1,
+        ASSET_TYPE_RENDER_TARGET = 2,
+    };
+
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
     {
@@ -514,13 +521,6 @@ namespace dmGraphics
      * @param stencil
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
-
-    // Test functions:
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool UnmapVertexBuffer(HVertexBuffer buffer);
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool UnmapIndexBuffer(HIndexBuffer buffer);
-    // <- end test functions
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);

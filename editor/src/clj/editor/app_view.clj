@@ -85,6 +85,7 @@
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor Editor]
            [com.defold.editor UIUtil]
+           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -1472,6 +1473,15 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-stylesheet :global
   (run [] (ui/reload-root-styles!)))
 
+(handler/defhandler :open-project :global
+  (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
+  (run [] (let [resources-path (system/defold-resourcespath)
+                install-dir (.getCanonicalFile
+                              (case (.getOs (Platform/getHostPlatform))
+                                "macos" (io/file resources-path "../../")
+                                ("linux" "win32") (io/file resources-path)))]
+            (process/start! (system/defold-launcherpath) [] {:directory install-dir}))))
+
 (handler/register-menu! ::menubar
   [{:label "File"
     :id ::file
@@ -1512,6 +1522,8 @@ If you do not specifically require different script states, consider changing th
                {:label "Hot Reload"
                 :command :hot-reload}
                {:label :separator}
+               {:label "Open Project..."
+                :command :open-project}
                {:label "Preferences..."
                 :command :preferences}
                {:label "Quit"
@@ -1668,7 +1680,9 @@ If you do not specifically require different script states, consider changing th
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title
-  ([] "Defold Editor 2.0")
+  ([] (if-some [version (system/defold-version)]
+        (str "Defold " version)
+        "Defold"))
   ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
