@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.lang.NumberFormatException;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -538,6 +539,8 @@ public class Bob {
         addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
         addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
 
+        addOption(options, null, "max-cpu-threads", true, "Max count of threads that bob.jar can use", false);
+
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
 
@@ -734,6 +737,18 @@ public class Bob {
         if (cmd.hasOption("build-report")) {
             System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
             project.setOption("build-report-json", "true");
+        }
+
+        if (cmd.hasOption("max-cpu-threads")) {
+            try {
+                Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
+            }
+            catch (NumberFormatException ex) {
+                System.out.println("`--max-cpu-threads` expects integer value.");
+                ex.printStackTrace();
+                System.exit(1);
+                return;
+            }
         }
 
         Option[] options = cmd.getOptions();

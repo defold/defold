@@ -61,6 +61,9 @@ import com.sun.jna.Pointer;
 
 public class TextureGenerator {
 
+    // specify what is maximum of threads TextureGenerator may use
+    public static int maxThreads = 8;
+
     private static HashMap<TextureFormatAlternative.CompressionLevel, Integer> compressionLevelLUT = new HashMap<TextureFormatAlternative.CompressionLevel, Integer>();
     static {
         compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.FAST, CompressionLevel.CL_FAST);
@@ -341,9 +344,7 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
             }
-
-            int max_threads = 8;
-            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, max_threads)) {
+            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads)) {
                 throw new TextureGeneratorException("could not encode");
             }
 

@@ -82,6 +82,7 @@ import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -208,6 +209,27 @@ public class Project {
 
     public String getRemoteResourceCachePass() {
         return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+    }
+
+    public int getMaxCpuThreads() {
+        int maxThreads = 8;
+        String maxThreadsOpt = option("max-cpu-threads", null);
+        if (maxThreadsOpt == null) {
+            int availableProcessors = Runtime.getRuntime().availableProcessors();
+            if (availableProcessors > 4) {
+                maxThreads = availableProcessors - 2;
+            }
+            else if (availableProcessors > 1) {
+                maxThreads = availableProcessors - 1;
+            }
+            else {
+                maxThreads = 1;
+            }
+        }
+        else {
+            maxThreads = Integer.parseInt(maxThreadsOpt);
+        }
+        return maxThreads;
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -1406,6 +1428,8 @@ public class Project {
             allOutputs.addAll(task.getOutputs());
         }
         tasks.clear();
+
+        TextureGenerator.maxThreads = getMaxCpuThreads();
 
         // Keep track of the paths for all outputs
         outputs = new HashMap<>(allOutputs.size());
