@@ -139,7 +139,6 @@
     (add-profile self (:name p) (:qualifiers p))))
 
 (defn register-resource-types [workspace]
-  ;; TODO(save-value): This needs some attention. :device-models [] in :qualifiers entries. Port over to stripped-defaults?
   (resource-node/register-ddf-resource-type workspace
     :ext (:ext pb-def)
     :label (:label pb-def)

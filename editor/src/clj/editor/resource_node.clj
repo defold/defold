@@ -37,13 +37,22 @@
       (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
         (dependencies-fn source-value)))))
 
-(g/defnk produce-undecorated-save-data [_node-id resource save-value]
-  (let [write-fn (:write-fn (resource/resource-type resource))]
-    (cond-> {:resource resource :value save-value :node-id _node-id}
-            (and write-fn save-value) (assoc :content (write-fn save-value)))))
+(g/defnk produce-save-data [_node-id resource source-value save-value]
+  {:node-id _node-id
+   :resource resource
+   :save-value save-value
+   :dirty (and (some? save-value)
+                 (not= save-value source-value))})
 
-(g/defnk produce-save-data [undecorated-save-data dirty?]
-  (assoc undecorated-save-data :dirty? dirty?))
+(g/defnk produce-sha256 [_node-id resource save-value]
+  (resource-io/with-error-translation resource _node-id :sha256
+    (if (nil? save-value)
+      (with-open [input-stream (io/input-stream resource)]
+        (DigestUtils/sha256Hex ^java.io.InputStream input-stream))
+      (let [resource-type (resource/resource-type resource)
+            write-fn (:write-fn resource-type)
+            content (write-fn save-value)]
+        (DigestUtils/sha256Hex ^String content)))))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -54,7 +63,6 @@
             (default true)
             (dynamic visible (g/constantly false)))
 
-  (output undecorated-save-data g/Any produce-undecorated-save-data)
   (output save-data g/Any :cached produce-save-data)
   (output source-value g/Any :cached :unjammable (g/fnk [_node-id resource editable]
                                                    ;; TODO(save-value): It's a problem that this is invalidated from the
@@ -65,8 +73,8 @@
                                                        (resource-io/with-error-translation resource _node-id :source-value
                                                          (read-fn resource))))))
   (output save-value g/Any (g/constantly nil))
-  (output dirty? g/Bool (g/fnk [save-value source-value editable]
-                          (and editable (some? save-value) (not= save-value source-value))))
+  (output dirty g/Bool (g/fnk [editable save-data]
+                         (and editable (:dirty save-data))))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
   (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
@@ -85,20 +93,7 @@
               :children children
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))
-
-  (output sha256 g/Str :cached (g/fnk [resource undecorated-save-data]
-                                 ;; Careful! This might throw if resource has been removed
-                                 ;; outside the editor. Use from editor.engine.native-extensions seems
-                                 ;; to catch any exceptions.
-                                 ;; Also, be aware that resource-update/keep-existing-node?
-                                 ;; assumes this output will produce a sha256 hex hash string
-                                 ;; from the bytes we'll be writing to disk, so be careful
-                                 ;; if you decide to overload it.
-                                 (let [content (get undecorated-save-data :content ::no-content)]
-                                   (if (= ::no-content content)
-                                     (with-open [s (io/input-stream resource)]
-                                       (DigestUtils/sha256Hex ^java.io.InputStream s))
-                                     (DigestUtils/sha256Hex ^String content))))))
+  (output sha256 g/Str :cached produce-sha256))
 
 (g/defnode NonEditableResourceNode
   (inherits ResourceNode)
@@ -110,7 +105,7 @@
   (output source-value g/Any :unjammable (g/constantly nil))
   (output save-value g/Any (g/constantly nil))
   (output cleaned-save-value g/Any (g/constantly nil))
-  (output dirty? g/Bool (g/constantly false))
+  (output dirty g/Bool (g/constantly false))
   (output undecorated-save-data g/Any (g/fnk [_node-id resource save-value] {:resource resource :value save-value :node-id _node-id})))
 
 (definline ^:private resource-node-resource [basis resource-node]
@@ -191,6 +186,24 @@
   ([basis node-id]
    (some->> (owner-resource-node-id basis node-id)
             (resource basis))))
+
+(defn save-data-content
+  ^String [{:keys [resource save-value] :as _save-data}]
+  (let [resource-type (resource/resource-type resource)
+        write-fn (:write-fn resource-type)]
+    (write-fn save-value)))
+
+(defn sha256-or-throw
+  ^String [resource-node-id evaluation-context]
+  (let [sha256-or-error (g/node-value resource-node-id :sha256 evaluation-context)]
+    (if-not (g/error? sha256-or-error)
+      sha256-or-error
+      (let [basis (:basis evaluation-context)
+            resource (resource basis resource-node-id)
+            proj-path (resource/proj-path resource)]
+        (throw (ex-info (str "Failed to calculate sha256 hash of resource: " proj-path)
+                        {:proj-path proj-path
+                         :error-value sha256-or-error}))))))
 
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
   (let [read-defaults (if (nil? read-defaults) true read-defaults)

@@ -981,7 +981,7 @@
           (g/node-value node-id :build-targets))))
 
 (defmacro saved-pb [node-id pb-class]
-  (with-meta `(protobuf/str->pb ~pb-class (:content (g/node-value ~node-id :undecorated-save-data)))
+  (with-meta `(protobuf/str->pb ~pb-class (resource-node/save-data-content (g/node-value ~node-id :save-data)))
              {:tag pb-class}))
 
 (defmacro built-pb [node-id pb-class]

@@ -159,8 +159,9 @@
                                                          (hash lines))))))
 
   ;; We're dirty if the hash of our non-nil save-value differs from the source.
-  (output dirty? g/Bool (g/fnk [_node-id editable resource save-value source-value]
-                          (and editable (some? save-value) (not= source-value (hash save-value))))))
+  ;; TODO(save-value): Update this!
+  (output dirty g/Bool (g/fnk [_node-id editable resource save-value source-value]
+                         (and editable (some? save-value) (not= source-value (hash save-value))))))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
   (let [debuggable? (contains? tags :debuggable)

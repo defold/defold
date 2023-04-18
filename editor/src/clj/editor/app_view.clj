@@ -221,7 +221,7 @@
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
 (defn- tab-title
-  ^String [resource is-dirty]
+  ^String [resource dirty]
   ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
   ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
   ;; control is internal. We also cannot replace them with double underscores to
@@ -232,7 +232,7 @@
   ;; underscores with the a unicode character that looks somewhat similar.
   (let [resource-name (resource/resource-name resource)
         escaped-resource-name (string/replace resource-name "_" "\u02CD")]
-    (if is-dirty
+    (if dirty
       (str "*" escaped-resource-name)
       escaped-resource-name)))
 
@@ -294,8 +294,8 @@
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
                                                             resource (:resource (get open-views view))
-                                                            is-dirty (contains? open-dirty-views view)
-                                                            title (tab-title resource is-dirty)]]
+                                                            dirty (contains? open-dirty-views view)
+                                                            title (tab-title resource dirty)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk [keymap-config]
                                  (keymap/make-keymap keymap-config {:valid-command? (set (handler/available-commands))})))
@@ -1839,7 +1839,7 @@ If you do not specifically require different script states, consider changing th
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty? app-view :open-dirty-views)))
+        (g/connect view :view-dirty app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact

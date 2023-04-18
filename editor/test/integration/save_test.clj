@@ -176,14 +176,14 @@
                 ;; We don't have a read-fn. Print a line diff.
                 (print-line-diff!)))))))))
 
-(defn- save-all! [project]
+(defn- save-dirty! [project]
   (let [save-data (project/dirty-save-data project)]
     (project/write-save-data-to-disk! save-data nil)
     (project/invalidate-save-data-source-values! save-data)))
 
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
-    :dirty?))
+    :dirty))
 
 (defn- set-prop-fn
   ([prop-label value]
@@ -317,7 +317,7 @@
                 (f node-id)
                 (is (true? (dirty? node-id))))))
           (is (not= {} (dirty-info-by-proj-path project exclude-proj-path?)))
-          (save-all! project)
+          (save-dirty! project)
           (is (= {} (dirty-info-by-proj-path project exclude-proj-path?))))))))
 
 (defn- setup-scratch

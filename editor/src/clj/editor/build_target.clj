@@ -38,10 +38,10 @@
      (:user-data build-target)]))
 
 (defn content-hash
-  ^String [build-target]
+  ^String [build-target opts]
   (let [content-hash-components (content-hash-components build-target)]
     (try
-      (digestable/sha1-hash content-hash-components)
+      (digestable/sha1-hash content-hash-components opts)
       (catch Throwable error
         (throw (ex-info (str "Failed to digest content for resource: " (resource/proj-path (:resource build-target)))
                         {:build-target build-target
@@ -50,8 +50,11 @@
 
 (def content-hash? digestable/sha1-hash?)
 
-(defn with-content-hash [build-target]
-  (assoc build-target :content-hash (content-hash build-target)))
+(defn with-content-hash
+  ([build-target]
+   (with-content-hash build-target nil))
+  ([build-target opts]
+   (assoc build-target :content-hash (content-hash build-target opts))))
 
 (defn make-content-hash-build-resource [memory-resource-build-target]
   (let [build-resource (:resource memory-resource-build-target)

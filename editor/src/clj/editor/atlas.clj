@@ -567,17 +567,17 @@
      :children (into child-renderables
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
+(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
   (try
     (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders max-page-size)
     (catch Exception error
-      (g/->error _node-id :max-page-size :fatal nil (.getMessage error)))))
+      (g/->error error-node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-page-images [{:keys [_node-id image-resources layout-data-generator]}]
-  (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
+(defn- generate-packed-page-images [{:keys [digest-ignored/error-node-id image-resources layout-data-generator]}]
+  (let [buffered-images (mapv #(resource-io/with-error-translation % error-node-id nil
                                  (image-util/read-image %))
                               image-resources)]
     (g/precluding-errors buffered-images
@@ -602,8 +602,9 @@
                                  (repeat "")
                                  animation-images)
             augmented-args (-> args
-                               (dissoc :animation-images)
-                               (assoc :animations fake-animations))]
+                               (dissoc :_node-id :animation-images)
+                               (assoc :animations fake-animations
+                                      :digest-ignored/error-node-id _node-id))]
         {:f generate-texture-set-data
          :args augmented-args})))
 
@@ -625,7 +626,7 @@
                                  :type :packed-atlas-image})]
         {:f generate-packed-page-images
          :sha1 packed-image-sha1
-         :args {:_node-id _node-id
+         :args {:digest-ignored/error-node-id _node-id
                 :image-resources flat-image-resources
                 :layout-data-generator layout-data-generator}}))))
 

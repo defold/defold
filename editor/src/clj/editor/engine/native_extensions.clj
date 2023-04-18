@@ -23,6 +23,7 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.system :as system]
             [editor.workspace :as workspace]
             [util.http-client :as http])
@@ -53,7 +54,9 @@
 
 (defn- hash-resources! ^MessageDigest
   [^MessageDigest md resource-nodes evaluation-context]
-  (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256 evaluation-context))
+  (run! (fn [resource-node-id]
+          (let [sha256 (resource-node/sha256-or-throw resource-node-id evaluation-context)]
+            (DigestUtils/updateDigest md sha256)))
         resource-nodes)
   md)
 
@@ -218,7 +221,7 @@
   This is to avoid uploading big files that rarely change"
   [server-url resource-nodes-by-upload-path evaluation-context]
   (let [items (mapv (fn [[upload-path resource-node]]
-                      (let [key (g/node-value resource-node :sha256 evaluation-context)]
+                      (let [key (resource-node/sha256-or-throw resource-node evaluation-context)]
                         {:path upload-path :key key}))
                     resource-nodes-by-upload-path)
         json (json/write-str {:files items :version 1 :hashType "sha256"})

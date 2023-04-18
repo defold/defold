@@ -33,11 +33,14 @@
 
 (def ^:private project-path "test/resources/all_types_project")
 
-(defn- digest-string [value]
-  (with-open [writer (StringWriter.)]
-    (digestable/digest! value writer)
-    (.flush writer)
-    (.toString writer)))
+(defn- digest-string
+  ([value]
+   (digest-string value nil))
+  ([value opts]
+   (with-open [writer (StringWriter.)]
+     (digestable/digest! value writer opts)
+     (.flush writer)
+     (.toString writer))))
 
 (defn- make-lua-memory-resource [workspace source]
   (assert (string? source))
@@ -147,22 +150,33 @@
           "{[#dg/Class java.lang.Byte] {#dg/Class java.lang.Byte #dg/Class java.lang.Byte}}"
           {[Byte] {Byte Byte}}))
 
+      (testing "Ignored entries in maps"
+        (are [value]
+          (and (= "{}" (digest-string value))
+               (= "{}" (digest-string (into (sorted-map) value))))
+
+          {:digest-ignored/node-id zip-resource-node}
+          {:digest-ignored/error-node-id zip-resource-node}
+          {:digest-ignored/any-key-that-ends-in-node-id zip-resource-node}))
+
       (testing "Allowed node id entries in maps"
         ;; Node ids are only allowed in maps. The key must end with "node-id",
-        ;; and the node must have a :sha256 output. The other tests below will
-        ;; fail in case these restrictions are violated.
-        (are [result value]
-          (and (= result (digest-string value))
-               (= result (digest-string (into (sorted-map) value))))
+        ;; and the node-id must be included in a :node-id->persistent-value map
+        ;; in the opts map provided to the digest! function. The other tests
+        ;; below will fail in case these restrictions are violated.
+        (let [opts {:node-id->persistent-value {zip-resource-node (resource/proj-path zip-resource)}}]
+          (are [result value]
+            (and (= result (digest-string value opts))
+                 (= result (digest-string (into (sorted-map) value) opts)))
 
-          "{:node-id #dg/Node [editor.image/ImageNode, \"620a6d01e955915786374a5eaf8250bdd417a99e3839ca935e97c77faef3a431\"]}"
-          {:node-id zip-resource-node}
+            "{:node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
+            {:node-id zip-resource-node}
 
-          "{:_node-id #dg/Node [editor.image/ImageNode, \"620a6d01e955915786374a5eaf8250bdd417a99e3839ca935e97c77faef3a431\"]}"
-          {:_node-id zip-resource-node}
+            "{:_node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
+            {:_node-id zip-resource-node}
 
-          "{:any-key-that-ends-in-node-id #dg/Node [editor.image/ImageNode, \"620a6d01e955915786374a5eaf8250bdd417a99e3839ca935e97c77faef3a431\"]}"
-          {:any-key-that-ends-in-node-id zip-resource-node}))
+            "{:any-key-that-ends-in-node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
+            {:any-key-that-ends-in-node-id zip-resource-node})))
 
       (testing "ByteString UTF-8 code points"
         (is (= "#dg/ByteString [-30, -122, -110]"
@@ -178,7 +192,8 @@
     (try
       (g/node-value resource-node :build-targets)
       (catch Throwable error
-        (g/error-fatal (.getMessage error))))))
+        (g/error-fatal (.getMessage error)
+                       (ex-data error))))))
 
 (defn- all-build-targets [project]
   (transduce (comp (map second)

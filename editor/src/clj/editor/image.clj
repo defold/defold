@@ -101,8 +101,8 @@
 (defn- generate-gpu-texture [{:keys [texture-image]} request-id params unit]
   (texture/texture-image->gpu-texture request-id texture-image params unit))
 
-(defn- generate-content [{:keys [_node-id resource]}]
-  (resource-io/with-error-translation resource _node-id :resource
+(defn- generate-content [{:keys [digest-ignored/error-node-id resource]}]
+  (resource-io/with-error-translation resource error-node-id :resource
     (image-util/read-image resource)))
 
 (g/defnode ImageNode
@@ -128,7 +128,9 @@
 
   (output content-generator g/Any (g/fnk [_node-id resource :as args]
                                     {:f generate-content
-                                     :args args
+                                     :args (-> args
+                                               (dissoc :_node-id)
+                                               (assoc :digest-ignored/error-node-id _node-id))
                                      :sha1 (resource/resource->path-inclusive-sha1-hex resource)}))
 
   (output texture-image g/Any (g/fnk [content texture-profile] (tex-gen/make-preview-texture-image content texture-profile)))

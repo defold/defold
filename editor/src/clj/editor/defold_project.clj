@@ -739,7 +739,7 @@
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
                                           (filterv (fn [save-data]
-                                                     (and (:dirty? save-data)
+                                                     (and (:dirty save-data)
                                                           (when-some [resource (:resource save-data)]
                                                             (and (resource/editable? resource)
                                                                  (not (resource/read-only? resource))))))
