@@ -3170,7 +3170,7 @@ bail:
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
-        tex->m_Depth       = dmMath::Max((uint16_t) 1, params.m_Depth);
+        tex->m_Depth       = params.m_Depth;
         tex->m_MipMapCount = params.m_MipMapCount;
 
         if (params.m_OriginalWidth == 0)
@@ -3554,36 +3554,42 @@ bail:
 
     static uint16_t VulkanGetTextureWidth(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_Width;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Width;
     }
 
     static uint16_t VulkanGetTextureHeight(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_Height;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Height;
     }
 
     static uint16_t VulkanGetOriginalTextureWidth(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_OriginalWidth;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
     static uint16_t VulkanGetOriginalTextureHeight(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_OriginalHeight;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
+    }
+
+    static uint16_t VulkanGetTextureDepth(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Depth;
+    }
+
+    static uint8_t VulkanGetTextureMipmapCount(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
     static TextureType VulkanGetTextureType(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_Type;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Type;
     }
 
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
     {
+        assert(0 && "GetTextureHandle is not implemented on Vulkan.");
         return HANDLE_RESULT_NOT_AVAILABLE;
     }
 
@@ -3615,7 +3621,10 @@ bail:
     }
 
     static void VulkanReadPixels(HContext context, void* buffer, uint32_t buffer_size)
-    {}
+    {
+        // JG: If someone needs this feature we should implement this at some point
+        assert(0 && "Not implemented on vulkan!");
+    }
 
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
@@ -3633,6 +3642,27 @@ bail:
     static bool VulkanIsContextFeatureSupported(HContext context, ContextFeature feature)
     {
         return true;
+    }
+
+    static bool VulkanIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
+    {
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        AssetType type         = GetAssetType(asset_handle);
+
+        if (type == ASSET_TYPE_TEXTURE)
+        {
+            return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        else if (type == ASSET_TYPE_RENDER_TARGET)
+        {
+            return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        return false;
     }
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
