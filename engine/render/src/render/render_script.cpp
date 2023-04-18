@@ -1107,8 +1107,7 @@ namespace dmRender
 
     static dmGraphics::HAssetHandle CheckAssetHandle(lua_State* L, int index, dmGraphics::HContext graphics_context, dmGraphics::AssetType expected_type)
     {
-        // NOTE: We don't check if incoming value is a number in order to output a more fitting message when the argument is the wrong type
-        //       This function simply checks validity and types of the asset handle
+        assert(lua_isnumber(L, index));
 
         dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 1);
         if (!dmGraphics::IsAssetHandleValid(graphics_context, asset_handle))
@@ -1142,14 +1141,12 @@ namespace dmRender
      */
     int RenderScript_DeleteRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
-
         if (!lua_isnumber(L, 1))
         {
-            return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Invalid render target (nil) supplied to %s.delete_render_target.", RENDER_SCRIPT_LIB_NAME);
         }
 
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
         dmGraphics::DeleteRenderTarget(render_target);
         return 0;
@@ -1382,7 +1379,7 @@ namespace dmRender
      * - `render.BUFFER_STENCIL_BIT`
      *
      * If the render target has been created with multiple color attachments, these buffer types can be used
-     * to enable those textures as well. Currently only 4 color attachments are supported:
+     * to enable those textures as well. Currently 4 color attachments are supported:
      *
      * - `render.BUFFER_COLOR0_BIT`
      * - `render.BUFFER_COLOR1_BIT`
@@ -1468,7 +1465,7 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+            return luaL_error(L, "%s.enable_texture(unit, render_target|handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
         }
     }
 
