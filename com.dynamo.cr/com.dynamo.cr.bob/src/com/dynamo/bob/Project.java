@@ -1964,16 +1964,13 @@ run:
     }
 
     public static int getDefaultMaxCpuThreads() {
-        int maxThreads = 8;
+        int maxThreads = 1;
         int availableProcessors = Runtime.getRuntime().availableProcessors();
         if (availableProcessors > 4) {
             maxThreads = availableProcessors - 2;
         }
         else if (availableProcessors > 1) {
             maxThreads = availableProcessors - 1;
-        }
-        else {
-            maxThreads = 1;
         }
         return maxThreads;
     }
