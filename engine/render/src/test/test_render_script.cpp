@@ -1162,8 +1162,14 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_TEXTURE, command->m_Type);
-    ASSERT_EQ(unit, command->m_Operands[0]); // Unit
-    ASSERT_EQ((dmGraphics::HTexture) texture, (dmGraphics::HTexture) command->m_Operands[1]); // handle
+    ASSERT_EQ(unit, command->m_Operands[0]);
+
+    // NOTE: The render script passes the opaque handle part without the type information to the operands,
+    //       this is currently a workaround for 32-bit systems..
+    ASSERT_EQ(dmGraphics::GetOpaqueHandle(texture), command->m_Operands[1]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ASSERT_EQ(m_Context->m_Textures[unit], texture);
 
     dmGraphics::DeleteTexture(texture);
 

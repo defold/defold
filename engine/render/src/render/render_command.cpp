@@ -81,7 +81,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:
                 {
-                    render_context->m_Textures[c->m_Operands[0]] = (dmGraphics::HTexture)c->m_Operands[1];
+                    render_context->m_Textures[c->m_Operands[0]] = dmGraphics::MakeAssetHandle(c->m_Operands[1], dmGraphics::ASSET_TYPE_TEXTURE);
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_TEXTURE:

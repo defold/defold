@@ -1446,7 +1446,10 @@ namespace dmRender
             // Texture can potentially still be zero if it's an attachment texture
             if(texture != 0)
             {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t) texture)))
+                // JG: We are passing in the opaque handle here and not the asset handle, this is a workaround for 32 bit systems
+                //     because we are using uintptr_t that is defined as a uint32_t on those platforms. We reconstruct the actual handle
+                //     before actual passing in render_command.cpp that processes the command. And alternative would be to use 64b values for the operands?
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t) dmGraphics::GetOpaqueHandle(texture))))
                 {
                     return 0;
                 }
