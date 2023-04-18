@@ -32,10 +32,12 @@ import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.FrameLayout;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.FrameLayout;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputConnection;
@@ -81,22 +83,15 @@ public class DefoldActivity extends NativeActivity {
 
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
-    /**
-     * Update immersive sticky mode based on current setting. This will only
-     * be done if Android OS version is equal to or above KitKat
-     * https://developer.android.com/training/system-ui/immersive.html
-     */
     private void updateFullscreenMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            if (mImmersiveMode) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-            }
+        if (mImmersiveMode) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (mDisplayCutout) {
@@ -243,6 +238,17 @@ public class DefoldActivity extends NativeActivity {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
         }
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
+                @Override
+                public void onBackInvoked() {
+                    // Handle the back gesture here
+                }
+            });
+        }
+
         nativeOnCreate(this);
     }
 
