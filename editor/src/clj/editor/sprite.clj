@@ -320,10 +320,6 @@
                                              :playback-rate     playback-rate}
                                             [:tile-set :material])]))
 
-(defn- sort-anim-ids
-  [anim-ids]
-  (sort-by str/lower-case anim-ids))
-
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
 
@@ -402,7 +398,9 @@
                                               :min 0.0
                                               :max 1.0
                                               :precision 0.01})))
-  (property vertex-attributes g/Any)
+  (property vertex-attributes g/Any
+            (default [])
+            (dynamic visible (g/constantly false)))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
@@ -434,15 +432,17 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-attributes]
-                                             (let [material-attribute-names (map :name material-attributes)
-                                                   ;; TODO vertex-attributes: Need to generate the attribute properties here somehow..
-                                                   prop-entry {:node-id _node-id
-                                                               :type :number
-                                                               :edit-type :property-type-vector4}]
-                                               (println material-attribute-names)
+                                             (let [attribute-property-names (map :name material-attributes)
+                                                   attribute-property-template {:node-id _node-id
+                                                                                :type types/Vec4
+                                                                                :edit-type :property-type-vector4}
+                                                   attribute-properties (map (fn [attribute]
+                                                                               (-> attribute-property-template
+                                                                                   (assoc :value [1 1 1 1] :label (:name attribute))))
+                                                                             material-attributes)]
                                                _declared-properties
                                                #_(-> _declared-properties
-                                                   (update :properties into prop-entry))))))
+                                                   (update :properties into attribute-properties))))))
 
 (defn load-sprite [project self resource sprite]
   (let [image    (workspace/resolve-resource resource (:tile-set sprite))
