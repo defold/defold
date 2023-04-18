@@ -69,10 +69,10 @@ message VertexAttribute
 
     oneof values
     {
-        IntValues   int_values   = 8;
-        UIntValues  uint_values  = 9;
-        FloatValues float_values = 10;
-        bytes       byte_values  = 11;
+        IntValues   int_values   = 7;
+        UIntValues  uint_values  = 8;
+        FloatValues float_values = 9;
+        bytes       byte_values  = 10;
     }
 }
 
