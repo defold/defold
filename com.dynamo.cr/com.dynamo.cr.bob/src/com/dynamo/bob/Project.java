@@ -212,24 +212,11 @@ public class Project {
     }
 
     public int getMaxCpuThreads() {
-        int maxThreads = 8;
         String maxThreadsOpt = option("max-cpu-threads", null);
         if (maxThreadsOpt == null) {
-            int availableProcessors = Runtime.getRuntime().availableProcessors();
-            if (availableProcessors > 4) {
-                maxThreads = availableProcessors - 2;
-            }
-            else if (availableProcessors > 1) {
-                maxThreads = availableProcessors - 1;
-            }
-            else {
-                maxThreads = 1;
-            }
+            return getDefaultMaxCpuThreads();
         }
-        else {
-            maxThreads = Integer.parseInt(maxThreadsOpt);
-        }
-        return maxThreads;
+        return Integer.parseInt(maxThreadsOpt);
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -1974,6 +1961,18 @@ run:
             path = path.substring(1);
         }
         return path;
+    }
+
+    public static int getDefaultMaxCpuThreads() {
+        int maxThreads = 1;
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        if (availableProcessors > 4) {
+            maxThreads = availableProcessors - 2;
+        }
+        else if (availableProcessors > 1) {
+            maxThreads = availableProcessors - 1;
+        }
+        return maxThreads;
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {
