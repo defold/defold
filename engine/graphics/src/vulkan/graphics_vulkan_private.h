@@ -388,6 +388,7 @@ namespace dmGraphics
         DeviceBuffer*                   m_CurrentVertexBuffer;
         VertexDeclaration*              m_CurrentVertexDeclaration;
         Program*                        m_CurrentProgram;
+        Pipeline*                       m_CurrentPipeline;
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
@@ -463,8 +464,7 @@ namespace dmGraphics
     VkResult CreateShaderModule(VkDevice vk_device,
         const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
+        const PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
     // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     // Destroy funcions
