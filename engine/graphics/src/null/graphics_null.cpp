@@ -1176,7 +1176,6 @@ namespace dmGraphics
         assert(_context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(GetAssetType(texture) == dmGraphics::ASSET_TYPE_TEXTURE);
         NullContext* context = (NullContext*) _context;
         assert(GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture)->m_Data);
         context->m_Textures[unit] = texture;

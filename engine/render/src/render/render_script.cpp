@@ -1237,7 +1237,7 @@ namespace dmRender
             lua_pop(L, 2);
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)render_target, transient_buffer_types)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t) dmGraphics::GetOpaqueHandle(render_target), transient_buffer_types)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1273,14 +1273,18 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         DM_LUA_STACK_CHECK(L, 0);
 
-        if (!lua_isnumber(L, 1))
+        dmGraphics::HRenderTarget render_target = 0;
+
+        if (lua_isnumber(L, 1))
+        {
+            render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        }
+        else
         {
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
         }
 
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)render_target, 0)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t) dmGraphics::GetOpaqueHandle(render_target), 0)))
         {
             return 0;
         }
