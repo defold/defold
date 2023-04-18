@@ -61,7 +61,7 @@ import com.sun.jna.Pointer;
 
 public class TextureGenerator {
 
-    // specify what is maximus of threads TextureGenerator may use
+    // specify what is maximum of threads TextureGenerator may use
     public static int maxThreads = 8;
 
     private static HashMap<TextureFormatAlternative.CompressionLevel, Integer> compressionLevelLUT = new HashMap<TextureFormatAlternative.CompressionLevel, Integer>();
