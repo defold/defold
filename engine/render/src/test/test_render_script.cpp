@@ -16,6 +16,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/dstrings.h>
 
 #include "render/render.h"
 #include "render/font_renderer.h"
@@ -1083,7 +1084,7 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_Baseline)
 
 TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
 {
-    const char* script = 
+    const char* script =
         "function init(self)\n"
         "    self.cb = render.constant_buffer()\n"
         "    self.test = 0\n"
@@ -1096,6 +1097,114 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
         "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
+{
+    const char* script =
+        "function init(self)\n"
+        "   self.my_rt = render.render_target({[render.BUFFER_COLOR_BIT] = { format = render.FORMAT_RGBA, width = 128, height = 128 }})\n"
+        "end\n"
+        "function update(self)\n"
+        "    render.enable_texture(0, self.my_rt)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
+{
+    const uint32_t unit = 1;
+
+    const char* script =
+        "function init(self)\n"
+        "   self.my_texture = %llu\n"
+        "end\n"
+        "function update(self)\n"
+        "    render.enable_texture(%d, self.my_texture)\n"
+        "end\n";
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width          = 16;
+    creation_params.m_Height         = 16;
+    creation_params.m_OriginalWidth  = 16;
+    creation_params.m_OriginalHeight = 16;
+
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
+
+    char buf[256];
+    dmSnPrintf(buf, sizeof(buf), script, texture, unit);
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(buf));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_TEXTURE, command->m_Type);
+    ASSERT_EQ(unit, command->m_Operands[0]); // Unit
+    ASSERT_EQ((dmGraphics::HTexture) texture, (dmGraphics::HTexture) command->m_Operands[1]); // handle
+
+    dmGraphics::DeleteTexture(texture);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
+{
+    const char* script =
+        "function init(self)\n"
+        "   self.test = 0\n"
+        "end\n"
+        "function update(self)\n"
+        "    self.test = self.test + 1\n"
+        "    if self.test == 1 then render.enable_texture(0, %llu) end\n"
+        "    if self.test == 2 then render.enable_texture(0, %llu) end\n"
+        "    if self.test == 3 then render.enable_texture(0, %llu) end\n"
+        "end\n";
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width          = 16;
+    creation_params.m_Height         = 16;
+    creation_params.m_OriginalWidth  = 16;
+    creation_params.m_OriginalHeight = 16;
+
+    // Invalid type and the asset doesn't exist
+    dmGraphics::HTexture texture_invalid_0 = 0;
+
+    // Valid type, but the asset doesn't exist
+    dmGraphics::HTexture texture_invalid_1 = dmGraphics::MakeAssetHandle(0, dmGraphics::ASSET_TYPE_TEXTURE);
+
+    // Invalid type, but the asset does exist
+    dmGraphics::HTexture texture           = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
+    HOpaqueHandle texture_opaque_bits      = dmGraphics::GetOpaqueHandle((dmGraphics::HAssetHandle) texture);
+    dmGraphics::HTexture texture_invalid_2 = dmGraphics::MakeAssetHandle(texture_opaque_bits, (dmGraphics::AssetType) -1);
+
+    char buf[512];
+    dmSnPrintf(buf, sizeof(buf), script, texture_invalid_0, texture_invalid_1, texture_invalid_2);
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(buf));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));

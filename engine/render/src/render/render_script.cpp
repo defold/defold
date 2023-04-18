@@ -864,6 +864,16 @@ namespace dmRender
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
      * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where 'X' is the attachment you want to create).
+     * It is not guaranteed that the device running the script can support creating render targets with multiple color attachments. To check if the device can support multiple attachments,
+     * you can check if the `render` table contains any of the `BUFFER_COLOR1_BIT`, `BUFFER_COLOR2_BIT` or `BUFFER_COLOR3_BIT` constants:
+     *
+     * ```lua
+     * function init(self)
+     *     if render.BUFFER_COLOR1_BIT == nil then
+     *         -- this devices does not support multiple color attachments
+     *     end
+     * end
+     * ```
      *
      * @name render.render_target
      * @param name [type:string] render target name
@@ -1361,14 +1371,14 @@ namespace dmRender
      * @name render.enable_texture
      * @param unit [type:number] texture unit to enable texture for
      * @param render_target [type:render_target|texture] render target or texture from which to enable the specified texture unit
-     * @param buffer_type [type:constant] buffer type from which to enable the texture. Note that this argument only applies to render targets, and not textures
+     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to render.BUFFER_COLOR_BIT
      *
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
      * If the render target has been created with multiple color attachments, these buffer types can be used
-     * to enable those textures as well. Currently only 4 color attachments are supported.
+     * to enable those textures as well. Currently only 4 color attachments are supported:
      *
      * - `render.BUFFER_COLOR0_BIT`
      * - `render.BUFFER_COLOR1_BIT`
@@ -1405,17 +1415,26 @@ namespace dmRender
             dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
             dmGraphics::HTexture texture          = 0;
 
+            if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
+            {
+                char buf[128];
+                return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            }
+
             if (dmGraphics::GetAssetType(asset_handle) == dmGraphics::ASSET_TYPE_RENDER_TARGET)
             {
-                int buffer_type_value              = (int) luaL_checknumber(L, 3);
-                dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
-                dmGraphics::HTexture texture       = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
+                dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+                if (lua_isnumber(L, 3))
+                {
+                    buffer_type = (dmGraphics::BufferType) lua_tonumber(L, 3);
+                }
+
+                texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
 
                 if (texture == 0)
                 {
                     char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.",
-                        AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
                 }
             }
             else if (dmGraphics::GetAssetType(asset_handle) == dmGraphics::ASSET_TYPE_TEXTURE)

@@ -54,12 +54,6 @@ namespace dmGraphics
     bool  UnmapIndexBuffer(HIndexBuffer buffer);
     // <- end test functions
 
-    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
-    {
-        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
-        return ((uint64_t) asset_type) << 32 | opaque_handle;
-    }
-
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
     {

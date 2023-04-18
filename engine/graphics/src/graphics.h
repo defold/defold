@@ -639,6 +639,12 @@ namespace dmGraphics
     const char* GetAssetTypeLiteral(AssetType type);
     bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
 
+    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
+    {
+        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
+        return ((uint64_t) asset_type) << 32 | opaque_handle;
+    }
+
     static inline AssetType GetAssetType(HAssetHandle asset_handle)
     {
         return (AssetType) (asset_handle >> 32);
