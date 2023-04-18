@@ -1413,6 +1413,7 @@ namespace dmRender
         if (lua_isnumber(L, 2))
         {
             dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
+            dmGraphics::AssetType asset_type      = dmGraphics::GetAssetType(asset_handle);
             dmGraphics::HTexture texture          = 0;
 
             if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
@@ -1421,7 +1422,7 @@ namespace dmRender
                 return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
             }
 
-            if (dmGraphics::GetAssetType(asset_handle) == dmGraphics::ASSET_TYPE_RENDER_TARGET)
+            if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
             {
                 dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
                 if (lua_isnumber(L, 3))
@@ -1437,14 +1438,15 @@ namespace dmRender
                     return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
                 }
             }
-            else if (dmGraphics::GetAssetType(asset_handle) == dmGraphics::ASSET_TYPE_TEXTURE)
+            else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
             {
                 texture = (dmGraphics::HTexture) asset_handle;
             }
 
+            // Texture can potentially still be zero if it's an attachment texture
             if(texture != 0)
             {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t) texture)))
                 {
                     return 0;
                 }

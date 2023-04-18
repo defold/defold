@@ -1163,13 +1163,15 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
+    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
-        assert(context);
+        assert(_context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(GetAssetFromContainer<Texture>(((NullContext*) context)->m_AssetHandleContainer, texture)->m_Data);
-        ((NullContext*) context)->m_Textures[unit] = texture;
+        assert(GetAssetType(texture) == dmGraphics::ASSET_TYPE_TEXTURE);
+        NullContext* context = (NullContext*) _context;
+        assert(GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture)->m_Data);
+        context->m_Textures[unit] = texture;
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
