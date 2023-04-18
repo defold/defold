@@ -945,10 +945,18 @@ namespace dmGraphics
     {
         (void) transient_buffer_types;
         assert(_context);
-
         NullContext* context = (NullContext*) _context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
-        context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+
+        if (render_target == 0)
+        {
+            context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
+        }
+        else
+        {
+            assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
+            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+            context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+        }
     }
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)

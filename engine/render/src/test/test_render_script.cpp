@@ -1116,6 +1116,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
         "end\n"
         "function update(self)\n"
         "    render.enable_texture(0, self.my_rt)\n"
+        "    render.set_render_target(self.my_rt)\n"
         "end\n";
 
     dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
