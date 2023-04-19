@@ -319,6 +319,9 @@
                                              :offset            offset
                                              :playback-rate     playback-rate}
                                             [:tile-set :material])]))
+(defn- fill-with-zeros [values expected-count]
+  (let [trailing-vec-with-zeros (repeat (- expected-count (count values)) 0)]
+    (vec (concat values trailing-vec-with-zeros))))
 
 (defn- get-attribute-values [attribute]
   (let [attribute-value-entry (case (:data-type attribute)
@@ -334,21 +337,33 @@
 
 (defn- get-attribute-type [attribute]
   (let [attribute-element-count (:element-count attribute)
-        attribute-data-type (:data-type attribute)
         attribute-semantic-type (:semantic-type attribute)]
     (cond (= attribute-semantic-type :semantic-type-color) types/Color
           (= attribute-element-count 1) g/Num
           (= attribute-element-count 2) types/Vec2
           (= attribute-element-count 3) types/Vec3
           (= attribute-element-count 4) types/Vec4)))
+
+(defn- get-attribute-expected-element-count [attribute]
+  (let [attribute-element-count (:element-count attribute)
+        attribute-semantic-type (:semantic-type attribute)]
+    (if (= attribute-semantic-type :semantic-type-color)
+      4
+      attribute-element-count)))
+
+(g/defnk update-attribute-property [_evaluation-context self old-value new-value]
+  (println 'update-attribute-property)
+  (g/set-property self))
+
 (defn- get-attribute-edit-type [attribute prop-type]
   (let [attribute-semantic-type (:semantic-type attribute)]
-    (cond (= attribute-semantic-type :semantic-type-color) {:type types/Color
-                                                            :ignore-alpha? true}
-          :else {:type prop-type})))
+    (if (= attribute-semantic-type :semantic-type-color)
+      {:type types/Color
+       :ignore-alpha? true
+       :set-fn update-attribute-property}
+      {:type prop-type
+       :set-fn update-attribute-property})))
 
-
-;; TODO vx-attributes: Do we need to validate that the number of values match the expected type somehow?
 (g/defnk produce-properties [_node-id _declared-properties material-attributes]
   (let [attribute-property-names (map :name material-attributes)
         attribute-property-keys (map keyword attribute-property-names)
@@ -356,11 +371,13 @@
                                     (let [attribute-desc (first (filter #(= (:name %) attribute-name)  material-attributes))
                                           attribute-values (get-attribute-values attribute-desc)
                                           attribute-type (get-attribute-type attribute-desc)
+                                          attribute-expected-value-count (get-attribute-expected-element-count attribute-desc)
+                                          attribute-values-padded-with-zeros (fill-with-zeros attribute-values attribute-expected-value-count)
                                           attribute-edit-type (get-attribute-edit-type attribute-desc attribute-type)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
-                                                          :value attribute-values
+                                                          :value attribute-values-padded-with-zeros
                                                           :label attribute-name}]
                                       {(keyword attribute-name) attribute-prop}))
                                   attribute-property-names)]
