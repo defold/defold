@@ -71,6 +71,12 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeEnter(JNIEnv* 
     _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
 }
 
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputBackButton(JNIEnv* env, jobject obj)
+{
+    g_SpecialKeyActive = 10;
+    _glfwInputKey( GLFW_KEY_BACK, GLFW_PRESS );
+}
+
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNative(JNIEnv* env, jobject obj, jint unicode)
 {
     struct Command cmd;

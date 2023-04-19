@@ -121,6 +121,7 @@ public class DefoldActivity extends NativeActivity {
      */
     public native void FakeBackspace();
     public native void FakeEnter();
+    public native void glfwInputBackButton();
     public native void glfwInputCharNative(int unicode);
     public native void glfwSetMarkedTextNative(String text);
 
@@ -239,12 +240,14 @@ public class DefoldActivity extends NativeActivity {
             throw new RuntimeException("Error getting activity info", e);
         }
 
-        if (Build.VERSION.SDK_INT >= 33) {
+        // Starting API 33 old implementation of the Back button doesn't work
+        // https://github.com/defold/defold/issues/6821
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
                 @Override
                 public void onBackInvoked() {
-                    // Handle the back gesture here
+                    glfwInputBackButton();
                 }
             });
         }
