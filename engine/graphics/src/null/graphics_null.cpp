@@ -945,10 +945,18 @@ namespace dmGraphics
     {
         (void) transient_buffer_types;
         assert(_context);
-
         NullContext* context = (NullContext*) _context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
-        context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+
+        if (render_target == 0)
+        {
+            context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
+        }
+        else
+        {
+            assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
+            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+            context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+        }
     }
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
@@ -1163,13 +1171,14 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
+    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
-        assert(context);
+        assert(_context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(GetAssetFromContainer<Texture>(((NullContext*) context)->m_AssetHandleContainer, texture)->m_Data);
-        ((NullContext*) context)->m_Textures[unit] = texture;
+        NullContext* context = (NullContext*) _context;
+        assert(GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture)->m_Data);
+        context->m_Textures[unit] = texture;
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)

@@ -2484,7 +2484,12 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        OpenGLRenderTarget* rt = 0;
+
+        if (render_target != 0)
+        {
+            rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        }
 
         if(PFN_glInvalidateFramebuffer != NULL)
         {

@@ -109,17 +109,60 @@ namespace dmGraphics
         return true;
     }
 
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
     static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
-            case ADAPTER_TYPE_NULL:   return "null";
-            case ADAPTER_TYPE_OPENGL: return "opengl";
-            case ADAPTER_TYPE_VULKAN: return "vulkan";
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
             default: break;
         }
         return "<unknown adapter type>";
     }
+
+    const char* GetTextureTypeLiteral(TextureType texture_type)
+    {
+        switch(texture_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            default:break;
+        }
+        return "<unknown texture type>";
+    }
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR0_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR1_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR2_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR3_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_DEPTH_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
+            default:break;
+        }
+        return "<unknown buffer type>";
+    }
+
+    const char* GetAssetTypeLiteral(AssetType type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_TEXTURE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
+            default:break;
+        }
+        return "<unknown asset type>";
+    }
+
+    #undef GRAPHICS_ENUM_TO_STR_CASE
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -201,33 +244,6 @@ namespace dmGraphics
         }
         assert(selected_shader);
         return selected_shader;
-    }
-
-    const char* GetTextureTypeLiteral(TextureType texture_type)
-    {
-        switch(texture_type)
-        {
-            case TEXTURE_TYPE_2D:       return "TEXTURE_TYPE_2D";
-            case TEXTURE_TYPE_2D_ARRAY: return "TEXTURE_TYPE_2D_ARRAY";
-            case TEXTURE_TYPE_CUBE_MAP: return "TEXTURE_TYPE_CUBE_MAP";
-            default:break;
-        }
-        return "<unknown texture type>";
-    }
-
-    const char* GetBufferTypeLiteral(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
-            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
-            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
-            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default:break;
-        }
-        return "<unknown buffer type>";
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
@@ -987,6 +1003,7 @@ namespace dmGraphics
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 

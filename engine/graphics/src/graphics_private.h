@@ -16,14 +16,10 @@
 #define DM_GRAPHICS_PRIVATE_H
 
 #include <stdint.h>
-#include <dlib/opaque_handle_container.h>
 #include "graphics.h"
 
 namespace dmGraphics
 {
-    // Since an asset handle is exposed as a double / number in lua, we can only use 53 bits before we lose precision
-    // http://lua-users.org/wiki/NumbersTutorial
-    const static uint64_t MAX_ASSET_HANDLE_VAL   = 0x20000000000000-1; // 2^53 - 1
     const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
 
     struct VertexStream
@@ -55,22 +51,6 @@ namespace dmGraphics
     bool  UnmapIndexBuffer(HIndexBuffer buffer);
     // <- end test functions
 
-    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
-    {
-        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
-        return ((uint64_t) asset_type) << 32 | opaque_handle;
-    }
-
-    static inline AssetType GetAssetType(HAssetHandle asset_handle)
-    {
-        return (AssetType) (asset_handle >> 32);
-    }
-
-    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
-    {
-        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
-    }
-
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
     {
@@ -80,13 +60,13 @@ namespace dmGraphics
         }
         HOpaqueHandle opaque_handle = container.Put((uintptr_t*) asset);
         HAssetHandle asset_handle   = MakeAssetHandle(opaque_handle, type);
-        assert(asset_handle <= MAX_ASSET_HANDLE_VAL);
         return asset_handle;
     }
 
     template <typename T>
     static inline T* GetAssetFromContainer(dmOpaqueHandleContainer<uintptr_t>& container, HAssetHandle asset_handle)
     {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         HOpaqueHandle opaque_handle = GetOpaqueHandle(asset_handle);
         return (T*) container.Get(opaque_handle);
     }
