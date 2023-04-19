@@ -320,6 +320,54 @@
                                              :playback-rate     playback-rate}
                                             [:tile-set :material])]))
 
+(defn- get-attribute-values [attribute]
+  (let [attribute-value-entry (case (:data-type attribute)
+                                :type-byte           (:int-values attribute)
+                                :type-unsigned-byte  (:uint-values attribute)
+                                :type-short          (:int-values attribute)
+                                :type-unsigned-short (:uint-values attribute)
+                                :type-int            (:int-values attribute)
+                                :type-unsigned-int   (:int-values attribute)
+                                :type-float          (:float-values attribute))
+        attribute-value-vec (take (:element-count attribute) (:v attribute-value-entry))]
+    (vec attribute-value-vec)))
+
+(defn- get-attribute-type [attribute]
+  (let [attribute-element-count (:element-count attribute)
+        attribute-data-type (:data-type attribute)
+        attribute-semantic-type (:semantic-type attribute)]
+    (cond (= attribute-semantic-type :semantic-type-color) types/Color
+          (= attribute-element-count 1) g/Num
+          (= attribute-element-count 2) types/Vec2
+          (= attribute-element-count 3) types/Vec3
+          (= attribute-element-count 4) types/Vec4)))
+(defn- get-attribute-edit-type [attribute prop-type]
+  (let [attribute-semantic-type (:semantic-type attribute)]
+    (cond (= attribute-semantic-type :semantic-type-color) {:type types/Color
+                                                            :ignore-alpha? true}
+          :else {:type prop-type})))
+
+
+;; TODO vx-attributes: Do we need to validate that the number of values match the expected type somehow?
+(g/defnk produce-properties [_node-id _declared-properties material-attributes]
+  (let [attribute-property-names (map :name material-attributes)
+        attribute-property-keys (map keyword attribute-property-names)
+        attribute-properties (map (fn [attribute-name]
+                                    (let [attribute-desc (first (filter #(= (:name %) attribute-name)  material-attributes))
+                                          attribute-values (get-attribute-values attribute-desc)
+                                          attribute-type (get-attribute-type attribute-desc)
+                                          attribute-edit-type (get-attribute-edit-type attribute-desc attribute-type)
+                                          attribute-prop {:node-id _node-id
+                                                          :type attribute-type
+                                                          :edit-type attribute-edit-type
+                                                          :value attribute-values
+                                                          :label attribute-name}]
+                                      {(keyword attribute-name) attribute-prop}))
+                                  attribute-property-names)]
+    (-> _declared-properties
+        (update :properties into attribute-properties)
+        (update :display-order into attribute-property-keys))))
+
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
 
@@ -431,18 +479,7 @@
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
-  (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-attributes]
-                                             (let [attribute-property-names (map :name material-attributes)
-                                                   attribute-property-template {:node-id _node-id
-                                                                                :type types/Vec4
-                                                                                :edit-type :property-type-vector4}
-                                                   attribute-properties (map (fn [attribute]
-                                                                               (-> attribute-property-template
-                                                                                   (assoc :value [1 1 1 1] :label (:name attribute))))
-                                                                             material-attributes)]
-                                               _declared-properties
-                                               #_(-> _declared-properties
-                                                   (update :properties into attribute-properties))))))
+  (output _properties g/Properties :cached produce-properties))
 
 (defn load-sprite [project self resource sprite]
   (let [image    (workspace/resolve-resource resource (:tile-set sprite))
