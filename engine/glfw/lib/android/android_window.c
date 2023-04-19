@@ -454,6 +454,7 @@ void _glfwPlatformPollEvents( void )
        if (g_SpecialKeyActive == 0) {
            _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
            _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
+           _glfwInputKey( GLFW_KEY_BACK, GLFW_RELEASE );
        }
     }
 
