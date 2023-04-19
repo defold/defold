@@ -125,6 +125,8 @@ public class DefoldActivity extends NativeActivity {
     public native void glfwInputCharNative(int unicode);
     public native void glfwSetMarkedTextNative(String text);
 
+    private boolean keyboardActive;
+
     private class DefoldInputWrapper extends InputConnectionWrapper {
         private DefoldActivity _ctx;
         private String mComposingText = "";
@@ -247,6 +249,9 @@ public class DefoldActivity extends NativeActivity {
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
                 @Override
                 public void onBackInvoked() {
+                    if (keyboardActive) {
+                        hideSoftInput();
+                    }
                     glfwInputBackButton();
                 }
             });
@@ -318,7 +323,7 @@ public class DefoldActivity extends NativeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-
+                keyboardActive = true;
                 if (mTextEdit != null) {
                     mTextEdit.setVisibility(View.GONE);
                     ViewGroup vg = (ViewGroup)(mTextEdit.getParent());
@@ -461,6 +466,7 @@ public class DefoldActivity extends NativeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                keyboardActive = false;
                 IBinder windowToken = getWindow().getDecorView().getWindowToken();
                 imm.hideSoftInputFromWindow(windowToken, 0);
                 updateFullscreenMode();
