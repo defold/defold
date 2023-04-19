@@ -67,7 +67,7 @@
 
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
-(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count :as pb-msg]
+(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count attributes :as pb-msg]
   (-> pb-msg
       (dissoc :_node-id :basis)
       (update :vertex-program resource/resource->proj-path)
@@ -194,17 +194,27 @@
           :type :table
           :columns (let [attribute-data-type-options (protobuf/enum-values Graphics$VertexAttribute$DataType)
                          attribute-semantic-type-options (protobuf/enum-values Graphics$VertexAttribute$SemanticType)]
-                     [{:path [:name] :label "Name" :type :string}
+                     [{:path [:name]
+                       :label "Name"
+                       :type :string}
                       {:path [:data-type]
                        :label "Data Type"
                        :type :choicebox
                        :options (protobuf-forms/make-options attribute-data-type-options)
-                       :default (ffirst attribute-data-type-options)}
+                       :default :type-float}
                       {:path [:semantic-type]
                        :label "Semantic Type"
                        :type :choicebox
                        :options (protobuf-forms/make-options attribute-semantic-type-options)
-                       :default (ffirst attribute-semantic-type-options)}])}
+                       :default (ffirst attribute-semantic-type-options)}
+                      {:path [:element-count]
+                       :label "Element Count"
+                       :type :integer
+                       :default 4}                          ;; What's a good deafult?
+                      {:path [:normalize]
+                       :label "Normalize"
+                       :type :boolean
+                       :default false}])}
          {:path [:vertex-constants]
           :label "Vertex Constants"
           :type :table
@@ -240,7 +250,6 @@
                       {:path [:wrap-v]
                        :label "Wrap V"
                        :type :choicebox
-
                        :options (protobuf-forms/make-options wrap-options)
                        :default (ffirst wrap-options)}
                       {:path [:filter-min]
