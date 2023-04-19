@@ -351,18 +351,27 @@
       4
       attribute-element-count)))
 
-(g/defnk update-attribute-property [_evaluation-context self old-value new-value]
-  (println 'update-attribute-property)
-  (g/set-property self))
+(defn- attribute-update-property [current-property-value attribute new-value]
+  (let [attribute-name (:name attribute)
+        attribute-tbl (if (nil? current-property-value)
+                        {}
+                        current-property-value)
+        attribute-tbl-updated (assoc attribute-tbl (keyword attribute-name) new-value)]
+    (println current-property-value attribute-name new-value)
+    (println attribute-tbl-updated)
+    attribute-tbl-updated))
 
 (defn- get-attribute-edit-type [attribute prop-type]
-  (let [attribute-semantic-type (:semantic-type attribute)]
+  (let [attribute-semantic-type (:semantic-type attribute)
+        attribute-update-fn (fn [_evaluation-context self old-value new-value]
+                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))
+        ]
     (if (= attribute-semantic-type :semantic-type-color)
       {:type types/Color
        :ignore-alpha? true
-       :set-fn update-attribute-property}
+       :set-fn attribute-update-fn}
       {:type prop-type
-       :set-fn update-attribute-property})))
+       :set-fn attribute-update-fn})))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attributes]
   (let [attribute-property-names (map :name material-attributes)
@@ -463,7 +472,7 @@
                                               :min 0.0
                                               :max 1.0
                                               :precision 0.01})))
-  (property vertex-attributes g/Any
+  (property vertex-attribute-overrides g/Any
             (default [])
             (dynamic visible (g/constantly false)))
 
