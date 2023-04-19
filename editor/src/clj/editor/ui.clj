@@ -1942,7 +1942,7 @@ command."
                                      (when (or (nil? interval) (> delta interval))
                                        (run-later
                                          (try
-                                           (tick-fn this (* elapsed 1e-9))
+                                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
                                            (reset! last (- now (if interval
                                                                  (- delta interval)
                                                                  0)))
@@ -2026,7 +2026,7 @@ command."
           root-pane ^Pane (.getRoot scene)
           menu-bar (doto (MenuBar.)
                      (.setUseSystemMenuBar true))
-          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _] (refresh scene)))]
+          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _ _] (refresh scene)))]
       (.. root-pane getChildren (add menu-bar))
       (register-menubar scene menu-bar (main-menu-id))
       (refresh scene)
