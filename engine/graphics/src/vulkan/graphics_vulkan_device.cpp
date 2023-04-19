@@ -902,8 +902,8 @@ bail:
     };
 
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut)
+        PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration,
+        RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -993,7 +993,7 @@ bail:
 
         for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
         {
-            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i]; 
+            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
             blend_attachment.colorWriteMask      = vk_color_write_mask;
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];

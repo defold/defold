@@ -141,7 +141,6 @@ namespace dmGraphics
 
 
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
-    : m_MainRenderTarget(0)
     {
         memset(this, 0, sizeof(*this));
         m_Instance                = vk_instance;
@@ -1179,9 +1178,11 @@ bail:
 
         vkBeginCommandBuffer(context->m_MainCommandBuffers[frame_ix], &vk_command_buffer_begin_info);
 
-        RenderTarget* rt             = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-        context->m_FrameBegun = 1;
-        rt->m_Framebuffer            = context->m_MainFrameBuffers[frame_ix];
+        RenderTarget* rt      = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        rt->m_Framebuffer     = context->m_MainFrameBuffers[frame_ix];
+
+        context->m_FrameBegun      = 1;
+        context->m_CurrentPipeline = 0;
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
@@ -1397,7 +1398,7 @@ bail:
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
-        Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+        Program* program, RenderTarget* rt, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
@@ -1420,7 +1421,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexBuffer, vertexDeclaration, rt, &new_pipeline);
+            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, rt, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1473,7 +1474,7 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (!buffer_ptr->m_Destroyed)
+        if (size != buffer_ptr->m_MemorySize)
         {
             DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
@@ -1534,7 +1535,7 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (!buffer_ptr->m_Destroyed && size != buffer_ptr->m_MemorySize)
+        if (size != buffer_ptr->m_MemorySize)
         {
             DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
@@ -2058,10 +2059,13 @@ bail:
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
-            program_ptr, current_rt,
-            vertex_buffer, context->m_CurrentVertexDeclaration);
-        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+            program_ptr, current_rt, context->m_CurrentVertexDeclaration);
 
+        if (pipeline != context->m_CurrentPipeline)
+        {
+            vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+            context->m_CurrentPipeline = pipeline;
+        }
 
         // Bind the indexbuffer
         if (indexBuffer)
