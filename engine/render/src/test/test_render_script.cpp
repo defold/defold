@@ -1163,11 +1163,8 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_TEXTURE, command->m_Type);
-    ASSERT_EQ(unit, command->m_Operands[0]);
-
-    // NOTE: The render script passes the opaque handle part without the type information to the operands,
-    //       this is currently a workaround for 32-bit systems..
-    ASSERT_EQ(dmGraphics::GetOpaqueHandle(texture), command->m_Operands[1]);
+    ASSERT_EQ(unit,    command->m_Operands[0]);
+    ASSERT_EQ(texture, command->m_Operands[1]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
     ASSERT_EQ(m_Context->m_Textures[unit], texture);
@@ -1180,6 +1177,9 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
 
 TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
 {
+    // Out-of-range handle should cause assert
+    ASSERT_DEATH(dmGraphics::MakeAssetHandle(0, (dmGraphics::AssetType) -1), "");
+
     const char* script =
         "function init(self)\n"
         "   self.test = 0\n"
@@ -1206,10 +1206,13 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
     // Invalid type, but the asset does exist
     dmGraphics::HTexture texture           = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
     HOpaqueHandle texture_opaque_bits      = dmGraphics::GetOpaqueHandle((dmGraphics::HAssetHandle) texture);
-    dmGraphics::HTexture texture_invalid_2 = dmGraphics::MakeAssetHandle(texture_opaque_bits, (dmGraphics::AssetType) -1);
+    dmGraphics::HTexture texture_invalid_2 = ((uint64_t) -1) << 32 | texture_opaque_bits;
 
     char buf[512];
-    dmSnPrintf(buf, sizeof(buf), script, texture_invalid_0, texture_invalid_1, texture_invalid_2);
+    dmSnPrintf(buf, sizeof(buf), script,
+        texture_invalid_0,
+        texture_invalid_1,
+        texture_invalid_2);
 
     dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(buf));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -1217,7 +1220,9 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    // Third update will cause an assert due to the handle being out-of-range
+    ASSERT_DEATH(dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f), "");
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

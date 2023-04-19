@@ -1003,6 +1003,7 @@ namespace dmGraphics
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 

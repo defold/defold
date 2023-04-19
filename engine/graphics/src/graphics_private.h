@@ -20,9 +20,6 @@
 
 namespace dmGraphics
 {
-    // Since an asset handle is exposed as a double / number in lua, we can only use 53 bits before we lose precision
-    // http://lua-users.org/wiki/NumbersTutorial
-    const static uint64_t MAX_ASSET_HANDLE_VAL   = 0x20000000000000-1; // 2^53 - 1
     const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
 
     struct VertexStream
@@ -63,13 +60,13 @@ namespace dmGraphics
         }
         HOpaqueHandle opaque_handle = container.Put((uintptr_t*) asset);
         HAssetHandle asset_handle   = MakeAssetHandle(opaque_handle, type);
-        assert(asset_handle <= MAX_ASSET_HANDLE_VAL);
         return asset_handle;
     }
 
     template <typename T>
     static inline T* GetAssetFromContainer(dmOpaqueHandleContainer<uintptr_t>& container, HAssetHandle asset_handle)
     {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         HOpaqueHandle opaque_handle = GetOpaqueHandle(asset_handle);
         return (T*) container.Get(opaque_handle);
     }

@@ -25,20 +25,20 @@ namespace dmRender
         m_Type = type;
     }
 
-    Command::Command(CommandType type, uintptr_t op0)
+    Command::Command(CommandType type, uint64_t op0)
     {
         m_Type = type;
         m_Operands[0] = op0;
     }
 
-    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1)
     {
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
     }
 
-    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2)
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -46,7 +46,7 @@ namespace dmRender
         m_Operands[2] = op2;
     }
 
-    Command::Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2, uintptr_t op3)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3)
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -76,12 +76,12 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_RENDER_TARGET:
                 {
-                    dmGraphics::SetRenderTarget(context, dmGraphics::MakeAssetHandle(c->m_Operands[0], dmGraphics::ASSET_TYPE_RENDER_TARGET), c->m_Operands[1] );
+                    dmGraphics::SetRenderTarget(context, c->m_Operands[0], c->m_Operands[1]);
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:
                 {
-                    render_context->m_Textures[c->m_Operands[0]] = dmGraphics::MakeAssetHandle(c->m_Operands[1], dmGraphics::ASSET_TYPE_TEXTURE);
+                    render_context->m_Textures[c->m_Operands[0]] = c->m_Operands[1];
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_TEXTURE:

@@ -232,7 +232,7 @@ namespace dmRender
                     return luaL_error(L, "Constant %s not set. Indices must be numbers", dmHashReverseSafe64(name_hash));
                 }
 
-                int32_t table_index_lua = lua_tonumber(L, -2);
+                int32_t table_index_lua = lua_tointeger(L, -2);
 
                 if (table_index_lua < 1)
                 {
@@ -260,7 +260,7 @@ namespace dmRender
         ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
         HNamedConstantBuffer  cb              = table_entry->m_ConstantBuffer;
         dmhash_t name_hash                    = table_entry->m_ConstantName;
-        uint32_t table_index_lua              = (uint32_t) luaL_checknumber(L, 2);
+        uint32_t table_index_lua              = (uint32_t) luaL_checkinteger(L, 2);
         uint32_t table_index                  = table_index_lua - 1;
         dmVMath::Vector4* values              = 0;
         uint32_t num_values                   = 0;
@@ -289,7 +289,7 @@ namespace dmRender
             return luaL_error(L, "Constant %s not set. Indices must be numbers", dmHashReverseSafe64(name_hash));
         }
 
-        int32_t table_index_lua = lua_tonumber(L, 2);
+        int32_t table_index_lua = lua_tointeger(L, 2);
 
         if (table_index_lua < 1)
         {
@@ -646,7 +646,7 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t state = luaL_checknumber(L, 1);
+        uint32_t state = luaL_checkinteger(L, 1);
 
         if (state != dmGraphics::STATE_DEPTH_TEST &&
             state != dmGraphics::STATE_STENCIL_TEST &&
@@ -693,7 +693,7 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t state = luaL_checknumber(L, 1);
+        uint32_t state = luaL_checkinteger(L, 1);
         if (state != dmGraphics::STATE_DEPTH_TEST &&
             state != dmGraphics::STATE_STENCIL_TEST &&
             state != dmGraphics::STATE_ALPHA_TEST &&
@@ -730,10 +730,10 @@ namespace dmRender
     int RenderScript_SetViewport(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        int32_t x = luaL_checknumber(L, 1);
-        int32_t y = luaL_checknumber(L, 2);
-        int32_t width = luaL_checknumber(L, 3);
-        int32_t height = luaL_checknumber(L, 4);
+        int32_t x = luaL_checkinteger(L, 1);
+        int32_t y = luaL_checkinteger(L, 2);
+        int32_t width = luaL_checkinteger(L, 3);
+        int32_t height = luaL_checkinteger(L, 4);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, width, height)))
             return 0;
         else
@@ -973,7 +973,7 @@ namespace dmRender
         while (lua_next(L, table_index))
         {
             bool required_found[]  = { false, false, false };
-            uint32_t buffer_type   = (uint32_t)luaL_checknumber(L, -2);
+            uint32_t buffer_type   = (uint32_t) luaL_checkinteger(L, -2);
             buffer_type_flags     |= buffer_type;
 
             uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
@@ -1014,7 +1014,7 @@ namespace dmRender
 
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
-                    p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
+                    p->m_Format = (dmGraphics::TextureFormat)(int) luaL_checkinteger(L, -1);
                     if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
@@ -1032,29 +1032,29 @@ namespace dmRender
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
-                    p->m_Width = luaL_checknumber(L, -1);
+                    p->m_Width = luaL_checkinteger(L, -1);
                     cp->m_Width = p->m_Width;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
                 {
-                    p->m_Height = luaL_checknumber(L, -1);
+                    p->m_Height = luaL_checkinteger(L, -1);
                     cp->m_Height = p->m_Height;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
-                    p->m_MinFilter = (dmGraphics::TextureFilter)(int)luaL_checknumber(L, -1);
+                    p->m_MinFilter = (dmGraphics::TextureFilter)(int)luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MAG_FILTER_NAME, strlen(RENDER_SCRIPT_MAG_FILTER_NAME)) == 0)
                 {
-                    p->m_MagFilter = (dmGraphics::TextureFilter)(int)luaL_checknumber(L, -1);
+                    p->m_MagFilter = (dmGraphics::TextureFilter)(int)luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_U_WRAP_NAME, strlen(RENDER_SCRIPT_U_WRAP_NAME)) == 0)
                 {
-                    p->m_UWrap = (dmGraphics::TextureWrap)(int)luaL_checknumber(L, -1);
+                    p->m_UWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
                 }
                 else if (strncmp(key, RENDER_SCRIPT_V_WRAP_NAME, strlen(RENDER_SCRIPT_V_WRAP_NAME)) == 0)
                 {
-                    p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checknumber(L, -1);
+                    p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
                 }
                 else
                 {
@@ -1234,7 +1234,7 @@ namespace dmRender
             lua_pop(L, 2);
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t) dmGraphics::GetOpaqueHandle(render_target), transient_buffer_types)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1281,7 +1281,7 @@ namespace dmRender
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t) dmGraphics::GetOpaqueHandle(render_target), 0)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, 0)))
         {
             return 0;
         }
@@ -1328,7 +1328,7 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         DM_LUA_STACK_CHECK(L, 0);
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)0x0, 0)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uint64_t) 0x0, 0)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1357,8 +1357,8 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t width = luaL_checknumber(L, 2);
-        uint32_t height = luaL_checknumber(L, 3);
+        uint32_t width = luaL_checkinteger(L, 2);
+        uint32_t height = luaL_checkinteger(L, 3);
         dmGraphics::SetRenderTargetSize(render_target, width, height);
         return 0;
     }
@@ -1371,7 +1371,7 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param unit [type:number] texture unit to enable texture for
-     * @param render_target [type:render_target|texture] render target or texture from which to enable the specified texture unit
+     * @param render_target [type:handle] render target or texture from which to enable the specified texture unit
      * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to render.BUFFER_COLOR_BIT
      *
      * - `render.BUFFER_COLOR_BIT`
@@ -1410,7 +1410,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        uint32_t unit = luaL_checknumber(L, 1);
+        uint32_t unit = luaL_checkinteger(L, 1);
         if (lua_isnumber(L, 2))
         {
             dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
@@ -1428,7 +1428,7 @@ namespace dmRender
                 dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
                 if (lua_isnumber(L, 3))
                 {
-                    buffer_type = (dmGraphics::BufferType) lua_tonumber(L, 3);
+                    buffer_type = (dmGraphics::BufferType) lua_tointeger(L, 3);
                 }
 
                 texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
@@ -1447,10 +1447,7 @@ namespace dmRender
             // Texture can potentially still be zero if it's an attachment texture
             if(texture != 0)
             {
-                // JG: We are passing in the opaque handle here and not the asset handle, this is a workaround for 32 bit systems
-                //     because we are using uintptr_t that is defined as a uint32_t on those platforms. We reconstruct the actual handle
-                //     before actual passing in render_command.cpp that processes the command. And alternative would be to use 64b values for the operands?
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t) dmGraphics::GetOpaqueHandle(texture))))
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, texture)))
                 {
                     return 0;
                 }
@@ -1465,7 +1462,7 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, render_target|handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+            return luaL_error(L, "%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
         }
     }
 
@@ -1491,7 +1488,7 @@ namespace dmRender
     int RenderScript_DisableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t unit = luaL_checknumber(L, 1);
+        uint32_t unit = luaL_checkinteger(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, unit)))
             return 0;
         else
@@ -1532,7 +1529,7 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
+        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
         if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
@@ -1580,7 +1577,7 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
+        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
         if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
@@ -1665,7 +1662,7 @@ namespace dmRender
         lua_pushnil(L);
         while (lua_next(L, 1))
         {
-            uint32_t buffer_type = luaL_checknumber(L, -2);
+            uint32_t buffer_type = luaL_checkinteger(L, -2);
             flags |= buffer_type;
 
             if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT)
@@ -1674,11 +1671,11 @@ namespace dmRender
             }
             else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
             {
-                depth = (float)luaL_checknumber(L, -1);
+                depth = (float) luaL_checkinteger(L, -1);
             }
             else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
             {
-                stencil = (uint32_t)luaL_checknumber(L, -1);
+                stencil = (uint32_t) luaL_checkinteger(L, -1);
             }
             else
             {
@@ -1798,7 +1795,7 @@ namespace dmRender
             frustum_matrix = copy;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uintptr_t)predicate, (uintptr_t) constant_buffer, (uintptr_t) frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1847,7 +1844,7 @@ namespace dmRender
             frustum_matrix = copy;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uintptr_t)frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1905,7 +1902,7 @@ namespace dmRender
 
         dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = view;
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uintptr_t)matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uint64_t)matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1931,7 +1928,7 @@ namespace dmRender
         dmVMath::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
         dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = projection;
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uintptr_t)matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uint64_t)matrix)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2137,7 +2134,7 @@ namespace dmRender
             bool green = lua_toboolean(L, 2) != 0;
             bool blue = lua_toboolean(L, 3) != 0;
             bool alpha = lua_toboolean(L, 4) != 0;
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uintptr_t)red, (uintptr_t)green, (uintptr_t)blue, (uintptr_t)alpha)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uint64_t)red, (uint64_t)green, (uint64_t)blue, (uint64_t)alpha)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -2171,7 +2168,7 @@ namespace dmRender
         if (lua_isboolean(L, 1))
         {
             bool mask = lua_toboolean(L, 1) != 0;
-            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uintptr_t)mask)))
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uint64_t)mask)))
                 return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
@@ -2529,14 +2526,14 @@ namespace dmRender
     int RenderScript_SetCullFace(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t face_type = luaL_checknumber(L, 1);
+        uint32_t face_type = luaL_checkinteger(L, 1);
         if (face_type != dmGraphics::FACE_TYPE_FRONT &&
             face_type != dmGraphics::FACE_TYPE_BACK &&
             face_type != dmGraphics::FACE_TYPE_FRONT_AND_BACK)
         {
             return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uintptr_t)face_type)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uint64_t)face_type)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2583,7 +2580,7 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         float factor = luaL_checknumber(L, 1);
         float units = luaL_checknumber(L, 2);
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uintptr_t)factor, (uintptr_t)units)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uint64_t)factor, (uint64_t)units)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2775,7 +2772,7 @@ namespace dmRender
             else
             {
                 HMaterial material = *mat;
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uintptr_t)material)))
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
                 {
                     assert(top == lua_gettop(L));
                     return 0;

@@ -64,8 +64,10 @@ namespace dmGraphics
 
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
-    //       to the users via lua. (See graphics_private.h::MAX_ASSET_HANDLE_VAL)
+    //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
+
+    const static uint64_t MAX_ASSET_HANDLE_VALUE = 0x20000000000000-1; // 2^53 - 1
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
@@ -642,7 +644,9 @@ namespace dmGraphics
     static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
     {
         assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
-        return ((uint64_t) asset_type) << 32 | opaque_handle;
+        uint64_t handle = ((uint64_t) asset_type) << 32 | opaque_handle;
+        assert(handle <= MAX_ASSET_HANDLE_VALUE);
+        return handle;
     }
 
     static inline AssetType GetAssetType(HAssetHandle asset_handle)
