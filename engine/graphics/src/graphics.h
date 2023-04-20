@@ -17,9 +17,11 @@
 
 #include <stdint.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
-
 #include <dmsdk/graphics/graphics.h>
+
 #include <dlib/hash.h>
+#include <dlib/opaque_handle_container.h>
+
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
@@ -59,6 +61,13 @@ namespace dmGraphics
     typedef void (*EngineDestroy)(void* engine);
     typedef int (*EngineUpdate)(void* engine);
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+    // Decorated asset handle with 21 bits meta | 32 bits opaque handle
+    // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
+    //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
+    typedef uint64_t HAssetHandle;
+
+    const static uint64_t MAX_ASSET_HANDLE_VALUE = 0x20000000000000-1; // 2^53 - 1
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
@@ -209,40 +218,41 @@ namespace dmGraphics
     struct TextureParams
     {
         TextureParams()
-        : m_Format(TEXTURE_FORMAT_RGBA)
+        : m_Data(0x0)
+        , m_DataSize(0)
+        , m_Format(TEXTURE_FORMAT_RGBA)
         , m_MinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
         , m_MagFilter(TEXTURE_FILTER_LINEAR)
         , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
-        , m_Data(0x0)
-        , m_DataSize(0)
-        , m_MipMap(0)
-        , m_Width(0)
-        , m_Height(0)
-        , m_Depth(0)
-        , m_SubUpdate(false)
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(0)
+        , m_MipMap(0)
+        , m_SubUpdate(false)
         {}
 
+        const void*   m_Data;
+        uint32_t      m_DataSize;
         TextureFormat m_Format;
         TextureFilter m_MinFilter;
         TextureFilter m_MagFilter;
-        TextureWrap m_UWrap;
-        TextureWrap m_VWrap;
-        const void* m_Data;
-        uint32_t m_DataSize;
-        uint16_t m_MipMap;
-        uint16_t m_Width;
-        uint16_t m_Height;
-        uint16_t m_Depth; // For array texture, this is slice count
+        TextureWrap   m_UWrap;
+        TextureWrap   m_VWrap;
 
         // For sub texture updates
-        bool m_SubUpdate;
         uint32_t m_X;
         uint32_t m_Y;
         uint32_t m_Z; // For array texture, this is the slice to set
+
+        uint16_t m_Width;
+        uint16_t m_Height;
+        uint16_t m_Depth; // For array texture, this is slice count
+        uint8_t  m_MipMap    : 7;
+        uint8_t  m_SubUpdate : 1;
     };
 
     // Parameters structure for OpenWindow
@@ -610,16 +620,44 @@ namespace dmGraphics
     uint32_t    GetTextureResourceSize(HTexture texture);
     uint16_t    GetTextureWidth(HTexture texture);
     uint16_t    GetTextureHeight(HTexture texture);
+    uint16_t    GetTextureDepth(HTexture texture);
     uint16_t    GetOriginalTextureWidth(HTexture texture);
     uint16_t    GetOriginalTextureHeight(HTexture texture);
-    uint32_t    GetMaxTextureSize(HContext context);
-    uint8_t     GetNumTextureHandles(HTexture texture);
+    uint8_t     GetTextureMipmapCount(HTexture texture);
     TextureType GetTextureType(HTexture texture);
+    uint8_t     GetNumTextureHandles(HTexture texture);
+
     const char* GetTextureTypeLiteral(TextureType texture_type);
+    uint32_t    GetMaxTextureSize(HContext context);
     void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
+
+    // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);
+
+
+    // Asset handle helpers
+    const char* GetAssetTypeLiteral(AssetType type);
+    bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
+
+    static inline HAssetHandle MakeAssetHandle(HOpaqueHandle opaque_handle, AssetType asset_type)
+    {
+        assert(asset_type != ASSET_TYPE_NONE && "Invalid asset type");
+        uint64_t handle = ((uint64_t) asset_type) << 32 | opaque_handle;
+        assert(handle <= MAX_ASSET_HANDLE_VALUE);
+        return handle;
+    }
+
+    static inline AssetType GetAssetType(HAssetHandle asset_handle)
+    {
+        return (AssetType) (asset_handle >> 32);
+    }
+
+    static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
+    {
+        return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
 
     /**
      * Get status of texture.

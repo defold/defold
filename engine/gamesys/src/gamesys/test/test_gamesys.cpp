@@ -203,9 +203,10 @@ TEST_F(ResourceTest, TestReloadTextureSet)
 TEST_F(ResourceTest, TestCreateTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -284,6 +285,11 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     // Release the dmResource::Get call again
     dmResource::Release(m_Factory, texture_res);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 8: test getting texture info
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     // cleanup
     DeleteInstance(m_Collection, go);

@@ -835,7 +835,7 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
-(defn refresh-scene-view! [node-id]
+(defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
@@ -850,7 +850,7 @@
               (do (ui/text! info-label info-text)
                   (ui/visible! info-label true))))
           (when (and (some? drawable) (some? async-copy-state-atom))
-            (update-image-view! image-view drawable async-copy-state-atom evaluation-context)))))))
+            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)))))))
 
 (defn dispose-scene-view! [node-id]
   (when-let [scene (g/node-by-id node-id)]
@@ -1123,9 +1123,8 @@
           action input-handlers))
 
 (defn- update-updatables
-  [updatable-states play-mode active-updatables]
-  (let [dt 1/60 ; fixed dt for deterministic playback
-        context {:dt (if (= play-mode :playing) dt 0)}]
+  [updatable-states play-mode active-updatables dt]
+  (let [context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
               (let [context (assoc context
                               :world-transform world-transform
@@ -1135,7 +1134,7 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context dt]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
           render-mode (g/node-value view-id :render-mode evaluation-context)
@@ -1144,7 +1143,7 @@
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
           updatable-states (g/node-value view-id :updatable-states evaluation-context)
           new-updatable-states (if (seq active-updatables)
-                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables))
+                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
                                  updatable-states)
           renderables (g/node-value view-id :all-renderables evaluation-context)
           last-renderables (ui/user-data image-view ::last-renderables)

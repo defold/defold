@@ -32,10 +32,12 @@ import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.FrameLayout;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.FrameLayout;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputConnection;
@@ -81,22 +83,15 @@ public class DefoldActivity extends NativeActivity {
 
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
-    /**
-     * Update immersive sticky mode based on current setting. This will only
-     * be done if Android OS version is equal to or above KitKat
-     * https://developer.android.com/training/system-ui/immersive.html
-     */
     private void updateFullscreenMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            if (mImmersiveMode) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-            }
+        if (mImmersiveMode) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (mDisplayCutout) {
@@ -126,8 +121,11 @@ public class DefoldActivity extends NativeActivity {
      */
     public native void FakeBackspace();
     public native void FakeEnter();
+    public native void glfwInputBackButton();
     public native void glfwInputCharNative(int unicode);
     public native void glfwSetMarkedTextNative(String text);
+
+    private boolean keyboardActive;
 
     private class DefoldInputWrapper extends InputConnectionWrapper {
         private DefoldActivity _ctx;
@@ -243,6 +241,22 @@ public class DefoldActivity extends NativeActivity {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
         }
+
+        // Starting API 33 old implementation of the Back button doesn't work
+        // https://github.com/defold/defold/issues/6821
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
+                @Override
+                public void onBackInvoked() {
+                    if (keyboardActive) {
+                        hideSoftInput();
+                    }
+                    glfwInputBackButton();
+                }
+            });
+        }
+
         nativeOnCreate(this);
     }
 
@@ -309,7 +323,7 @@ public class DefoldActivity extends NativeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-
+                keyboardActive = true;
                 if (mTextEdit != null) {
                     mTextEdit.setVisibility(View.GONE);
                     ViewGroup vg = (ViewGroup)(mTextEdit.getParent());
@@ -452,6 +466,7 @@ public class DefoldActivity extends NativeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                keyboardActive = false;
                 IBinder windowToken = getWindow().getDecorView().getWindowToken();
                 imm.hideSoftInputFromWindow(windowToken, 0);
                 updateFullscreenMode();
