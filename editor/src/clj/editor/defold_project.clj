@@ -341,22 +341,24 @@
 
 (defn write-save-data-to-disk! [save-data {:keys [render-progress!]
                                            :or {render-progress! progress/null-render-progress!}
-                                           :as opts}]
+                                           :as _opts}]
   (render-progress! (progress/make "Writing files..."))
   (if (g/error? save-data)
     (throw (Exception. ^String (g/error-message save-data)))
     (do
       (progress/progress-mapv
-        (fn [{:keys [resource content value node-id]} _]
-          (when (and (resource/editable? resource)
-                     (not (resource/read-only? resource)))
-            ;; If the file is non-binary, convert line endings to the
-            ;; type used by the existing file.
-            (if (and (textual-resource-type? (resource/resource-type resource))
-                     (resource/exists? resource)
-                     (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
-              (spit resource (text-util/lf->crlf content))
-              (spit resource content))))
+        (fn [save-data _progress]
+          (let [resource (:resource save-data)
+                content (resource-node/save-data-content save-data)]
+            (when (and (resource/editable? resource)
+                       (not (resource/read-only? resource)))
+              ;; If the file is non-binary, convert line endings to the
+              ;; type used by the existing file.
+              (if (and (textual-resource-type? (resource/resource-type resource))
+                       (resource/exists? resource)
+                       (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+                (spit resource (text-util/lf->crlf content))
+                (spit resource content)))))
         save-data
         render-progress!
         (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
@@ -736,11 +738,11 @@
                                                                    (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
-  (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
+  (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
                                           (filterv (fn [save-data]
                                                      (and (:dirty save-data)
-                                                          (when-some [resource (:resource save-data)]
+                                                          (let [resource (:resource save-data)]
                                                             (and (resource/editable? resource)
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
@@ -883,12 +885,12 @@
   ([endpoint]
    (case (g/endpoint-label endpoint)
      (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
-     (:save-data :source-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     (:save-data :save-value :source-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
      false))
   ([basis endpoint]
    (case (g/endpoint-label endpoint)
      (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
-     (:save-data :source-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
+     (:save-data :save-value :source-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
      false)))
 
 (defn- cached-build-target-output? [node-id label evaluation-context]
@@ -898,7 +900,7 @@
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
   (case label
-    (:save-data :source-value) (project-file-resource-node? (:basis evaluation-context) node-id)
+    (:save-data :save-value :source-value) (project-file-resource-node? (:basis evaluation-context) node-id)
     false))
 
 (defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]

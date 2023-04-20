@@ -195,7 +195,9 @@
 
 (defn- resource-node-content-stream ^java.io.InputStream
   [resource-node evaluation-context]
-  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context) :content)]
+  ;; TODO(save-value): Handle ErrorValue here.
+  (if-some [content (some-> (g/node-value resource-node :save-data evaluation-context)
+                            (resource-node/save-data-content))]
     (IOUtils/toInputStream ^String content "UTF-8")
     (io/input-stream (g/node-value resource-node :resource evaluation-context))))
 

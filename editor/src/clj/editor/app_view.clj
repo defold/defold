@@ -1911,7 +1911,7 @@ If you do not specifically require different script states, consider changing th
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
                  view-type (if (and (= :code (:id view-type))
-                                    (not (g/node-value resource-node :editable)))
+                                    (not (g/connected? (g/now) resource-node :save-data project :save-data)))
                              text-view-type
                              view-type)
                  make-view-fn (:make-view-fn view-type)

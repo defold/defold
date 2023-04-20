@@ -17,13 +17,12 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.util :as util]
-            [editor.graph-util :as gu]
             [editor.lsp :as lsp]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (editor.code.data Cursor CursorRange)))
+  (:import [editor.code.data Cursor CursorRange]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -67,16 +66,21 @@
 ;; the node, because undoing would clear out the state of the unmodified file as
 ;; well, which would defeat the purpose.
 
+(defn- read-unmodified-lines
+  "Reads and returns the unmodified lines from the specified resource. If an
+  error occurs, return an ErrorValue from the provided node-id and output."
+  [resource error-node-id error-output-label]
+  (resource-io/with-error-translation resource error-node-id error-output-label
+    (read-fn resource)))
+
 (defn- loaded-unmodified-lines
   "Returns the unmodified lines for the specified node-id, or nil if the node
   was never modified."
   [node-id]
+  ;; Note: Be really careful how you use this. It will be initialized only once,
+  ;; so any outputs that make use of it can potentially produce a stale value as
+  ;; it bypasses the established cache invalidation mechanism.
   (g/user-data node-id :unmodified-lines))
-
-(defn- set-unmodified-lines!
-  "Sets the unmodified lines for the specified node-id."
-  [node-id lines]
-  (g/user-data! node-id :unmodified-lines lines))
 
 (defn ensure-unmodified-lines!
   "Ensures the unmodified lines of a resource has been loaded, and returns the
@@ -85,18 +89,26 @@
   loaded during the first call. The loaded-unmodified-lines function will return
   a non-nil value after this has been called."
   [node-id evaluation-context]
-  (g/user-data-swap! node-id :unmodified-lines
-                     (fn [loaded-unmodified-lines]
-                       (or loaded-unmodified-lines
-                           (let [resource (g/node-value node-id :resource evaluation-context)]
-                             (resource-io/with-error-translation resource node-id nil
-                               (read-fn resource)))))))
+  (let [did-change (volatile! false)
+        unmodified-lines
+        (g/user-data-swap! node-id :unmodified-lines
+                       (fn [loaded-unmodified-lines]
+                         (or loaded-unmodified-lines
+                             (let [resource (g/node-value node-id :resource evaluation-context)
+                                   lines (read-unmodified-lines resource node-id nil)]
+                               (vreset! did-change true)
+                               lines))))]
+    (when @did-change
+      (g/invalidate-outputs! [(g/endpoint node-id :save-value)]))
+    unmodified-lines))
 
 (defn- eager-load [self resource]
   (let [lines (read-fn resource)
         indent-type (guess-indent-type lines)]
-    (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
-    (g/set-property self :modified-lines lines :modified-indent-type indent-type)))
+    (g/user-data! self :unmodified-lines lines) ; Avoids disk reads property setters below.
+    (g/set-property self
+      :modified-lines lines
+      :modified-indent-type indent-type)))
 
 (defn- load-fn [additional-load-fn eager-loading? connect-breakpoints? project self resource]
   (concat
@@ -121,8 +133,9 @@
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
   (property modified-lines Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
+                   ;; TODO(save-value): I reordered these calls because it seemed backwards. Should I have left them?
                    (ensure-unmodified-lines! self evaluation-context)
+                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
                    nil)))
 
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
@@ -131,37 +144,30 @@
   (output completions g/Any (g/constantly {}))
   (output indent-type IndentType :cached (g/fnk [_node-id modified-indent-type resource]
                                            (or modified-indent-type
-                                               (let [lines (resource-io/with-error-translation resource _node-id :indent-type
-                                                             (read-fn resource))]
+                                               (let [lines (read-unmodified-lines resource _node-id :indent-type)]
                                                  (if (g/error? lines)
                                                    default-indent-type
                                                    (guess-indent-type lines))))))
 
-  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value
-                                                                (resource-io/with-error-translation resource _node-id :lines
-                                                                  (read-fn resource)))))
+  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value (read-unmodified-lines resource _node-id :lines))))
+
+  ;; To save memory, we don't store the source-value in the graph.
+  ;; Instead, we use its hash to determine if we've been dirtied.
+  ;; Thus, we have a specialized implementation of save-data.
+  (output save-data g/Any :cached (g/fnk [_node-id resource save-value source-value]
+                                    (let [dirty (and (some? save-value)
+                                                     (not= source-value (hash save-value)))]
+                                      (resource-node/make-save-data _node-id resource save-value dirty))))
 
   (output save-value Lines (g/fnk [_node-id modified-lines] (or modified-lines (loaded-unmodified-lines _node-id))))
 
-  ;; To save memory, save-data is not cached. It is trivial to produce.
-  (output save-data g/Any resource-node/produce-save-data)
-
-  ;; To save memory, we don't store the source-value in the graph.
-  ;; Instead we use its hash to determine if we've been dirtied.
-  ;; This output must still be named source-value since it is
-  ;; invalidated when saving.
-  (output source-value g/Any :cached :unjammable (g/fnk [_node-id editable resource]
-                                                   (when editable
-                                                     (let [lines (resource-io/with-error-translation resource _node-id :source-value
-                                                                   (read-fn resource))]
-                                                       (if (g/error? lines)
-                                                         lines
-                                                         (hash lines))))))
-
-  ;; We're dirty if the hash of our non-nil save-value differs from the source.
-  ;; TODO(save-value): Update this!
-  (output dirty g/Bool (g/fnk [_node-id editable resource save-value source-value]
-                         (and editable (some? save-value) (not= source-value (hash save-value))))))
+  ;; Even though this returns a hash and not a proper source-value, we keep the
+  ;; name to benefit from the invalidation mechanism when saving.
+  (output source-value g/Any :cached :unjammable (g/fnk [_node-id resource]
+                                                   (let [lines (read-unmodified-lines resource _node-id :source-value)]
+                                                     (if (g/error? lines)
+                                                       lines
+                                                       (hash lines))))))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
   (let [debuggable? (contains? tags :debuggable)

@@ -39,7 +39,7 @@
 (defn- save-data-content-by-proj-path [project]
   (into {}
         (map (juxt (comp resource/proj-path :resource)
-                   :content))
+                   resource-node/save-data-content))
         (project/all-save-data project)))
 
 (defn- diff-lines-range [{:keys [begin end]} text]
@@ -104,7 +104,7 @@
             (game-project/set-setting! game-project dependencies-setting-path new-dependencies)
             (let [migrated-game-project-save-data (g/node-value game-project :save-data)]
               (is (not (g/error? migrated-game-project-save-data)))
-              (:content migrated-game-project-save-data))))]
+              (resource-node/save-data-content migrated-game-project-save-data))))]
     (testing "Manual migration steps."
       (test-support/with-clean-system
         (let [workspace (test-util/setup-scratch-workspace! world "test/resources/spine_migration_project")]

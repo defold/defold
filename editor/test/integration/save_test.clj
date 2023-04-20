@@ -27,6 +27,7 @@
             [editor.git-test :refer [with-git]]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
@@ -93,14 +94,14 @@
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project (test-util/setup-project! workspace)
-            save-data-by-resource (into {}
-                                        (map (juxt :resource identity))
-                                        (project/all-save-data project))]
+            save-data-content-by-resource (into {}
+                                                (map (juxt :resource resource-node/save-data-content))
+                                                (project/all-save-data project))]
         (doseq [query queries]
           (testing (format "Saving %s" query)
             (let [resource (ffirst (project/find-resources project query))
                   resource-type (resource/resource-type resource)
-                  save-string (:content (save-data-by-resource resource))]
+                  save-string (save-data-content-by-resource resource)]
               (if-some [read-fn (:read-fn resource-type)]
 
                 ;; We have a read-fn. Compare the read data representations.
@@ -136,7 +137,7 @@
           (let [node-id (test-util/resource-node project path)
                 resource (g/node-value node-id :resource)
                 save-data (g/node-value node-id :save-data)
-                save-string (:content save-data)
+                save-string (resource-node/save-data-content save-data)
                 disk-string (slurp resource)
                 print-line-diff! (fn print-line-diff! []
                                    (let [diff-lines
@@ -297,7 +298,7 @@
               (let [resource (test-util/resource workspace path)
                     node-id (test-util/resource-node project resource)]
                 (when-not (is (false? (dirty? node-id)))
-                  (let [save-string (:content (g/node-value node-id :save-data))
+                  (let [save-string (resource-node/save-data-content (g/node-value node-id :save-data))
                         resource-type (resource/resource-type resource)
                         read-fn (:read-fn resource-type)]
                     (println "When comparing" path)
@@ -504,7 +505,7 @@
 
 (deftest save-data-remains-in-cache
   (let [cache-size 50
-        retained-labels #{:save-data :source-value}]
+        retained-labels #{:save-data :save-value :source-value}]
     (letfn [(cached-endpoints []
               (into (sorted-set)
                     (keys (g/cache))))]

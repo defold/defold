@@ -19,6 +19,7 @@
             [editor.game-object :as game-object]
             [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
   (:import [java.io StringReader]))
@@ -53,11 +54,6 @@
                      (is (g/error? (test-util/prop-error comp-id :id)))
                      (is (build-error? go-id)))))))))
 
-(defn- save-data
-  [project resource]
-  (first (filter #(= resource (:resource %))
-                 (project/all-save-data project))))
-
 (deftest embedded-components
   (test-util/with-loaded-project
     (let [resource-types (game-object/embeddable-component-resource-types workspace)
@@ -68,8 +64,9 @@
         (testing (:label resource-type)
           (with-open [_ (test-util/make-graph-reverter (project/graph project))]
             (test-util/add-embedded-component! go-id resource-type)
-            (let [save-value (g/node-value go-id :save-value)
-                  load-value (with-open [reader (StringReader. (:content (g/node-value go-id :save-data)))]
+            (let [save-data (g/node-value go-id :save-data)
+                  save-value (:save-value save-data)
+                  load-value (with-open [reader (StringReader. (resource-node/save-data-content save-data))]
                                (go-read-fn reader))
                   saved-embedded-components (:embedded-components save-value)
                   loaded-embedded-components (:embedded-components load-value)

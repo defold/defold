@@ -13,20 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.defold-project-search
-  (:require
-   [clojure.java.io :as io]
-   [clojure.string :as string]
-   [dynamo.graph :as g]
-   [editor.defold-project :as project]
-   [editor.resource :as resource]
-   [editor.ui :as ui]
-   [util.text-util :as text-util]
-   [util.thread-util :as thread-util])
-  (:import
-   (clojure.lang IReduceInit)
-   (java.io BufferedReader StringReader)
-   (java.util.concurrent LinkedBlockingQueue)
-   (java.util.regex Pattern)))
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.defold-project :as project]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
+            [util.text-util :as text-util]
+            [util.thread-util :as thread-util])
+  (:import [clojure.lang IReduceInit]
+           [java.io BufferedReader StringReader]
+           [java.util.concurrent LinkedBlockingQueue]
+           [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,12 +46,14 @@
                 (recur ret (inc row) (+ pos (count line)))))
             ret))))))
 
-(defn- line-coll
-  [{:keys [content resource] :as save-data}]
-  (or (when (some? content)
-        (make-line-coll #(BufferedReader. (StringReader. content))))
-      (when (and (resource/exists? resource) (not (text-util/binary? resource)))
-        (make-line-coll #(io/reader resource)))))
+(defn- line-coll [save-data]
+  (let [resource (:resource save-data)
+        content (resource-node/save-data-content save-data)]
+    ;; TODO(save-value): Converting to string here is not very efficient.
+    (or (when (some? content)
+          (make-line-coll #(BufferedReader. (StringReader. content))))
+        (when (and (resource/exists? resource) (not (text-util/binary? resource)))
+          (make-line-coll #(io/reader resource))))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a case-insensitive java regex."

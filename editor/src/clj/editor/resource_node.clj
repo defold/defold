@@ -34,47 +34,54 @@
 (defn resource-node-dependencies [resource-node-id evaluation-context]
   (let [resource (g/node-value resource-node-id :resource evaluation-context)]
     (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-      (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
-        (dependencies-fn source-value)))))
+      (when-some [source-value (g/node-value resource-node-id :source-value evaluation-context)]
+        (if (g/error? source-value)
+          (throw (ex-info (str "Error reading resource: " (resource/proj-path resource))
+                          {:resource resource
+                           :error-value source-value}))
+          (dependencies-fn source-value))))))
 
-(g/defnk produce-save-data [_node-id resource source-value save-value]
-  {:node-id _node-id
+(defn make-save-data [node-id resource save-value dirty]
+  {:pre [(g/node-id? node-id)
+         (resource/resource? resource)
+         (boolean? dirty)]}
+  {:node-id node-id ; Used to invalidate the :source-value output after saving.
    :resource resource
    :save-value save-value
-   :dirty (and (some? save-value)
-                 (not= save-value source-value))})
+   :dirty dirty})
+
+(g/defnk produce-save-data [_node-id resource save-value source-value]
+  (let [dirty (and (some? save-value)
+                   (not= source-value save-value))]
+    (make-save-data _node-id resource save-value dirty)))
+
+(g/defnk produce-source-value [_node-id resource]
+  (when-some [read-fn (:read-fn (resource/resource-type resource))]
+    (when (resource/exists? resource)
+      (resource-io/with-error-translation resource _node-id :source-value
+        (read-fn resource)))))
 
 (g/defnk produce-sha256 [_node-id resource save-value]
-  (resource-io/with-error-translation resource _node-id :sha256
-    (if (nil? save-value)
+  (if (nil? save-value)
+    (resource-io/with-error-translation resource _node-id :sha256
       (with-open [input-stream (io/input-stream resource)]
-        (DigestUtils/sha256Hex ^java.io.InputStream input-stream))
-      (let [resource-type (resource/resource-type resource)
-            write-fn (:write-fn resource-type)
-            content (write-fn save-value)]
-        (DigestUtils/sha256Hex ^String content)))))
+        (DigestUtils/sha256Hex ^java.io.InputStream input-stream)))
+    (let [resource-type (resource/resource-type resource)
+          write-fn (:write-fn resource-type)
+          ^String content (write-fn save-value)]
+      ;; TODO(save-value): Can we digest the save-value without converting it to a string?
+      (DigestUtils/sha256Hex content))))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (property editable g/Bool :unjammable
-            (default true)
-            (dynamic visible (g/constantly false)))
-
   (output save-data g/Any :cached produce-save-data)
-  (output source-value g/Any :cached :unjammable (g/fnk [_node-id resource editable]
-                                                   ;; TODO(save-value): It's a problem that this is invalidated from the
-                                                   ;; editable property changing, because we want the cached value we pulled
-                                                   ;; into the cache when reading to persist after the load-fn has run.
-                                                   (when-some [read-fn (:read-fn (resource/resource-type resource))]
-                                                     (when (and editable (resource/exists? resource))
-                                                       (resource-io/with-error-translation resource _node-id :source-value
-                                                         (read-fn resource))))))
   (output save-value g/Any (g/constantly nil))
-  (output dirty g/Bool (g/fnk [editable save-data]
-                         (and editable (:dirty save-data))))
+  (output source-value g/Any :cached :unjammable produce-source-value)
+
+  (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
   (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
@@ -98,15 +105,9 @@
 (g/defnode NonEditableResourceNode
   (inherits ResourceNode)
 
-  (property editable g/Bool :unjammable
-            (default false)
-            (dynamic visible (g/constantly false)))
-
-  (output source-value g/Any :unjammable (g/constantly nil))
+  (output save-data g/Any (g/constantly nil))
   (output save-value g/Any (g/constantly nil))
-  (output cleaned-save-value g/Any (g/constantly nil))
-  (output dirty g/Bool (g/constantly false))
-  (output undecorated-save-data g/Any (g/fnk [_node-id resource save-value] {:resource resource :value save-value :node-id _node-id})))
+  (output source-value g/Any :unjammable (g/constantly nil)))
 
 (definline ^:private resource-node-resource [basis resource-node]
   ;; This is faster than g/node-value, and doesn't require creating an

@@ -112,7 +112,7 @@
   (input texture-profiles g/Any)
 
   ;; we never modify ImageNode, save-data and source-value can be trivial and not cached
-  (output undecorated-save-data g/Any (g/constantly nil))
+  ;; TODO(save-value): How are these getting evaluated anyway? Seems like an oversight that we should need to specify these at all?
   (output save-data g/Any (g/constantly nil))
   (output source-value g/Any :unjammable (g/constantly nil))
 

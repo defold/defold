@@ -113,7 +113,7 @@
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as collection of endpoints
+  affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   [system outputs]
   (assert (every? gt/endpoint? outputs))

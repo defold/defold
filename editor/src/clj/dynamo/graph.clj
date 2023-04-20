@@ -939,7 +939,7 @@
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as pairs of [node-id label]
+  affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   ([outputs]
    (swap! *the-system* is/invalidate-outputs outputs)
