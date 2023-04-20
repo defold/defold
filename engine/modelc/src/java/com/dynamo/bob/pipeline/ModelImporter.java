@@ -73,6 +73,7 @@ public class ModelImporter {
     // The suffix of the path dictates which loader it will use
     public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
+    public static native void TestException(String message);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -469,6 +470,18 @@ public class ModelImporter {
         if (args.length < 1) {
             Usage();
             return;
+        }
+
+        // TODO: Setup a java test suite for the model importer
+        int i = 0;
+        for (String arg : args)
+        {
+            if (arg.equalsIgnoreCase("--test-exception"))
+            {
+                ModelImporter.TestException("Testing exception: " + args[i+1]);
+                return; // exit code 0
+            }
+            ++i;
         }
 
         String path = args[0];       // name.glb/.gltf
