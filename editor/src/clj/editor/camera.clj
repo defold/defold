@@ -20,6 +20,7 @@
             [editor.types :as types]
             [schema.core :as s])
   (:import [editor.types AABB Camera Frustum Rect Region]
+           [javafx.scene.input KeyCode]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -384,6 +385,48 @@
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
       :focus-point (doto focus (.add delta)))))
 
+(defn- quat-rotate-x ^Quat4d [deg]
+  (let [radians (math/deg->rad deg)
+        angle (* 0.5 radians)
+        s (Math/sin angle)
+        c (Math/cos angle)]
+    (Quat4d. s 0 0 c)))
+
+(defn- quat-rotate-y ^Quat4d [deg]
+  (let [radians (math/deg->rad deg)
+        angle (* 0.5 radians)
+        s (Math/sin angle)
+        c (Math/cos angle)]
+    (Quat4d. 0 s 0 c)))
+
+(defn free-look [^Camera camera yaw pitch]
+  (let [scale-factor 0.25
+        scaled-yaw (* scale-factor yaw)
+        scaled-pitch (* scale-factor pitch)
+        camera-yaw-q (quat-rotate-y scaled-yaw)
+        camera-pitch-q (quat-rotate-x scaled-pitch)
+        camera-orientation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))] ;; there's no .setIdentity for quats? ;(
+    (.mul camera-orientation camera-yaw-q camera-pitch-q)
+    (assoc camera :rotation camera-orientation)))
+
+(defn- key-code->movement-info [^Camera camera ^KeyCode code movement-speed]
+  (cond (= KeyCode/W code) {:movement-vec (camera-forward-vector camera)
+                            :movement-dir movement-speed}
+        (= KeyCode/S code) {:movement-vec (camera-forward-vector camera)
+                            :movement-dir (- movement-speed)}
+        (= KeyCode/D code) {:movement-vec (camera-right-vector camera)
+                            :movement-dir movement-speed}
+        (= KeyCode/A code) {:movement-vec (camera-right-vector camera)
+                            :movement-dir (- movement-speed)}))
+
+(defn- wasd-movement [^Camera camera ^KeyCode code]
+  (let [camera-movement-speed 2.0
+        camera-movement-info (key-code->movement-info camera code camera-movement-speed)
+        x (* (:movement-dir camera-movement-info) (.getX ^Vector3d (:movement-vec camera-movement-info)))
+        y (* (:movement-dir camera-movement-info) (.getY ^Vector3d (:movement-vec camera-movement-info)))
+        z (* (:movement-dir camera-movement-info) (.getZ ^Vector3d (:movement-vec camera-movement-info)))]
+    (camera-move camera x y z)))
+
 (defn tumble
   [^Camera camera last-x last-y evt-x evt-y]
   (let [rate 0.005
@@ -426,7 +469,8 @@
 
 (def ^:private button-interpretation
   ;; button    shift ctrl  alt   meta => movement
-  {[:primary   false true  false false] :tumble
+  {[:primary   true  false false false] :wasd
+   [:primary   false true  false false] :tumble
    [:primary   false false true  false] :track
    [:primary   false true  true  false] :dolly
    [:secondary false false true  false] :dolly
@@ -434,7 +478,9 @@
 
 (defn camera-movement
   ([action]
-    (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
+   (if (= :key-pressed (:type action))
+     :wasd
+     (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action))))
   ([button shift ctrl alt meta]
     (let [key [button shift ctrl alt meta]]
       (button-interpretation key :idle))))
@@ -610,35 +656,40 @@
     (-> local-camera
         (set-extents fov-x fov-y z-near z-far)
         filter-fn)))
+(defn- get-valid-yaw-pitch [prop-yaw-pitch type last-x last-y x y]
+  (when (and (every? some? [last-x last-y]) (= type :mouse-moved))
+    (let [dx (- x last-x)
+          dy (- y last-y)]
+      (if (nil? prop-yaw-pitch)
+        [dx dy]
+        [(- (get prop-yaw-pitch 0) dx) (- (get prop-yaw-pitch 1) dy)]))))
 
 (defn handle-input [self action user-data]
   (let [viewport                   (g/node-value self :viewport)
         movements-enabled          (g/node-value self :movements-enabled)
+        prop-yaw-pitch             (g/node-value self :yaw-pitch)
         ui-state                   (or (g/user-data self ::ui-state) {:movement :idle})
         {:keys [last-x last-y]}    ui-state
         {:keys [x y type delta-y]} action
-        movement                   (if (= type :mouse-pressed)
+        yaw-pitch                  (get-valid-yaw-pitch prop-yaw-pitch type last-x last-y x y)
+        movement                   (if (or (= type :mouse-pressed) (= type :key-pressed))
                                      (get movements-enabled (camera-movement action) :idle)
                                      (:movement ui-state))
         camera                     (g/node-value self :camera)
         filter-fn                  (or (:filter-fn camera) identity)
         camera                     (cond-> camera
-                                     (and (= type :scroll)
-                                          (contains? movements-enabled :dolly))
-                                     (dolly (* -0.002 delta-y))
-
-                                     (and (= type :mouse-moved)
-                                          (not (= :idle movement)))
-                                     (cond->
-                                       (= :dolly movement)
-                                       (dolly (* -0.002 (- y last-y)))
-                                       (= :track movement)
-                                       (track viewport last-x last-y x y)
-                                       (= :tumble movement)
-                                       (tumble last-x last-y x y))
-
-                                     true
-                                     filter-fn)]
+                                           (= type :key-pressed) (wasd-movement (:code action))
+                                           (and (= type :scroll) (contains? movements-enabled :dolly)) (dolly (* -0.002 delta-y))
+                                           (and (= type :mouse-moved) (not (= :idle movement)))
+                                           (cond->
+                                             (= :wasd movement) (free-look (get yaw-pitch 0) (get yaw-pitch 1))
+                                             (= :dolly movement) (dolly (* -0.002 (- y last-y)))
+                                             (= :track movement) (track viewport last-x last-y x y)
+                                             (= :tumble movement) (tumble last-x last-y x y))
+                                           true
+                                           filter-fn)]
+    (g/set-property! self :yaw-pitch
+                     yaw-pitch)
     (g/set-property! self :local-camera camera)
     (case type
       :scroll (if (contains? movements-enabled :dolly) nil action)
@@ -658,7 +709,8 @@
 (g/defnode CameraController
   (property name g/Keyword (default :local-camera))
   (property local-camera Camera)
-  (property movements-enabled g/Any (default #{:dolly :track :tumble}))
+  (property movements-enabled g/Any (default #{:dolly :track :tumble :wasd}))
+  (property yaw-pitch types/Vec2)
 
   (input scene-aabb AABB)
   (input viewport Region)

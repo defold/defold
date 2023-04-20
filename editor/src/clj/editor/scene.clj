@@ -1218,7 +1218,11 @@
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
-(defn- handle-key-pressed! [^KeyEvent event]
+(defn- make-key-pressed-event [^KeyEvent event view-id]
+  (let [action (i/action-from-jfx event)]
+    (g/transact (g/update-property view-id :input-action-queue conj action))))
+
+(defn- handle-key-pressed! [^KeyEvent event view-id]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when (not= ::unhandled
               (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
@@ -1228,6 +1232,10 @@
                   KeyCode/DOWN (ui/run-command (.getSource event) :down)
                   KeyCode/LEFT (ui/run-command (.getSource event) :left)
                   KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  KeyCode/W (make-key-pressed-event event view-id)
+                  KeyCode/A (make-key-pressed-event event view-id)
+                  KeyCode/S (make-key-pressed-event event view-id)
+                  KeyCode/D (make-key-pressed-event event view-id)
                   ::unhandled)))
     (.consume event)))
 
@@ -1265,7 +1273,7 @@
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?
-                                 (handle-key-pressed! e))))))
+                                 (handle-key-pressed! e view-id))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
