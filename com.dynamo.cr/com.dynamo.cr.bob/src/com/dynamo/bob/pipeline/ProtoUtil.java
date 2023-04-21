@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,15 @@ import com.google.protobuf.TextFormat;
 public class ProtoUtil {
 
     public static void merge(IResource input, Builder builder) throws IOException, CompileExceptionError {
+        byte[] content = input.getContent();
+        if (content == null) {
+            if (!input.exists()) {
+                throw new CompileExceptionError(input, 0, "Resource does not exist");
+            }
+            else {
+                throw new CompileExceptionError(input, 0, "Resource is empty");
+            }
+        }
         try {
             TextFormat.merge(new String(input.getContent()), builder);
         } catch (TextFormat.ParseException e) {

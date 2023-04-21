@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,12 +29,11 @@ namespace dmRender
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
-        Material* m = new Material;
-        m->m_RenderContext = render_context;
-        m->m_VertexProgram = vertex_program;
+        Material* m          = new Material;
+        m->m_RenderContext   = render_context;
+        m->m_VertexProgram   = vertex_program;
         m->m_FragmentProgram = fragment_program;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        m->m_Program = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
+        m->m_Program         = dmGraphics::NewProgram(dmRender::GetGraphicsContext(render_context), vertex_program, fragment_program);
 
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
         const uint32_t buffer_size = 128;
@@ -44,6 +43,7 @@ namespace dmRender
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
+        uint32_t samplers_value_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             type = (dmGraphics::Type) -1;
@@ -53,9 +53,10 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
                 samplers_count++;
+                samplers_value_count += num_values;
             }
             else
             {
@@ -74,12 +75,13 @@ namespace dmRender
             m->m_Samplers.SetCapacity(samplers_count);
             for (uint32_t i = 0; i < samplers_count; ++i)
             {
-                m->m_Samplers.Push(Sampler(i));
+                m->m_Samplers.Push(Sampler());
             }
         }
 
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
+        uint32_t sampler_index = 0;
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
@@ -163,9 +165,26 @@ namespace dmRender
                 }
                 m->m_Constants.Push(constant);
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
+                Sampler& s           = m->m_Samplers[sampler_index];
+                s.m_UnitValueCount   = num_values;
+
+                switch(type)
+                {
+                    case dmGraphics::TYPE_SAMPLER_2D:
+                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+                        break;
+                    case dmGraphics::TYPE_SAMPLER_2D_ARRAY:
+                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+                        break;
+                    case dmGraphics::TYPE_SAMPLER_CUBE:
+                        s.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+                        break;
+                    default: assert(0);
+                }
+                sampler_index++;
             }
         }
 
@@ -305,28 +324,59 @@ namespace dmRender
         }
     }
 
-    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, uint32_t unit, dmGraphics::HTexture texture)
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmArray<Sampler>& samplers = material->m_Samplers;
-        uint32_t n = samplers.Size();
-
-        if (unit < n)
+        if (unit < material->m_Samplers.Size())
         {
-            const Sampler& s = samplers[unit];
+            return (HSampler) &material->m_Samplers[unit];
+        }
+        return 0x0;
+    }
 
-            if (s.m_Location != -1)
+    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit)
+    {
+        Sampler* s                            = (Sampler*) sampler;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        for (int i = 0; i < dmGraphics::GetNumTextureHandles(texture); ++i)
+        {
+            dmGraphics::EnableTexture(graphics_context, unit, i, texture);
+            if (s->m_Location != -1)
             {
-                dmGraphics::SetSampler(graphics_context, s.m_Location, s.m_Unit);
+                dmGraphics::SetSampler(graphics_context, s->m_Location + i, unit);
 
-                if (s.m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                    s.m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
+                if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
+                    s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
                 {
-                    dmGraphics::SetTextureParams(texture, s.m_MinFilter, s.m_MagFilter, s.m_UWrap, s.m_VWrap, s.m_MaxAnisotropy);
+                    dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
                 }
             }
+            unit++;
         }
 
+        return unit;
+    }
+
+    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
+    {
+        if (!sampler)
+        {
+            return;
+        }
+
+        Sampler* s = (Sampler*) sampler;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        if (s->m_Location != -1)
+        {
+            dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
+
+            if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
+                s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
+            {
+                dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+            }
+        }
     }
 
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
@@ -437,30 +487,36 @@ namespace dmRender
     {
         int32_t* location = material->m_NameHashToLocation.Get(name_hash);
         if (location)
+        {
             return *location;
+        }
         else
+        {
             return -1;
+        }
     }
 
-    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         dmArray<Sampler>& samplers = material->m_Samplers;
 
-        uint32_t n = samplers.Size();
-        uint32_t i = unit;
-        if (unit < n && name_hash != 0 && material->m_NameHashToLocation.Get(name_hash) != 0)
+        if (unit < samplers.Size() && name_hash != 0)
         {
-            Sampler& s = samplers[i];
-            s.m_NameHash = name_hash;
-            s.m_Location = *material->m_NameHashToLocation.Get(name_hash);
-            s.m_Unit = unit;
-
-            s.m_UWrap = u_wrap;
-            s.m_VWrap = v_wrap;
-            s.m_MinFilter = min_filter;
-            s.m_MagFilter = mag_filter;
-            s.m_MaxAnisotropy = max_anisotropy;
+            int32_t* location = material->m_NameHashToLocation.Get(name_hash);
+            if (location)
+            {
+                Sampler& s        = samplers[unit];
+                s.m_NameHash      = name_hash;
+                s.m_Location      = *location;
+                s.m_UWrap         = u_wrap;
+                s.m_VWrap         = v_wrap;
+                s.m_MinFilter     = min_filter;
+                s.m_MagFilter     = mag_filter;
+                s.m_MaxAnisotropy = max_anisotropy;
+                return true;
+            }
         }
+        return false;
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)
@@ -539,7 +595,6 @@ namespace dmRender
         *list = *value;
     }
 
-
     void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags)
     {
         material->m_TagListKey = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
@@ -570,5 +625,36 @@ namespace dmRender
                 return false;
         }
         return tag_count > 0; // don't render anything with no matches at all
+    }
+
+    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit)
+    {
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture);
+        Sampler* s = (Sampler*) sampler;
+
+        if (s == 0x0)
+        {
+            dmLogError("Unable to bind texture with type %s to a null sampler (texture unit %d).",
+                dmGraphics::GetTextureTypeLiteral(texture_type), unit);
+            return false;
+        }
+
+        if (texture_type != s->m_Type)
+        {
+            dmLogError("Unable to bind texture with type %s to a sampler with type %s (texture unit %d).",
+                dmGraphics::GetTextureTypeLiteral(texture_type),
+                dmGraphics::GetTextureTypeLiteral(s->m_Type),
+                unit);
+            return false;
+        }
+
+        uint8_t num_sub_handles = dmGraphics::GetNumTextureHandles(texture);
+        if (num_sub_handles > s->m_UnitValueCount)
+        {
+            dmLogError("Unable to bind array texture with %d handles to a sampler with %d bind slots",
+                num_sub_handles, s->m_UnitValueCount);
+            return false;
+        }
+        return true;
     }
 }

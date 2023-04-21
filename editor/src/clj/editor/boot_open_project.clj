@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
+            [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.debug-view :as debug-view]
@@ -176,12 +177,6 @@
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
-          web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
-                                                            web-profiler/url-prefix web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
-                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
-                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
-                                   http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
@@ -203,7 +198,15 @@
                                                       project
                                                       root
                                                       open-resource
-                                                      (partial app-view/debugger-state-changed! scene tool-tabs))]
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs))
+          web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
+                                                            web-profiler/url-prefix web-profiler/handler
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
+                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
+                                                            bob/html5-url-prefix (partial bob/html5-handler project)
+                                                            command-requests/url-prefix (command-requests/make-request-handler root (app-view/make-render-task-progress :resource-sync))
+                                                            console/url-prefix (console/make-request-handler console-view)})
+                                   http-server/start!)]
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (extensions/reload! project :all (app-view/make-extensions-ui workspace changes-view prefs))
 
@@ -262,6 +265,7 @@
                                 result)))
 
       (ui/on-closed! stage (fn [_]
+                             (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
 
                              ;; TODO: This takes a long time in large projects.

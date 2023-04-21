@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -177,7 +177,7 @@
    :icon ""
    :label ""})
 
-(g/defnk produce-go-build-targets [_node-id build-error build-resource ddf-message resource-property-build-targets source-build-targets transform]
+(g/defnk produce-go-build-targets [_node-id build-error build-resource ddf-message resource-property-build-targets source-build-targets pose]
   ;; Create a build-target for the referenced or embedded game object. Also tag
   ;; on :instance-data with the overrides for this instance. This will later be
   ;; extracted and compiled into the Collection - the overrides do not end up in
@@ -195,7 +195,7 @@
     (let [game-object-build-target (first source-build-targets)
           proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
           instance-desc-with-go-props (dissoc ddf-message :data)] ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format. We don't need the :data from GameObject$EmbeddedInstanceDesc.
-      [(collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props transform game-object-build-target proj-path->resource-property-build-target)])))
+      [(collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target)])))
 
 (g/defnode GameObjectInstanceNode
   (inherits scene/SceneNode)
@@ -463,7 +463,7 @@
                                                    (update res id (fn [id] (inc (or id 0)))))
                                                  {} ids))))
 
-(g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets resource-property-build-targets ddf-properties]
+(g/defnk produce-coll-inst-build-targets [_node-id source-resource id pose build-targets resource-property-build-targets ddf-properties]
   (if-some [errors
             (not-empty
               (concat
@@ -476,7 +476,7 @@
     (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
       (update build-targets 0
               (fn [collection-build-target]
-                (collection-common/collection-instance-build-target id transform ddf-properties collection-build-target proj-path->resource-property-build-target))))))
+                (collection-common/collection-instance-build-target id pose ddf-properties collection-build-target proj-path->resource-property-build-target))))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-outline source-resource]
   (-> {:node-id _node-id

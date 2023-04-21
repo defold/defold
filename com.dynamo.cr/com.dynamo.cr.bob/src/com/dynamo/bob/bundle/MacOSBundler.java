@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,8 +20,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -32,6 +30,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -86,6 +85,15 @@ public class MacOSBundler implements IBundler {
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
+
+        String bundleIdentifier = project.getProjectProperties().getStringValue("osx", "bundle_identifier");
+        if (bundleIdentifier == null) {
+            throw new CompileExceptionError("No value for 'osx.bundle_identifier' set in game.project");
+        }
+
+        if (!BundleHelper.isValidAppleBundleIdentifier(bundleIdentifier)) {
+            throw new CompileExceptionError("macOS bundle identifier '" + bundleIdentifier + "' is not valid.");
+        }
 
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
@@ -180,7 +188,7 @@ public class MacOSBundler implements IBundler {
             if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
                 Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
                 if (stripResult.ret != 0) {
-                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+                    logger.severe("Error executing strip command:\n" + new String(stripResult.stdOutErr));
                 }
             }
         }

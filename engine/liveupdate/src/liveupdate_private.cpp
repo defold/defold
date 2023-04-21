@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,15 +12,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <sys/stat.h>
-
 #include "liveupdate.h"
 #include "liveupdate_private.h"
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
-#include <dlib/log.h>
 #include <dlib/crypt.h>
+#include <dlib/log.h>
+#include <dlib/sys.h>
 
 namespace dmLiveUpdate
 {
@@ -152,7 +151,6 @@ namespace dmLiveUpdate
 
     bool FileExists(const char* path)
     {
-        struct stat file_stat;
-        return stat(path, &file_stat) == 0;
+        return dmSys::Exists(path);
     }
 };

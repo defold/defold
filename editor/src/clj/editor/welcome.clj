@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -46,7 +46,7 @@
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.control Button ButtonBase Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
            [javafx.scene.image ImageView Image]
            [javafx.scene.input KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
@@ -429,13 +429,16 @@
         (ui/add-child! (ui/load-svg-path image-path))))))
 
 (defn- make-description-view
-  ^Node [^String name ^String description]
+  ^Node [^String name ^String description ^String zip-url]
   (doto (VBox.)
     (ui/add-style! "description")
     (ui/children! [(doto (Text. name)
                      (ui/add-style! "header"))
                    (doto (TextFlow.)
-                     (ui/add-child! (Text. description)))])))
+                     (ui/add-child! (Text. description))
+                     (VBox/setVgrow Priority/ALWAYS))
+                   (doto (Hyperlink. zip-url)
+                     (ui/on-action! (fn [_] (ui/open-url zip-url))))])))
 
 (defn- make-template-entry
   ^Node [project-template]
@@ -443,7 +446,8 @@
     (ui/add-style! "template-entry")
     (ui/children! [(make-icon-view (:image project-template))
                    (make-description-view (:name project-template)
-                                          (:description project-template))])))
+                                          (:description project-template)
+                                          (:zip-url project-template))])))
 
 (defn- make-category-button
   ^RadioButton [{:keys [label templates] :as template-project-category}]

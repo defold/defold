@@ -1,5 +1,5 @@
 
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -59,12 +59,12 @@ static void OutputIndent(int indent)
     }
 }
 
-static void OutputTransform(const dmTransform::Transform& transform)
-{
-    printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
-    printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
-    printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
-}
+// static void OutputTransform(const dmTransform::Transform& transform)
+// {
+//     printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+//     printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+//     printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+// }
 
 static void OutputVector4(const dmVMath::Vector4& v)
 {
@@ -127,7 +127,10 @@ static void OutputNodeTree(Node* node, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s\n", mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
+    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
+            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
+            mesh->m_Aabb.m_Min[0], mesh->m_Aabb.m_Min[1], mesh->m_Aabb.m_Min[2],
+            mesh->m_Aabb.m_Max[0], mesh->m_Aabb.m_Max[1], mesh->m_Aabb.m_Max[2]);
 
     // if (mesh->m_Weights)
     // {
@@ -214,6 +217,14 @@ void DebugScene(Scene* scene)
     }
 
     printf("Output model importer scene:\n");
+
+    printf("------------------------------\n");
+    printf("Buffers\n");
+    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    {
+        OutputIndent(1);
+        printf("Buffer '%.48s' sz: %u  %p\n", scene->m_Buffers[i].m_Uri, scene->m_Buffers[i].m_BufferSize, scene->m_Buffers[i].m_Buffer);
+    }
 
     printf("------------------------------\n");
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)

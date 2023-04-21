@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,8 +24,12 @@
 (defn file-not-found-error? [error]
   (= :file-not-found (-> error :user-data :type)))
 
-(defn invalid-content-error [node-id label severity resource]
-  (g/->error node-id label severity nil (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content :resource resource}))
+(defn invalid-content-error [node-id label severity resource message]
+  (g/->error node-id label severity nil
+             (format "The file '%s' could not be loaded%s"
+                     (resource/proj-path resource)
+                     (if message (str ": " message) "."))
+             {:type :invalid-content :resource resource}))
 
 (defmacro with-error-translation
   "Perform body, translate io exceptions to g/errors"
@@ -34,5 +38,5 @@
      ~@body
      (catch java.io.FileNotFoundException e#
        (file-not-found-error ~node-id ~label :fatal ~resource))
-     (catch Exception ~'_
-       (invalid-content-error ~node-id ~label :fatal ~resource))))
+     (catch Exception e#
+       (invalid-content-error ~node-id ~label :fatal ~resource (.getMessage e#)))))

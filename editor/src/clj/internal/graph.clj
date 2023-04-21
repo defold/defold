@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,8 +19,10 @@
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [clojure.lang IPersistentSet]
+           [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc]
-           [java.util ArrayDeque HashSet]))
+           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]
+           [java.util.function Function]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -813,6 +815,12 @@
                result')
         (persistent! result')))))
 
+(def ^:private ^Cache basis-dependencies-cache
+  (-> (Caffeine/newBuilder)
+      (.expireAfterAccess 10 TimeUnit/SECONDS)
+      (.maximumSize 32)
+      (.build)))
+
 (defn- basis-dependencies [basis endpoints]
   (assert (every? gt/endpoint? endpoints))
   (let [graph-id->node-successor-map
@@ -822,32 +830,39 @@
               (assoc! acc graph-id (:successors graph)))
             (transient {})
             (:graphs basis)))
-        endpoint->successors (fn [endpoint]
-                               (let [node-id (gt/endpoint-node-id endpoint)
-                                     output (gt/endpoint-label endpoint)]
-                                 (-> node-id
-                                     gt/node-id->graph-id
-                                     graph-id->node-successor-map
-                                     (get node-id)
-                                     (get output))))
-        deque (ArrayDeque.)
-        result (HashSet.)]
-    (reduce (fn [_ endpoint]
-              (.push deque endpoint))
-            nil
-            endpoints)
-    (loop []
-      (when-some [endpoint (.pollLast deque)]
-        (when-not (.contains result endpoint)
-          (when-some [successors (endpoint->successors endpoint)]
-            (reduce
-              (fn [_ successor-endpoint]
-                (.push deque successor-endpoint))
-              nil
-              successors)
-            (.add result endpoint)))
-        (recur)))
-    result))
+        cache-key (into [endpoints]
+                        (map #(System/identityHashCode (val %)))
+                        graph-id->node-successor-map)]
+    (.get basis-dependencies-cache
+          cache-key
+          (reify Function
+            (apply [_ _]
+              (let [pool (ForkJoinPool/commonPool)
+                    all-endpoints (ConcurrentHashMap.)
+                    make-task! (fn [endpoints]
+                                 (fn []
+                                   (into []
+                                         (mapcat
+                                           (fn [endpoint]
+                                             (when (nil? (.putIfAbsent all-endpoints endpoint true))
+                                               (let [node-id (gt/endpoint-node-id endpoint)
+                                                     output (gt/endpoint-label endpoint)]
+                                                 (-> node-id
+                                                     gt/node-id->graph-id
+                                                     graph-id->node-successor-map
+                                                     (get node-id)
+                                                     (get output))))))
+                                         endpoints)))
+                    endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
+                    future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
+                (loop [tasks (into [] endpoints->tasks-xf endpoints)]
+                  (let [next-tasks
+                        (if (= 1 (count tasks))
+                          (into [] endpoints->tasks-xf ((nth tasks 0)))
+                          (into [] future->tasks-xf (.invokeAll pool tasks)))]
+                    (when (pos? (count next-tasks))
+                      (recur next-tasks))))
+                (.keySet all-endpoints)))))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,6 +34,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
                                  :ext "editor_script"
+                                 :language "lua"
                                  :label "Editor Script"
                                  :icon "icons/32/Icons_29-AT-Unknown.png"
                                  :view-types [:code :default]

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -55,6 +55,7 @@ namespace dmScript
     extern const char META_TABLE_GET_URL[];
     extern const char META_TABLE_GET_USER_DATA[];
     extern const char META_TABLE_IS_VALID[];
+    extern const char META_GET_INSTANCE_DATA_TABLE_REF[];
 
     /**
      * Implementor should return a Ref to the instance context table.

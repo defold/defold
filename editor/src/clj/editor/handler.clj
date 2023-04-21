@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -261,7 +261,7 @@
                 (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
                                  (:command handler) (:context handler) fsym (.getMessage e))
                          {:handler handler
-                          :command-context command-context}
+                          :command-context (update command-context :env dissoc :evaluation-context)}
                          e))
               nil)))
         default))))
@@ -399,12 +399,12 @@
 
 (defn adapt-every
   ([selection t]
-   (adapt-every selection t some?))
+   (adapt-every selection t nil))
   ([selection t pred]
    (if (empty? selection)
      nil
      (let [s' (adapt selection t)]
-       (if (every? pred s')
+       (if (every? (if pred (every-pred some? pred) some?) s')
          s'
          nil)))))
 

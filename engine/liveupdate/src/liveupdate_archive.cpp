@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,7 +20,6 @@
 #include <dlib/path.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>
-#include <sys/stat.h>
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -32,8 +31,7 @@ namespace dmLiveUpdate
     Result BundleVersionValid(const dmResource::Manifest* manifest, const char* bundle_ver_path)
     {
         Result result = RESULT_OK;
-        struct stat file_stat;
-        bool bundle_ver_exists = stat(bundle_ver_path, &file_stat) == 0;
+        bool bundle_ver_exists = dmSys::Exists(bundle_ver_path);
 
         uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
         uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
@@ -130,8 +128,7 @@ namespace dmLiveUpdate
         char archive_index_path[DMPATH_MAX_PATH];
         dmPath::Concat(app_support_path, LIVEUPDATE_INDEX_FILENAME, archive_index_path, DMPATH_MAX_PATH);
 
-        struct stat file_stat;
-        bool luTempIndexExists = stat(archive_index_tmp_path, &file_stat) == 0;
+        bool luTempIndexExists = dmSys::Exists(archive_index_tmp_path);
         if (luTempIndexExists)
         {
             dmSys::Result sys_result = dmSys::RenameFile(archive_index_path, archive_index_tmp_path);
@@ -145,7 +142,7 @@ namespace dmLiveUpdate
             dmSys::Unlink(archive_index_tmp_path);
         }
 
-        bool file_exists = stat(archive_index_path, &file_stat) == 0;
+        bool file_exists = dmSys::Exists(archive_index_path);
         if (!file_exists)
             return dmResourceArchive::RESULT_OK;
 

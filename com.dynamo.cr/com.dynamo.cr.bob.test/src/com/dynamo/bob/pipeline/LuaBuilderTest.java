@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,6 +81,20 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertSubElementsV3(properties.getVector3Entries(0));
         assertSubElementsV4(properties.getVector4Entries(0));
         assertSubElementsV4(properties.getQuatEntries(0));
+    }
+
+    // DEF-7341 - using resource.xxx(path) for resources that doesn't exist should raise an error
+    @Test
+    public void testPropResourceNotFound() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("\n");
+        src.append("go.property(\"material\", resource.material(\"/invalid.material\"))\n");
+
+        try {
+            @SuppressWarnings("unused")
+            LuaModule luaModule = (LuaModule) build("/test.script", src.toString()).get(0);
+            assertTrue(false);
+        } catch (CompileExceptionError e) { }
     }
 
     @Test

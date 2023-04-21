@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
+           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
@@ -54,24 +55,8 @@
 ; Render assets
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0 true))
-
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+  (vec2 texcoord0 true)
+  (vec1 page_index))
 
 (vtx/defvertex color-vtx
   (vec3 position)
@@ -101,7 +86,11 @@
                          (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
                                positions (geom/transf-p4 world-transform (:position-data slice9-data))
                                uvs (:uv-data slice9-data)]
-                           (mapv into positions uvs))))))
+                           (mapv (fn [vertex-position vertex-uv]
+                                   (conj (into vertex-position vertex-uv)
+                                         (float frame-index)))
+                                 positions
+                                 uvs))))))
 
 (defn- gen-vertex-buffer
   [renderables count]
@@ -161,22 +150,29 @@
   (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec2 texcoord0)
+  (attribute float page_index)
   (varying vec2 var_texcoord0)
+  (varying float var_page_index)
   (defn void main []
     (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)))
+    (setq var_texcoord0 texcoord0)
+    (setq var_page_index page_index)))
 
 (shader/defshader sprite-id-fragment-shader
   (varying vec2 var_texcoord0)
-  (uniform sampler2D DIFFUSE_TEXTURE)
+  (varying float var_page_index)
   (uniform vec4 id)
+  (uniform sampler2DArray texture_sampler)
   (defn void main []
-    (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
+  (setq vec4 color (texture2DArray texture_sampler (vec3 var_texcoord0 var_page_index)))
+  (if (> color.a 0.05)
+    (setq gl_FragColor id)
+    (discard))))
 
-(def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
+(def id-shader
+  (let [augmented-fragment-shader-source (.source (ShaderUtil$VariantTextureArrayFallback/transform sprite-id-fragment-shader ShaderUtil$Common/MAX_ARRAY_SAMPLERS))]
+    (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader augmented-fragment-shader-source {"view_proj" :view-proj "id" :id})))
 
 (defn- quad-count [size-mode slice9]
   (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
@@ -203,6 +199,7 @@
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+          (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
@@ -210,6 +207,7 @@
       pass/selection
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables num-quads) id-shader)]
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+          (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables count]
@@ -221,7 +219,7 @@
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode size-mode size slice9]
+(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9 offset playback-rate]
   (cond-> {:tile-set (resource/resource->proj-path image)
            :default-animation default-animation
            :material (resource/resource->proj-path material)
@@ -230,12 +228,18 @@
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
 
+          (not= 0.0 offset)
+          (assoc :offset offset)
+
+          (not= 1.0 playback-rate)
+          (assoc :playback-rate playback-rate)
+
           (not= :size-mode-auto size-mode)
           (cond-> :always
                   (assoc :size-mode size-mode)
 
-                  (not= [0.0 0.0 0.0] size)
-                  (assoc :size (v3->v4 size)))))
+                  (not= [0.0 0.0 0.0] manual-size)
+                  (assoc :size (v3->v4 manual-size)))))
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]
@@ -274,9 +278,30 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode size-mode size slice9 dep-build-targets]
+(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
+  (when (and (some? texture-page-count)
+             (some? material-max-page-count))
+    (cond
+      (and is-paged-material
+           (zero? texture-page-count))
+      "The Material expects a paged Atlas, but the selected Image is not paged"
+
+      (and (not is-paged-material)
+           (pos? texture-page-count))
+      "The Material does not support paged Atlases, but the selected Image is paged"
+
+      (< material-max-page-count texture-page-count)
+      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
+
+(defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
+  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
+    (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+        (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
+        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
-                              (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                              (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)]
                              (remove nil?)
@@ -289,8 +314,10 @@
                                              :material          material
                                              :blend-mode        blend-mode
                                              :size-mode         size-mode
-                                             :size              (v3->v4 size)
-                                             :slice9            slice9}
+                                             :size              (v3->v4 manual-size)
+                                             :slice9            slice9
+                                             :offset            offset
+                                             :playback-rate     playback-rate}
                                             [:tile-set :material])]))
 
 (defn- sort-anim-ids
@@ -308,6 +335,7 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
+                                            [:texture-page-count :texture-page-count]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
@@ -332,54 +360,73 @@
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
+                                            [:max-page-count :material-max-page-count]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
-            (dynamic error (g/fnk [_node-id material]
-                                  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-                                      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
+            (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
+                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default :size-mode-auto)
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; Use the texture size for the :manual-size when the user switches
+                   ;; from :size-mode-auto to :size-mode-manual.
+                   (when (and (= :size-mode-auto old-value)
+                              (= :size-mode-manual new-value)
+                              (properties/user-edit? self :size-mode evaluation-context))
+                     (when-some [animation (g/node-value self :animation evaluation-context)]
+                       (let [texture-size [(double (:width animation)) (double (:height animation)) 0.0]]
+                         (g/set-property self :manual-size texture-size))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
-  (property size types/Vec3 (default [0.0 0.0 0.0])
-            (value (g/fnk [size size-mode animation]
+  (property manual-size types/Vec3 (default [0.0 0.0 0.0])
+            (dynamic visible (g/constantly false)))
+  (property size types/Vec3
+            (value (g/fnk [manual-size size-mode animation]
                      (if (and (some? animation)
                               (or (= :size-mode-auto size-mode)
-                                  (= [0.0 0.0 0.0] size)))
+                                  (= [0.0 0.0 0.0] manual-size)))
                        [(double (:width animation)) (double (:height animation)) 0.0]
-                       size)))
+                       manual-size)))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
+  (property playback-rate g/Num (default 1.0))
+  (property offset g/Num (default 0.0)
+            (dynamic edit-type (g/constantly {:type :slider
+                                              :min 0.0
+                                              :max 1.0
+                                              :precision 0.01})))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any)
   (input gpu-texture g/Any)
+  (input texture-page-count g/Int :substitute nil)
   (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
+  (input material-max-page-count g/Int)
   (input default-tex-params g/Any)
 
-  (output tex-params g/Any (g/fnk [material-samplers material-shader default-tex-params]
+  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
-  (output texture-size g/Any (g/fnk [animation]
-                                    (when (some? animation)
-                                      [(double (:width animation)) (double (:height animation)) 0.0])))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
-  (output aabb AABB (g/fnk [animation] (if animation
-                                         (let [animation-width (* 0.5 (:width animation))
-                                               animation-height (* 0.5 (:height animation))]
-                                           (geom/make-aabb (Point3d. (- animation-width) (- animation-height) 0)
-                                                           (Point3d. animation-width animation-height 0)))
-                                         geom/empty-bounding-box)))
+  (output aabb AABB (g/fnk [size]
+                      (let [[^double width ^double height ^double depth] size
+                            half-width (* 0.5 width)
+                            half-height (* 0.5 height)
+                            half-depth (* 0.5 depth)]
+                        (geom/make-aabb (Point3d. (- half-width) (- half-height) (- half-depth))
+                                        (Point3d. half-width half-height half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
@@ -393,17 +440,11 @@
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
       (g/set-property self :size-mode (:size-mode sprite))
-      (g/set-property self :size (v4->v3 (:size sprite)))
+      (g/set-property self :manual-size (v4->v3 (:size sprite)))
       (g/set-property self :slice9 (:slice9 sprite))
-
-      ;; The size property value clause is dependent on size metadata from the
-      ;; image, and the old value is evaluated whenever the property is set (for
-      ;; use in the property setter function). Assigning the image property
-      ;; after the size property ensures the dependent property value clause
-      ;; does not perform the expensive image size metadata computation for the
-      ;; ignored old-value of the size property. This saves immensely on load
-      ;; times for projects with a lot of sprites.
-      (g/set-property self :image image))))
+      (g/set-property self :image image)
+      (g/set-property self :offset (:offset sprite))
+      (g/set-property self :playback-rate (:playback-rate sprite)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

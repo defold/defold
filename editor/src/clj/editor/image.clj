@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,8 @@
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -56,6 +58,35 @@
        :build-fn build-texture
        :user-data {:content-generator image-generator
                    :compress? compress?
+                   :texture-profile texture-profile}})))
+
+(defn- build-array-texture [resource _dep-resources user-data]
+  (let [{:keys [content-generator texture-profile texture-page-count compress?]} user-data
+        images ((:f content-generator) (:args content-generator))]
+    (g/precluding-errors
+      [images]
+      (let [texture-images (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
+            combined-texture-image (tex-gen/assemble-texture-images texture-images texture-page-count)]
+        {:resource resource
+         :content  (protobuf/pb->bytes combined-texture-image)}))))
+
+(defn make-array-texture-build-target
+  [workspace node-id array-images-generator texture-profile texture-page-count compress?]
+  (assert (contains? array-images-generator :sha1))
+  (let [texture-type (workspace/get-resource-type workspace "texture")
+        texture-hash (digestable/sha1-hash
+                       {:compress? compress?
+                        :image-sha1 (:sha1 array-images-generator)
+                        :texture-page-count texture-page-count
+                        :texture-profile texture-profile})
+        texture-resource (resource/make-memory-resource workspace texture-type texture-hash)]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource (workspace/make-build-resource texture-resource)
+       :build-fn build-array-texture
+       :user-data {:content-generator array-images-generator
+                   :compress? compress?
+                   :texture-page-count texture-page-count
                    :texture-profile texture-profile}})))
 
 (g/defnk produce-build-targets [_node-id resource content-generator texture-profile build-settings]
@@ -114,9 +145,9 @@
                                                                           {:min-filter gl/nearest
                                                                            :mag-filter gl/nearest})))
 
-  (output gpu-texture-generator g/Any :cached (g/fnk [texture-image :as args]
-                                                     {:f    generate-gpu-texture
-                                                      :args args}))
+  (output gpu-texture-generator g/Any (g/fnk [texture-image :as args]
+                                        {:f    generate-gpu-texture
+                                         :args args}))
 
   (output build-targets g/Any :cached produce-build-targets))
 

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -420,7 +420,7 @@
 (defn- make-update-timer
   [project debug-view]
   (let [state   (volatile! {})
-        tick-fn (fn [timer _]
+        tick-fn (fn [timer _ _]
                   (when-not (ui/ui-disabled?)
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.

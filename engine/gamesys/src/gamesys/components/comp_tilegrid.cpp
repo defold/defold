@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -403,7 +403,7 @@ namespace dmGameSystem
         TileGridWorld* world = (TileGridWorld*) params.m_World;
         if (world->m_Components.Full())
         {
-            dmLogError("Tilemap could not be created since the tilemap buffer is full (%d). You can change this with the config setting tilemap.max_count", world->m_Components.Capacity());
+            ShowFullBufferError("Tilemap", "tilemap.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -648,7 +648,7 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
         ro.m_Material = GetMaterial(first);
-        ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_Textures[0] = texture_set->m_Texture->m_Texture;
 
         if (first->m_RenderConstants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 LICENSE="""
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -181,6 +181,7 @@ def dot_to_cxx_namespace(str):
 
 def to_cxx_struct(context, pp, message_type):
     # Calculate maximum length of "type"
+
     max_len = 0
     for f in message_type.field:
         l = 0
@@ -213,10 +214,28 @@ def to_cxx_struct(context, pp, message_type):
     for nt in message_type.nested_type:
         to_cxx_struct(context, pp, nt)
 
+    oneof_scope = None
+
     for f in message_type.field:
         field_name = to_camel_case(f.name)
         field_align = context.should_align_field(f)
         align_str = ""
+
+        if f.HasField("oneof_index"):
+
+            oneof_decl = message_type.oneof_decl[f.oneof_index]
+
+            if oneof_scope == None or oneof_scope != oneof_decl.name:
+                if oneof_scope != None:
+                    pp.end(" m_%s", to_camel_case(oneof_scope))
+
+                oneof_scope = oneof_decl.name
+                pp.begin("union")
+        else:
+            if oneof_scope != None:
+                pp.end(" m_%s", to_camel_case(oneof_scope))
+                oneof_scope = None
+
         if (field_align):
             align_str = "DM_ALIGNED(16) "
         if f.label == FieldDescriptor.LABEL_REPEATED or f.type == FieldDescriptor.TYPE_BYTES:
@@ -246,6 +265,10 @@ def to_cxx_struct(context, pp, message_type):
             p(align_str + context.get_field_type_name(f), field_name)
         else:
             p(align_str + type_to_ctype[f.type], field_name)
+
+    if oneof_scope != None:
+        pp.end(" m_%s", to_camel_case(oneof_scope))
+
     pp.p('')
     pp.p('static dmDDF::Descriptor* m_DDFDescriptor;')
     pp.p('static const uint64_t m_DDFHash;')
@@ -307,9 +330,25 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         if '"' in default:
             pp_cpp.p('char DM_ALIGNED(4) %s_%s_%s_DEFAULT_VALUE[] = %s;', namespace, message_type.name, f.name, default)
 
+    oneof_scope = None
     lst = []
     for f in message_type.field:
-        tpl = (f.name, f.number, f.type, f.label)
+        one_of_index = 0
+
+        if f.HasField("oneof_index"):
+            oneof_decl = message_type.oneof_decl[f.oneof_index]
+
+            # indices start at zero, but we need to distinguish between which fields belong
+            # to a oneof block somehow
+            one_of_index = f.oneof_index + 1
+
+            if oneof_scope == None or oneof_scope != oneof_decl.name:
+                oneof_scope = oneof_decl.name
+        else:
+            if oneof_scope != None:
+                oneof_scope = None
+
+        tpl = (f.name, f.number, f.type, f.label, one_of_index)
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:
             tmp = f.type_name.replace(".", "_")
             if tmp.startswith("_"):
@@ -318,7 +357,11 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         else:
             tpl += ("0x0", )
 
-        tpl += ("(uint32_t)DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, to_camel_case(f.name)), )
+        oneof_scope_name = ""
+        if oneof_scope != None:
+            oneof_scope_name = "m_%s." % to_camel_case(oneof_scope)
+
+        tpl += ("(uint32_t)DDF_OFFSET_OF(%s::%s, %sm_%s)" % (namespace.replace("_", "::"), message_type.name, oneof_scope_name, to_camel_case(f.name)), )
 
         default = to_cxx_default_value_string(context, f)
         if '"' in default:
@@ -328,10 +371,13 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
 
         lst.append(tpl)
 
+    # For clarity, set the 'm_OneOfSet' bit in the field descriptor to zero
+    one_of_index_set = 0
+
     if len(lst) > 0:
         pp_cpp.begin("dmDDF::FieldDescriptor %s_%s_FIELDS_DESCRIPTOR[] = ", namespace, message_type.name)
-        for name, number, type, label, msg_desc, offset, default_value in lst:
-            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s},'  % (name, number, type, label, msg_desc, offset, default_value))
+        for name, number, type, label, one_of_index, msg_desc, offset, default_value in lst:
+            pp_cpp.p('{ "%s", %d, %d, %d, %s, %s, %s, %d, %d},'  % (name, number, type, label, msg_desc, offset, default_value, one_of_index, one_of_index_set))
         pp_cpp.end()
     else:
         pp_cpp.p("dmDDF::FieldDescriptor* %s_%s_FIELDS_DESCRIPTOR = 0x0;", namespace, message_type.name)
@@ -750,14 +796,13 @@ if __name__ == '__main__':
     for pf in request.proto_file:
         if pf.name == request.file_to_generate[0]:
             namespace = None
-            for x in pf.options.ListFields():
-                if x[0].name == 'ddf_namespace':
-                    namespace = x[1]
-
             includes = []
+
             for x in pf.options.ListFields():
                 if x[0].name == 'ddf_includes':
                     includes = x[1].split()
+                elif x[0].name == 'ddf_namespace':
+                    namespace = x[1]
 
             if options.cxx:
                 compile_cxx(context, pf, request.file_to_generate[0], namespace, includes)

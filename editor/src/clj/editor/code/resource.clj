@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.util :as util]
+            [editor.lsp :as lsp]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -45,6 +46,13 @@
 (g/deftype RegionGrouping {s/Any [TRegion]})
 
 (def ^:private default-indent-type :tabs)
+
+(defn make-code-error-user-data [^String path line-number]
+  (let [cursor-range (some-> line-number data/line-number->CursorRange)]
+    (cond-> {:filename path}
+
+            (some? cursor-range)
+            (assoc :cursor-range cursor-range))))
 
 (defn guess-indent-type [lines]
   ;; TODO: Use default from preferences if indeterminate.
@@ -118,9 +126,11 @@
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
   (property modified-lines Lines (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value _new-value]
+            (set (fn [evaluation-context self _old-value new-value]
+                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
                    (ensure-unmodified-lines! self evaluation-context)
                    nil)))
+
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
@@ -158,7 +168,7 @@
   (output dirty? g/Bool (g/fnk [_node-id editable resource save-value source-value]
                           (and editable (some? save-value) (not= source-value (hash save-value))))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
   (let [debuggable? (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
         args (-> args

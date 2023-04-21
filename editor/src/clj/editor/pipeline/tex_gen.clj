@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,7 @@
   (:import [com.dynamo.bob TexcLibrary$FlipAxis]
            [com.dynamo.bob.pipeline TextureGenerator]
            [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureProfile Graphics$TextureProfiles]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
            [com.google.protobuf ByteString]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream]
@@ -82,45 +82,27 @@
 
 (defn make-cubemap-texture-images
   ^Graphics$TextureImage [images texture-profile compress?]
-  (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
-    (util/map-vals #(make-texture-image % texture-profile compress? false) images)))
+  (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
+        flip-axis (EnumSet/noneOf TexcLibrary$FlipAxis)]
+    (util/map-vals #(TextureGenerator/generate ^BufferedImage % texture-profile-data ^boolean compress? flip-axis)
+                   images)))
 
-(defn- make-cubemap-texture-image-alternatives [textures]
-  ;; Cube map textures are in the order px nx py ny nz pz.
-  ;; Size of texture[i].alternative[k] == texture[j].alternative[k]
-  ;; So mip map sizes & offsets also equal
-  ;; Format of alternative data n is:
-  ;; [<cube map textures' alternative n at mip level 0> <cube map textures' alternative n at mip level 1> ... <... at final mip level>]
-  (for [alt (range 0 (count (:alternatives (first textures))))]
-    (let [template-alternative (-> textures first :alternatives (nth alt))
-          data (ByteArrayOutputStream.)]
-      (doseq [mipmap (range 0 (count (:mip-map-size template-alternative))) ; mip-map-size always uncompressed
-              :let [mip-size (-> template-alternative :mip-map-size (nth mipmap))
-                    mip-offset (-> template-alternative :mip-map-offset (nth mipmap))
-                    mip-buf (byte-array mip-size)]
-              texture (range 0 (count textures))
-              :let [^ByteString alt-data (-> textures (nth texture) :alternatives (nth alt) :data)]]
-        (.copyTo alt-data mip-buf mip-offset 0 mip-size)
-        (.write data mip-buf))
-      (-> template-alternative
-          (assoc :data (ByteString/copyFrom (.toByteArray data)))
-          ;; thought we would have to update mip-map-size also, but CubemapBuilder doesn't so...
-          (update :mip-map-offset (fn [offsets] (map #(* 6 %) offsets)))))))
+(defn assemble-texture-images
+  ^Graphics$TextureImage [texture-images max-page-count]
+  (let [texture-images (into-array Graphics$TextureImage texture-images)
+        texture-type (if (pos? max-page-count)
+                       Graphics$TextureImage$Type/TYPE_2D_ARRAY
+                       Graphics$TextureImage$Type/TYPE_2D)]
+    (TextureUtil/createCombinedTextureImage texture-images texture-type)))
 
 (defn assemble-cubemap-texture-images
-  ^Graphics$TextureImage
-  [texture-images]
+  ^Graphics$TextureImage [side->texture-image]
   ;; FIXME: in graphics_opengl.cpp(1870ish) in the engine, we set the cubemap textures
   ;; using glTexSubImage2D in the order +x, -x, +y, -y, and then ***-z***, ***+z***
   ;; until this is fixed, if ever, we flip the order as below
-  (let [textures (mapv protobuf/pb->map ((juxt :px :nx :py :ny :nz :pz) texture-images))
-        alternatives (make-cubemap-texture-image-alternatives textures)
-        template-texture (first textures)]
-    (-> template-texture
-        (assoc :count 6)
-        (assoc :type :type-cubemap)
-        (assoc :alternatives alternatives)
-        (#(protobuf/map->pb Graphics$TextureImage %)))))
+  (let [texture-images (into-array ((juxt :px :nx :py :ny :nz :pz) side->texture-image))
+        type Graphics$TextureImage$Type/TYPE_CUBEMAP]
+    (TextureUtil/createCombinedTextureImage texture-images type)))
 
 (defn make-preview-cubemap-texture-images
   ^Graphics$TextureImage [images texture-profile]

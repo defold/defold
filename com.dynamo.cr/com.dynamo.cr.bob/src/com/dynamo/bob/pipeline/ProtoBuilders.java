@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,21 +16,28 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -46,6 +53,8 @@ import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
+import com.dynamo.gamesys.proto.AtlasProto.Atlas;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
@@ -59,6 +68,15 @@ public class ProtoBuilders {
 
     private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
     private static String[][] textureSetSrcExts = {{".atlas", ".a.texturesetc"}, {".tileset", ".t.texturesetc"}, {".tilesource", ".t.texturesetc"}};
+
+    public static String getTextureSetExt(String str) {
+        for (String[] extReplacement : textureSetSrcExts) {
+            if (str.endsWith(extReplacement[0])) {
+                return extReplacement[1];
+            }
+        }
+        return null;
+    }
 
     public static String replaceTextureName(String str) {
         String out = str;
@@ -74,6 +92,57 @@ public class ProtoBuilders {
             out = BuilderUtil.replaceExt(out, extReplacement[0], extReplacement[1]);
         }
         return out;
+    }
+
+    // TODO: Should we move this to a build resource?
+    static Set<String> materialAtlasCompatabilityCache = new HashSet<String>();
+
+    private static void validateMaterialAtlasCompatability(Project project, IResource resource, String materialProjectPath, String textureSet) throws IOException, CompileExceptionError {
+        if (materialProjectPath.isEmpty())
+        {
+            return;
+        }
+
+        if (textureSet.endsWith("atlas")) {
+            String cachedValidationKey = materialProjectPath + textureSet;
+            if (materialAtlasCompatabilityCache.contains(cachedValidationKey)) {
+                return;
+            }
+
+            IResource materialResource      = project.getResource(materialProjectPath);
+            IResource materialBuildResource = materialResource.changeExt(".materialc");
+
+            MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+            materialBuilder.mergeFrom(materialBuildResource.getContent());
+
+            IResource textureSetResource      = project.getResource(textureSet);
+            IResource textureSetBuildResource = textureSetResource.changeExt(".a.texturesetc");
+
+            TextureSet.Builder textureSetBuilder = TextureSet.newBuilder();
+            textureSetBuilder.mergeFrom(textureSetBuildResource.getContent());
+
+            int textureSetPageCount  = textureSetBuilder.getPageCount();
+            int materialMaxPageCount = materialBuilder.getMaxPageCount();
+
+            boolean textureIsPaged = textureSetPageCount != 0;
+            boolean materialIsPaged = materialMaxPageCount != 0;
+
+            if (!textureIsPaged && !materialIsPaged) {
+                return;
+            }
+
+            if (textureIsPaged && !materialIsPaged) {
+                throw new CompileExceptionError(resource, 0, "The Material does not support paged Atlases, but the selected Image is paged");
+            }
+            else if (!textureIsPaged && materialIsPaged) {
+                throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
+            }
+            else if (textureSetPageCount > materialMaxPageCount) {
+                throw new CompileExceptionError(resource, 0, "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
+            }
+
+            materialAtlasCompatabilityCache.add(cachedValidationKey);
+        }
     }
 
     @ProtoParams(srcClass = CollectionProxyDesc.class, messageClass = CollectionProxyDesc.class)
@@ -106,7 +175,7 @@ public class ProtoBuilders {
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
         private void ValidateShapeTypes(List<Shape> shapeList, IResource resource) throws IOException, CompileExceptionError {
-            String physicsTypeStr = this.project.getProjectProperties().getStringValue("physics", "type", "2D").toUpperCase();
+            String physicsTypeStr = StringUtil.toUpperCase(this.project.getProjectProperties().getStringValue("physics", "type", "2D"));
             for(Shape shape : shapeList) {
                 if(shape.getShapeType() == Type.TYPE_CAPSULE) {
                     if(physicsTypeStr.contains("2D")) {
@@ -213,11 +282,47 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
-    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> 
+{
+        @Override
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+
+            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+            SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
+            ProtoUtil.merge(input, spriteBuilder);
+
+            // The tileset must be specified
+            String tileSet = spriteBuilder.getTileSet();
+            if (tileSet.isEmpty())
+            {
+                throw new CompileExceptionError(input, 0, "A tileset must be assigned.");
+            }
+
+            IResource tileSetOuput = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
+            task.addInput(tileSetOuput);
+
+            // Material input is optional in the protobuf description
+            String material = spriteBuilder.getMaterial();
+            if (!material.isEmpty())
+            {
+                IResource materialOutput = project.getResource(material).changeExt(".materialc");
+                task.addInput(materialOutput);
+            }
+
+            return task.build();
+        }
+
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+
+            validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), messageBuilder.getTileSet());
+
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
@@ -259,6 +364,30 @@ public class ProtoBuilders {
     @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
     public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
         @Override
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+
+            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+            ParticleFX.Builder particleFxBuilder = ParticleFX.newBuilder();
+            ProtoUtil.merge(input, particleFxBuilder);
+
+            for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
+                Emitter emitter            = particleFxBuilder.getEmitters(i);
+                String tileSource          = emitter.getTileSource();
+                IResource tileSourceOutput = project.getResource(tileSource).changeExt(getTextureSetExt(tileSource));
+                IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
+
+                task.addInput(tileSourceOutput);
+                task.addInput(materialOutput);
+            }
+
+            return task.build();
+        }
+
+        @Override
         protected ParticleFX.Builder transform(Task<Void> task, IResource resource, ParticleFX.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             int emitterCount = messageBuilder.getEmittersCount();
@@ -268,10 +397,14 @@ public class ProtoBuilders {
                 Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
                 BuilderUtil.checkResource(this.project, resource, "tile source", emitterBuilder.getTileSource());
                 BuilderUtil.checkResource(this.project, resource, "material", emitterBuilder.getMaterial());
+
+                validateMaterialAtlasCompatability(this.project, resource, emitterBuilder.getMaterial(), emitterBuilder.getTileSource());
+
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "t.texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "t.texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "atlas", "a.texturesetc"));
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
+
                 Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
                 Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());
                 for (Modifier modifier : modifiers) {
@@ -287,20 +420,6 @@ public class ProtoBuilders {
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
             messageBuilder.clearModifiers();
-            return messageBuilder;
-        }
-    }
-
-    @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
-    @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
-    public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
-        @Override
-        protected MaterialDesc.Builder transform(Task<Void> task, IResource resource, MaterialDesc.Builder messageBuilder)
-                throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "vertex program", messageBuilder.getVertexProgram());
-            messageBuilder.setVertexProgram(BuilderUtil.replaceExt(messageBuilder.getVertexProgram(), ".vp", ".vpc"));
-            BuilderUtil.checkResource(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
-            messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
             return messageBuilder;
         }
     }

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -202,6 +202,9 @@ namespace dmDeviceOpenSL
         jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
         assert(get_sample_rate);
         jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz);
+
+        env->DeleteLocalRef(sound_class);
+
         return (int)sample_rate;
     }
 

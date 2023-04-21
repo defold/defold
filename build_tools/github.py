@@ -1,4 +1,4 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,9 +13,25 @@
 # specific language governing permissions and limitations under the License.
 
 import mimetypes
+import logging
 
 URL_GRAPHQL_API = "https://api.github.com/graphql"
 URL_REST_API    = "https://api.github.com"
+
+def _enable_verbose_logging():
+    try:
+        import http.client as http_client
+    except ImportError:
+        # Python 2
+        import httplib as http_client
+    http_client.HTTPConnection.debuglevel = 1
+
+    # You must initialize logging, otherwise you'll not see debug output.
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.DEBUG)
+    requests_log = logging.getLogger("requests.packages.urllib3")
+    requests_log.setLevel(logging.DEBUG)
+    requests_log.propagate = True
 
 def _fix_url(url):
     if url.startswith("http"):
@@ -25,7 +41,9 @@ def _fix_url(url):
 def _create_headers(headers, token):
     if not headers:
         headers = {}
+    headers["Accept"] = "application/vnd.github+json"
     headers["Authorization"] = "token %s" % (token)
+    headers["X-GitHub-Api-Version"] = "2022-11-28"
     return headers
 
 # use GraphQL API

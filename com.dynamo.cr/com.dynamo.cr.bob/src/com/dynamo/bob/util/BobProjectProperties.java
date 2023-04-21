@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,6 +37,8 @@ import java.lang.IllegalAccessException;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.Bob;
 
 /**
@@ -88,7 +90,7 @@ public class BobProjectProperties {
                     this.value = value;
                     break;
                 case "type":
-                    this.type = PropertyType.valueOf(value.toUpperCase());
+                    this.type = PropertyType.valueOf(StringUtil.toUpperCase(value));
                     break;
                 case "default":
                     this.defaultValue = value;

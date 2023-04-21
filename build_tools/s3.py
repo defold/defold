@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -103,7 +103,7 @@ def get_files(archive_path, bucket, sha1):
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
     return files
 
-def get_tagged_releases(archive_path, pattern=None):
+def get_tagged_releases(archive_path, pattern=None, num_releases=10):
     u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
 
@@ -126,7 +126,7 @@ def get_tagged_releases(archive_path, pattern=None):
         sha1, tag = m.groups()
         matches.append((sha1, tag))
 
-    for sha1, tag in matches[:10]: # Only the first releases
+    for sha1, tag in matches[:num_releases]: # Only the first releases
         epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
         date = datetime.fromtimestamp(float(epoch))
         files = get_files(archive_path, bucket, sha1)

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,15 @@ public class ClassLoaderScanner implements IClassScanner {
     private List<URL> extraJars = new ArrayList<>();
     URLClassLoader classLoader = null;
     private boolean dirty = true;
+    private ClassLoader baseClassLoader = null;
+
+    public ClassLoaderScanner() {
+        baseClassLoader = this.getClass().getClassLoader();
+    }
+
+    public ClassLoaderScanner(ClassLoader loader) {
+        baseClassLoader = loader;
+    }
 
     private static void scanDir(File dir, String packageName, Set<String> classes) {
         File[] files = dir.listFiles();
@@ -87,7 +96,7 @@ public class ClassLoaderScanner implements IClassScanner {
         if (classLoader == null || dirty) {
             try {
                 URL[] urls = extraJars.toArray(new URL[0]);
-                classLoader = new URLClassLoader(urls, this.getClass().getClassLoader());
+                classLoader = new URLClassLoader(urls, baseClassLoader);
             } catch (Exception e) {
                 throw new RuntimeException(String.format("Couldn't create custom class loader"), e);
             }

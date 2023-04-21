@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,6 +52,23 @@
           (let [[w'' h''] (font/measure font-map "test test test" true w 0.1 1.1)]
             (is (> w'' w'))
             (is (> h'' h'))))))))
+
+(deftest text-splitting
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/fonts/score.font")
+          font-map (g/node-value node-id :font-map)
+          {hello-width :width :keys [lines]} (font/layout-text font-map "hello" false 0 0 0)]
+      (is (= ["hello"] lines))
+      (testing "If the line is too long and does not have spaces, we don't wrap"
+        (is (= ["hellohello"] (:lines (font/layout-text font-map "hellohello" true hello-width 0 0)))))
+      (testing "If the line is too long and has spaces, we wrap"
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello" true hello-width 0 0)))))
+      (testing "The whitespace at the beginning and end of lines is trimmed"
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "  \u200B  hello    \u200Bhello    " true hello-width 0 0)))))
+      (testing "Tailing empty lines are trimmed"
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello\n \n   \n\n  \n  \n " true hello-width 0 0)))))
+      (testing "We always split on \r?\n"
+        (is (= ["hello" "hello" "hello"] (:lines (font/layout-text font-map "hello\r\nhello\nhello" true hello-width 0 0))))))))
 
 (deftest preview-text
   (test-util/with-loaded-project

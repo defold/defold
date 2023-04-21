@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@ package com.defold.libs;
 import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.util.Arrays;
 import java.util.List;
 
@@ -288,6 +289,8 @@ public class ParticleLibrary {
         public Pointer texture;
         public FloatBuffer texCoords;
         public FloatBuffer texDims;
+        public IntBuffer pageIndices;
+        public IntBuffer frameIndices;
         public int playback;
         public int tileWidth;
         public int tileHeight;
@@ -301,7 +304,7 @@ public class ParticleLibrary {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("texture", "texCoords", "texDims", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
+            return Arrays.asList("texture", "texCoords", "texDims", "pageIndices", "frameIndices", "playback", "tileWidth", "tileHeight", "startTile", "endTile", "fps", "hFlip", "vFlip", "structSize");
         }
     }
 }

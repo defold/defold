@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -62,6 +62,13 @@
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT_OES)
 #else
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT)
+#endif
+
+// Texture arrays
+#ifdef GL_SAMPLER_2D_ARRAY
+#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(GL_SAMPLER_2D_ARRAY)
+#else
+#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(0x8DC1)
 #endif
 
 // Render buffer storage formats

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,7 +81,7 @@
                          (if (contains? seen key)
                            (recur (rest s) seen)
                            (cons f (step (rest s) (conj seen key)))))))
-                    xs seen)))]
+                   xs seen)))]
      (step coll #{}))))
 
 (defn group-into
@@ -293,6 +293,30 @@
     (quoted-var? x) (inputs-needed (var-get (resolve (second x))))
     (pfnk-form? x)  (parse-fnk-arguments x)
     :else           #{}))
+
+(defn input-annotations [x]
+  (cond
+    (pfnk? x)
+    (:annotations (meta x))
+
+    (symbol? x)
+    (recur (resolve x))
+
+    (var? x)
+    (recur (var-get x))
+
+    (quoted-var? x)
+    (recur (var-get (resolve (second x))))
+
+    (pfnk-form? x)
+    (into {}
+          (comp
+            (take-while (complement #{:as :-}))
+            (map (juxt keyword meta)))
+          (second (maybe-expand-macros x)))
+
+    :else
+    {}))
 
 (defn- wrap-protocol
   [tp tp-form]

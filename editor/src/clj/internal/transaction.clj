@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -839,7 +839,8 @@
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator metrics-collector]
+  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector]
+  {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
    :nodes-added []
@@ -854,7 +855,7 @@
    :override-id-generator override-id-generator
    :completed []
    :txid (new-txid)
-   :tx-data-context (atom {})
+   :tx-data-context (atom tx-data-context-map)
    :deferred-setters []
    :metrics metrics-collector})
 

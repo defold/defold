@@ -8,6 +8,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
@@ -15,10 +16,12 @@ import java.io.FileNotFoundException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
-import java.util.List;
 import java.util.Arrays;
 import java.lang.reflect.Method;
-import java.io.FileNotFoundException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
 
 public class ModelImporter {
 
@@ -68,7 +71,7 @@ public class ModelImporter {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Scene LoadFromBufferInternal(String path, byte[] buffer);
+    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
 
     public static class ModelException extends Exception {
@@ -91,6 +94,13 @@ public class ModelImporter {
         public float x, y, z, w;
 
         public Vec4() {}
+        public Vec4(Vec4 other)
+        {
+            this.x = other.x;
+            this.y = other.y;
+            this.z = other.z;
+            this.w = other.w;
+        }
         public Vec4(float x, float y, float z, float w) {
             this.x = x;
             this.y = y;
@@ -116,9 +126,34 @@ public class ModelImporter {
         }
     }
 
+    public static class Aabb {
+        public Vec4 min;
+        public Vec4 max;
+
+        public Aabb() {
+            this.min = new Vec4(1000000.0f,1000000.0f,1000000.0f,1.0f);
+            this.max = new Vec4(-1000000.0f,-1000000.0f,-1000000.0f,1.0f);
+        }
+
+        public Aabb(Aabb other) {
+            this.min = new Vec4(other.min);
+            this.max = new Vec4(other.max);
+        }
+
+        public void expand(float x, float y, float z) {
+            if (x < min.x) min.x = x;
+            if (y < min.y) min.y = y;
+            if (z < min.z) min.z = z;
+            if (x > max.x) max.x = x;
+            if (y > max.y) max.y = y;
+            if (z > max.z) max.z = z;
+        }
+    }
+
     public static class Mesh {
         public String      name;
         public String      material;
+        public Aabb        aabb;
 
         public float[]     positions; // float3
         public float[]     normals; // float3
@@ -197,6 +232,10 @@ public class ModelImporter {
         public float            duration;
     }
 
+    public static class Buffer {
+        public String           uri;
+        public byte[]           buffer;
+    }
     public static class Scene {
 
         public Node[]         nodes;
@@ -204,21 +243,16 @@ public class ModelImporter {
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
+        public Buffer[]       buffers;
     }
 
-    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
-    {
-        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes);
-        return scene;
+    public interface DataResolver {
+        public byte[] getData(String path, String uri);
     }
 
-    public static Scene LoadFromPath(Options options, String path) throws FileNotFoundException, IOException
+    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, DataResolver data_resolver)
     {
-        InputStream inputStream = new FileInputStream(new File(path));
-        byte[] bytes = new byte[inputStream.available()];
-        inputStream.read(bytes);
-
-        return LoadFromBuffer(options, path, bytes);
+        return ModelImporter.LoadFromBufferInternal(path, bytes, data_resolver);
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -309,6 +343,8 @@ public class ModelImporter {
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
         System.out.printf("Material: %s\n", mesh.material);
+        PrintIndent(indent+1);
+        System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
         // Print out the first ten of each array
         int max_count = 10;
@@ -387,6 +423,44 @@ public class ModelImporter {
         }
     }
 
+    public static byte[] ReadFile(File file) throws IOException
+    {
+        InputStream inputStream = new FileInputStream(file);
+        byte[] bytes = new byte[inputStream.available()];
+        inputStream.read(bytes);
+        return bytes;
+    }
+
+    public static byte[] ReadFile(String path) throws IOException
+    {
+        return ReadFile(new File(path));
+    }
+
+    public static class FileDataResolver implements DataResolver
+    {
+        File cwd = null;
+
+        FileDataResolver() {}
+        FileDataResolver(File _cwd) {
+            cwd = _cwd;
+        }
+
+        public byte[] getData(String path, String uri) {
+            File file;
+            if (cwd != null)
+                file = new File(cwd, path);
+            else
+                file = new File(path);
+            File bufferFile = new File(file.getParentFile(), uri);
+            try {
+                return ReadFile(bufferFile);
+            } catch (Exception e) {
+                System.out.printf("Failed to read file '%s': %s\n", uri, e);
+                return null;
+            }
+        }
+    };
+
     // Used for testing the importer. Usage:
     //   ./src/com/dynamo/bob/pipeline/test_model_importer.sh <model path>
     public static void main(String[] args) throws IOException {
@@ -397,13 +471,11 @@ public class ModelImporter {
             return;
         }
 
-        String path = args[0];       // .glb
-
-        System.out.printf("Testing\n");
-
+        String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
-        Scene scene = LoadFromPath(new Options(), path);
+        FileDataResolver buffer_resolver = new FileDataResolver();
+        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);
 
         long timeEnd = System.currentTimeMillis();
 
@@ -412,6 +484,11 @@ public class ModelImporter {
 
         System.out.printf("--------------------------------\n");
 
+        for (Buffer buffer : scene.buffers) {
+            System.out.printf("Buffer: uri: %s  data: %s\n", buffer.uri, buffer.buffer);
+        }
+
+        System.out.printf("--------------------------------\n");
         System.out.printf("Num Nodes: %d\n", scene.nodes.length);
         for (Node node : scene.nodes)
         {

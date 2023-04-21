@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,20 +15,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/stat.h>
 
-#if defined(__linux__) || defined(__MACH__)
-#  include <sys/errno.h>
-#elif defined(_WIN32)
-#  include <errno.h>
-#elif defined(__EMSCRIPTEN__)
-#  include <unistd.h>
-#endif
-
-#ifdef _WIN32
-#include <direct.h>
-#include <malloc.h>
-#endif
+#include <errno.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
@@ -54,6 +42,8 @@ namespace dmScript
 {
 
 const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
+
+static int g_DebuggerLightweightHook = 0;
 
 union SaveLoadBuffer
 {
@@ -409,7 +399,7 @@ union SaveLoadBuffer
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
-     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -431,7 +421,7 @@ union SaveLoadBuffer
 
         const char* key = luaL_checkstring(L, 1);
         int default_value = 0;
-        if (!lua_isnil(L, 2))
+        if (!lua_isnone(L, 2))
         {
             default_value = luaL_checkinteger(L, 2);
         }
@@ -455,13 +445,13 @@ union SaveLoadBuffer
      * @name sys.get_config_number
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:number] (optional) default value to return if the value does not exist
-     * @return value [type:number] config value as an number. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:number] config value as an number. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
      *
      * ```lua
-     * local speed = sys.get_config_float("my_game.speed", 20.0)
+     * local speed = sys.get_config_number("my_game.speed", 20.0)
      * ```
      */
     static int Sys_GetConfigNumber(lua_State* L)
@@ -470,7 +460,7 @@ union SaveLoadBuffer
 
         const char* key = luaL_checkstring(L, 1);
         float default_value = 0;
-        if (!lua_isnil(L, 2))
+        if (!lua_isnone(L, 2))
         {
             default_value = luaL_checknumber(L, 2);
         }
@@ -1309,6 +1299,49 @@ union SaveLoadBuffer
         return 1;
     }
 
+    //undocummented function for debugger
+
+    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
+    {
+        int top = lua_gettop(L);
+        lua_getinfo(L, "S", ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+        lua_pushstring(L, ar->source);
+        lua_pushnumber(L, ar->lastlinedefined);
+        if (lua_pushthread(L))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L); //main thread is not a coroutine
+        }
+        //[-1] - thread or nil
+        //[-2] - lastlinedefined (number)
+        //[-3] - source (string)
+        //[-4] - callback
+        lua_call(L, 3, 0);
+        assert(top == lua_gettop(L));
+    }
+
+    static int Sys_SetDebuggerLightweightHook(lua_State* L)
+    {
+        int index = 1;
+        lua_State* L1 = L;
+        if (lua_isthread(L, 1)) {
+            L1 = lua_tothread(L, 1);
+            index++;
+        }
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        if (g_DebuggerLightweightHook)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+            g_DebuggerLightweightHook = 0;
+        }
+        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        
+        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
+        return 0;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -1334,6 +1367,9 @@ union SaveLoadBuffer
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {"serialize", Sys_Serialize},
         {"deserialize", Sys_Deserialize},
+
+        // undocummented functions for debugger
+        {"set_debugger_lightweight_hook", Sys_SetDebuggerLightweightHook},
         {0, 0}
     };
 

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -816,11 +816,21 @@
                                                          on-value-changed
                                                          ui-state
                                                          state-path]}]
-  (let [indices-path (conj state-path :selected-indices)
-        selected-indices (set (get-in ui-state indices-path))
+  (let [{:keys [selected-indices edit] :as state} (get-in ui-state state-path)
+        selected-indices (set selected-indices)
         new-value (remove-indices selected-indices value)]
+    ;; When we remove a row that has been edited, JavaFX will commit the edit.
+    ;; However, by that point, the state will have already changed to a new
+    ;; state without the item that was deleted. This can result in either
+    ;; creating a new row with only one field set (if the deleted row was the
+    ;; last), or applying the edit to the next row after the deleted row (if it
+    ;; wasn't the last). Cancelling the edit here solves the issue.
+    (when edit
+      (.edit ^TableView (:table edit) -1 nil))
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
-     [:set-ui-state (assoc-in ui-state indices-path [])]]))
+     [:set-ui-state (assoc-in ui-state state-path (-> state
+                                                      (assoc :selected-indices [])
+                                                      (dissoc :edit)))]]))
 
 (defmethod handle-event :table-select [{:keys [ui-state state-path fx/event]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
@@ -1415,7 +1425,7 @@
                                 visible-titles (into #{} (map :title) visible-sections)
                                 selected-section-title (or (-> ui-state :selected-section-title (or default-section-name) visible-titles)
                                                            (some-> groups first val first visible-titles))]
-                            {:fx/type :h-box
+                            {:fx/type fx.h-box/lifecycle
                              :anchor-pane/top 0
                              :anchor-pane/right 0
                              :anchor-pane/bottom 0
@@ -1548,7 +1558,7 @@
                     g/tx-nodes-added
                     first)
         repaint-timer (ui/->timer 30 "refresh-form-view"
-                                  (fn [_timer _elapsed]
+                                  (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
     (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)

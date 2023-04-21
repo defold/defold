@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.console
-  (:require [clojure.string :as string]
+  (:require [clojure.data.json :as json]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
@@ -23,8 +24,8 @@
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.util :as util]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.http-util :as http-util])
   (:import [clojure.lang PersistentQueue]
            [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.util.regex MatchResult]
@@ -32,13 +33,15 @@
            [javafx.scene Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button Tab TextField]
-           [javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
            [javafx.scene.layout GridPane Pane]
            [javafx.scene.paint Color]
            [javafx.scene.text Font FontSmoothingType TextAlignment]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defonce ^:const url-prefix "/console")
 
 (def ^:private pending-atom
   (atom {:clear? false :entries PersistentQueue/EMPTY}))
@@ -245,13 +248,25 @@
 ;; Setup
 ;; -----------------------------------------------------------------------------
 
+(defmulti json-compatible-region (fn [region] (:type region)))
+
+(defmethod json-compatible-region :default [region] (dissoc region :on-click!))
+
+(g/defnk produce-request-response [lines regions]
+  (let [json-regions (keep json-compatible-region regions)
+        body-data {:lines lines
+                   :regions json-regions}
+        body-string (json/write-str body-data)]
+    (http-util/make-json-response body-string)))
+
 (g/defnode ConsoleNode
   (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
-  (output lines r/Lines (gu/passthrough modified-lines)))
+  (output lines r/Lines (gu/passthrough modified-lines))
+  (output request-response g/Any :cached produce-request-response))
 
 (defn- gutter-metrics []
   [44.0 0.0])
@@ -320,13 +335,13 @@
             (.setFill gc gutter-eval-error-color)
             (.fillText gc "!" text-right text-y))
 
-          :extension-out
+          :extension-output
           (let [text-y (+ ascent line-y)]
             (.setFont gc font)
             (.setFill gc gutter-eval-expression-color)
             (.fillText gc "⚙" text-right text-y))
 
-          :extension-err
+          :extension-error
           (let [text-y (+ ascent line-y)]
             (.setFont gc font)
             (.setFill gc gutter-eval-error-color)
@@ -355,7 +370,6 @@
 
 (def ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
 (def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
-(def ^:private ^:const sub-region-strip-ellipsis-prefix-pattern #"^(?>\.{3})?(.*)")
 
 (def ^:private non-empty-string? (comp string? not-empty))
 
@@ -376,23 +390,36 @@
    (assoc (make-resource-reference-region row start-col end-col resource-proj-path-candidates on-click!)
      :row resource-row)))
 
-(defn- strip-ellipsis-prefix [partial-path]
-  (second (re-matches sub-region-strip-ellipsis-prefix-pattern partial-path)))
+(definline resource-path-suffix-key [^String resource-path]
+  `(.substring ~resource-path (max 0 (- (.length ~resource-path) 50))))
 
-(defn- find-project-resource-paths-from-potential-match [resource-map partial-path]
-  (if (contains? resource-map partial-path)
-    [partial-path] ; An exact match.
-    (let [partial-path-without-ellipsis-prefix (strip-ellipsis-prefix partial-path)]
-      (vec (sort util/natural-order
-                 (filter #(string/ends-with? % partial-path-without-ellipsis-prefix)
-                         (keys resource-map)))))))
+(defn- find-project-resource-paths-from-potential-match [resource-map resource-suffix-map-delay partial-path]
+  (cond
+    (string/starts-with? partial-path "/")
+    (when (contains? resource-map partial-path)
+      [partial-path])
 
-(defn- make-line-sub-regions [resource-map on-region-click! row line]
+    (string/starts-with? partial-path "...")
+    (let [suffix (subs partial-path 3)]
+      (->> (get @resource-suffix-map-delay (resource-path-suffix-key suffix))
+           (filter #(string/ends-with? % suffix))
+           sort
+           vec))
+
+    :else
+    (let [with-slash (str "/" partial-path)]
+      (when (contains? resource-map with-slash)
+        [with-slash]))))
+
+(defn make-resource-suffix-map-delay [resource-map]
+  (delay (group-by resource-path-suffix-key (keys resource-map))))
+
+(defn- make-line-sub-regions [resource-map resource-suffix-map-delay on-region-click! row line]
   (into []
         (comp
           (mapcat #(re-match-result-seq % line))
           (keep (fn [^MatchResult result]
-                  (when-some [resource-proj-path-candidates (not-empty (find-project-resource-paths-from-potential-match resource-map (.group result 1)))]
+                  (when-some [resource-proj-path-candidates (not-empty (find-project-resource-paths-from-potential-match resource-map resource-suffix-map-delay (.group result 1)))]
                     (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
                           start-col (.start result)
                           end-col (if (string/ends-with? (.group result) ":")
@@ -413,26 +440,26 @@
                              (data/->Cursor row (count line)))
     :type type))
 
-(defn- make-line-regions [resource-map on-region-click! ^long row [type line]]
+(defn- make-line-regions [resource-map resource-suffix-map-delay on-region-click! row [type line]]
   (assert (keyword? type))
   (assert (string? line))
   (cons (make-whole-line-region type row line)
-        (make-line-sub-regions resource-map on-region-click! row line)))
+        (make-line-sub-regions resource-map resource-suffix-map-delay on-region-click! row line)))
 
-(defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
+(defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map resource-suffix-map-delay on-region-click!]
   (merge props
          (data/append-distinct-lines lines regions
                                      (mapv second entries)
-                                     (partial make-line-sub-regions resource-map on-region-click!))))
+                                     (partial make-line-sub-regions resource-map resource-suffix-map-delay on-region-click!))))
 
-(defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
+(defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map resource-suffix-map-delay on-region-click!]
   (assert (vector? lines))
   (assert (vector? regions))
   (let [clean-lines (if (= [""] lines) [] lines)
         lines' (into clean-lines (map second) entries)
         lines' (if (empty? lines') [""] lines')
         regions' (into regions
-                       (mapcat (partial make-line-regions resource-map on-region-click!)
+                       (mapcat (partial make-line-regions resource-map resource-suffix-map-delay on-region-click!)
                                (iterate inc (count clean-lines))
                                entries))]
     (cond-> (assoc props
@@ -442,37 +469,39 @@
             (empty? clean-lines)
             (assoc :invalidated-row 0))))
 
-(defn- append-entries [props entries resource-map on-region-click!]
+(defn- append-entries [props entries resource-map resource-suffix-map-delay on-region-click!]
   (assert (map? props))
   (assert (vector? (not-empty (:lines props))))
   (assert (vector? (:regions props)))
   (reduce (fn [props entries]
             (if (nil? (ffirst entries))
-              (append-distinct-lines props entries resource-map on-region-click!)
-              (append-regioned-lines props entries resource-map on-region-click!)))
+              (append-distinct-lines props entries resource-map resource-suffix-map-delay on-region-click!)
+              (append-regioned-lines props entries resource-map resource-suffix-map-delay on-region-click!)))
           props
           (partition-by #(nil? (first %)) entries)))
 
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear? entries]} (dequeue-pending! 1000)]
     (when (or clear? (seq entries))
-      (let [resource-map (g/node-value workspace :resource-map)
-            ^LayoutInfo prev-layout (g/node-value view-node :layout)
-            prev-lines (g/node-value view-node :lines)
-            prev-regions (g/node-value view-node :regions)
-            prev-document-width (if clear? 0.0 (.document-width prev-layout))
-            appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
-            document-width (max prev-document-width ^double appended-width)
-            was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
-            props (append-entries {:lines (if clear? [""] prev-lines)
-                                   :regions (if clear? [] prev-regions)}
-                                  entries resource-map on-region-click!)]
-        (view/set-properties! view-node nil
-                              (cond-> (assoc props :document-width document-width)
-                                      was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                      clear? (assoc :cursor-ranges [data/document-start-cursor-range])
-                                      clear? (assoc :invalidated-row 0)
-                                      clear? (data/frame-cursor prev-layout))))))
+      (g/with-auto-evaluation-context evaluation-context
+        (let [resource-map (g/node-value workspace :resource-map evaluation-context)
+              ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
+              prev-lines (g/node-value view-node :lines evaluation-context)
+              prev-regions (g/node-value view-node :regions evaluation-context)
+              prev-document-width (if clear? 0.0 (.document-width prev-layout))
+              appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
+              document-width (max prev-document-width ^double appended-width)
+              was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
+              resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
+              props (append-entries {:lines (if clear? [""] prev-lines)
+                                     :regions (if clear? [] prev-regions)}
+                                    entries resource-map resource-suffix-map-delay on-region-click!)]
+          (view/set-properties! view-node nil
+                                (cond-> (assoc props :document-width document-width)
+                                        was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                                        clear? (assoc :cursor-ranges [data/document-start-cursor-range])
+                                        clear? (assoc :invalidated-row 0)
+                                        clear? (data/frame-cursor prev-layout)))))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible? false}))
 
 (def ^:private console-grammar
@@ -493,11 +522,15 @@
   (let [^Color background-color (Color/valueOf "#27292D")
         ^Color selection-background-color (Color/valueOf "#264A8B")]
     (view/make-color-scheme
-      [["console.error" (Color/valueOf "#FF6161")]
+      [["console.reload.successful" (Color/valueOf "#33CC33")]
+       ["console.error" (Color/valueOf "#FF6161")]
        ["console.warning" (Color/valueOf "#FF9A34")]
        ["console.info" (Color/valueOf "#CCCFD3")]
        ["console.debug" (Color/valueOf "#3B8CF8")]
-       ["console.reload.successful" (Color/valueOf "#33CC33")]
+       ["editor.error" (Color/valueOf "#FF6161")]
+       ["editor.warning" (Color/valueOf "#FF9A34")]
+       ["editor.info" (Color/valueOf "#CCCFD3")]
+       ["editor.debug" (Color/valueOf "#3B8CF8")]
        ["editor.foreground" (Color/valueOf "#A2B0BE")]
        ["editor.background" background-color]
        ["editor.cursor" Color/TRANSPARENT]
@@ -544,7 +577,7 @@
                                  0 nil
                                  1 (open-resource! (first resource-candidates))
                                  (ui/show-simple-context-menu-at-mouse! resource->menu-item open-resource! resource-candidates event)))))
-        repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
+        repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time _]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
                                                          (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
@@ -593,3 +626,21 @@
     ;; Start repaint timer.
     (ui/timer-start! repainter)
     view-node))
+
+(defn- handle-request! [{:keys [url method] :as _request} console-node]
+  (cond
+    (and (not= "/console" url)
+         (not= "/console/" url))
+    http-util/not-found-response
+
+    (not= "GET" method)
+    http-util/only-get-allowed-response
+
+    :else
+    (g/node-value console-node :request-response)))
+
+(defn make-request-handler [console-view]
+  (let [console-node (g/node-value console-view :resource-node)]
+    (assert (g/node-instance? ConsoleNode console-node))
+    (fn request-handler [request]
+      (handle-request! request console-node))))

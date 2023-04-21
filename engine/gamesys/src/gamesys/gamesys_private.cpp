@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -59,7 +59,17 @@ namespace dmGameSystem
         dmLogError("%s", buf);
 
         va_end(lst);
+    }
 
+    void ShowFullBufferError(const char* object_name, int max_count)
+    {
+        dmLogError("%s could not be created since the buffer is full (%d). This value cannot be changed", object_name, max_count);
+    }
+
+    void ShowFullBufferError(const char* object_name, const char* config_key, int max_count)
+    {
+        dmLogError("%s could not be created since the buffer is full (%d). Increase the '%s' value in [game.project](defold://open?path=/game.project)",
+            object_name, max_count, config_key);
     }
 
     dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,

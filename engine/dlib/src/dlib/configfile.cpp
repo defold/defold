@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
-#include <sys/stat.h>
 #include "hash.h"
 #include "log.h"
 #include "http_client.h"
@@ -633,8 +632,7 @@ namespace dmConfigFile
                 // any drive letter is ok
                 if (strlen(uri_parts.m_Scheme) == 1)
                 {
-                    struct stat stat_buf;
-                    if (stat(url, &stat_buf) == 0)
+                    if (dmSys::Exists(url))
                     {
                         // In order to support windows paths with drive letter we
                         // first test if the url is a valid file
@@ -646,8 +644,7 @@ namespace dmConfigFile
             }
         }
 
-        struct stat stat_buf;
-        if (stat(url, &stat_buf) == 0)
+        if (dmSys::Exists(url))
         {
             // In order to support windows paths with drive letter we
             // first test if the url is a valid file

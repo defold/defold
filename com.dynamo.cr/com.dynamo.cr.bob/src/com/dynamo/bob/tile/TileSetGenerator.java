@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -139,7 +139,7 @@ public class TileSetGenerator {
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, names, iterator, 0,
                 tileSet.getInnerPadding(),
-                tileSet.getExtrudeBorders(), false, true, grid_size );
+                tileSet.getExtrudeBorders(), false, true, grid_size, 0, 0);
 
         TextureSet.Builder builder = result.builder;
 

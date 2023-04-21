@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,6 +37,11 @@ namespace dmDDF
             bool write_result;
             FieldDescriptor* field_desc = &desc->m_Fields[i];
             Type type = (Type) field_desc->m_Type;
+
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX && field_desc->m_OneOfSet == 0)
+            {
+                continue;
+            }
 
     #define DDF_SAVEMESSAGE_CASE(t, wt, func) \
             write_result = output_stream.WriteTag(field_desc->m_Number, wt) && \

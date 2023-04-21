@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,11 +32,13 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.lang.NumberFormatException;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -52,21 +54,24 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.logging.LogFormatter;
+import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
 
 public class Bob {
+    private static Logger logger = Logger.getLogger(Bob.class.getName());
 
     public static final String VARIANT_DEBUG = "debug";
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
-    private static boolean verbose = false;
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
-
+    
     public Bob() {
     }
 
@@ -203,7 +208,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -501,7 +506,8 @@ public class Bob {
 
         addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
 
-        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", false);
+        addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
+        addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
         addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
@@ -532,6 +538,8 @@ public class Bob {
 
         addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
         addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
+
+        addOption(options, null, "max-cpu-threads", true, "Max count of threads that bob.jar can use", false);
 
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
@@ -603,8 +611,10 @@ public class Bob {
         }
         project.mount(new ClassLoaderResourceScanner());
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal", "build"));
+        TimeProfiler.start("findSources");
         project.findSources(sourceDirectory, skipDirs);
+        TimeProfiler.stop();
     }
 
     private static void validateChoices(String optionName, String value, List<String> validChoices) {
@@ -636,23 +646,26 @@ public class Bob {
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
+        
         String cwd = new File(".").getAbsolutePath();
 
         CommandLine cmd = parse(args);
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
-        verbose = cmd.hasOption('v');
+
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
-            String path = cmd.getOptionValue("build-report");
-            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
-            if (path == null) {
-                path = cmd.getOptionValue("build-report-html");
-                format = TimeProfiler.ReportFormat.HTML;
+            List<File> reportFiles = new ArrayList<>();
+            String jsonReportPath = cmd.getOptionValue("build-report");
+            if (jsonReportPath != null) {
+                reportFiles.add(new File(jsonReportPath));
             }
-            File report = new File(path);
-            TimeProfiler.init(report, format, false);
+            String htmlReportPath = cmd.getOptionValue("build-report-html");
+            if (htmlReportPath != null) {
+                reportFiles.add(new File(htmlReportPath));
+            }
+            TimeProfiler.init(reportFiles, false);
         }
 
         if (cmd.hasOption("version")) {
@@ -686,6 +699,9 @@ public class Bob {
             }
         }
 
+        boolean verbose = cmd.hasOption('v');
+        LogHelper.setVerboseLogging(verbose);
+
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
         Project project = createProject(rootDirectory, buildDirectory, email, auth);
@@ -704,8 +720,10 @@ public class Bob {
 
         project.loadProjectFile();
 
+        TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
         setupProject(project, shouldResolveLibs, sourceDirectory);
+        TimeProfiler.stop();
 
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
@@ -714,6 +732,23 @@ public class Bob {
         if (cmd.hasOption("use-vanilla-lua")) {
             System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
             project.setOption("use-uncompressed-lua-source", "true");
+        }
+
+        if (cmd.hasOption("build-report")) {
+            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
+            project.setOption("build-report-json", "true");
+        }
+
+        if (cmd.hasOption("max-cpu-threads")) {
+            try {
+                Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
+            }
+            catch (NumberFormatException ex) {
+                System.out.println("`--max-cpu-threads` expects integer value.");
+                ex.printStackTrace();
+                System.exit(1);
+                return;
+            }
         }
 
         Option[] options = cmd.getOptions();
@@ -875,9 +910,7 @@ public class Bob {
         if (e.getCause() != null) {
             System.err.println("Cause: " + e.getCause());
         }
-        if (verbose) {
-            e.printStackTrace();
-        }
+        logger.severe(e.getMessage(), e);
         System.exit(1);
     }
 
@@ -889,7 +922,6 @@ public class Bob {
         } catch (Exception e) {
             logErrorAndExit(e);
         }
-
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
@@ -900,11 +932,4 @@ public class Bob {
         }
         return value;
     }
-
-    public static void verbose(String message, Object... args) {
-        if (verbose) {
-            System.out.println("Bob: " + String.format(message, args));
-        }
-    }
-
 }

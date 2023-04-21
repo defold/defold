@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,19 +36,20 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 ## **********************************************************************************************
 # Darwin
 
-VERSION_XCODE="13.2.1" # we also use this to match version on Github Actions
-VERSION_MACOSX="12.1"
-VERSION_IPHONEOS="15.2"
-VERSION_XCODE_CLANG="13.0.0"
-VERSION_IPHONESIMULATOR="15.2"
+# A list of minimum versions here: https://developer.apple.com/support/xcode/
+
+VERSION_XCODE="14.2" # we also use this to match version on Github Actions
+VERSION_MACOSX="13.1"
+VERSION_IPHONEOS="16.2"
+VERSION_XCODE_CLANG="14.0.0"
+VERSION_IPHONESIMULATOR="16.2"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-VERSION_IPHONEOS_MIN="9.0"
-VERSION_MACOSX_MIN="10.7"
+VERSION_IPHONEOS_MIN="11.0"
+VERSION_MACOSX_MIN="10.13"
 
-VERSION_XCODE_CLANG="13.0.0"
 SWIFT_VERSION="5.5"
 
 VERSION_LINUX_CLANG="13.0.0"
@@ -58,7 +59,7 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 ## **********************************************************************************************
 # Android
 
-ANDROID_NDK_VERSION='20'
+ANDROID_NDK_VERSION='25b'
 
 ## **********************************************************************************************
 # Win32
@@ -131,15 +132,16 @@ def get_local_darwin_toolchain_path():
 def get_local_darwin_toolchain_version():
     if not os.path.exists('/usr/bin/xcodebuild'):
         return VERSION_XCODE
-    # Xcode 12.5.1
-    # Build version 12E507
+    # Xcode 14.2
+    # Build version 14C18
     xcode_version_full = run.shell_command('/usr/bin/xcodebuild -version')
     xcode_version_lines = xcode_version_full.split("\n")
     xcode_version = xcode_version_lines[0].split()[1].strip()
     return xcode_version
 
 def get_local_darwin_clang_version():
-    # Apple clang version 13.1.6 (clang-1316.0.21.2.5)
+    # Apple clang version 14.0.0 (clang-1400.0.29.202)
+    # Target: x86_64-apple-darwin22.3.0
     version_full = run.shell_command('clang --version')
     version_lines = version_full.split("\n")
     version = version_lines[0].split()[3].strip()

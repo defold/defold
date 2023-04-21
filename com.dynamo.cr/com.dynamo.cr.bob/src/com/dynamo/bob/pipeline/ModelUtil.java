@@ -1,10 +1,12 @@
-// Copyright 2020 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,8 +37,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Vector;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Vector;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -63,9 +66,10 @@ import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
-
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
+import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Model;
 import com.dynamo.bob.pipeline.ModelImporter.Node;
 import com.dynamo.bob.pipeline.ModelImporter.Options;
@@ -81,21 +85,34 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
-    public static Scene loadScene(byte[] content, String path, Options options) {
+    public static Scene loadScene(byte[] content, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
         if (options == null)
             options = new Options();
-        Scene scene = ModelImporter.LoadFromBuffer(options, path, content);
+
+        Scene scene = ModelImporter.LoadFromBuffer(options, path, content, dataResolver);
+
+        for (ModelImporter.Buffer buffer : scene.buffers)
+        {
+            if (buffer.buffer == null)
+                throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
+        }
+
         if (scene != null)
             return loadInternal(scene, options);
+
         return scene;
     }
 
-    public static Scene loadScene(InputStream stream, String path, Options options) throws IOException {
+    public static Scene loadScene(InputStream stream, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, path, options);
+        return loadScene(bytes, path, options, dataResolver);
     }
 
     public static void unloadScene(Scene scene) {
+    }
+
+    private static Vector3 toDDFVector3(ModelImporter.Vec4 v) {
+        return MathUtil.vecmathToDDF(new Vector3d(v.x, v.y, v.z));
     }
 
     private static Transform toDDFTransform(ModelImporter.Transform transform) {
@@ -241,8 +258,9 @@ public class ModelUtil {
         }
     }
 
-    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        Scene scene = loadScene(content, suffix, options);
+    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ModelImporter.DataResolver dataResolver,
+                                        ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
+        Scene scene = loadScene(content, suffix, options, dataResolver);
         loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
 
@@ -445,6 +463,7 @@ public class ModelUtil {
                 newMesh = new Mesh();
                 newMesh.material = inMesh.material;
                 newMesh.name = String.format("%s_%d", inMesh.name, outMeshes.size());
+                newMesh.aabb = new Aabb(inMesh.aabb);
 
                 newMesh.texCoords0NumComponents = inMesh.texCoords0NumComponents;
                 newMesh.texCoords1NumComponents = inMesh.texCoords1NumComponents;
@@ -574,6 +593,9 @@ public class ModelUtil {
         float[] normals = mesh.normals;
         float[] texCoords0 = mesh.getTexCoords(0);
         float[] texCoords1 = mesh.getTexCoords(1);
+
+        meshBuilder.setAabbMin(toDDFVector3(mesh.aabb.min));
+        meshBuilder.setAabbMax(toDDFVector3(mesh.aabb.max));
 
         if (mesh.positions != null)
             meshBuilder.addAllPositions(toList(mesh.positions));
@@ -757,8 +779,8 @@ public class ModelUtil {
         return skeleton;
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options) {
-        Scene scene = loadScene(content, suffix, options);
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
+        Scene scene = loadScene(content, suffix, options, dataResolver);
         return loadSkeleton(scene);
     }
 
@@ -813,6 +835,12 @@ public class ModelUtil {
         skeletonBuilder.addAllBones(ddfBones);
     }
 
+    // For editor in a migration period
+    public static ModelImporter.DataResolver createFileDataResolver(File cwd) {
+        return new ModelImporter.FileDataResolver(cwd);
+    }
+
+
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
@@ -832,7 +860,20 @@ public class ModelUtil {
             long timeStart = System.currentTimeMillis();
 
             InputStream is = new FileInputStream(file);
-            scene = loadScene(is, file.getPath(), new ModelImporter.Options());
+            byte[] bytes = IOUtils.toByteArray(is);
+
+            ModelImporter.FileDataResolver dataResolver = new ModelImporter.FileDataResolver();
+            scene = loadScene(bytes, file.getPath(), new ModelImporter.Options(), dataResolver);
+
+            // **********************************
+            for (ModelImporter.Buffer buffer : scene.buffers) {
+                if (buffer.buffer == null)
+                {
+                    System.out.printf("Unresolved buffer: %s\n");
+                }
+            }
+            // **********************************
+
 
             long timeEnd = System.currentTimeMillis();
             System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));

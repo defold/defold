@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -109,17 +109,60 @@ namespace dmGraphics
         return true;
     }
 
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
     static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
-            case ADAPTER_TYPE_NULL:   return "null";
-            case ADAPTER_TYPE_OPENGL: return "opengl";
-            case ADAPTER_TYPE_VULKAN: return "vulkan";
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
             default: break;
         }
         return "<unknown adapter type>";
     }
+
+    const char* GetTextureTypeLiteral(TextureType texture_type)
+    {
+        switch(texture_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            default:break;
+        }
+        return "<unknown texture type>";
+    }
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR0_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR1_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR2_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR3_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_DEPTH_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
+            default:break;
+        }
+        return "<unknown buffer type>";
+    }
+
+    const char* GetAssetTypeLiteral(AssetType type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_TEXTURE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
+            default:break;
+        }
+        return "<unknown asset type>";
+    }
+
+    #undef GRAPHICS_ENUM_TO_STR_CASE
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -177,15 +220,45 @@ namespace dmGraphics
     {
         ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
+
+        ShaderDesc::Shader* selected_shader = 0x0;
+
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
             if(shader->m_Language == language)
             {
-                return shader;
+                if (shader->m_VariantTextureArray)
+                {
+                    // Only select this variant if we don't support texture arrays natively
+                    if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+                    {
+                        return shader;
+                    }
+                }
+                else
+                {
+                    selected_shader = shader;
+                }
             }
         }
-        return 0x0;
+        assert(selected_shader);
+        return selected_shader;
+    }
+
+    uint32_t GetBufferTypeIndex(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:  return 0;
+            case BUFFER_TYPE_COLOR1_BIT:  return 1;
+            case BUFFER_TYPE_COLOR2_BIT:  return 2;
+            case BUFFER_TYPE_COLOR3_BIT:  return 3;
+            case BUFFER_TYPE_DEPTH_BIT:   return 4;
+            case BUFFER_TYPE_STENCIL_BIT: return 5;
+            default: break;
+        }
+        return ~0u;
     }
 
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
@@ -197,14 +270,20 @@ namespace dmGraphics
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize)
     {
+        AddVertexStream(stream_declaration, dmHashString64(name), size, type, normalize);
+    }
+
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
+    {
         if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
         {
-            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)", name, MAX_VERTEX_STREAM_COUNT);
+            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)",
+                dmHashReverseSafe64(name_hash), MAX_VERTEX_STREAM_COUNT);
             return;
         }
 
         uint8_t stream_index = stream_declaration->m_StreamCount;
-        stream_declaration->m_Streams[stream_index].m_Name      = name;
+        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
         stream_declaration->m_Streams[stream_index].m_Size      = size;
         stream_declaration->m_Streams[stream_index].m_Type      = type;
         stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
@@ -586,14 +665,6 @@ namespace dmGraphics
     {
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapVertexBuffer(buffer, access);
-    }
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        return g_functions.m_UnmapVertexBuffer(buffer);
-    }
     uint32_t GetMaxElementsVertices(HContext context)
     {
         return g_functions.m_GetMaxElementsVertices(context);
@@ -613,14 +684,6 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
-    }
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapIndexBuffer(buffer, access);
-    }
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        return g_functions.m_UnmapIndexBuffer(buffer);
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
@@ -866,6 +929,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHeight(texture);
     }
+    uint16_t GetTextureDepth(HTexture texture)
+    {
+        return g_functions.m_GetTextureDepth(texture);
+    }
     uint16_t GetOriginalTextureWidth(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureWidth(texture);
@@ -874,9 +941,17 @@ namespace dmGraphics
     {
         return g_functions.m_GetOriginalTextureHeight(texture);
     }
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
+    uint8_t GetTextureMipmapCount(HTexture texture)
     {
-        g_functions.m_EnableTexture(context, unit, texture);
+        return g_functions.m_GetTextureMipmapCount(texture);
+    }
+    TextureType GetTextureType(HTexture texture)
+    {
+        return g_functions.m_GetTextureType(texture);
+    }
+    void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
+    {
+        g_functions.m_EnableTexture(context, unit, id_index, texture);
     }
     void DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
@@ -914,13 +989,22 @@ namespace dmGraphics
     {
         return g_functions.m_GetSupportedExtension(context, index);
     }
-    bool IsMultiTargetRenderingSupported(HContext context)
+    bool IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
-        return g_functions.m_IsMultiTargetRenderingSupported(context);
+        return g_functions.m_IsContextFeatureSupported(context, feature);
     }
     PipelineState GetPipelineState(HContext context)
     {
         return g_functions.m_GetPipelineState(context);
+    }
+    uint8_t GetNumTextureHandles(HTexture texture)
+    {
+        return g_functions.m_GetNumTextureHandles(texture);
+    }
+    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
+    {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
+        return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))

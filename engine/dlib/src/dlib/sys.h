@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -179,6 +179,13 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result Rmdir(const char* path);
+
+    /**
+     * Check if path exists and is a directory
+     * @param path path to directory
+     * @return RESULT_OK on success
+     */
+    Result IsDir(const char* path);
 
     /**
      * Remove directory tree structure and files within

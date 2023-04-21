@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -65,6 +65,7 @@ import com.dynamo.bob.TexcLibrary.CompressionType;
 
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
@@ -164,6 +165,10 @@ public class Fontc {
 
     public InputFontFormat getInputFormat() {
         return inputFormat;
+    }
+
+    private boolean isBitmapFont(FontDesc fd) {
+        return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
     }
 
     public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
@@ -365,7 +370,7 @@ public class Fontc {
         // Shadow_spread is the maximum distance to the glyph outline.
         float sdf_shadow_spread = 0.0f;
 
-        if (this.fontDesc.getFont().toLowerCase().endsWith("fnt"))
+        if (isBitmapFont(this.fontDesc))
         {
             padding = 0;
             cell_padding = 1;
@@ -577,8 +582,9 @@ public class Fontc {
 
                 int py = 0;
                 // Get raster data from rendered glyph and store in glyph data bank
-                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x) {
                     paddedGlyphImage.setRGB(x, py, clearData);
+                }
                 py++;
                 for (int y = 0; y < glyphImage.getHeight(); y++, py++) {
                     int px = 0;
@@ -601,8 +607,9 @@ public class Fontc {
                     }
                     paddedGlyphImage.setRGB(px++, py, clearData);
                 }
-                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
-                    paddedGlyphImage.setRGB(x, 0, clearData);
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x) {
+                    paddedGlyphImage.setRGB(x, py, clearData);
+                }
 
                 Pointer compressedTexture = null;
                 try {
@@ -613,29 +620,37 @@ public class Fontc {
 
                     compressedTexture = TexcLibrary.TEXC_CompressBuffer(paddedBuffer, paddedBuffer.limit());
                     int texcBufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
-                    ByteBuffer buffer = ByteBuffer.allocateDirect(texcBufferSize);
-                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, texcBufferSize);
+                    ByteBuffer compressedBuffer = ByteBuffer.allocateDirect(texcBufferSize);
+                    TexcLibrary.TEXC_GetBufferData(compressedTexture, compressedBuffer, texcBufferSize);
 
-                    byte[] uncompressedBuffer = new byte[paddedBuffer.limit()];
-                    paddedBuffer.get(uncompressedBuffer);
+                    byte[] uncompressedBytes = new byte[paddedBuffer.limit()];
+                    paddedBuffer.get(uncompressedBytes);
 
-                    byte[] compressedBuffer = new byte[buffer.limit()];
-                    buffer.get(compressedBuffer);
+                    byte[] compressedBytes = new byte[compressedBuffer.limit()];
+                    compressedBuffer.get(compressedBytes);
 
-                    int size = uncompressedBuffer.length;
-                    int bufferSize = compressedBuffer.length;
-
-                    if (size < bufferSize)
-                    {
-                        bufferSize = size;
-                        compressedBuffer = uncompressedBuffer;
+                    // If the uncompressed size is smaller we write uncompressed
+                    // bytes instead
+                    // Note that when writing the uncompressed bytes we need to
+                    // also write the initial byte/flag telling the consumer if
+                    // the glyph is compressed or not.
+                    // - In the case of an uncompressed glyph we write a 0.
+                    // - In the case of a compressed glyph this information is
+                    // included in the compressedBytes array so we don't need to
+                    // bother with specifically writing the compressed flag.
+                    if (uncompressedBytes.length <= compressedBytes.length) {
+                        glyph.cache_entry_offset = dataOffset;
+                        glyph.cache_entry_size = 1 + uncompressedBytes.length;
+                        dataOffset += glyph.cache_entry_size;
+                        glyphDataBank.write(0); // uncompressed
+                        glyphDataBank.write(uncompressedBytes);
                     }
-
-                    glyph.cache_entry_offset = dataOffset;
-                    glyph.cache_entry_size = compressedBuffer.length;
-                    dataOffset += glyph.cache_entry_size;
-
-                    glyphDataBank.write(compressedBuffer);
+                    else {
+                        glyph.cache_entry_offset = dataOffset;
+                        glyph.cache_entry_size = compressedBytes.length;
+                        dataOffset += glyph.cache_entry_size;
+                        glyphDataBank.write(compressedBytes);
+                    }
 
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
@@ -930,7 +945,7 @@ public class Fontc {
         this.fontDesc = fontDesc;
         this.fontMapBuilder = FontMap.newBuilder();
 
-        if (fontDesc.getFont().toLowerCase().endsWith("fnt")) {
+        if (isBitmapFont(fontDesc)) {
             FNTBuilder(fontStream);
         } else {
             TTFBuilder(fontStream);
@@ -985,6 +1000,7 @@ public class Fontc {
         return previewImage;
     }
 
+    // run with java -cp bob.jar com.dynamo.bob.font.Fontc foobar.font foobar.fontc
     public static void main(String[] args) throws FontFormatException, TextureGeneratorException {
         try {
             System.setProperty("java.awt.headless", "true");
@@ -1028,7 +1044,7 @@ public class Fontc {
             Fontc fontc = new Fontc();
             String fontInputFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontInputStream = new BufferedInputStream(new FileInputStream(fontInputFile));
-            fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+            BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
 
                 @Override
                 public InputStream getResource(String resourceName) throws FileNotFoundException {
@@ -1039,6 +1055,10 @@ public class Fontc {
                 }
             });
             fontInputStream.close();
+
+            if (previewImage != null) {
+                ImageIO.write(previewImage, "png", new File(outfile + "_preview.png"));
+            }
 
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);

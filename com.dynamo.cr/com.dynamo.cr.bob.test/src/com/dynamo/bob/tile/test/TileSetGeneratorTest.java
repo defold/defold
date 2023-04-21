@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -100,7 +100,7 @@ public class TileSetGeneratorTest {
 
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image);
         TextureSet textureSet = result.builder.setTexture("").build();
-        BufferedImage texture = result.image;
+        BufferedImage texture = result.images.get(0);
 
         assertEquals(512, texture.getWidth());
         assertEquals(512, texture.getHeight());
@@ -138,7 +138,7 @@ public class TileSetGeneratorTest {
 
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image);
         TextureSet textureSet = result.builder.setTexture("").build();
-        BufferedImage texture = result.image;
+        BufferedImage texture = result.images.get(0);
 
         assertEquals(1, texture.getWidth());
         assertEquals(16, texture.getHeight());
@@ -160,7 +160,7 @@ public class TileSetGeneratorTest {
 
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image);
         TextureSet textureSet = result.builder.setTexture("").build();
-        BufferedImage texture = result.image;
+        BufferedImage texture = result.images.get(0);
 
         assertEquals(4, texture.getWidth());
         assertEquals(32, texture.getHeight());

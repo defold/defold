@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,10 +52,14 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -84,6 +88,8 @@ import com.google.protobuf.Message;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         handle.deleteOnExit();
@@ -196,7 +202,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
-        Bob.verbose("GameProjectBuilder.createArchive\n");
+        logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
@@ -232,14 +238,15 @@ public class GameProjectBuilder extends Builder<Void> {
         archiveData.close();
 
         // Populate publisher with the resource pack
-        for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
-            if (fhandle.isFile()) {
-                project.getPublisher().AddEntry(fhandle.getName(), fhandle);
-            }
+        Publisher publisher = project.getPublisher();
+        List<ArchiveEntry> excluded = archiveBuilder.getExcludedEntries();
+        for (ArchiveEntry entry : excluded) {
+            File f = new File(resourcePackDirectory.toAbsolutePath().toString(), entry.getHexDigest());
+            publisher.AddEntry(f, entry);
         }
 
         long tend = System.currentTimeMillis();
-        Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
+        logger.info("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
         TimeProfiler.stop();
     }
 
@@ -480,7 +487,7 @@ public class GameProjectBuilder extends Builder<Void> {
             publicKeyFilepath = publicKeyFileHandle.getAbsolutePath();
 
             if (!privateKeyFileHandle.exists() || !publicKeyFileHandle.exists()) {
-                Bob.verbose("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
+                logger.info("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
                 try {
                     ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
                 } catch (NoSuchAlgorithmException exception) {
@@ -552,6 +559,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 for (IResource resource : task.getOutputs()) {
                     resources.remove(resource.getAbsPath());
                 }
+                // compcounter files shouldn't be included into archive
+                ComponentsCounter.excludeCounterPaths(resources);
 
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");
@@ -582,12 +591,15 @@ public class GameProjectBuilder extends Builder<Void> {
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
-                // Add copy of game.dmanifest to be published with liveuodate resources
+                // Add copy of game.dmanifest to be published with liveupdate resources
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
                 String liveupdateManifestFilename = "liveupdate.game.dmanifest";
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
-                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+
+                String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
+                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath().toString());
+                project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
                 project.getPublisher().Publish();
 
                 // Copy SSL public keys if specified

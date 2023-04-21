@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -237,6 +237,7 @@ public:
 struct CollectionFactoryTestParams
 {
     const char* m_GOPath;
+    const char* m_PrototypePath; // If set, then it uses "Dynamic Prototype"
     bool m_IsDynamic;
     bool m_IsPreloaded;
 };
@@ -465,6 +466,7 @@ void GamesysTest<T>::SetUp()
     m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
+    m_CollectionFactoryContext.m_Factory = m_Factory;
 
     m_LabelContext.m_RenderContext = m_RenderContext;
     m_LabelContext.m_MaxLabelCount = 32;

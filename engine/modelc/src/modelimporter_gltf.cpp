@@ -1,5 +1,5 @@
 
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,6 +37,10 @@
 
 namespace dmModelImporter
 {
+struct GltfData
+{
+    cgltf_data* m_Data;
+};
 
 static void OutputTransform(const dmTransform::Transform& transform)
 {
@@ -149,15 +153,30 @@ static const char* GetInterpolationTypeStr(cgltf_interpolation_type type)
 }
 
 
-static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components)
+static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components, float default_value)
 {
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
 
     if (desired_num_components == 0)
         desired_num_components = num_components;
 
-    float* out = new float[accessor->count * num_components];
+    uint32_t size = accessor->count * num_components;
+    if (desired_num_components > num_components)
+        size = accessor->count * desired_num_components;
+
+    float* out = new float[size]; // Now the buffer will fit the max num components
     float* writeptr = out;
+
+    if (desired_num_components > num_components)
+    {
+        for (uint32_t i = 0; i < accessor->count; ++i)
+        {
+            for (uint32_t j = 0; j < desired_num_components; ++j)
+                *writeptr++ = default_value;
+        }
+    }
+
+    writeptr = out;
 
     for (uint32_t i = 0; i < accessor->count; ++i)
     {
@@ -219,11 +238,6 @@ static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, floa
     return out;
 }
 
-
-
-static void DestroyGltf(void* opaque_scene_data);
-
-
 static uint32_t FindNodeIndex(cgltf_node* node, uint32_t nodes_count, cgltf_node* nodes)
 {
     for (uint32_t i = 0; i < nodes_count; ++i)
@@ -284,7 +298,7 @@ static char* CreateObjectName(T* object, const char* prefix, uint32_t index)
 }
 
 template <>
-static char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
+char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
 {
     (void)object;
     return CreateNameFromHash("mesh", index);
@@ -387,6 +401,20 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
+{
+    aabb->m_Min[0] = aabb->m_Min[1] = aabb->m_Min[2] = FLT_MAX;
+    aabb->m_Max[0] = aabb->m_Max[1] = aabb->m_Max[2] = -FLT_MAX;
+    for (uint32_t j = 0; j < count; j += 3, positions += 3)
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            aabb->m_Min[i] = dmMath::Min(aabb->m_Min[i], positions[i]);
+            aabb->m_Max[i] = dmMath::Max(aabb->m_Max[i], positions[i]);
+        }
+    }
+}
+
 static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
@@ -412,16 +440,23 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
         {
             cgltf_attribute* attribute = &prim->attributes[a];
             cgltf_accessor* accessor = attribute->data;
-            //printf("  attributes: %s   index: %u   type: %s  count: %u\n", attribute->name, attribute->index, GetAttributeTypeStr(attribute->type), (uint32_t)accessor->count);
 
             mesh->m_VertexCount = accessor->count;
 
             uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
             uint32_t desired_num_components = num_components;
 
+            //printf("  attributes: %s   index: %u   type: %s  count: %u desired_num_components: %u\n", attribute->name, attribute->index, GetAttributeTypeStr(attribute->type), (uint32_t)accessor->count, desired_num_components);
+
+            float default_value_f = 0.0f;
             if (attribute->type == cgltf_attribute_type_tangent)
             {
                 desired_num_components = 3; // for some reason it give 4 elements
+            }
+            else if (attribute->type == cgltf_attribute_type_color)
+            {
+                desired_num_components = 4; // We currently always store vec4
+                default_value_f = 1.0f; // for the alpha channel
             }
 
             float* fdata = 0;
@@ -433,20 +468,29 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
             }
             else
             {
-                fdata = ReadAccessorFloat(accessor, desired_num_components);
+                fdata = ReadAccessorFloat(accessor, desired_num_components, default_value_f);
             }
 
             if (fdata || udata)
             {
                 if (attribute->type == cgltf_attribute_type_position)
+                {
                     mesh->m_Positions = fdata;
-
-                else if (attribute->type == cgltf_attribute_type_normal)
+                    if (accessor->has_min && accessor->has_max) {
+                        memcpy(mesh->m_Aabb.m_Min, accessor->min, sizeof(float)*3);
+                        memcpy(mesh->m_Aabb.m_Max, accessor->max, sizeof(float)*3);
+                    }
+                    else
+                    {
+                        CalcAABB(mesh->m_VertexCount*3, fdata, &mesh->m_Aabb);
+                    }
+                }
+                else if (attribute->type == cgltf_attribute_type_normal) {
                     mesh->m_Normals = fdata;
-
-                else if (attribute->type == cgltf_attribute_type_tangent)
+                }
+                else if (attribute->type == cgltf_attribute_type_tangent) {
                     mesh->m_Tangents = fdata;
-
+                }
                 else if (attribute->type == cgltf_attribute_type_texcoord)
                 {
                     bool flip_v = true; // Possibly move to the option
@@ -834,32 +878,100 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-
-Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
+// Based on cgltf.h: cgltf_load_buffers(...)
+static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path)
 {
-    cgltf_options options;
-    memset(&options, 0, sizeof(cgltf_options));
-
-    cgltf_data* data = NULL;
-    cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
-
-    if (result == cgltf_result_success)
-        result = cgltf_load_buffers(&options, data, 0);
-
-    if (result == cgltf_result_success)
-        result = cgltf_validate(data);
-
-    if (result != cgltf_result_success)
+    if (options == NULL)
     {
-        printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
-        return 0;
+        return cgltf_result_invalid_options;
     }
 
-    Scene* scene = new Scene;
-    memset(scene, 0, sizeof(Scene));
-    scene->m_OpaqueSceneData = (void*)data;
-    scene->m_DestroyFn = DestroyGltf;
+    if (data->buffers_count && data->buffers[0].data == NULL && data->buffers[0].uri == NULL && data->bin)
+    {
+        if (data->bin_size < data->buffers[0].size)
+        {
+            return cgltf_result_data_too_short;
+        }
 
+        data->buffers[0].data = (void*)data->bin;
+        data->buffers[0].data_free_method = cgltf_data_free_method_none;
+    }
+
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (data->buffers[i].data)
+        {
+            continue;
+        }
+
+        const char* uri = data->buffers[i].uri;
+
+        if (uri == NULL)
+        {
+            continue;
+        }
+
+        if (strncmp(uri, "data:", 5) == 0)
+        {
+            const char* comma = strchr(uri, ',');
+
+            if (comma && comma - uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
+            {
+                cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, comma + 1, &data->buffers[i].data);
+                data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
+
+                if (res != cgltf_result_success)
+                {
+                    return res;
+                }
+            }
+            else
+            {
+                return cgltf_result_unknown_format;
+            }
+        }
+        else if (strstr(uri, "://") == NULL && gltf_path)
+        {
+            cgltf_result res = cgltf_load_buffer_file(options, data->buffers[i].size, uri, gltf_path, &data->buffers[i].data);
+            data->buffers[i].data_free_method = cgltf_data_free_method_file_release;
+
+            if (res != cgltf_result_success)
+            {
+                return res;
+            }
+        }
+        // DEFOLD
+        else if (!gltf_path)
+        {
+            continue; // we allow the code to supply the buffers later
+        }
+        // END DEFOLD
+        else
+        {
+            return cgltf_result_unknown_format;
+        }
+    }
+
+    return cgltf_result_success;
+}
+
+static bool HasUnresolvedBuffersInternal(cgltf_data* data)
+{
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (!data->buffers[i].data)
+            return true;
+    }
+    return false;
+}
+
+bool HasUnresolvedBuffers(Scene* scene)
+{
+    return HasUnresolvedBuffersInternal((cgltf_data*)scene->m_OpaqueSceneData);
+}
+
+static void LoadScene(Scene* scene, cgltf_data* data)
+{
     LoadSkins(scene, data);
     LoadNodes(scene, data);
     LoadMeshes(scene, data);
@@ -871,13 +983,109 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     // Make sure the skins have only one root node
     GenerateRootBone(scene);
+}
+
+static bool LoadFinalizeGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    LoadScene(scene, data->m_Data);
+    return true;
+}
+
+static bool ValidateGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_result result = cgltf_validate(data->m_Data);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to validate gltf file: %s (%d)\n", GetResultStr(result), result);
+    }
+    return result == cgltf_result_success;
+}
+
+static void DestroyGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_free(data->m_Data);
+    delete data;
+}
+
+Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
+{
+    cgltf_options options;
+    memset(&options, 0, sizeof(cgltf_options));
+
+    cgltf_data* data = NULL;
+    cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
+
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
+        return 0;
+    }
+
+    // resolve as many buffers as possible
+    result = ResolveBuffers(&options, data, 0);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        return 0;
+    }
+
+    Scene* scene = new Scene;
+    memset(scene, 0, sizeof(Scene));
+    GltfData* scenedata = new GltfData;
+    scenedata->m_Data = data;
+
+    scene->m_OpaqueSceneData = scenedata;
+    scene->m_LoadFinalizeFn = LoadFinalizeGltf;
+    scene->m_ValidateFn = ValidateGltf;
+    scene->m_DestroyFn = DestroyGltf;
+
+    scene->m_BuffersCount = data->buffers_count;
+    scene->m_Buffers = new Buffer[scene->m_BuffersCount];
+
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        scene->m_Buffers[i].m_Uri = data->buffers[i].uri;
+        scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
+        scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
+    }
+
+    if (!NeedsResolve(scene))
+    {
+        LoadFinalizeGltf(scene);
+        ValidateGltf(scene);
+    }
 
     return scene;
 }
 
-static void DestroyGltf(void* opaque_scene_data)
+void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t bufferdata_size)
 {
-    cgltf_free((cgltf_data*)opaque_scene_data);
+    GltfData* scenedata = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_data* data = scenedata->m_Data;
+
+    cgltf_options _options;
+    cgltf_options* options = &_options;
+    memset(options, 0, sizeof(cgltf_options));
+
+    for (cgltf_size i = 0; i < scene->m_BuffersCount; ++i)
+    {
+        Buffer* scenebuffer = &scene->m_Buffers[i];
+        if (strcmp(scenebuffer->m_Uri, uri) == 0)
+        {
+            void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
+            cgltf_buffer* buffer = &data->buffers[i];
+
+            buffer->data = memory_alloc(options->memory.user_data, buffer->size);
+            buffer->data_free_method = cgltf_data_free_method_memory_free;
+
+            memcpy(buffer->data, bufferdata, bufferdata_size);
+            scenebuffer->m_Buffer = buffer->data;
+            return;
+        }
+    }
 }
 
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -79,6 +79,7 @@ namespace dmInput
 
     HContext NewContext(const NewContextParams& params);
     void DeleteContext(HContext context);
+    void Update(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 
     HBinding NewBinding(HContext context);
@@ -102,7 +103,7 @@ namespace dmInput
     typedef void (*ActionCallback)(dmhash_t action_id, Action* action, void* user_data);
 
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
-    void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
+    bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
 }
 
 #endif // DM_INPUT_H

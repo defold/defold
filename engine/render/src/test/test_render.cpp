@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -404,7 +404,6 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
-
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);

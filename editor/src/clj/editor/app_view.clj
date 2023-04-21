@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,7 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
-            [editor.code.data :refer [CursorRange->line-number]]
+            [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -49,6 +49,7 @@
             [editor.icons :as icons]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
+            [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -74,14 +75,17 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.editor Editor]
            [com.defold.editor UIUtil]
+           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -790,6 +794,22 @@
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
+(defn- get-cycle-detected-help-message [node-id]
+  (let [basis (g/now)
+        proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
+        resource-path (or proj-path "'unknown'")]
+    (case (g/node-type-kw basis node-id)
+      :editor.collection/CollectionNode
+      (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is: %s." resource-path)
+
+      :editor.game-object/GameObjectNode
+      (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is: %s." resource-path)
+
+      :editor.code.script/ScriptNode
+      (format "This is caused by two or more Lua modules required in a loop. One of the resources is: %s." resource-path)
+
+      (format "This is caused by two or more resources referenced in a loop. One of the resources is: %s." resource-path))))
+
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
@@ -797,11 +817,68 @@
     (try
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+      (catch ExceptionInfo e
+        (if (= :cycle-detected (-> e ex-data :cause))
+          (ui/run-later
+            (dialogs/make-info-dialog
+              {:title "Build Error"
+               :icon :icon/triangle-error
+               :header "Cyclic resource dependency detected"
+               :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
+                         :text (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))}}))
+          (error-reporting/report-exception! e))
+        {:error (g/map->error {:severity :fatal
+                               :message (or (when (= :cycle-detected (-> e ex-data :cause))
+                                              (str "Cyclic resource dependency detected. " (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))))
+                                            (.getMessage e)
+                                            (.getName (class e)))})})
       (catch Throwable error
         (error-reporting/report-exception! error)
-        nil))))
+        {:error (g/map->error {:severity :fatal
+                               :message (or (.getMessage error) (.getName (class error)))})}))))
 
-(defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
+(defn async-build!
+  "Asynchronously build the project and notify the :result-fn with results
+
+  Kv-args:
+    :result-fn           required fn that will receive build results, a map with
+                         the following keys:
+                         * :artifacts, :artifact-map and :etags - results for
+                           successfully built project resources
+                         * :engine - engine descriptor map when asked to build
+                           the engine, and it was successfully built
+                         * :error - error value in case of any errors, be it
+                           project resources, linting or engine build error
+                         * :warning - error value in case there are non-critical
+                           issues reported by the build process
+    :build-engine        optional flag that indicates whether the engine should
+                         be built in addition to the project
+    :lint                optional flag that indicates whether to run LSP lints
+                         and present the diagnostics alongside the build errors
+    :prefs               required if :build-engine is true, preferences for
+                         engine building, e.g. the build server settings
+    :debug               optional flag that indicates whether to also build
+                         debugging tools
+    :run-build-hooks     optional flag that indicates whether to run pre- and
+                         post-build hooks
+    :render-progress!    optional progress reporter fn
+    :old-artifact-map    optional old artifact map with previous build results
+                         to speed up the build process"
+  [project & {:keys [;; required
+                     result-fn
+                     ;; required if :build-engine is true (which is a default)
+                     prefs
+                     ;; optional
+                     debug build-engine run-build-hooks render-progress! old-artifact-map lint]
+              :or {debug false
+                   build-engine true
+                   run-build-hooks true
+                   lint true
+                   render-progress! progress/null-render-progress!
+                   old-artifact-map {}}}]
+  {:pre [(ifn? result-fn)
+         (or (not build-engine) (some? prefs))]}
   (let [;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
@@ -818,7 +895,7 @@
         (fn start-engine-build! []
           (assert (ui/on-ui-thread?))
           (cancel-engine-build!)
-          (when engine?
+          (when build-engine
             (let [evaluation-context (g/make-evaluation-context)
                   platform (engine/current-platform)]
               (reset! engine-build-future-atom
@@ -835,6 +912,12 @@
                             error))))
               nil)))
 
+        lint-promise (promise)
+
+        start-lint!
+        (fn start-lint! []
+          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-node-lsp project) lint-promise)))
+
         run-on-background-thread!
         (fn run-on-background-thread! [background-thread-fn ui-thread-fn]
           (future
@@ -845,44 +928,87 @@
                     (ui-thread-fn return-value)
                     (catch Throwable error
                       (reset! build-in-progress-atom false)
-                      (render-build-progress! progress/done)
+                      (render-progress! progress/done)
                       (cancel-engine-build!)
                       (throw error)))))
               (catch Throwable error
                 (reset! build-in-progress-atom false)
-                (render-build-progress! progress/done)
+                (render-progress! progress/done)
                 (cancel-engine-build!)
                 (error-reporting/report-exception! error))))
           nil)
 
         finish-with-result!
-        (fn finish-with-result! [project-build-results engine build-engine-exception]
+        (fn finish-with-result! [project-build-results]
           (reset! build-in-progress-atom false)
-          (render-build-progress! progress/done)
+          (render-progress! progress/done)
           (cancel-engine-build!)
-          (when (some? result-fn)
-            (result-fn project-build-results engine build-engine-exception)
-            nil))
+          (result-fn project-build-results)
+          nil)
+
+        phase-6-await-lint!
+        (fn phase-6-await-lint! [project-build-results]
+          (if lint
+            (do
+              (render-progress! (progress/make-indeterminate "Linting code..."))
+              (run-on-background-thread!
+                (fn await-lint-on-background-thread! []
+                  (deref lint-promise))
+                (fn process-lint-results-on-ui-thread! [results]
+                  (if results
+                    (g/with-auto-evaluation-context evaluation-context
+                      (let [{errors true warnings false}
+                            (->> results
+                                 (eduction
+                                   (mapcat
+                                     (fn [[resource diagnostic-ranges]]
+                                       (when-let [node-id (project/get-resource-node project resource evaluation-context)]
+                                         (eduction
+                                           (map (fn [{:keys [severity message] :as diagnostic-range}]
+                                                  (g/map->error
+                                                    {:_node-id node-id
+                                                     :severity (case severity
+                                                                 :error :fatal
+                                                                 :warning :warning
+                                                                 :information :info
+                                                                 :hint :info)
+                                                     :user-data {:cursor-range (data/sanitize-cursor-range diagnostic-range)}
+                                                     :message message})))
+                                           diagnostic-ranges)))))
+                                 (group-by #(= :fatal (:severity %))))]
+                        (finish-with-result!
+                          (cond-> project-build-results
+                                  errors
+                                  (update :error (fn [existing-error]
+                                                   (g/map->error {:causes (cond-> errors existing-error (conj existing-error))})))
+                                  warnings
+                                  (assoc :warning (g/map->error {:causes warnings}))))))
+                    (finish-with-result! project-build-results)))))
+            (finish-with-result! project-build-results)))
 
         phase-5-await-engine-build!
         (fn phase-5-await-engine-build! [project-build-results]
           (assert (nil? (:error project-build-results)))
           (let [engine-build-future @engine-build-future-atom]
             (if (nil? engine-build-future)
-              (finish-with-result! project-build-results nil nil)
+              (phase-6-await-lint! project-build-results)
               (do
-                (render-build-progress! (progress/make-indeterminate "Fetching engine..."))
+                (render-progress! (progress/make-indeterminate "Fetching engine..."))
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
                   (fn process-engine-build-results-on-ui-thread! [engine-or-exception]
                     (if (instance? Throwable engine-or-exception)
-                      (finish-with-result! project-build-results nil engine-or-exception)
-                      (finish-with-result! project-build-results engine-or-exception nil))))))))
+                      (phase-6-await-lint!
+                        (assoc project-build-results
+                          :error (g/with-auto-evaluation-context evaluation-context
+                                   (engine-build-errors/exception->error-value engine-or-exception project evaluation-context))))
+                      (phase-6-await-lint!
+                        (assoc project-build-results :engine engine-or-exception)))))))))
 
         phase-4-run-post-build-hook!
         (fn phase-4-run-post-build-hook! [project-build-results]
-          (render-build-progress! (progress/make-indeterminate "Executing post-build hooks..."))
+          (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
           (let [platform (engine/current-platform)
                 project-build-successful? (nil? (:error project-build-results))]
             (run-on-background-thread!
@@ -895,7 +1021,7 @@
               (fn process-post-build-hook-results-on-ui-thread! [_]
                 (if project-build-successful?
                   (phase-5-await-engine-build! project-build-results)
-                  (finish-with-result! project-build-results nil nil))))))
+                  (finish-with-result! project-build-results))))))
 
         phase-3-build-project!
         (fn phase-3-build-project! []
@@ -908,25 +1034,29 @@
           ;; risk evicting the previous build targets as the cache fills up.
           (assert (ui/on-ui-thread?))
           (let [evaluation-context (g/make-evaluation-context)]
-            (render-build-progress! (progress/make "Building project..." 1))
+            (render-progress! (progress/make "Building project..." 1))
             (run-on-background-thread!
               (fn run-project-build-on-background-thread! []
                 (let [extra-build-targets
-                      (when debug?
+                      (when debug
                         (debug-view/build-targets project evaluation-context))]
-                  (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
+                  (build-project! project evaluation-context extra-build-targets old-artifact-map render-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
-                (phase-4-run-post-build-hook! project-build-results)))))
+                (cond
+                  run-build-hooks (phase-4-run-post-build-hook! project-build-results)
+                  (nil? (:error project-build-results)) (phase-5-await-engine-build! project-build-results)
+                  :else (finish-with-result! project-build-results))))))
 
-        phase-2-start-engine-build!
-        (fn phase-2-start-engine-build! []
+        phase-2-start-all-build-processes!
+        (fn phase-2-start-all-build-processes! []
           (start-engine-build!)
+          (start-lint!)
           (phase-3-build-project!))
 
         phase-1-run-pre-build-hook!
         (fn phase-1-run-pre-build-hook! []
-          (render-build-progress! (progress/make-indeterminate "Executing pre-build hooks..."))
+          (render-progress! (progress/make-indeterminate "Executing pre-build hooks..."))
           (let [platform (engine/current-platform)]
             (run-on-background-thread!
               (fn run-pre-build-hook-on-background-thread! []
@@ -940,7 +1070,7 @@
                   ;; with the project build. But we still want to report the build
                   ;; failure to any post-build hooks that might need to know.
                   (when (some? extension-error)
-                    (render-build-progress! (progress/make-indeterminate "Executing post-build hooks..."))
+                    (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
                     (extensions/execute-hook!
                       project
                       :on-build-finished
@@ -950,8 +1080,8 @@
                   extension-error))
               (fn process-pre-build-hook-results-on-ui-thread! [extension-error]
                 (if (some? extension-error)
-                  (finish-with-result! {:error extension-error} nil nil)
-                  (phase-2-start-engine-build!))))))]
+                  (finish-with-result! {:error extension-error})
+                  (phase-2-start-all-build-processes!))))))]
     ;; Trigger phase 1. Subsequent phases will be triggered as prior phases
     ;; finish without errors. Each phase will do some work on a background
     ;; thread, then process the results on the ui thread, and potentially
@@ -959,19 +1089,27 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (phase-1-run-pre-build-hook!)))
+    (if run-build-hooks
+      (phase-1-run-pre-build-hook!)
+      (phase-2-start-all-build-processes!))))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
-  (let [{:keys [error artifact-map etags]} build-results]
+  (let [{:keys [error warning artifact-map etags]} build-results
+        rendered-error (cond
+                         (and error warning) (g/map->error {:causes [error warning]})
+                         error error
+                         warning warning)]
     (if (some? error)
       (do
-        (render-build-error! error)
-        nil)
+        (render-build-error! rendered-error)
+        false)
       (do
+        (when rendered-error
+          (render-build-error! rendered-error))
         (workspace/artifact-map! workspace artifact-map)
         (workspace/etags! workspace etags)
         (workspace/save-build-cache! workspace)
-        build-results))))
+        true))))
 
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
@@ -979,17 +1117,17 @@
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project prefs {:debug? false :engine? (not skip-engine)} (workspace/artifact-map workspace)
-                  (make-render-task-progress :build)
-                  (fn [build-results engine-descriptor build-engine-exception]
-                    (when (handle-build-results! workspace render-build-error! build-results)
-                      (when (or engine-descriptor skip-engine)
-                        (show-console! main-scene tool-tab-pane)
-                        (launch-built-project! project engine-descriptor project-directory prefs web-server false))
-                      (when build-engine-exception
-                        (log/warn :exception build-engine-exception)
-                        (g/with-auto-evaluation-context evaluation-context
-                          (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
+    (async-build! project
+                  :debug false
+                  :build-engine (not skip-engine)
+                  :prefs prefs
+                  :render-progress! (make-render-task-progress :build)
+                  :old-artifact-map (workspace/artifact-map workspace)
+                  :result-fn (fn [{:keys [engine] :as build-results}]
+                               (when (handle-build-results! workspace render-build-error! build-results)
+                                 (when (or engine skip-engine)
+                                   (show-console! main-scene tool-tab-pane)
+                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not (build-in-progress?)))
@@ -1015,27 +1153,32 @@ If you do not specifically require different script states, consider changing th
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (io/file (workspace/project-path workspace))
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
-    (async-build! project prefs {:debug? true :engine? (not skip-engine)} (workspace/artifact-map workspace)
-                  (make-render-task-progress :build)
-                  (fn [build-results engine-descriptor build-engine-exception]
-                    (when (handle-build-results! workspace render-build-error! build-results)
-                      (when (or engine-descriptor skip-engine)
-                        (when-let [target (launch-built-project! project engine-descriptor project-directory prefs web-server true)]
-                          (when (nil? (debug-view/current-session debug-view))
-                            (debug-view/start-debugger! debug-view project (:address target "localhost")))))
-                      (when build-engine-exception
-                        (log/warn :exception build-engine-exception)
-                        (g/with-auto-evaluation-context evaluation-context
-                          (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
+    (async-build! project
+                  :debug true
+                  :build-engine (not skip-engine)
+                  :prefs prefs
+                  :render-progress! (make-render-task-progress :build)
+                  :old-artifact-map (workspace/artifact-map workspace)
+                  :result-fn (fn [{:keys [engine] :as build-results}]
+                               (when (handle-build-results! workspace render-build-error! build-results)
+                                 (when (or engine skip-engine)
+                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+                                     (when (nil? (debug-view/current-session debug-view))
+                                       (debug-view/start-debugger! debug-view project (:address target "localhost"))))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (async-build! project prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
-                (make-render-task-progress :build)
-                (fn [build-results _ _]
-                  (when (handle-build-results! workspace render-build-error! build-results)
-                    (let [target (targets/selected-target prefs)]
-                      (when (targets/controllable-target? target)
-                        (debug-view/attach! debug-view project target (:artifacts build-results))))))))
+  (async-build! project
+                :debug true
+                :build-engine false
+                :run-build-hooks false
+                :lint false
+                :render-progress! (make-render-task-progress :build)
+                :old-artifact-map (workspace/artifact-map workspace)
+                :result-fn (fn [build-results]
+                             (when (handle-build-results! workspace render-build-error! build-results)
+                               (let [target (targets/selected-target prefs)]
+                                 (when (targets/controllable-target? target)
+                                   (debug-view/attach! debug-view project target (:artifacts build-results))))))))
 
 (handler/defhandler :start-debugger :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -1114,38 +1257,41 @@ If you do not specifically require different script states, consider changing th
   (let [main-scene (.getScene ^Stage main-stage)
         target (targets/selected-target prefs)
         workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
         old-etags (workspace/etags workspace)
-        render-build-progress! (make-render-task-progress :build)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        opts {:debug? false :engine? false}]
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must
     ;; keep track of which resource versions have been loaded by the engine,
     ;; or we might miss resources that were recompiled but never reloaded.
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project prefs opts old-artifact-map render-build-progress!
-                  (fn [{:keys [error artifact-map etags]} _ _]
-                    (if (some? error)
-                      (render-build-error! error)
-                      (do
-                        (workspace/artifact-map! workspace artifact-map)
-                        (workspace/etags! workspace etags)
-                        (workspace/save-build-cache! workspace)
-                        (try
-                          (when-some [updated-build-resources
-                                      (not-empty
-                                        (g/with-auto-evaluation-context evaluation-context
-                                          (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
-                            (engine/reload-build-resources! target updated-build-resources))
-                          (catch Exception e
-                            (dialogs/make-info-dialog
-                              {:title "Hot Reload Failed"
-                               :icon :icon/triangle-error
-                               :header (format "Failed to reload resources on '%s'"
-                                               (targets/target-message-label (targets/selected-target prefs)))
-                               :content (.getMessage e)})))))))))
+    (async-build! project
+                  :debug false
+                  :build-engine false
+                  :run-build-hooks false
+                  :lint false
+                  :render-progress! (make-render-task-progress :build)
+                  :old-artifact-map (workspace/artifact-map workspace)
+                  :result-fn (fn [{:keys [error artifact-map etags]}]
+                               (if (some? error)
+                                 (render-build-error! error)
+                                 (do
+                                   (workspace/artifact-map! workspace artifact-map)
+                                   (workspace/etags! workspace etags)
+                                   (workspace/save-build-cache! workspace)
+                                   (try
+                                     (when-some [updated-build-resources
+                                                 (not-empty
+                                                   (g/with-auto-evaluation-context evaluation-context
+                                                     (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
+                                       (engine/reload-build-resources! target updated-build-resources))
+                                     (catch Exception e
+                                       (dialogs/make-info-dialog
+                                         {:title "Hot Reload Failed"
+                                          :icon :icon/triangle-error
+                                          :header (format "Failed to reload resources on '%s'"
+                                                          (targets/target-message-label (targets/selected-target prefs)))
+                                          :content (.getMessage e)})))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
@@ -1327,6 +1473,15 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-stylesheet :global
   (run [] (ui/reload-root-styles!)))
 
+(handler/defhandler :open-project :global
+  (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
+  (run [] (let [resources-path (system/defold-resourcespath)
+                install-dir (.getCanonicalFile
+                              (case (.getOs (Platform/getHostPlatform))
+                                "macos" (io/file resources-path "../../")
+                                ("linux" "win32") (io/file resources-path)))]
+            (process/start! (system/defold-launcherpath) [] {:directory install-dir}))))
+
 (handler/register-menu! ::menubar
   [{:label "File"
     :id ::file
@@ -1367,6 +1522,8 @@ If you do not specifically require different script states, consider changing th
                {:label "Hot Reload"
                 :command :hot-reload}
                {:label :separator}
+               {:label "Open Project..."
+                :command :open-project}
                {:label "Preferences..."
                 :command :preferences}
                {:label "Quit"
@@ -1523,7 +1680,9 @@ If you do not specifically require different script states, consider changing th
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title
-  ([] "Defold Editor 2.0")
+  ([] (if-some [version (system/defold-version)]
+        (str "Defold " version)
+        "Defold"))
   ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
@@ -1545,11 +1704,11 @@ If you do not specifically require different script states, consider changing th
       (profiler/profile "view" (:name @(g/node-type* node))
         (g/node-value node label)))))
 
-(defn- refresh-scene-views! [app-view]
+(defn- refresh-scene-views! [app-view dt]
   (profiler/begin-frame)
   (doseq [view-id (g/node-value app-view :scene-view-ids)]
     (try
-      (scene/refresh-scene-view! view-id)
+      (scene/refresh-scene-view! view-id dt)
       (catch Throwable error
         (error-reporting/report-exception! error))))
   (scene-cache/prune-context! nil))
@@ -1656,14 +1815,14 @@ If you do not specifically require different script states, consider changing th
 
       (let [refresh-timer (ui/->timer
                             "refresh-app-view"
-                            (fn [_ _]
+                            (fn [_ elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))
-                                  (refresh-scene-views! app-view)
+                                  (refresh-scene-views! app-view dt)
                                   (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         (ui/timer-start! refresh-timer))
@@ -1786,7 +1945,7 @@ If you do not specifically require different script states, consider changing th
                (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
                (focus (ui/user-data tab ::view) opts))
              ;; Do an initial rendering so it shows up as fast as possible.
-             (ui/run-later (refresh-scene-views! app-view)
+             (ui/run-later (refresh-scene-views! app-view 1/60)
                            (ui/run-later (slog/smoke-log "opened-resource")))
              true)
            (let [^String path (or (resource/abs-path resource)
@@ -2110,7 +2269,7 @@ If you do not specifically require different script states, consider changing th
                            (fn [successful?]
                              (when successful?
                                (if (some-> output-directory .isDirectory)
-                                 (ui/open-file output-directory)
+                                 (when (prefs/get-prefs prefs "open-bundle-target-folder" true) (ui/open-file output-directory))
                                  (dialogs/make-info-dialog
                                    {:title "Bundle Failed"
                                     :icon :icon/triangle-error
@@ -2171,8 +2330,8 @@ If you do not specifically require different script states, consider changing th
             allow))))
     (display-output! [_ type string]
       (let [[console-type prefix] (case type
-                                    :err [:extension-err "ERROR:EXT: "]
-                                    :out [:extension-out ""])]
+                                    :err [:extension-error "ERROR:EXT: "]
+                                    :out [:extension-output ""])]
         (doseq [line (string/split-lines string)]
           (console/append-console-entry! console-type (str prefix line)))))
     (on-transact-thread [_ f]

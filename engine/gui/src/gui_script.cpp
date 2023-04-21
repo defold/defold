@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -255,6 +255,16 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* i = (Scene*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_DataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -269,6 +279,7 @@ namespace dmGui
         {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    GuiScriptGetInstanceDataTableRef},
         {0, 0}
     };
 
@@ -988,7 +999,7 @@ namespace dmGui
      * - `gui.PROP_INNER_RADIUS`
      * - `gui.PROP_SLICE9`
      *
-     * @param to [type:vector3|vector4] target property value
+     * @param to [type:number|vector3|vector4|quaternion] target property value
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
      *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -102,6 +102,8 @@ namespace dmParticle
         void* m_Texture;
         float* m_TexCoords;
         float* m_TexDims;
+        uint32_t* m_PageIndices;
+        uint32_t* m_FrameIndices;
         AnimPlayback m_Playback;
         uint32_t m_TileWidth;
         uint32_t m_TileHeight;
@@ -219,6 +221,8 @@ namespace dmParticle
         // Offset 28
         float m_U, m_V;
         // Offset 36
+        float m_PageIndex;
+        // Offset 40
     };
 
     /**

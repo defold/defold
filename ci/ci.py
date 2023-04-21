@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -171,7 +171,7 @@ def install(args):
             setup_windows_cert(args)
 
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False,
+def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
                 skip_docs = False, skip_builtins = False, archive = False):
 
@@ -214,6 +214,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         waf_opts.append('--with-asan')
     if with_ubsan:
         waf_opts.append('--with-ubsan')
+    if with_tsan:
+        waf_opts.append('--with-tsan')
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
@@ -408,6 +410,7 @@ def main(argv):
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
+    parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
@@ -448,15 +451,13 @@ def main(argv):
     # configure build flags based on the branch
     release_channel = None
     skip_editor_tests = False
+    make_release = False
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
-        release_channel = "editor-stable"
-        make_release = False
+        release_channel = "stable"
+        make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
-        if is_repo_private():
-            release_channel = "stable"
-            make_release = True
     elif branch == "beta":
         engine_channel = "beta"
         editor_channel = "beta"
@@ -478,12 +479,10 @@ def main(argv):
     elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
         engine_channel = None
         editor_channel = "editor-dev"
-        make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
         engine_channel = "dev"
         editor_channel = "dev"
-        make_release = False
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
@@ -499,6 +498,7 @@ def main(argv):
                 with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
                 with_asan = args.with_asan,
                 with_ubsan = args.with_ubsan,
+                with_tsan = args.with_tsan,
                 with_vanilla_lua = args.with_vanilla_lua,
                 archive = args.archive,
                 skip_tests = args.skip_tests,

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns dev
-  (:require [clojure.string :as string]
+  (:require [clojure.pprint :as pprint]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
@@ -23,6 +24,7 @@
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.util :as eutil]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -161,6 +163,14 @@
 
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
+
+(defn node-values [node-id & labels]
+  (g/with-auto-evaluation-context evaluation-context
+    (into {}
+          (map (fn [label]
+                 (let [value (g/node-value node-id label evaluation-context)]
+                   (pair label value))))
+          labels)))
 
 (def node-type-key (comp :k g/node-type*))
 
@@ -401,3 +411,199 @@
   (ordered-occurrences
     (map (comp second key)
          (is/system-cache @g/*the-system*))))
+
+;; Utilities for investigating successors performance
+
+(defn- successor-pairs
+  ([endpoints]
+   (successor-pairs (g/now) endpoints))
+  ([basis endpoints]
+   (successor-pairs basis endpoints nil))
+  ([basis endpoints successor-filter]
+   (letfn [(get-successors [acc endpoints]
+             (let [next-level
+                   (into {}
+                         (comp
+                           (remove acc)
+                           (map
+                             (juxt
+                               identity
+                               (fn [endpoint]
+                                 (let [node-id (gt/endpoint-node-id endpoint)
+                                       label (gt/endpoint-label endpoint)
+                                       graph-id (gt/node-id->graph-id node-id)]
+                                   (cond->> (get-in basis [:graphs graph-id :successors node-id label])
+                                            successor-filter
+                                            (into [] (filter #(successor-filter [endpoint %])))))))))
+                         endpoints)]
+               (cond-> (into acc next-level)
+                       (pos? (count next-level))
+                       (recur (into #{} (mapcat val) next-level)))))]
+     (let [endpoint->successors (get-successors {} endpoints)]
+       (into #{}
+             (mapcat
+               (fn [[endpoint successors]]
+                 (->Eduction
+                   (map (partial pair endpoint))
+                   successors)))
+             endpoint->successors)))))
+
+(defn- successor-pair-type
+  "Returns either :override, :internal or :external"
+  ([source-endpoint target-endpoint]
+   (successor-pair-type (g/now) source-endpoint target-endpoint))
+  ([basis source-endpoint target-endpoint]
+   (cond
+     (and
+       (= (gt/endpoint-node-id source-endpoint)
+          (gt/original-node basis (gt/endpoint-node-id target-endpoint)))
+       (= (gt/endpoint-label source-endpoint)
+          (gt/endpoint-label target-endpoint)))
+     :override
+
+     (= (gt/endpoint-node-id source-endpoint)
+        (gt/endpoint-node-id target-endpoint))
+     :internal
+
+     :else
+     :external)))
+
+(defn- percentage-str [n total]
+  (eutil/format* "%.2f%%" (double (* 100 (/ n total)))))
+
+(defn successor-pair-stats-by-kind
+  "For a given coll of endpoints, group all successors by successor 'type',
+  where the 'type' is either:
+  - override - connection from original to override node with the same label
+  - internal - connection inside a node
+  - external - connection between 2 different nodes"
+  ([endpoints]
+   (successor-pair-stats-by-kind (g/now) endpoints))
+  ([basis endpoints]
+   (let [pairs (successor-pairs basis endpoints)
+         node-count (count (into #{} (comp cat (map gt/endpoint-node-id)) pairs))
+         successor-count (count pairs)]
+     (println "Total" node-count "nodes," successor-count "successors")
+     (println "Successor contribution by type:")
+     (->> pairs
+          (group-by #(apply successor-pair-type basis %))
+          (sort-by (comp - count val))
+          (run! (fn [[kind kind-pairs]]
+                  (let [kind-count (count kind-pairs)]
+                    (println (format "  %s (%s, %s total)"
+                                     (name kind)
+                                     (percentage-str kind-count successor-count)
+                                     kind-count))
+                    (->> kind-pairs
+                         (map (case kind
+                                :external (fn [[source target]]
+                                            (str (name (node-type-key basis (gt/endpoint-node-id source)))
+                                                 " -> "
+                                                 (name (node-type-key basis (gt/endpoint-node-id target)))))
+                                (:override :internal) (fn [[source]]
+                                                        (name (node-type-key basis (gt/endpoint-node-id source))))))
+                         frequencies
+                         (sort-by (comp - val))
+                         (run! (fn [[label group-count]]
+                                 (println (format "  %7s %s (%s total)"
+                                                  (percentage-str group-count successor-count)
+                                                  label
+                                                  group-count))))))))))))
+
+(defn- successor-pair-class [basis source-endpoint target-endoint]
+  [(node-type-key basis (gt/endpoint-node-id source-endpoint))
+   (gt/endpoint-label source-endpoint)
+   (node-type-key basis (gt/endpoint-node-id target-endoint))
+   (gt/endpoint-label target-endoint)])
+
+(defn successor-pair-stats-by-external-connection-influence
+  "For a particular successor tree, find all unique successor connection
+  'classes', where a connection 'class' is a tuple of source node's type, source
+  label, target node's type and target label. Then, for each 'class',
+  re-calculate the successors again, but assuming there are no connections of
+  this 'class'. Finally, print the stats about which 'classes' of successors
+  contribute the most to the resulting number of successors.
+
+  This reports helps to figure out, what kind of performance improvements we
+  will get if we refactor the code to express some dependencies outside
+  the graph.
+
+  Might take a while to run, so it prints a progress report while running"
+  ([endpoints]
+   (successor-pair-stats-by-external-connection-influence (g/now) endpoints))
+  ([basis endpoints]
+   (let [original-pairs (successor-pairs basis endpoints)
+         original-count (count original-pairs)
+         ->external-pair-class (fn [[source-endpoint target-endpoint]]
+                                 (when (= :external (successor-pair-type basis source-endpoint target-endpoint))
+                                   (successor-pair-class basis source-endpoint target-endpoint)))
+         pair-class-options (into #{} (keep ->external-pair-class) original-pairs)
+         intermediate-results
+         (into
+           []
+           (map-indexed
+             (fn [i pair-class]
+               (println (inc i) "/" (count pair-class-options))
+               (let [this-pair-class? (comp #(= pair-class %) ->external-pair-class)]
+                 {:pair-class pair-class
+                  :direct-count (count
+                                  (into [] (filter this-pair-class?) original-pairs))
+                  :indirect-count (count
+                                    (successor-pairs basis endpoints (complement this-pair-class?)))})))
+           pair-class-options)]
+     (println "Baseline:" original-count "successors")
+     (println "Improvements by pair link class:")
+     (->> intermediate-results
+          (sort-by :indirect-count)
+          (run! (fn [{:keys [pair-class direct-count indirect-count]}]
+                  (let [[source-type source-label target-type target-label] pair-class
+                        difference (- original-count indirect-count)]
+                    (println (format "  %6s (of which %s direct) %s"
+                                     (percentage-str difference original-count)
+                                     (percentage-str direct-count difference)
+                                     (str (name source-type)
+                                          source-label
+                                          " -> "
+                                          (name target-type)
+                                          target-label))))))))))
+
+(defn print-dangling-outputs-stats
+  "Collect all dangling outputs (outputs that are not connected to anything) and
+  print the stats about them. Takes a while to run (e.g. a minute). Note: even
+  if an output is shown as dangling, it still might be eventually connected to
+  other nodes, e.g. on view open, so the output might contain false positives."
+  []
+  (let [basis (g/now)
+        node-type-freqs (->> (get-in basis [:graphs 1 :nodes])
+                             (keys)
+                             (map #(g/node-type* basis %))
+                             frequencies)]
+    (->> (get-in basis [:graphs 1 :nodes])
+         keys
+         ;; for project node ids, collect external connections and union by node type
+         (->Eduction
+           (mapcat
+             (fn [node-id]
+               (let [connected-outputs (-> #{:_properties :_overridden-properties}
+                                           (into (map second) (g/outputs basis node-id))
+                                           (into (map peek) (g/inputs basis node-id)))]
+                 (->Eduction
+                   (map (partial pair (g/node-type* basis node-id)))
+                   connected-outputs)))))
+         (util/group-into {} #{} key val)
+         ;; union with internal connection and finally diff from all defined outputs
+         (into {}
+               (map (juxt key (fn [[node-type connected-outputs]]
+                                (let [with-internal-connections (into connected-outputs
+                                                                      (mapcat :dependencies)
+                                                                      (vals (g/declared-outputs node-type)))]
+                                  (reduce disj (g/output-labels node-type) with-internal-connections))))))
+         ;; sort by node count and print as a table
+         (sort-by (comp - node-type-freqs key))
+         (mapcat (fn [[node-type dangling-outputs]]
+                   (map (fn [output]
+                          {:type (name (:k node-type))
+                           :output (name output)
+                           :node-count (node-type-freqs node-type)})
+                        dangling-outputs)))
+         pprint/print-table)))

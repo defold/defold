@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -350,6 +350,16 @@ namespace dmGameObject
         return 1;
     }
 
+    static int ScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_ScriptDataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}
@@ -365,6 +375,7 @@ namespace dmGameObject
         {dmScript::META_TABLE_RESOLVE_PATH,             ScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    ScriptGetInstanceDataTableRef},
         {0, 0}
     };
 
@@ -2059,7 +2070,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
+     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource|boolean] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.
@@ -2133,6 +2144,35 @@ namespace dmGameObject
         return 0;
     }
 
+
+    /*# check if the specified game object exists
+     *
+     * @name go.exists
+     * @param url [type:string|hash|url] url of the game object to check
+     * @return exists [type:bool] true if the game object exists
+     *
+     * @examples
+     * Check if game object "my_game_object" exists
+     *
+     * ```lua
+     * go.exists("/my_game_object")
+     * ```
+     */
+    int Script_Exists(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 1, &target, &sender);
+
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        lua_pushboolean(L, target_instance != 0);
+        return 1;
+    }
+
     static const luaL_reg GO_methods[] =
     {
         {"get",                     Script_Get},
@@ -2159,6 +2199,7 @@ namespace dmGameObject
         {"delete_all",              Script_DeleteAll},
         {"screen_ray",              Script_ScreenRay},
         {"property",                Script_Property},
+        {"exists",                  Script_Exists},
         {0, 0}
     };
 

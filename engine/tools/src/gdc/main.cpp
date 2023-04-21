@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -89,12 +89,9 @@ int main(int argc, char *argv[])
 
     FILE* out = 0x0;
 
-
     const char* filename = "default.gamepads";
     if (argc > 1)
         filename = argv[1];
-
-    dmGraphics::Initialize();
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -149,8 +146,8 @@ retry:
     {
         for (uint32_t i = 0; i < gamepad_count; ++i)
         {
-            const char* device_name;
-            dmHID::GetGamepadDeviceName(gamepads[i], &device_name);
+            char device_name[128];
+            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name, sizeof(device_name));
             printf("%d: %s\n", i+1, device_name);
         }
         printf("\n* Which gamepad do you want to calibrate? [1-%d] ", gamepad_count);
@@ -172,8 +169,8 @@ retry:
         gamepad = gamepads[0];
     }
 
-    const char* device_name;
-    dmHID::GetGamepadDeviceName(gamepad, &device_name);
+    char device_name[128];
+    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name, sizeof(device_name));
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 

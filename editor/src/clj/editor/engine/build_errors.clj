@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -519,8 +519,8 @@
   [(g/map->error {:message (str "Failed: " (ex-message ex))
                   :severity :fatal})])
 
-(defn handle-build-error! [render-error! project evaluation-context exception]
-  (render-error!
+(defn exception->error-value [exception project evaluation-context]
+  (g/map->error
     {:causes (cond
                (unsupported-platform-error? exception)
                (unsupported-platform-error-causes project evaluation-context)

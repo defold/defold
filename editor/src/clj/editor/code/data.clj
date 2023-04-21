@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1404,23 +1404,67 @@
     :selection extend-selection))
 
 (defn splice-lines [lines ascending-cursor-ranges-and-replacements]
-  (into []
-        cat
-        (loop [start (->Cursor 0 0)
-               rest ascending-cursor-ranges-and-replacements
-               lines-seqs (transient [[""]])]
-          (if-some [[cursor-range replacement-lines] (first rest)]
-            (let [prior-end (adjust-cursor lines (cursor-range-start cursor-range))]
-              (recur (cursor-range-end cursor-range)
-                     (next rest)
-                     (cond-> lines-seqs
-                             (neg? (compare-cursor-position start prior-end)) (append-subsequence! (cursor-range-subsequence lines (->CursorRange start prior-end)))
-                             (seq replacement-lines) (append-subsequence! (lines->subsequence replacement-lines)))))
-            (let [end (->Cursor (dec (count lines)) (count (peek lines)))
-                  end-seq (cursor-range-subsequence lines (->CursorRange start end))]
-              (persistent! (if (empty-subsequence? end-seq)
-                             lines-seqs
-                             (append-subsequence! lines-seqs end-seq))))))))
+  (let [new-lines (into []
+                        cat
+                        (loop [start (->Cursor 0 0)
+                               rest ascending-cursor-ranges-and-replacements
+                               lines-seqs (transient [[""]])]
+                          (if-some [[cursor-range replacement-lines] (first rest)]
+                            (let [prior-end (adjust-cursor lines (cursor-range-start cursor-range))]
+                              (recur (cursor-range-end cursor-range)
+                                     (next rest)
+                                     (cond-> lines-seqs
+                                             (neg? (compare-cursor-position start prior-end)) (append-subsequence! (cursor-range-subsequence lines (->CursorRange start prior-end)))
+                                             (seq replacement-lines) (append-subsequence! (lines->subsequence replacement-lines)))))
+                            (let [end (->Cursor (dec (count lines)) (count (peek lines)))
+                                  end-seq (cursor-range-subsequence lines (->CursorRange start end))]
+                              (persistent! (if (empty-subsequence? end-seq)
+                                             lines-seqs
+                                             (append-subsequence! lines-seqs end-seq)))))))
+        previous-version (hash lines)
+        change {:previous-version previous-version
+                :current-version (hash new-lines)
+                :ascending-cursor-ranges-and-replacements ascending-cursor-ranges-and-replacements}]
+    (with-meta
+      new-lines
+      (update (meta lines)
+              ::changes
+              (fn [changes]
+                (if (or (nil? changes)
+                        (not= previous-version (:current-version (peek changes))))
+                  [change]
+                  (-> changes
+                      (conj change)
+                      ;; max incremental history size is 16
+                      (cond->> (= 16 (count changes)) (into [] (drop 1))))))))))
+
+(defn get-incremental-diff
+  "If there is an incremental diff between old and new lines, return it
+
+  Returns a vector of [cursor-range replacement-vec-of-strings] that, when
+  applied one after another to old lines, will result in new lines, or nil if
+  no such transformation exists"
+  [old-lines new-lines]
+  (let [changes (::changes (meta new-lines))]
+    (when (and changes (= (hash new-lines) (:current-version (peek changes))))
+      (let [old-version (hash old-lines)
+            ret (into
+                  []
+                  (comp
+                    (drop-while #(not= old-version (:previous-version %)))
+                    (map :ascending-cursor-ranges-and-replacements)
+                    (mapcat
+                      (fn [ascending-cursor-ranges-and-replacements]
+                        (eduction
+                          (map (fn [[cursor-range replacement]]
+                                 [(->CursorRange
+                                    (cursor-range-start cursor-range)
+                                    (cursor-range-end cursor-range))
+                                  replacement]))
+                          (reverse ascending-cursor-ranges-and-replacements)))))
+                  changes)]
+        (when (pos? (count ret))
+          ret)))))
 
 (defn- offset-cursor-on-row
   ^Cursor [^Cursor cursor ^long col-affected-row ^long row-offset ^long col-offset]
@@ -2433,7 +2477,8 @@
 
     :else
     (when-some [clickable-region (some (fn [region]
-                                         (when (and (some? (:on-click! region))
+                                         (when (and (or (some? (:on-click! region))
+                                                        (:hoverable region))
                                                     (some #(rect-contains? % x y)
                                                           (cursor-range-rects layout lines region)))
                                            region))

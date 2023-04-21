@@ -551,12 +551,17 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
             _glfwInputKey( GLFW_KEY_MENU, glfw_action );
             return 1;
         case AKEYCODE_BACK:
-            if (g_KeyboardActive) {
-                // Implicitly hide keyboard
-                _glfwShowKeyboard(0, 0, 0);
+            // Starting API 33 old implementation of the Back button doesn't work
+            // https://github.com/defold/defold/issues/6821
+            if (android_get_device_api_level() < 33) {
+                if (g_KeyboardActive) {
+                    // Implicitly hide keyboard
+                    _glfwShowKeyboard(0, 0, 0);
+                }
+                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
+                return 1;
             }
-            _glfwInputKey( GLFW_KEY_BACK, glfw_action );
-            return 1;
+            return 0;
         case AKEYCODE_ESCAPE: _glfwInputKey( GLFW_KEY_ESC, glfw_action ); return 1;
         case AKEYCODE_F1: _glfwInputKey( GLFW_KEY_F1, glfw_action ); return 1;
         case AKEYCODE_F2: _glfwInputKey( GLFW_KEY_F2, glfw_action ); return 1;

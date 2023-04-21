@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -51,7 +51,6 @@ TEST(dmMaterialTest, TestTags)
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &shader);
-
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
     dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};

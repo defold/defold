@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
 #include <gui/gui.h>
 #include <gamesys/gui_ddf.h>
 #include "res_textureset.h"
+#include "res_texture.h"
 
 #include <dmsdk/script/script.h>
 
@@ -28,8 +29,8 @@ namespace dmGameSystem
 {
     struct GuiSceneTextureSetResource
     {
-        TextureSetResource*  m_TextureSet;
-        dmGraphics::HTexture m_Texture;
+        TextureSetResource* m_TextureSet;
+        TextureResource*    m_Texture;
     };
 
     struct GuiSceneResource

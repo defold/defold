@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,13 +52,13 @@ namespace dmRender
     struct Command
     {
         Command(CommandType type);
-        Command(CommandType type, uintptr_t op0);
-        Command(CommandType type, uintptr_t op0, uintptr_t op1);
-        Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2);
-        Command(CommandType type, uintptr_t op0, uintptr_t op1, uintptr_t op2, uintptr_t op3);
+        Command(CommandType type, uint64_t op0);
+        Command(CommandType type, uint64_t op0, uint64_t op1);
+        Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2);
+        Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3);
 
         CommandType m_Type;
-        uintptr_t   m_Operands[4];
+        uint64_t    m_Operands[4];
     };
 
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count);

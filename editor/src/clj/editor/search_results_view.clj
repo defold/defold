@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -61,7 +61,7 @@
 
 (defn- start-tree-update-timer! [tree-views progress-indicators results-fn]
   (let [timer (ui/->timer 5 "tree-update-timer"
-                          (fn [^AnimationTimer timer elapsed-time]
+                          (fn [^AnimationTimer timer elapsed-time _]
                             ;; Delay showing the progress indicator a bit to avoid flashing for
                             ;; searches that complete quickly.
                             (when (< 0.2 elapsed-time)

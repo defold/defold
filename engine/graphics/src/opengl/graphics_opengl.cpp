@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,143 +39,143 @@
 #include "graphics_opengl_private.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-#include <Carbon/Carbon.h>
+    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+    #include <Carbon/Carbon.h>
 #endif
 
 #include <dmsdk/graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
-#include <GL/glext.h>
-
+    #include <GL/glext.h>
 #elif defined (ANDROID)
-#define GL_GLEXT_PROTOTYPES
-#include <GLES2/gl2ext.h>
-
+    #define GL_GLEXT_PROTOTYPES
+    #include <GLES2/gl2ext.h>
 #elif defined (__MACH__)
-
+    // NOP
 #elif defined (_WIN32)
+    #ifdef GL_GLEXT_PROTOTYPES
+        #undef GL_GLEXT_PROTOTYPES
+        #include "win32/glext.h"
+        #define GL_GLEXT_PROTOTYPES
+    #else
+        #include "win32/glext.h"
+    #endif
 
-#ifdef GL_GLEXT_PROTOTYPES
-#undef GL_GLEXT_PROTOTYPES
-#include "win32/glext.h"
-#define GL_GLEXT_PROTOTYPES
-#else
-#include "win32/glext.h"
-#endif
+    // VBO Extension for OGL 1.4.1
+    typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
+    typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLDELETEPROGRAMSARBPROC) (GLsizei, const GLuint*);
+    typedef void (APIENTRY * PFNGLPROGRAMSTRINGARBPROC) (GLenum, GLenum, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat, GLfloat, GLfloat, GLfloat);
+    typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
+    typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLCOMPRTEXSUB2DPROC) (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
+    typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLRENDERBUFFERSTORAGEPROC) (GLenum, GLenum, GLsizei, GLsizei);
+    typedef void (APIENTRY * PFNGLRENDERBUFFERTEXTURE2DPROC) (GLenum, GLenum, GLenum, GLuint, GLint);
+    typedef void (APIENTRY * PFNGLFRAMEBUFFERRENDERBUFFERPROC) (GLenum, GLenum, GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
+    typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
+    typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
+    typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
+    typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
+    typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
+    typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
+    typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
 
+    PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
+    PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
+    PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB = NULL;
+    PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
+    PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
+    PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
+    PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
+    PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
+    PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
+    PFNGLCOMPRTEXSUB2DPROC glCompressedTexSubImage2D = NULL;
+    PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
+    PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
+    PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
+    PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
+    PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers = NULL;
+    PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = NULL;
+    PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = NULL;
+    PFNGLRENDERBUFFERTEXTURE2DPROC glFramebufferTexture2D = NULL;
+    PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer = NULL;
+    PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = NULL;
+    PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = NULL;
+    PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = NULL;
+    PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
+    PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
+    PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
+    PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
+    PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
+    PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
+    PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
+    PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
 
+    PFNGLGETACTIVEATTRIBPROC glGetActiveAttrib = NULL;
+    PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
+    PFNGLCREATESHADERPROC glCreateShader = NULL;
+    PFNGLSHADERSOURCEPROC glShaderSource = NULL;
+    PFNGLCOMPILESHADERPROC glCompileShader = NULL;
+    PFNGLGETSHADERIVPROC glGetShaderiv = NULL;
+    PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = NULL;
+    PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = NULL;
+    PFNGLDELETESHADERPROC glDeleteShader = NULL;
+    PFNGLCREATEPROGRAMPROC glCreateProgram = NULL;
+    PFNGLATTACHSHADERPROC glAttachShader = NULL;
+    PFNGLLINKPROGRAMPROC glLinkProgram = NULL;
+    PFNGLDELETEPROGRAMPROC glDeleteProgram = NULL;
+    PFNGLUSEPROGRAMPROC glUseProgram = NULL;
+    PFNGLGETPROGRAMIVPROC glGetProgramiv = NULL;
+    PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform = NULL;
+    PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
+    PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
+    PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
+    PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
-// VBO Extension for OGL 1.4.1
-typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
-typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLDELETEPROGRAMSARBPROC) (GLsizei, const GLuint*);
-typedef void (APIENTRY * PFNGLPROGRAMSTRINGARBPROC) (GLenum, GLenum, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat, GLfloat, GLfloat, GLfloat);
-typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
-typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLCOMPRTEXSUB2DPROC) (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
-typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLRENDERBUFFERSTORAGEPROC) (GLenum, GLenum, GLsizei, GLsizei);
-typedef void (APIENTRY * PFNGLRENDERBUFFERTEXTURE2DPROC) (GLenum, GLenum, GLenum, GLuint, GLint);
-typedef void (APIENTRY * PFNGLFRAMEBUFFERRENDERBUFFERPROC) (GLenum, GLenum, GLenum, GLuint);
-typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
-typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
-typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
-typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
-typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
-typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
-typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
-typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
-typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
+    PFNGLTEXSUBIMAGE3DPROC           glTexSubImage3D = NULL;
+    PFNGLTEXIMAGE3DPROC              glTexImage3D = NULL;
+    PFNGLCOMPRESSEDTEXIMAGE3DPROC    glCompressedTexImage3D = NULL;
+    PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC glCompressedTexSubImage3D = NULL;
 
-PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
-PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
-PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB = NULL;
-PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
-PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
-PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
-PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
-PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
-PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
-PFNGLCOMPRTEXSUB2DPROC glCompressedTexSubImage2D = NULL;
-PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
-PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
-PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
-PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
-PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers = NULL;
-PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = NULL;
-PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = NULL;
-PFNGLRENDERBUFFERTEXTURE2DPROC glFramebufferTexture2D = NULL;
-PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer = NULL;
-PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = NULL;
-PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = NULL;
-PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = NULL;
-PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
-PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
-PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
-PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
-PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
-PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
-PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
-PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
-
-PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
-PFNGLCREATESHADERPROC glCreateShader = NULL;
-PFNGLSHADERSOURCEPROC glShaderSource = NULL;
-PFNGLCOMPILESHADERPROC glCompileShader = NULL;
-PFNGLGETSHADERIVPROC glGetShaderiv = NULL;
-PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = NULL;
-PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = NULL;
-PFNGLDELETESHADERPROC glDeleteShader = NULL;
-PFNGLCREATEPROGRAMPROC glCreateProgram = NULL;
-PFNGLATTACHSHADERPROC glAttachShader = NULL;
-PFNGLLINKPROGRAMPROC glLinkProgram = NULL;
-PFNGLDELETEPROGRAMPROC glDeleteProgram = NULL;
-PFNGLUSEPROGRAMPROC glUseProgram = NULL;
-PFNGLGETPROGRAMIVPROC glGetProgramiv = NULL;
-PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform = NULL;
-PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
-PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
-PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
-PFNGLUNIFORM1IPROC glUniform1i = NULL;
-
-#if !defined(GL_ES_VERSION_2_0)
-PFNGLGETSTRINGIPROC glGetStringi = NULL;
-PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
-PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
-PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
-PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
-PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
-#endif
-
+    #if !defined(GL_ES_VERSION_2_0)
+        PFNGLGETSTRINGIPROC glGetStringi = NULL;
+        PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+        PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+        PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
+        PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
+        PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
+    #endif
 #elif defined(__EMSCRIPTEN__)
-#include <GL/glext.h>
-#if defined GL_ES_VERSION_2_0
-#undef GL_ARRAY_BUFFER_ARB
-#undef GL_ELEMENT_ARRAY_BUFFER_ARB
-#endif
+    #include <GL/glext.h>
+    #if defined GL_ES_VERSION_2_0
+        #undef GL_ARRAY_BUFFER_ARB
+        #undef GL_ELEMENT_ARRAY_BUFFER_ARB
+    #endif
 #else
-#error "Platform not supported."
+    #error "Platform not supported."
 #endif
 
 // OpenGLES compatibility
 #if defined(GL_ES_VERSION_2_0)
-#define glClearDepth glClearDepthf
-#define glGenBuffersARB glGenBuffers
-#define glDeleteBuffersARB glDeleteBuffers
-#define glBindBufferARB glBindBuffer
-#define glBufferDataARB glBufferData
-#define glBufferSubDataARB glBufferSubData
-#define glMapBufferARB glMapBufferOES
-#define glUnmapBufferARB glUnmapBufferOES
-#define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
-#define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
+    #define glClearDepth glClearDepthf
+    #define glGenBuffersARB glGenBuffers
+    #define glDeleteBuffersARB glDeleteBuffers
+    #define glBindBufferARB glBindBuffer
+    #define glBufferDataARB glBufferData
+    #define glBufferSubDataARB glBufferSubData
+    #define glMapBufferARB glMapBufferOES
+    #define glUnmapBufferARB glUnmapBufferOES
+    #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
+    #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -235,7 +235,7 @@ static void LogGLError(GLint err, const char* fnname, int line)
 
 #endif
 
-static void _ClearGLError()
+static void OpenGLClearGLError()
 {
     GLint err = glGetError();
     while (err != 0)
@@ -244,7 +244,7 @@ static void _ClearGLError()
     }
 }
 
-#define CLEAR_GL_ERROR { if(g_Context->m_VerifyGraphicsCalls) _ClearGLError(); }
+#define CLEAR_GL_ERROR { if(g_Context->m_VerifyGraphicsCalls) OpenGLClearGLError(); }
 
 
 static void LogFrameBufferError(GLenum status)
@@ -307,7 +307,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         default:
-            assert(0);
+            dmLogError("gl error 0x%08x: <unknown>", status);
             break;
     }
 }
@@ -360,10 +360,27 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
+ 
+    // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
+    //       however we might want to do this the other way around perhaps? i.e special case for webgl
+    //       and load functions like this for all other platforms.
+#ifdef ANDROID
+    typedef void (* DM_PFNGLTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels);
+    DM_PFNGLTEXSUBIMAGE3DPROC PFN_glTexSubImage3D = NULL;
 
-    Context* g_Context = 0x0;
+    typedef void (* DM_PFNGLTEXIMAGE3DPROC) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels);
+    DM_PFNGLTEXIMAGE3DPROC PFN_glTexImage3D = NULL;
 
-    Context::Context(const ContextParams& params)
+    typedef void (* DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC) (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data);
+    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC PFN_glCompressedTexImage3D = NULL;
+
+    typedef void (* DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);
+    DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC PFN_glCompressedTexSubImage3D = NULL;
+#endif
+
+    OpenGLContext* g_Context = 0x0;
+
+    OpenGLContext::OpenGLContext(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
         m_ModificationVersion     = 1;
@@ -432,6 +449,7 @@ static void LogFrameBufferError(GLenum status)
             GL_FLOAT_MAT4,
             GL_SAMPLER_2D,
             GL_SAMPLER_CUBE,
+            DMGRAPHICS_SAMPLER_2D_ARRAY,
         };
         return type_lut[type];
     }
@@ -460,6 +478,8 @@ static void LogFrameBufferError(GLenum status)
                 return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:
                 return TYPE_SAMPLER_2D;
+            case DMGRAPHICS_SAMPLER_2D_ARRAY:
+                return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:
                 return TYPE_SAMPLER_CUBE;
             default:break;
@@ -470,15 +490,13 @@ static void LogFrameBufferError(GLenum status)
 
     static GLenum GetOpenGLTextureType(TextureType type)
     {
-        if (type == TEXTURE_TYPE_2D)
+        switch(type)
         {
-            return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D_ARRAY;
+            case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
+            default:break;
         }
-        else if (type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            return GL_TEXTURE_CUBE_MAP;
-        }
-
         return GL_FALSE;
     }
 
@@ -491,15 +509,16 @@ static void LogFrameBufferError(GLenum status)
                 dmLogError("Could not initialize glfw.");
                 return 0x0;
             }
-            g_Context = new Context(params);
+            g_Context = new OpenGLContext(params);
             g_Context->m_AsyncMutex = dmMutex::New();
-            return g_Context;
+            return (HContext) g_Context;
         }
         return 0x0;
     }
 
-    static void OpenGLDeleteContext(HContext context)
+    static void OpenGLDeleteContext(HContext _context)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (context != 0x0)
         {
             if(g_Context->m_AsyncMutex)
@@ -559,8 +578,9 @@ static void LogFrameBufferError(GLenum status)
             g_Context->m_WindowIconifyCallback(g_Context->m_WindowIconifyCallbackUserData, iconify);
     }
 
-    static void StoreExtensions(HContext context, const GLubyte* _extensions)
+    static void StoreExtensions(HContext _context, const GLubyte* _extensions)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         context->m_ExtensionsString = strdup((const char*)_extensions);
 
         char* iter = 0;
@@ -574,12 +594,14 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static bool OpenGLIsExtensionSupported(HContext context, const char* extension)
+    static bool OpenGLIsExtensionSupported(HContext _context, const char* extension)
     {
         /* Extension names should not have spaces. */
         const char* where = strchr(extension, ' ');
         if (where || *extension == '\0')
             return false;
+
+        OpenGLContext* context = (OpenGLContext*) _context;
 
         uint32_t count = context->m_Extensions.Size();
         for (uint32_t i = 0; i < count; ++i)
@@ -592,71 +614,78 @@ static void LogFrameBufferError(GLenum status)
 
     static uint32_t OpenGLGetNumSupportedExtensions(HContext context)
     {
-        return context->m_Extensions.Size();
+        return ((OpenGLContext*) context)->m_Extensions.Size();
     }
 
     static const char* OpenGLGetSupportedExtension(HContext context, uint32_t index)
     {
-        return context->m_Extensions[index];
+        return ((OpenGLContext*) context)->m_Extensions[index];
     }
 
-    static bool OpenGLIsMultiTargetRenderingSupported(HContext context)
+    static bool OpenGLIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
-        return PFN_glDrawBuffers != 0x0;
-    }
-
-
-static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
-{
-    /*
-        Check in order
-        1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
-        2) EXT - Extensions agreed upon by multiple OpenGL vendors
-        3) OES - Vendor specific code for the OpenGL ES working group
-        4) Optionally check as core function (if not GLES and core_name is set)
-    */
-    uintptr_t func = 0x0;
-    static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
-    static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
-    char proc_str[256];
-    for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
-    {
-        // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
-        size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
-        dmStrlCpy(proc_str + l, extension_name, 256-l);
-        if(!OpenGLIsExtensionSupported(context, proc_str))
-            continue;
-        l = dmStrlCpy(proc_str, name, 255);
-        dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
-        func = (uintptr_t) glfwGetProcAddress(proc_str);
-        if(func != 0x0)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        switch (feature)
         {
-            break;
+            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
+            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
         }
+        return false;
     }
-#if !defined(__EMSCRIPTEN__)
-    if(func == 0 && core_name)
+
+
+    static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
     {
-        // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
-        func = (uintptr_t) glfwGetProcAddress(core_name);
+        /*
+            Check in order
+            1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
+            2) EXT - Extensions agreed upon by multiple OpenGL vendors
+            3) OES - Vendor specific code for the OpenGL ES working group
+            4) Optionally check as core function (if not GLES and core_name is set)
+        */
+        uintptr_t func = 0x0;
+        static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+        static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+        char proc_str[256];
+        for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+        {
+            // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+            size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+            dmStrlCpy(proc_str + l, extension_name, 256-l);
+            if(!OpenGLIsExtensionSupported(context, proc_str))
+                continue;
+            l = dmStrlCpy(proc_str, name, 255);
+            dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+            func = (uintptr_t) glfwGetProcAddress(proc_str);
+            if(func != 0x0)
+            {
+                break;
+            }
+        }
+    #if !defined(__EMSCRIPTEN__)
+        if(func == 0 && core_name)
+        {
+            // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
+            func = (uintptr_t) glfwGetProcAddress(core_name);
+        }
+    #endif
+
+        return func;
     }
-#endif
 
-    return func;
-}
-
-#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
-    if (function == 0x0)\
-        function = (type) GetExtProcAddress(name, extension_name, core_name, context);
-
-    static bool ValidateAsyncJobProcessing(HContext context)
+    static bool ValidateAsyncJobProcessing(HContext _context)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
+
         // Test async texture access
         {
             TextureCreationParams tcp;
             tcp.m_Width = tcp.m_OriginalWidth = tcp.m_Height = tcp.m_OriginalHeight = 2;
             tcp.m_Type = TEXTURE_TYPE_2D;
-            HTexture texture = dmGraphics::NewTexture(context, tcp);
+            HTexture texture_handle = dmGraphics::NewTexture(context, tcp);
+
+            assert(ASSET_TYPE_TEXTURE == GetAssetType(texture_handle));
+            OpenGLTexture* tex = (OpenGLTexture*) context->m_AssetHandleContainer.Get(texture_handle);
 
             DM_ALIGNED(16) const uint32_t data[] = { 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff };
             TextureParams params;
@@ -666,14 +695,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             params.m_Data = data;
             params.m_DataSize = sizeof(data);
             params.m_MipMap = 0;
-            SetTextureAsync(texture, params);
+            SetTextureAsync(texture_handle, params);
 
-            while(GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            while(GetTextureStatusFlags(texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            {
                 dmTime::Sleep(100);
+            }
 
             DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
             memset(gpu_data, 0x0, sizeof(gpu_data));
-            glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+            glBindTexture(GL_TEXTURE_2D, tex->m_TextureIds[0]);
             CHECK_GL_ERROR;
 
             GLuint osfb;
@@ -682,7 +713,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glBindFramebuffer(GL_FRAMEBUFFER, osfb);
             CHECK_GL_ERROR;
 
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->m_Texture, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->m_TextureIds[0], 0);
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
             {
                 GLint vp[4];
@@ -703,7 +734,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
             CHECK_GL_ERROR;
             glDeleteFramebuffers(1, &osfb);
-            DeleteTexture(texture);
+            DeleteTexture(texture_handle);
 
             if(memcmp(data, gpu_data, sizeof(data))!=0)
             {
@@ -715,11 +746,35 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    static WindowResult OpenGLOpenWindow(HContext context, WindowParams *params)
+    static void OpenGLPrintDeviceInfo(HContext context)
     {
-        assert(context);
+        dmLogInfo("Device: OpenGL");
+        dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+        dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+        dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
+
+        dmLogInfo("Extensions:");
+        for (uint32_t i = 0; i < OpenGLGetNumSupportedExtensions(context); ++i)
+        {
+            dmLogInfo("  %s", OpenGLGetSupportedExtension(context, i));
+        }
+
+        dmLogInfo("Context features:");
+
+    #define PRINT_FEATURE_IF_SUPPORTED(feature) \
+        if (IsContextFeatureSupported(context, feature)) \
+            dmLogInfo("  %s", #feature);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
+    #undef PRINT_FEATURE_IF_SUPPORTED
+    }
+
+    static WindowResult OpenGLOpenWindow(HContext _context, WindowParams *params)
+    {
+        assert(_context);
         assert(params);
 
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
 
         if (params->m_HighDPI) {
@@ -740,11 +795,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-            #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
-            #else
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
-            #endif
+    #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
+    #else
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
+    #endif
 #endif
 
         bool is_desktop = false;
@@ -834,6 +889,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glActiveTexture, "glActiveTexture", PFNGLACTIVETEXTUREPROC);
         GET_PROC_ADDRESS(glCheckFramebufferStatus, "glCheckFramebufferStatus", PFNGLCHECKFRAMEBUFFERSTATUSPROC);
         GET_PROC_ADDRESS(glGetAttribLocation, "glGetAttribLocation", PFNGLGETATTRIBLOCATIONPROC);
+        GET_PROC_ADDRESS(glGetActiveAttrib, "glGetActiveAttrib", PFNGLGETACTIVEATTRIBPROC);
         GET_PROC_ADDRESS(glCreateShader, "glCreateShader", PFNGLCREATESHADERPROC);
         GET_PROC_ADDRESS(glShaderSource, "glShaderSource", PFNGLSHADERSOURCEPROC);
         GET_PROC_ADDRESS(glCompileShader, "glCompileShader", PFNGLCOMPILESHADERPROC);
@@ -854,6 +910,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
         GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
         GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glTexSubImage3D, "glTexSubImage3D", PFNGLTEXSUBIMAGE3DPROC);
+        GET_PROC_ADDRESS(glTexImage3D, "glTexImage3D", PFNGLTEXIMAGE3DPROC);
+        GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
+        GET_PROC_ADDRESS(glCompressedTexSubImage3D, "glCompressedTexSubImage3D", PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC);
+
 #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
@@ -910,14 +971,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_IsGles3Version = 1;
         }
 #else
-        #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
-            // iOS
-            context->m_IsGles3Version = 1;
-            context->m_IsShaderLanguageGles = 1;
-        #else
-            context->m_IsGles3Version = 1;
-            context->m_IsShaderLanguageGles = 0;
-        #endif
+    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+        // iOS
+        context->m_IsGles3Version = 1;
+        context->m_IsShaderLanguageGles = 1;
+    #else
+        context->m_IsGles3Version = 1;
+        context->m_IsShaderLanguageGles = 0;
+    #endif
 #endif
 
 #if defined(__EMSCRIPTEN__)
@@ -963,14 +1024,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
-
-        if (params->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
-        }
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
         ProcessSerialNumber psn;
@@ -1024,18 +1077,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         StoreExtensions(context, extensions);
 #endif
 
-        if (params->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Extensions:");
-            uint32_t num_extensions = OpenGLGetNumSupportedExtensions(context);
-            for (uint32_t i = 0; i < num_extensions; ++i)
-            {
-                dmLogInfo("  %s", OpenGLGetSupportedExtension(context, i));
-            }
-        }
+    #define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
+        if (function == 0x0)\
+            function = (type) GetExtProcAddress(name, extension_name, core_name, context);
 
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers, "glDrawBuffers", "draw_buffers", "glDrawBuffers", DM_PFNGLDRAWBUFFERSPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, context);
+    #ifdef ANDROID
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array", "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array", "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array", "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
+    #endif
+    #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
@@ -1195,6 +1249,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &context->m_MaxAnisotropy);
         }
 
+        if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_EXT_texture_array"))
+        {
+            context->m_TextureArraySupport         = 1;
+            context->m_MultiTargetRenderingSupport = 1;
+        #ifdef ANDROID
+            context->m_TextureArraySupport &= PFN_glTexSubImage3D           != 0;
+            context->m_TextureArraySupport &= PFN_glTexImage3D              != 0;
+            context->m_TextureArraySupport &= PFN_glCompressedTexSubImage3D != 0;
+            context->m_TextureArraySupport &= PFN_glCompressedTexImage3D    != 0;
+        #endif
+        }
+
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
@@ -1203,6 +1269,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #else
         context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
 #endif
+
+        if (params->m_PrintDeviceInfo)
+        {
+            OpenGLPrintDeviceInfo(context);
+        }
 
         JobQueueInitialize();
         if(JobQueueIsAsync())
@@ -1225,9 +1296,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return WINDOW_RESULT_OK;
     }
 
-    static void OpenGLCloseWindow(HContext context)
+    static void OpenGLCloseWindow(HContext _context)
     {
-        assert(context);
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_WindowOpened)
         {
             JobQueueFinalize();
@@ -1248,7 +1320,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLIconifyWindow(HContext context)
     {
         assert(context);
-        if (context->m_WindowOpened)
+        if (((OpenGLContext*) context)->m_WindowOpened)
         {
             glfwIconifyWindow();
         }
@@ -1273,7 +1345,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static uint32_t OpenGLGetWindowState(HContext context, WindowState state)
     {
         assert(context);
-        if (context->m_WindowOpened)
+        if (((OpenGLContext*) context)->m_WindowOpened)
             return glfwGetWindowParam(state);
         else
             return 0;
@@ -1282,7 +1354,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static uint32_t OpenGLGetWindowRefreshRate(HContext context)
     {
         assert(context);
-        if (context->m_WindowOpened)
+        if (((OpenGLContext*) context)->m_WindowOpened)
             return glfwGetWindowRefreshRate();
         else
             return 0;
@@ -1290,31 +1362,31 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static PipelineState OpenGLGetPipelineState(HContext context)
     {
-        return context->m_PipelineState;
+        return ((OpenGLContext*) context)->m_PipelineState;
     }
 
     static uint32_t OpenGLGetDisplayDpi(HContext context)
     {
         assert(context);
-        return context->m_Dpi;
+        return ((OpenGLContext*) context)->m_Dpi;
     }
 
     static uint32_t OpenGLGetWidth(HContext context)
     {
         assert(context);
-        return context->m_Width;
+        return ((OpenGLContext*) context)->m_Width;
     }
 
     static uint32_t OpenGLGetHeight(HContext context)
     {
         assert(context);
-        return context->m_Height;
+        return ((OpenGLContext*) context)->m_Height;
     }
 
     static uint32_t OpenGLGetWindowWidth(HContext context)
     {
         assert(context);
-        return context->m_WindowWidth;
+        return ((OpenGLContext*) context)->m_WindowWidth;
     }
 
     static float OpenGLGetDisplayScaleFactor(HContext context)
@@ -1326,12 +1398,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static uint32_t OpenGLGetWindowHeight(HContext context)
     {
         assert(context);
-        return context->m_WindowHeight;
+        return ((OpenGLContext*) context)->m_WindowHeight;
     }
 
-    static void OpenGLSetWindowSize(HContext context, uint32_t width, uint32_t height)
+    static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
-        assert(context);
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_WindowOpened)
         {
             context->m_Width = width;
@@ -1352,14 +1425,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
-        if (context->m_WindowOpened)
+        if (((OpenGLContext*) context)->m_WindowOpened)
         {
             glfwSetWindowSize((int)width, (int)height);
         }
     }
 
-    static void OpenGLGetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
+    static void OpenGLGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         out_min_filter = context->m_DefaultTextureMinFilter;
         out_mag_filter = context->m_DefaultTextureMagFilter;
     }
@@ -1473,12 +1547,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static uint32_t OpenGLGetMaxElementsVertices(HContext context)
     {
-        return context->m_MaxElementVertices;
+        return ((OpenGLContext*) context)->m_MaxElementVertices;
     }
 
     static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
+        // NOTE: WebGl doesn't seem to like zero-sized vertex buffers (very poor performance)
+        if (size == 0) {
+            return;
+        }
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -1518,12 +1596,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
-        return (context->m_IndexBufferFormatSupport & (1 << format)) != 0;
+        return (((OpenGLContext*) context)->m_IndexBufferFormatSupport & (1 << format)) != 0;
     }
 
     static uint32_t OpenGLGetMaxElementIndices(HContext context)
     {
-        return context->m_MaxElementIndices;
+        return ((OpenGLContext*) context)->m_MaxElementIndices;
+    }
+
+    // NOTE: This function doesn't seem to be used anywhere?
+    static uint32_t OpenGLGetMaxElementsIndices(HContext context)
+    {
+        return 0;
     }
 
     static uint32_t GetTypeSize(dmGraphics::Type type)
@@ -1561,7 +1645,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
         {
-            vd->m_Streams[i].m_Name          = stream_declaration->m_Streams[i].m_Name;
+            vd->m_Streams[i].m_NameHash      = stream_declaration->m_Streams[i].m_NameHash;
             vd->m_Streams[i].m_LogicalIndex  = i;
             vd->m_Streams[i].m_PhysicalIndex = -1;
             vd->m_Streams[i].m_Size          = stream_declaration->m_Streams[i].m_Size;
@@ -1620,12 +1704,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
     {
-
+        OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         uint32_t n = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = &vertex_declaration->m_Streams[0];
         for (uint32_t i=0; i < n; i++)
         {
-            GLint location = glGetAttribLocation(program, streams[i].m_Name);
+            int32_t location = -1;
+            for (int j = 0; j < program_ptr->m_Attributes.Size(); ++j)
+            {
+                if (program_ptr->m_Attributes[j].m_NameHash == streams[i].m_NameHash)
+                {
+                    location = program_ptr->m_Attributes[j].m_Location;
+                    break;
+                }
+            }
+
             if (location != -1)
             {
                 streams[i].m_PhysicalIndex = location;
@@ -1639,17 +1732,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
         }
 
-        vertex_declaration->m_BoundForProgram = program;
-        vertex_declaration->m_ModificationVersion = context->m_ModificationVersion;
+        vertex_declaration->m_BoundForProgram     = program;
+        vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void OpenGLEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
     {
-        assert(context);
+        assert(_context);
         assert(vertex_buffer);
         assert(vertex_declaration);
 
-        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == program))
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
         {
             BindVertexDeclarationProgram(context, vertex_declaration, program);
         }
@@ -1704,15 +1799,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         for (int i = 0; i < stream_count; ++i)
         {
             VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            // TODO: We might want to store a hash of the name already in the vertexdecl,
-            //       but currently the OpenGL implementation uses the string to find
-            //       correct uniform location (if I recall correctly).
-            dmHashUpdateBuffer32(state, stream.m_Name, strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_NameHash,     sizeof(dmhash_t));
             dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
-            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
-            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+            dmHashUpdateBuffer32(state, &stream.m_Size,         sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Offset,       sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Type,         sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize,    sizeof(stream.m_Normalize));
         }
     }
 
@@ -1739,60 +1831,115 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    static uint32_t CreateShader(GLenum type, const void* program, uint32_t program_size)
+    static GLuint DoCreateShader(GLenum type, const void* program, uint32_t program_size)
     {
-        GLuint s = glCreateShader(type);
+        GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
         GLint size = program_size;
-        glShaderSource(s, 1, (const GLchar**) &program, &size);
+        glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
         CHECK_GL_ERROR;
-        glCompileShader(s);
+        glCompileShader(shader_id);
         CHECK_GL_ERROR;
 
         GLint status;
-        glGetShaderiv(s, GL_COMPILE_STATUS, &status);
+        glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
 #ifndef NDEBUG
             GLint logLength;
-            glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
+            glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(s, logLength, &logLength, log);
+                glGetShaderInfoLog(shader_id, logLength, &logLength, log);
                 dmLogError("%s\n", log);
                 free(log);
             }
 #endif
-            glDeleteShader(s);
+            glDeleteShader(shader_id);
             return 0;
         }
 
-        return s;
+        return shader_id;
+    }
+
+    static OpenGLShader* CreateShader(GLenum type, ShaderDesc::Shader* ddf)
+    {
+        GLuint shader_id = DoCreateShader(type, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        if (!shader_id)
+        {
+            return 0;
+        }
+        OpenGLShader* shader = new OpenGLShader();
+        shader->m_Id         = shader_id;
+        return shader;
     }
 
     static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-        return CreateShader(GL_VERTEX_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf);
     }
 
     static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-        return CreateShader(GL_FRAGMENT_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
+    }
+
+    static void BuildAttributes(OpenGLProgram* program_ptr)
+    {
+        GLint num_attributes;
+        glGetProgramiv(program_ptr->m_Id, GL_ACTIVE_ATTRIBUTES, &num_attributes);
+        CHECK_GL_ERROR;
+
+        program_ptr->m_Attributes.SetCapacity(num_attributes);
+        program_ptr->m_Attributes.SetSize(num_attributes);
+
+        char attribute_name[256];
+        for (int i = 0; i < num_attributes; ++i)
+        {
+            OpenglVertexAttribute& attr = program_ptr->m_Attributes[i];
+            GLsizei attr_len;
+            GLint   attr_size;
+            GLenum  attr_type;
+            glGetActiveAttrib(program_ptr->m_Id, i,
+                sizeof(attribute_name),
+                &attr_len,
+                &attr_size,
+                &attr_type,
+                attribute_name);
+            CHECK_GL_ERROR;
+
+            attr.m_Location = glGetAttribLocation(program_ptr->m_Id, attribute_name);
+            attr.m_NameHash = dmHashString64(attribute_name);
+            CHECK_GL_ERROR;
+        }
+    }
+
+    static inline void IncreaseModificationVersion(OpenGLContext* context)
+    {
+        ++context->m_ModificationVersion;
+        context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        IncreaseModificationVersion(context);
+        IncreaseModificationVersion((OpenGLContext*) context);
+
+        OpenGLProgram* program = new OpenGLProgram();
 
         (void) context;
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
-        glAttachShader(p, vertex_program);
+
+        OpenGLShader* vertex_shader   = (OpenGLShader*) vertex_program;
+        OpenGLShader* fragment_shader = (OpenGLShader*) fragment_program;
+
+        GLuint vertex_id   = vertex_shader->m_Id;
+        GLuint fragment_id = fragment_shader->m_Id;
+
+        glAttachShader(p, vertex_id);
         CHECK_GL_ERROR;
-        glAttachShader(p, fragment_program);
+        glAttachShader(p, fragment_id);
         CHECK_GL_ERROR;
 
         // For MRT bindings to work correctly on all platforms,
@@ -1824,19 +1971,25 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 free(log);
             }
 #endif
+            delete program;
+
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return 0;
         }
 
-        CHECK_GL_ERROR;
-        return p;
+        program->m_Id = p;
+
+        BuildAttributes(program);
+        return (HProgram) program;
     }
 
     static void OpenGLDeleteProgram(HContext context, HProgram program)
     {
         (void) context;
-        glDeleteProgram(program);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) program;
+        glDeleteProgram(program_ptr->m_Id);
+        delete program_ptr;
     }
 
     // Tries to compile a shader (either a vertex or fragment) program.
@@ -1883,9 +2036,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (success)
         {
-            glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            GLuint id = ((OpenGLShader*) prog)->m_Id;
+            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
             CHECK_GL_ERROR;
-            glCompileShader(prog);
+            glCompileShader(id);
             CHECK_GL_ERROR;
         }
 
@@ -1904,47 +2058,55 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (success)
         {
-            glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            GLuint id = ((OpenGLShader*) prog)->m_Id;
+            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
             CHECK_GL_ERROR;
-            glCompileShader(prog);
+            glCompileShader(id);
             CHECK_GL_ERROR;
         }
 
         return success;
     }
 
+    static void OpenGLDeleteShader(OpenGLShader* shader)
+    {
+        glDeleteShader(shader->m_Id);
+        CHECK_GL_ERROR;
+        delete shader;
+    }
+
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
-        assert(program);
-        glDeleteShader(program);
-        CHECK_GL_ERROR;
+        OpenGLDeleteShader(((OpenGLShader*) program));
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
-        assert(program);
-        glDeleteShader(program);
-        CHECK_GL_ERROR;
+        OpenGLDeleteShader(((OpenGLShader*) program));
     }
 
-    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
-            return context->m_IsGles3Version ? ShaderDesc::LANGUAGE_GLES_SM300 : ShaderDesc::LANGUAGE_GLES_SM100;
-        else
-            return ShaderDesc::LANGUAGE_GLSL_SM140;
+        {
+            if (context->m_IsGles3Version)
+            {
+                return ShaderDesc::LANGUAGE_GLES_SM300;
+            }
+            return ShaderDesc::LANGUAGE_GLES_SM100;
+        }
+        return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 
     static void OpenGLEnableProgram(HContext context, HProgram program)
     {
-        (void) context;
-        glUseProgram(program);
+        glUseProgram(((OpenGLProgram*) program)->m_Id);
         CHECK_GL_ERROR;
     }
 
     static void OpenGLDisableProgram(HContext context)
     {
-        (void) context;
         glUseProgram(0);
     }
 
@@ -1952,9 +2114,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLuint tmp_program = glCreateProgram();
         CHECK_GL_ERROR;
-        glAttachShader(tmp_program, vert_program);
+        glAttachShader(tmp_program, ((OpenGLShader*) vert_program)->m_Id);
         CHECK_GL_ERROR;
-        glAttachShader(tmp_program, frag_program);
+        glAttachShader(tmp_program, ((OpenGLShader*) frag_program)->m_Id);
         CHECK_GL_ERROR;
         glLinkProgram(tmp_program);
 
@@ -1985,15 +2147,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             return false;
         }
-        glLinkProgram(program);
+
+        OpenGLProgram* program_ptr = (OpenGLProgram*) program;
+
+        glLinkProgram(program_ptr->m_Id);
         CHECK_GL_ERROR;
+
+        BuildAttributes(program_ptr);
         return true;
     }
 
     static uint32_t OpenGLGetUniformCount(HProgram prog)
     {
         GLint count;
-        glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        glGetProgramiv(program_ptr->m_Id, GL_ACTIVE_UNIFORMS, &count);
         CHECK_GL_ERROR;
         return count;
     }
@@ -2003,7 +2171,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLint uniform_size;
         GLenum uniform_type;
         GLsizei uniform_name_length;
-        glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        glGetActiveUniform(program_ptr->m_Id, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = GetGraphicsType(uniform_type);
         *size = uniform_size;
         CHECK_GL_ERROR;
@@ -2012,7 +2181,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static int32_t OpenGLGetUniformLocation(HProgram prog, const char* name)
     {
-        GLint location = glGetUniformLocation(prog, name);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        GLint location = glGetUniformLocation(program_ptr->m_Id, name);
         if (location == -1)
         {
             // Clear error if uniform isn't found
@@ -2031,27 +2201,24 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, int base_register)
     {
-        assert(context);
-
         glUniform4fv(base_register, count, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
-        assert(context);
         glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetSampler(HContext context, int32_t location, int32_t unit)
+    static void OpenGLSetSampler(HContext context, int32_t base_register, int32_t unit)
     {
         assert(context);
-        glUniform1i(location, unit);
+        glUniform1i(base_register, unit);
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetDepthStencilRenderBuffer(RenderTarget* rt, bool update_current = false)
+    static void OpenGLSetDepthStencilRenderBuffer(OpenGLRenderTarget* rt, bool update_current = false)
     {
         uint32_t param_buffer_index = rt->m_BufferTypeFlags & dmGraphics::BUFFER_TYPE_DEPTH_BIT ?  GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT) :  GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
 
@@ -2112,14 +2279,82 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-
-    static HRenderTarget OpenGLNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+#if __EMSCRIPTEN__
+    // Only used for webgl currently
+    static bool ValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
     {
-        RenderTarget* rt = new RenderTarget;
-        memset(rt, 0, sizeof(RenderTarget));
+        uint32_t attachment_width  = -1;
+        uint32_t attachment_height = -1;
 
-        rt->m_BufferTypeFlags = buffer_type_flags;
-        rt->m_DepthBufferBits = context->m_DepthBufferBits;
+        for (int i = 0; i < max_color_attachments; ++i)
+        {
+            if (buffer_type_flags & color_buffer_flags[i])
+            {
+                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
+                TextureCreationParams params = creation_params[color_buffer_index];
+
+                if (attachment_width == -1)
+                {
+                    attachment_width  = params.m_Width;
+                    attachment_height = params.m_Height;
+                }
+                else if (attachment_width != params.m_Width || attachment_height != params.m_Height)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
+        {
+            if(!(buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
+            {
+                uint32_t depth_param_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+
+                if (attachment_width != -1)
+                {
+                    return attachment_width  == creation_params[depth_param_index].m_Width &&
+                           attachment_height == creation_params[depth_param_index].m_Height;
+                }
+            }
+            else if(!(buffer_type_flags & BUFFER_TYPE_DEPTH_BIT))
+            {
+                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
+                if (attachment_width != -1)
+                {
+                    return attachment_width  == creation_params[stencil_param_index].m_Width &&
+                           attachment_height == creation_params[stencil_param_index].m_Height;
+                }
+            }
+            else
+            {
+                uint32_t depth_param_index   = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
+
+                if (attachment_width == -1)
+                {
+                    return creation_params[depth_param_index].m_Width == creation_params[stencil_param_index].m_Width &&
+                           creation_params[depth_param_index].m_Height == creation_params[stencil_param_index].m_Height;
+                }
+
+                return attachment_width  == creation_params[depth_param_index].m_Width &&
+                       attachment_height == creation_params[depth_param_index].m_Height &&
+                       attachment_width  == creation_params[stencil_param_index].m_Width &&
+                       attachment_height == creation_params[stencil_param_index].m_Height;
+            }
+        }
+
+        return true;
+    }
+#endif
+
+    static HRenderTarget OpenGLNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        OpenGLRenderTarget* rt = new OpenGLRenderTarget();
+        rt->m_BufferTypeFlags  = buffer_type_flags;
+        rt->m_DepthBufferBits  = context->m_DepthBufferBits;
 
         glGenFramebuffers(1, &rt->m_Id);
         CHECK_GL_ERROR;
@@ -2142,6 +2377,22 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         };
 
         uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+
+        // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
+        //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
+    #if __EMSCRIPTEN__
+        if (context->m_MultiTargetRenderingSupport)
+        {
+            max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
+
+            if (!ValidateFramebufferAttachments(max_color_attachments, buffer_type_flags, color_buffer_flags, creation_params))
+            {
+                dmLogError("All attachments must have the same size!");
+                return 0;
+            }
+        }
+    #endif
+
         for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
@@ -2150,7 +2401,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 rt->m_ColorBufferTexture[i] = NewTexture(context, creation_params[color_buffer_index]);
                 SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
                 // attach the texture to FBO color attachment point
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
+
+                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, attachment_tex->m_TextureIds[0], 0);
                 CHECK_GL_ERROR;
             }
         }
@@ -2199,34 +2452,45 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR;
 
-        return rt;
+        return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
-
 
     static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
     {
-        glDeleteFramebuffers(1, &render_target->m_Id);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
+
+        glDeleteFramebuffers(1, &rt->m_Id);
 
         for (uint8_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
         {
-            if (render_target->m_ColorBufferTexture[i])
+            if (rt->m_ColorBufferTexture[i])
             {
-                DeleteTexture(render_target->m_ColorBufferTexture[i]);
+                DeleteTexture(rt->m_ColorBufferTexture[i]);
             }
         }
 
-        if (render_target->m_DepthStencilBuffer)
-            glDeleteRenderbuffers(1, &render_target->m_DepthStencilBuffer);
-        if (render_target->m_DepthBuffer)
-            glDeleteRenderbuffers(1, &render_target->m_DepthBuffer);
-        if (render_target->m_StencilBuffer)
-            glDeleteRenderbuffers(1, &render_target->m_StencilBuffer);
+        if (rt->m_DepthStencilBuffer)
+            glDeleteRenderbuffers(1, &rt->m_DepthStencilBuffer);
+        if (rt->m_DepthBuffer)
+            glDeleteRenderbuffers(1, &rt->m_DepthBuffer);
+        if (rt->m_StencilBuffer)
+            glDeleteRenderbuffers(1, &rt->m_StencilBuffer);
 
-        delete render_target;
+        g_Context->m_AssetHandleContainer.Release(render_target);
+
+        delete rt;
     }
 
-    static void OpenGLSetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = 0;
+
+        if (render_target != 0)
+        {
+            rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        }
+
         if(PFN_glInvalidateFramebuffer != NULL)
         {
             if(context->m_FrameBufferInvalidateBits)
@@ -2257,20 +2521,26 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
-            context->m_FrameBufferInvalidateAttachments = render_target != NULL;
+            context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? glfwGetDefaultFramebuffer() : rt->m_Id);
         CHECK_GL_ERROR;
 
-        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
+    #if __EMSCRIPTEN__
+        #define DRAW_BUFFERS_FN glDrawBuffers
+    #else
+        #define DRAW_BUFFERS_FN PFN_glDrawBuffers
+    #endif
+
+        if (rt != NULL && DRAW_BUFFERS_FN != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
 
             for (uint32_t i=0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
             {
-                if (render_target->m_ColorBufferTexture[i])
+                if (rt->m_ColorBufferTexture[i])
                 {
                     buffers[i] = GL_COLOR_ATTACHMENT0 + i;
                     num_buffers++;
@@ -2283,9 +2553,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
             if (num_buffers > 1)
             {
-                PFN_glDrawBuffers(num_buffers, buffers);
+                DRAW_BUFFERS_FN(num_buffers, buffers);
             }
         }
+
+    #undef DRAW_BUFFERS_FN
 
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
@@ -2300,56 +2572,72 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             return 0;
         }
-        return render_target->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
+
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
+        return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        assert(render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);;
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
-        width = render_target->m_BufferTextureParams[i].m_Width;
-        height = render_target->m_BufferTextureParams[i].m_Height;
+        width = rt->m_BufferTextureParams[i].m_Width;
+        height = rt->m_BufferTextureParams[i].m_Height;
     }
 
     static void OpenGLSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        assert(render_target);
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);;
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            render_target->m_BufferTextureParams[i].m_Width = width;
-            render_target->m_BufferTextureParams[i].m_Height = height;
+            rt->m_BufferTextureParams[i].m_Width = width;
+            rt->m_BufferTextureParams[i].m_Height = height;
 
-            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_ColorBufferTexture[i])
+            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && rt->m_ColorBufferTexture[i])
             {
-                SetTexture(render_target->m_ColorBufferTexture[i], render_target->m_BufferTextureParams[i]);
+                SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
             }
         }
-        OpenGLSetDepthStencilRenderBuffer(render_target, true);
+        OpenGLSetDepthStencilRenderBuffer(rt, true);
     }
 
     static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return (context->m_TextureFormatSupport & (1 << format)) != 0;
+        return (((OpenGLContext*) context)->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext context)
     {
-        return context->m_MaxTextureSize;
+        return ((OpenGLContext*) context)->m_MaxTextureSize;
     }
 
-    static HTexture OpenGLNewTexture(HContext context, const TextureCreationParams& params)
+    static HTexture OpenGLNewTexture(HContext _context, const TextureCreationParams& params)
     {
-        GLuint t;
-        glGenTextures( 1, &t );
+        uint16_t num_texture_ids = 1;
+        TextureType texture_type = params.m_Type;
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+
+        // If an array texture was requested but we cannot create such textures,
+        // we need to fallback to separate textures instead
+        if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !context->m_TextureArraySupport)
+        {
+            num_texture_ids = params.m_Depth;
+            texture_type    = TEXTURE_TYPE_2D;
+        }
+
+        GLuint* gl_texture_ids = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
+        glGenTextures(num_texture_ids, gl_texture_ids);
         CHECK_GL_ERROR;
 
-        Texture* tex = new Texture;
-        tex->m_Type = params.m_Type;
-        tex->m_Texture = t;
-
-        tex->m_Width = params.m_Width;
-        tex->m_Height = params.m_Height;
+        OpenGLTexture* tex   = new OpenGLTexture();
+        tex->m_Type          = texture_type;
+        tex->m_TextureIds    = gl_texture_ids;
+        tex->m_Width         = params.m_Width;
+        tex->m_Height        = params.m_Height;
+        tex->m_Depth         = params.m_Depth;
+        tex->m_NumTextureIds = num_texture_ids;
 
         if (params.m_OriginalWidth == 0){
             tex->m_OriginalWidth = params.m_Width;
@@ -2362,15 +2650,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
-        return (HTexture) tex;
+
+        return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void OpenGLDoDeleteTexture(void* context)
     {
-        HTexture texture = (HTexture)context;
-        glDeleteTextures(1, &texture->m_Texture);
+        HTexture texture   = (HTexture) context;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+
+        glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
         CHECK_GL_ERROR;
-        delete texture;
+        free(tex->m_TextureIds);
+
+        g_Context->m_AssetHandleContainer.Release(texture);
+        delete tex;
     }
 
     static void OpenGLDeleteTextureAsync(HTexture texture)
@@ -2391,7 +2685,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             uint32_t size = g_PostDeleteTexturesArray.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                OpenGLDoDeleteTexture(g_PostDeleteTexturesArray[i]);
+                OpenGLDoDeleteTexture((void*)(size_t) g_PostDeleteTexturesArray[i]);
             }
             return;
         }
@@ -2463,7 +2757,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        GLenum type = GetOpenGLTextureType(texture->m_Type);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+
+        GLenum type = GetOpenGLTextureType(tex->m_Type);
 
         glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
         CHECK_GL_ERROR;
@@ -2484,11 +2780,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
+    static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
+    {
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        assert(tex);
+        return tex->m_NumTextureIds;
+    }
+
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
-        if(texture->m_DataState)
+        if(tex->m_DataState)
+        {
             flags |= TEXTURE_STATUS_DATA_PENDING;
+        }
         return flags;
     }
 
@@ -2503,12 +2809,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
-        ap.m_Texture->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, ap.m_Texture);
+
+        tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
     }
 
     static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params)
     {
-        texture->m_DataState |= 1<<params.m_MipMap;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+
+        tex->m_DataState |= 1<<params.m_MipMap;
         uint16_t param_array_index;
         {
             dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
@@ -2533,13 +2844,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
         if (!texture) {
             return HANDLE_RESULT_ERROR;
         }
 
-        *out_handle = &texture->m_Texture;
+        *out_handle = &tex->m_TextureIds[0];
 
         return HANDLE_RESULT_OK;
     }
@@ -2586,26 +2898,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR;
         }
-        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        GLenum type = GetOpenGLTextureType(texture->m_Type);
-        glBindTexture(type, texture->m_Texture);
-        CHECK_GL_ERROR;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
-        texture->m_Params = params;
-        if (!params.m_SubUpdate) {
-            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-            if (params.m_MipMap == 0)
-            {
-                texture->m_Width  = params.m_Width;
-                texture->m_Height = params.m_Height;
-            }
-
-            if (params.m_MipMap == 0)
-                texture->m_ResourceSize = params.m_DataSize;
-        }
-
+        GLenum type = GetOpenGLTextureType(tex->m_Type);
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
         GLint internal_format = -1; // // Only used for uncompressed formats
@@ -2701,124 +2999,185 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         }
 
-        switch (params.m_Format)
+        tex->m_Params = params;
+
+        if (!params.m_SubUpdate)
         {
-        case TEXTURE_FORMAT_LUMINANCE:
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-        case TEXTURE_FORMAT_RGB:
-        case TEXTURE_FORMAT_RGBA:
-        case TEXTURE_FORMAT_RGB_16BPP:
-        case TEXTURE_FORMAT_RGBA_16BPP:
-        case TEXTURE_FORMAT_RGB16F:
-        case TEXTURE_FORMAT_RGB32F:
-        case TEXTURE_FORMAT_RGBA16F:
-        case TEXTURE_FORMAT_RGBA32F:
-        case TEXTURE_FORMAT_R16F:
-        case TEXTURE_FORMAT_R32F:
-        case TEXTURE_FORMAT_RG16F:
-        case TEXTURE_FORMAT_RG32F:
-            if (texture->m_Type == TEXTURE_TYPE_2D) {
-                if (params.m_SubUpdate) {
-                    glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
-                } else {
-                    glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
-                }
-                CHECK_GL_ERROR;
-            } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
-                const char* p = (const char*) params.m_Data;
-                if (params.m_SubUpdate) {
-                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
-                    CHECK_GL_ERROR;
-                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
-                    CHECK_GL_ERROR;
-                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 2);
-                    CHECK_GL_ERROR;
-                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
-                    CHECK_GL_ERROR;
-                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
-                    CHECK_GL_ERROR;
-                    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
-                    CHECK_GL_ERROR;
-                } else {
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
-                    CHECK_GL_ERROR;
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
-                    CHECK_GL_ERROR;
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
-                    CHECK_GL_ERROR;
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
-                    CHECK_GL_ERROR;
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
-                    CHECK_GL_ERROR;
-                    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
-                    CHECK_GL_ERROR;
-                }
-
-            } else {
-                assert(0);
+            if (params.m_MipMap == 0)
+            {
+                tex->m_Width  = params.m_Width;
+                tex->m_Height = params.m_Height;
+                tex->m_Depth  = params.m_Depth;
             }
-            break;
 
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-        case TEXTURE_FORMAT_RGB_ETC1:
-        case TEXTURE_FORMAT_R_ETC2:
-        case TEXTURE_FORMAT_RG_ETC2:
-        case TEXTURE_FORMAT_RGBA_ETC2:
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:
-        case TEXTURE_FORMAT_RGB_BC1:
-        case TEXTURE_FORMAT_RGBA_BC3:
-        case TEXTURE_FORMAT_R_BC4:
-        case TEXTURE_FORMAT_RG_BC5:
-        case TEXTURE_FORMAT_RGBA_BC7:
-            if (params.m_DataSize > 0) {
-                if (texture->m_Type == TEXTURE_TYPE_2D) {
-                    if (params.m_SubUpdate) {
-                        glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
-                    } else {
-                        glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
-                    }
-                    CHECK_GL_ERROR;
-                } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+            if (params.m_MipMap == 0)
+            {
+                tex->m_ResourceSize = params.m_DataSize;
+            }
+        }
+
+        for (int i = 0; i < tex->m_NumTextureIds; ++i)
+        {
+            glBindTexture(type, tex->m_TextureIds[i]);
+            CHECK_GL_ERROR;
+
+            if (!params.m_SubUpdate) {
+                SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+            }
+
+            switch (params.m_Format)
+            {
+            case TEXTURE_FORMAT_LUMINANCE:
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            case TEXTURE_FORMAT_RGB:
+            case TEXTURE_FORMAT_RGBA:
+            case TEXTURE_FORMAT_RGB_16BPP:
+            case TEXTURE_FORMAT_RGBA_16BPP:
+            case TEXTURE_FORMAT_RGB16F:
+            case TEXTURE_FORMAT_RGB32F:
+            case TEXTURE_FORMAT_RGBA16F:
+            case TEXTURE_FORMAT_RGBA32F:
+            case TEXTURE_FORMAT_R16F:
+            case TEXTURE_FORMAT_R32F:
+            case TEXTURE_FORMAT_RG16F:
+            case TEXTURE_FORMAT_RG32F:
+                if (tex->m_Type == TEXTURE_TYPE_2D) {
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate) {
-                        glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
+                        glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
+                    } else {
+                        glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
+                    }
+                    CHECK_GL_ERROR;
+                } else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                    assert(g_Context->m_TextureArraySupport);
+                    #ifdef ANDROID
+                        #define TEX_SUB_IMAGE_3D PFN_glTexSubImage3D
+                        #define TEX_IMAGE_3D     PFN_glTexImage3D
+                    #else
+                        #define TEX_SUB_IMAGE_3D glTexSubImage3D
+                        #define TEX_IMAGE_3D     glTexImage3D
+                    #endif
+                        if (params.m_SubUpdate) {
+                            TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                        } else {
+                            TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                        }
+                    #undef TEX_SUB_IMAGE_3D
+                    #undef TEX_IMAGE_3D
+                    CHECK_GL_ERROR;
+                } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                    assert(tex->m_NumTextureIds == 1);
+                    const char* p = (const char*) params.m_Data;
+                    if (params.m_SubUpdate) {
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
                         CHECK_GL_ERROR;
-                        glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
                         CHECK_GL_ERROR;
-                        glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 2);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 2);
                         CHECK_GL_ERROR;
-                        glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
                         CHECK_GL_ERROR;
-                        glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
                         CHECK_GL_ERROR;
-                        glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
                         CHECK_GL_ERROR;
                     } else {
-                        glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
                         CHECK_GL_ERROR;
-                        glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
                         CHECK_GL_ERROR;
-                        glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 2);
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
                         CHECK_GL_ERROR;
-                        glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
                         CHECK_GL_ERROR;
-                        glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
                         CHECK_GL_ERROR;
-                        glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
                         CHECK_GL_ERROR;
                     }
                 } else {
                     assert(0);
                 }
-            }
+                break;
 
-            break;
-        default:
-            assert(0);
-            break;
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGB_ETC1:
+            case TEXTURE_FORMAT_R_ETC2:
+            case TEXTURE_FORMAT_RG_ETC2:
+            case TEXTURE_FORMAT_RGBA_ETC2:
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case TEXTURE_FORMAT_RGB_BC1:
+            case TEXTURE_FORMAT_RGBA_BC3:
+            case TEXTURE_FORMAT_R_BC4:
+            case TEXTURE_FORMAT_RG_BC5:
+            case TEXTURE_FORMAT_RGBA_BC7:
+                if (params.m_DataSize > 0) {
+                    if (tex->m_Type == TEXTURE_TYPE_2D) {
+                        if (params.m_SubUpdate) {
+                            glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
+                        } else {
+                            glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
+                        }
+                        CHECK_GL_ERROR;
+                    } else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                    #ifdef __ANDROID__
+                        #define COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+                        #define COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+                    #else
+                        #define COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
+                        #define COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+                    #endif
+                        if (params.m_SubUpdate) {
+                            COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                        } else {
+                            COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
+                        }
+                        CHECK_GL_ERROR;
+                    #undef COMPRESSED_TEX_SUB_IMAGE_3D
+                    #undef COMPRESSED_TEX_IMAGE_3D
+                    } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                        const char* p = (const char*) params.m_Data;
+                        if (params.m_SubUpdate) {
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 2);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
+                            CHECK_GL_ERROR;
+                        } else {
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 2);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
+                            CHECK_GL_ERROR;
+                        }
+                    } else {
+                        assert(0);
+                    }
+                }
+
+                break;
+            default:
+                assert(0);
+                break;
+            }
         }
 
         glBindTexture(type, 0);
@@ -2834,56 +3193,74 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     // NOTE: This is an approximation
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t size_total = 0;
-        uint32_t size = texture->m_ResourceSize; // Size for mip 0
-        for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        uint32_t size = tex->m_ResourceSize; // Size for mip 0
+        for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)
         {
             size_total += size;
             size >>= 2;
         }
-        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
         {
             size_total *= 6;
         }
-        return size_total + sizeof(Texture);
+        return size_total + sizeof(OpenGLTexture);
     }
 
     static uint16_t OpenGLGetTextureWidth(HTexture texture)
     {
-        return texture->m_Width;
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Width;
     }
 
     static uint16_t OpenGLGetTextureHeight(HTexture texture)
     {
-        return texture->m_Height;
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Height;
     }
 
     static uint16_t OpenGLGetOriginalTextureWidth(HTexture texture)
     {
-        return texture->m_OriginalWidth;
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
     static uint16_t OpenGLGetOriginalTextureHeight(HTexture texture)
     {
-        return texture->m_OriginalHeight;
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
-    static void OpenGLEnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static TextureType OpenGLGetTextureType(HTexture texture)
     {
-        assert(context);
-        assert(texture);
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Type;
+    }
+
+    static uint16_t OpenGLGetTextureDepth(HTexture texture)
+    {
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_Depth;
+    }
+
+    static uint8_t OpenGLGetTextureMipmapCount(HTexture texture)
+    {
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_MipMapCount;
+    }
+
+    static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
+        assert(id_index < tex->m_NumTextureIds);
 
 #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
 #endif
 
+        GLenum texture_type = GetOpenGLTextureType(tex->m_Type);
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
-        glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_Texture);
+        glBindTexture(texture_type, tex->m_TextureIds[id_index]);
         CHECK_GL_ERROR;
 
-        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap, 1.0f);
+        OpenGLSetTextureParams(texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
     }
 
     static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -2895,9 +3272,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
 #endif
 
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(((OpenGLContext*) context)->m_AssetHandleContainer, texture);
+
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
-        glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
+        glBindTexture(GetOpenGLTextureType(tex->m_Type), 0);
         CHECK_GL_ERROR;
     }
 
@@ -2925,7 +3304,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glEnable(GetOpenGLState(state));
         CHECK_GL_ERROR
 
-        SetPipelineStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(((OpenGLContext*) context)->m_PipelineState, state, 1);
     }
 
     static void OpenGLDisableState(HContext context, State state)
@@ -2941,12 +3320,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glDisable(GetOpenGLState(state));
         CHECK_GL_ERROR
 
-        SetPipelineStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(((OpenGLContext*) context)->m_PipelineState, state, 0);
     }
 
-    static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
+    static void OpenGLSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
-        assert(context);
+        assert(_context);
         GLenum blend_factor_lut[] = {
             GL_ZERO,
             GL_ONE,
@@ -2975,15 +3354,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
         CHECK_GL_ERROR
 
+        OpenGLContext* context = (OpenGLContext*) _context;
+
         context->m_PipelineState.m_BlendSrcFactor = source_factor;
         context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
-    static void OpenGLSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
+    static void OpenGLSetColorMask(HContext _context, bool red, bool green, bool blue, bool alpha)
     {
-        assert(context);
+        assert(_context);
         glColorMask(red, green, blue, alpha);
         CHECK_GL_ERROR;
+
+        OpenGLContext* context = (OpenGLContext*) _context;
 
         uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
         write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
@@ -2998,7 +3381,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glDepthMask(mask);
         CHECK_GL_ERROR;
 
-        context->m_PipelineState.m_WriteDepth = mask;
+        ((OpenGLContext*) context)->m_PipelineState.m_WriteDepth = mask;
     }
 
     static GLenum GetOpenGLCompareFunc(CompareFunc func)
@@ -3033,8 +3416,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glDepthFunc(GetOpenGLCompareFunc(func));
         CHECK_GL_ERROR
-
-        context->m_PipelineState.m_DepthTestFunc = func;
+        ((OpenGLContext*) context)->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void OpenGLSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -3049,28 +3431,29 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilMask(mask);
         CHECK_GL_ERROR;
-
-        context->m_PipelineState.m_StencilWriteMask = mask;
+        ((OpenGLContext*) context)->m_PipelineState.m_StencilWriteMask = mask;
     }
 
-    static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
+    static void OpenGLSetStencilFunc(HContext _context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
-        assert(context);
+        assert(_context);
         glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
 
+        OpenGLContext* context = (OpenGLContext*) _context;
         context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
         context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
         context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
         context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
-    static void OpenGLSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    static void OpenGLSetStencilFuncSeparate(HContext _context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
-        assert(context);
+        assert(_context);
         glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
 
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (face_type == FACE_TYPE_BACK)
         {
             context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
@@ -3083,9 +3466,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
-    static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    static void OpenGLSetStencilOp(HContext _context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
-        assert(context);
+        assert(_context);
         const GLenum stencil_op_lut[] = {
             GL_KEEP,
             GL_ZERO,
@@ -3100,6 +3483,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
 
+        OpenGLContext* context = (OpenGLContext*) _context;
         context->m_PipelineState.m_StencilFrontOpFail      = sfail;
         context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
         context->m_PipelineState.m_StencilFrontOpPass      = dppass;
@@ -3108,9 +3492,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
-    static void OpenGLSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    static void OpenGLSetStencilOpSeparate(HContext _context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
-        assert(context);
+        assert(_context);
         const GLenum stencil_op_lut[] = {
             GL_KEEP,
             GL_ZERO,
@@ -3125,6 +3509,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
 
+        OpenGLContext* context = (OpenGLContext*) _context;
         if (face_type == FACE_TYPE_BACK)
         {
             context->m_PipelineState.m_StencilBackOpFail       = sfail;
@@ -3145,7 +3530,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glCullFace(GetOpenGLFaceTypeFunc(face_type));
         CHECK_GL_ERROR
 
-        context->m_PipelineState.m_CullFaceType = face_type;
+        ((OpenGLContext*) context)->m_PipelineState.m_CullFaceType = face_type;
     }
 
     static void OpenGLSetFaceWinding(HContext context, FaceWinding face_winding)
@@ -3159,7 +3544,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glFrontFace(face_winding_lut[face_winding]);
 
-        context->m_PipelineState.m_FaceWinding = face_winding;
+        ((OpenGLContext*) context)->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void OpenGLSetPolygonOffset(HContext context, float factor, float units)
@@ -3167,6 +3552,27 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glPolygonOffset(factor, units);
         CHECK_GL_ERROR;
+    }
+
+    static bool OpenGLIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
+    {
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+        AssetType type         = GetAssetType(asset_handle);
+
+        if (type == ASSET_TYPE_TEXTURE)
+        {
+            return GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        else if (type == ASSET_TYPE_RENDER_TARGET)
+        {
+            return GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        return false;
     }
 
     BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR0_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
@@ -3209,113 +3615,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable()
     {
-        GraphicsAdapterFunctionTable fn_table;
-        fn_table.m_NewContext = OpenGLNewContext;
-        fn_table.m_DeleteContext = OpenGLDeleteContext;
-        fn_table.m_Initialize = OpenGLInitialize;
-        fn_table.m_Finalize = OpenGLFinalize;
-        fn_table.m_GetWindowRefreshRate = OpenGLGetWindowRefreshRate;
-        fn_table.m_OpenWindow = OpenGLOpenWindow;
-        fn_table.m_CloseWindow = OpenGLCloseWindow;
-        fn_table.m_IconifyWindow = OpenGLIconifyWindow;
-        fn_table.m_GetWindowState = OpenGLGetWindowState;
-        fn_table.m_GetDisplayDpi = OpenGLGetDisplayDpi;
-        fn_table.m_GetWidth = OpenGLGetWidth;
-        fn_table.m_GetHeight = OpenGLGetHeight;
-        fn_table.m_GetWindowWidth = OpenGLGetWindowWidth;
-        fn_table.m_GetWindowHeight = OpenGLGetWindowHeight;
-        fn_table.m_GetDisplayScaleFactor = OpenGLGetDisplayScaleFactor;
-        fn_table.m_SetWindowSize = OpenGLSetWindowSize;
-        fn_table.m_ResizeWindow = OpenGLResizeWindow;
-        fn_table.m_GetDefaultTextureFilters = OpenGLGetDefaultTextureFilters;
-        fn_table.m_BeginFrame = OpenGLBeginFrame;
-        fn_table.m_Flip = OpenGLFlip;
-        fn_table.m_SetSwapInterval = OpenGLSetSwapInterval;
-        fn_table.m_Clear = OpenGLClear;
-        fn_table.m_NewVertexBuffer = OpenGLNewVertexBuffer;
-        fn_table.m_DeleteVertexBuffer = OpenGLDeleteVertexBuffer;
-        fn_table.m_SetVertexBufferData = OpenGLSetVertexBufferData;
-        fn_table.m_SetVertexBufferSubData = OpenGLSetVertexBufferSubData;
-        fn_table.m_GetMaxElementsVertices = OpenGLGetMaxElementsVertices;
-        fn_table.m_NewIndexBuffer = OpenGLNewIndexBuffer;
-        fn_table.m_DeleteIndexBuffer = OpenGLDeleteIndexBuffer;
-        fn_table.m_SetIndexBufferData = OpenGLSetIndexBufferData;
-        fn_table.m_SetIndexBufferSubData = OpenGLSetIndexBufferSubData;
-        fn_table.m_IsIndexBufferFormatSupported = OpenGLIsIndexBufferFormatSupported;
-        fn_table.m_NewVertexDeclaration = OpenGLNewVertexDeclaration;
-        fn_table.m_NewVertexDeclarationStride = OpenGLNewVertexDeclarationStride;
-        fn_table.m_SetStreamOffset = OpenGLSetStreamOffset;
-        fn_table.m_DeleteVertexDeclaration = OpenGLDeleteVertexDeclaration;
-        fn_table.m_EnableVertexDeclaration = OpenGLEnableVertexDeclaration;
-        fn_table.m_EnableVertexDeclarationProgram = OpenGLEnableVertexDeclarationProgram;
-        fn_table.m_DisableVertexDeclaration = OpenGLDisableVertexDeclaration;
-        fn_table.m_HashVertexDeclaration = OpenGLHashVertexDeclaration;
-        fn_table.m_DrawElements = OpenGLDrawElements;
-        fn_table.m_Draw = OpenGLDraw;
-        fn_table.m_NewVertexProgram = OpenGLNewVertexProgram;
-        fn_table.m_NewFragmentProgram = OpenGLNewFragmentProgram;
-        fn_table.m_NewProgram = OpenGLNewProgram;
-        fn_table.m_DeleteProgram = OpenGLDeleteProgram;
-        fn_table.m_ReloadVertexProgram = OpenGLReloadVertexProgram;
-        fn_table.m_ReloadFragmentProgram = OpenGLReloadFragmentProgram;
-        fn_table.m_DeleteVertexProgram = OpenGLDeleteVertexProgram;
-        fn_table.m_DeleteFragmentProgram = OpenGLDeleteFragmentProgram;
-        fn_table.m_GetShaderProgramLanguage = OpenGLGetShaderProgramLanguage;
-        fn_table.m_EnableProgram = OpenGLEnableProgram;
-        fn_table.m_DisableProgram = OpenGLDisableProgram;
-        fn_table.m_ReloadProgram = OpenGLReloadProgram;
-        fn_table.m_GetUniformName = OpenGLGetUniformName;
-        fn_table.m_GetUniformCount = OpenGLGetUniformCount;
-        fn_table.m_GetUniformLocation = OpenGLGetUniformLocation;
-        fn_table.m_SetConstantV4 = OpenGLSetConstantV4;
-        fn_table.m_SetConstantM4 = OpenGLSetConstantM4;
-        fn_table.m_SetSampler = OpenGLSetSampler;
-        fn_table.m_SetViewport = OpenGLSetViewport;
-        fn_table.m_EnableState = OpenGLEnableState;
-        fn_table.m_DisableState = OpenGLDisableState;
-        fn_table.m_SetBlendFunc = OpenGLSetBlendFunc;
-        fn_table.m_SetColorMask = OpenGLSetColorMask;
-        fn_table.m_SetDepthMask = OpenGLSetDepthMask;
-        fn_table.m_SetDepthFunc = OpenGLSetDepthFunc;
-        fn_table.m_SetScissor = OpenGLSetScissor;
-        fn_table.m_SetStencilMask = OpenGLSetStencilMask;
-        fn_table.m_SetStencilFunc = OpenGLSetStencilFunc;
-        fn_table.m_SetStencilFuncSeparate = OpenGLSetStencilFuncSeparate;
-        fn_table.m_SetStencilOp = OpenGLSetStencilOp;
-        fn_table.m_SetStencilOpSeparate = OpenGLSetStencilOpSeparate;
-        fn_table.m_SetCullFace = OpenGLSetCullFace;
-        fn_table.m_SetFaceWinding = OpenGLSetFaceWinding;
-        fn_table.m_SetPolygonOffset = OpenGLSetPolygonOffset;
-        fn_table.m_NewRenderTarget = OpenGLNewRenderTarget;
-        fn_table.m_DeleteRenderTarget = OpenGLDeleteRenderTarget;
-        fn_table.m_SetRenderTarget = OpenGLSetRenderTarget;
-        fn_table.m_GetRenderTargetTexture = OpenGLGetRenderTargetTexture;
-        fn_table.m_GetRenderTargetSize = OpenGLGetRenderTargetSize;
-        fn_table.m_SetRenderTargetSize = OpenGLSetRenderTargetSize;
-        fn_table.m_IsTextureFormatSupported = OpenGLIsTextureFormatSupported;
-        fn_table.m_NewTexture = OpenGLNewTexture;
-        fn_table.m_DeleteTexture = OpenGLDeleteTexture;
-        fn_table.m_SetTexture = OpenGLSetTexture;
-        fn_table.m_SetTextureAsync = OpenGLSetTextureAsync;
-        fn_table.m_SetTextureParams = OpenGLSetTextureParams;
-        fn_table.m_GetTextureResourceSize = OpenGLGetTextureResourceSize;
-        fn_table.m_GetTextureWidth = OpenGLGetTextureWidth;
-        fn_table.m_GetTextureHeight = OpenGLGetTextureHeight;
-        fn_table.m_GetOriginalTextureWidth = OpenGLGetOriginalTextureWidth;
-        fn_table.m_GetOriginalTextureHeight = OpenGLGetOriginalTextureHeight;
-        fn_table.m_EnableTexture = OpenGLEnableTexture;
-        fn_table.m_DisableTexture = OpenGLDisableTexture;
-        fn_table.m_GetMaxTextureSize = OpenGLGetMaxTextureSize;
-        fn_table.m_GetTextureStatusFlags = OpenGLGetTextureStatusFlags;
-        fn_table.m_ReadPixels = OpenGLReadPixels;
-        fn_table.m_RunApplicationLoop = OpenGLRunApplicationLoop;
-        fn_table.m_GetTextureHandle = OpenGLGetTextureHandle;
-        fn_table.m_GetMaxElementsIndices = OpenGLGetMaxElementIndices;
-        fn_table.m_IsExtensionSupported = OpenGLIsExtensionSupported;
-        fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
-        fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
-        fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
-        fn_table.m_GetPipelineState = OpenGLGetPipelineState;
+        GraphicsAdapterFunctionTable fn_table = {};
+        DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, OpenGL);
         return fn_table;
     }
 }

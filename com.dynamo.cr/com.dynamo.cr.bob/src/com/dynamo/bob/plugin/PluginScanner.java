@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,9 +24,12 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.logging.Logger;
 
 
 public class PluginScanner {
+
+	private static Logger logger = Logger.getLogger(PluginScanner.class.getName());
 
 	private static HashMap<String, Object> pluginsCache = new HashMap<>();
 
@@ -84,18 +87,18 @@ public class PluginScanner {
 			List<T> plugins = (List<T>)pluginsCache.get(pluginKey);
 			if (plugins != null)
 			{
-				Bob.verbose("PluginScanner has %d cached plugins for key %s", plugins.size(), pluginKey);
+				logger.info("PluginScanner has %d cached plugins for key %s", plugins.size(), pluginKey);
 			}
 			return plugins;
 		}
 
 		IClassScanner scanner = Project.getClassLoaderScanner();
 		if (scanner == null) {
-			Bob.verbose("PluginScanner has no class loader scanner");
+			logger.info("PluginScanner has no class loader scanner");
 			return null;
 		}
 
-		Bob.verbose("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
+		logger.info("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
 		
 		List<T> plugins = new ArrayList<>();
 		Set<String> classNames = scanner.scan(packageName);
@@ -106,7 +109,7 @@ public class PluginScanner {
 				boolean isAbstract = Modifier.isAbstract(klass.getModifiers());
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
-					Bob.verbose("Found plugin " + className);
+					logger.info("Found plugin " + className);
 					plugins.add((T)klass.newInstance());
 				}
 			}

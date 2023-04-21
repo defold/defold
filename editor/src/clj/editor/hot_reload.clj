@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,10 +15,8 @@
 (ns editor.hot-reload
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g]
-            [editor.pipeline :as pipeline]
             [editor.workspace :as workspace]
-            [editor.resource :as resource])
+            [util.http-util :as http-util])
   (:import [java.io FileNotFoundException]
            [java.net URI]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -27,9 +25,6 @@
 
 (def ^:const url-prefix "/build")
 (def ^:const verify-etags-url-prefix "/__verify_etags__")
-
-(def ^:const not-found {:code 404})
-(def ^:const bad-request {:code 400})
 
 (defn- content->bytes [content]
   (-> content io/input-stream IOUtils/toByteArray))
@@ -50,13 +45,13 @@
                        (catch FileNotFoundException _
                          :not-found)))]
        (if (= content :not-found)
-         not-found
+         http-util/not-found-response
          (let [response-headers (cond-> {"ETag" etag}
                                   (= method "GET") (assoc "Content-Length" (if content (str (count content)) "-1")))]
            (cond-> {:code (if cached? 304 200)
                     :headers response-headers}
              (and (= method "GET") (not cached?)) (assoc :body content)))))
-     not-found)))
+     http-util/not-found-response)))
 
 (defn build-handler [workspace project request]
   (handler workspace project request))
@@ -86,7 +81,7 @@
 
 (defn- v-e-handler [workspace project {:keys [url method headers ^bytes body]}]
   (if (not= method "POST")
-    bad-request
+    http-util/bad-request-response
     (let [body-str (string/join "\n" (body->valid-entries workspace body))
           body (.getBytes body-str "UTF-8")]
       {:code 200

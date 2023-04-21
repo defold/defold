@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -89,7 +89,11 @@
 (defn- gen-mipmaps [texture]
   (TexcLibrary/TEXC_GenMipMaps texture))
 
-(def num-texc-threads 8)
+(defn num-texc-threads []
+  (let [count (.availableProcessors (Runtime/getRuntime))]
+    (cond (> count 4) (- count 2)
+          (> count 1) (- count 1)
+          :else 1)))
 
 (defn- transcode [texture pixel-format color-model compression-level compression-type mipmaps]
   (TexcLibrary/TEXC_Encode texture pixel-format color-model compression-level compression-type mipmaps (num-texc-threads)))

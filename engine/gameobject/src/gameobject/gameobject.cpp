@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -2434,11 +2434,16 @@ namespace dmGameObject
         return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
     }
 
-    static void CheckEuler(Instance* instance)
+    static bool HasEulerChanged(Instance* instance)
     {
         Vector3& euler = instance->m_EulerRotation;
         Vector3& prev_euler = instance->m_PrevEulerRotation;
-        if (!Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler)))
+        return !Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler));
+    }
+
+    static void CheckEuler(Instance* instance)
+    {
+        if (HasEulerChanged(instance))
         {
             UpdateEulerToRotation(instance);
         }
@@ -3276,6 +3281,10 @@ namespace dmGameObject
             }
             else if (property_id == PROP_ROTATION)
             {
+                if (HasEulerChanged(instance))
+                {
+                    UpdateEulerToRotation(instance);
+                }
                 float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation;
                 out_value.m_ElementIds[0] = PROP_ROTATION_X;
@@ -3286,31 +3295,50 @@ namespace dmGameObject
             }
             else if (property_id == PROP_ROTATION_X)
             {
+                if (HasEulerChanged(instance))
+                {
+                    UpdateEulerToRotation(instance);
+                }
                 float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
+                if (HasEulerChanged(instance))
+                {
+                    UpdateEulerToRotation(instance);
+                }
                 float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
+                if (HasEulerChanged(instance))
+                {
+                    UpdateEulerToRotation(instance);
+                }
                 float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_W)
             {
+                if (HasEulerChanged(instance))
+                {
+                    UpdateEulerToRotation(instance);
+                }
                 float* rotation = instance->m_Transform.GetRotationPtr();
                 out_value.m_ValuePtr = rotation + 3;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER)
             {
-                UpdateRotationToEuler(instance);
+                if (!HasEulerChanged(instance))
+                {
+                    UpdateRotationToEuler(instance);
+                }
                 out_value.m_ValuePtr = (float*)&instance->m_EulerRotation;
                 out_value.m_ElementIds[0] = PROP_EULER_X;
                 out_value.m_ElementIds[1] = PROP_EULER_Y;
@@ -3319,19 +3347,28 @@ namespace dmGameObject
             }
             else if (property_id == PROP_EULER_X)
             {
-                UpdateRotationToEuler(instance);
-                out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation);
+                if (!HasEulerChanged(instance))
+                {
+                    UpdateRotationToEuler(instance);
+                }
+               out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation);
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER_Y)
             {
-                UpdateRotationToEuler(instance);
+                if (!HasEulerChanged(instance))
+                {
+                    UpdateRotationToEuler(instance);
+                }
                 out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation) + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER_Z)
             {
-                UpdateRotationToEuler(instance);
+                if (!HasEulerChanged(instance))
+                {
+                    UpdateRotationToEuler(instance);
+                }
                 out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation) + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }

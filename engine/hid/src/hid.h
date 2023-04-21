@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -65,7 +65,7 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
-    typedef void (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+    typedef bool (* FHIDGamepadFunc)(uint32_t, bool, void*);
 
     /// parameters to be passed to NewContext
     struct NewContextParams
@@ -84,9 +84,6 @@ namespace dmHID
         uint32_t m_IgnoreAcceleration : 1;
         /// if mouse wheel scroll direction should be flipped (see DEF-2450)
         uint32_t m_FlipScrollDirection : 1;
-
-        DMHIDGamepadFunc m_GamepadConnectivityCallback;
-
     };
 
     /**
@@ -107,10 +104,12 @@ namespace dmHID
     /**
      * Set user data that will be passed along to the gamepad connectivity callback.
      *
+     * @name SetGamepadConnectivityCallback
      * @params context context for which the userdata should be set
-     * @params userdata userdata that should be passed along to callback
+     * @params callback [type: DMHIDGamepadFunc] userdata that will be passed to the callback
+     * @params callback_ctx [type: void*] userdata that will be passed to the callback
      */
-    void SetGamepadFuncUserdata(HContext context, void* userdata);
+    void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
 
     /**
      * Initializes a hid context.
@@ -150,13 +149,17 @@ namespace dmHID
      */
     uint32_t GetGamepadAxisCount(HGamepad gamepad);
 
+    uint32_t GetGamepadHatCount(HGamepad gamepad);
+
     /**
      * Retrieves the platform-specific device name of a given gamepad.
      *
+     * @param context the hid context
      * @param gamepad gamepad handle
-     * @param a pointer to the device name, or 0x0 if not specified
+     * @param buffer a pointer to memory where the name should be stored
+     * @param buffer_length the size of the buffer parameter
      */
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length);
 
     /**
      * Check if a keyboard is connected.

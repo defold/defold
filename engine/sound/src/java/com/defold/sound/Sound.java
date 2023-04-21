@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,32 +25,22 @@ public class Sound {
 
     public static int getSampleRate(Context context) {
         final int default_rate = 44100;
-        if (Build.VERSION.SDK_INT >= 17) {
-            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            String sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
-            if (sampleRate == null) {
-                return default_rate;
-            }
-            return Integer.parseInt(sampleRate);
-        } else {
-            Log.w(SoundManager.TAG, "Android version < 17. Unable to determine hardware sample rate.");
+        AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        String sampleRate = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
+        if (sampleRate == null) {
             return default_rate;
         }
+        return Integer.parseInt(sampleRate);
     }
 
     public static int getFramesPerBuffer(Context context) {
         final int default_frames = 1024;
-        if (Build.VERSION.SDK_INT >= 17) {
-            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            String framesPerBuffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER);
-            if (framesPerBuffer == null) {
-                return default_frames;
-            }
-            return Integer.parseInt(framesPerBuffer);
-        } else {
-            Log.w(SoundManager.TAG, "Android version < 17. Unable to determine hardware frame count.");
+        AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        String framesPerBuffer = audioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER);
+        if (framesPerBuffer == null) {
             return default_frames;
         }
+        return Integer.parseInt(framesPerBuffer);
     }
 
 }

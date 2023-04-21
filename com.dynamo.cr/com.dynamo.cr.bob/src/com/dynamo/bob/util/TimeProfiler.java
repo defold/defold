@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,7 @@ import java.io.BufferedWriter;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.util.Date;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -51,7 +52,6 @@ public class TimeProfiler {
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
      */
     private static class ProfilingScope {
-        public String name;
         public long startTime;
         public long endTime;
         HashMap<String, String> additionalStringData;
@@ -74,25 +74,9 @@ public class TimeProfiler {
     private static ArrayList<ProfilingMark> marks;
     private static long buildTime;
 
-    public enum ReportFormat {
-        JSON(".json"),
-        HTML(".html");
-
-        private String format;
-
-        ReportFormat(String fileFormat) {
-            this.format = fileFormat;
-        }
-
-        public String getFormat() {
-            return this.format;
-        }
-    }
-
     private static ProfilingScope rootScope;
     private static ProfilingScope currentScope;
-    private static ReportFormat fileFormat;
-    private static File reportFile;
+    private static List<File> reportFiles;
     private static Boolean fromEditor;
 
     private static long time() {
@@ -101,8 +85,6 @@ public class TimeProfiler {
 
     private static void generateJsonRecursively(JsonGenerator generator, ProfilingScope scope) throws IOException {
         generator.writeStartObject();
-        generator.writeFieldName("name");
-        generator.writeString(scope.name);
         generator.writeFieldName("start");
         generator.writeNumber(scope.startTime - buildTime);
         generator.writeFieldName("duration");
@@ -228,10 +210,23 @@ public class TimeProfiler {
 
         try {
             String jsonReport = generateJSON(_rootScope);
-            if (fileFormat == ReportFormat.JSON) {
-                saveJSON(jsonReport, reportFile);
-            } else {
-                saveHTML(jsonReport, reportFile);
+
+            // save report files, add '_time' to the given filenames
+            // foo.json -> foo_time.json
+            for (File reportFile : reportFiles) {
+                String reportFileName = reportFile.getName();
+                String extension = "." + FilenameUtils.getExtension(reportFileName);
+                String finalReportFileName = reportFileName.replace(extension, FILENAME_POSTFIX + extension);
+                File finalReportFile = new File(reportFile.getParent(), finalReportFileName);
+                if (extension.equals(".json")) {
+                    saveJSON(jsonReport, finalReportFile);
+                }
+                else if (extension.equals(".html")) {
+                    saveHTML(jsonReport, finalReportFile);
+                }
+                else {
+                    System.err.println("Report file " + reportFileName + "has unsupported extension");
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -241,14 +236,11 @@ public class TimeProfiler {
         System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
     }
 
-    public static void init(File sizeReportFile, ReportFormat fileFormat, Boolean fromEditor) throws IOException {
+    public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
         if (rootScope != null) {
             return;
         }
-        String format = fileFormat.getFormat();
-        String name = sizeReportFile.getName().replace(format, FILENAME_POSTFIX + format);
-        TimeProfiler.reportFile = new File(sizeReportFile.getParent(), name);
-        TimeProfiler.fileFormat = fileFormat;
+        TimeProfiler.reportFiles = reportFiles;
         TimeProfiler.fromEditor = fromEditor;
         marks = new ArrayList();
         long startTime = time();
@@ -258,13 +250,14 @@ public class TimeProfiler {
         }
         buildTime = startTime;
         rootScope = new ProfilingScope();
-        rootScope.name = "Total time";
         rootScope.startTime = startTime;
         currentScope = rootScope;
+        unsafeAddData("name", "Total time");
 
         if (!fromEditor) {
             ProfilingScope initScope = new ProfilingScope();
-            initScope.name = "Java VM init";
+            initScope.additionalStringData = new HashMap<String, String>();
+            initScope.additionalStringData.put("name", "Java VM init");
             initScope.startTime = startTime;
             initScope.endTime = time();
             rootScope.children = new ArrayList<ProfilingScope>();

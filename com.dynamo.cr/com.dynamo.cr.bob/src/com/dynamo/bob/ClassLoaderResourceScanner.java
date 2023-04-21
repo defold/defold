@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -66,7 +67,9 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
 
     private static void scanJar(URL resource, String filter, Set<String> results) throws IOException {
         String resPath = resource.getPath();
-        String jarPath = resPath.replaceFirst("[.]jar[!].*", ".jar").replaceFirst("file:", "");
+
+        // resPath is URL-encoded, e.g. space characters represented as %20, so decode before deriving file paths from it
+        String jarPath = URLDecoder.decode(resPath.replaceFirst("[.]jar[!].*", ".jar"), "UTF-8").replaceFirst("file:", "");
         try (JarFile jarFile = new JarFile(jarPath)){
             Enumeration<JarEntry> entries = jarFile.entries();
             while(entries.hasMoreElements()) {

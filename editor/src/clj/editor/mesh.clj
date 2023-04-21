@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -195,7 +195,7 @@
     (gl/with-gl-bindings gl render-args [shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
-        (shader/set-uniform shader gl name (- (:unit texture) GL2/GL_TEXTURE0)))
+        (shader/set-samplers-by-name shader gl name (:texture-units texture)))
       (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)
@@ -228,7 +228,7 @@
     (gl/with-gl-bindings gl render-args [id-shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
-        (shader/set-uniform id-shader gl name (- (:unit texture) GL2/GL_TEXTURE0)))
+        (shader/set-samplers-by-name id-shader gl name (:texture-units texture)))
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)
       (let [vb (request-vb! gl node-id user-data world-transform)

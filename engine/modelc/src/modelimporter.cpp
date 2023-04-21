@@ -1,5 +1,5 @@
 
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -112,6 +112,20 @@ static void DestroyAnimation(Animation* animation)
     delete[] animation->m_NodeAnimations;
 }
 
+bool Validate(Scene* scene)
+{
+    if (scene->m_ValidateFn)
+        return scene->m_ValidateFn(scene);
+    return true;
+}
+
+bool LoadFinalize(Scene* scene)
+{
+    if (scene->m_LoadFinalizeFn)
+        return scene->m_LoadFinalizeFn(scene);
+    return true;
+}
+
 void DestroyScene(Scene* scene)
 {
     if (!scene)
@@ -125,7 +139,7 @@ void DestroyScene(Scene* scene)
         return;
     }
 
-    scene->m_DestroyFn(scene->m_OpaqueSceneData);
+    scene->m_DestroyFn(scene);
     scene->m_OpaqueSceneData = 0;
 
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
@@ -151,6 +165,10 @@ void DestroyScene(Scene* scene)
     scene->m_AnimationsCount = 0;
     delete[] scene->m_Animations;
 
+
+    scene->m_BuffersCount = 0;
+    delete[] scene->m_Buffers;
+
     delete scene;
 }
 
@@ -169,6 +187,16 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
     return 0;
 }
 
+static void* BufferResolveUri(const char* dirname, const char* uri, uint32_t* file_size)
+{
+    char path[512];
+    dmStrlCpy(path, dirname, sizeof(path));
+    dmStrlCat(path, "/", sizeof(path));
+    dmStrlCat(path, uri, sizeof(path));
+
+    return dmModelImporter::ReadFile(path, file_size);
+}
+
 Scene* LoadFromPath(Options* options, const char* path)
 {
     const char* suffix = strrchr(path, '.') + 1;
@@ -183,9 +211,48 @@ Scene* LoadFromPath(Options* options, const char* path)
 
     Scene* scene = LoadFromBuffer(options, suffix, data, file_size);
 
+
+    char dirname[512];
+    dmStrlCpy(dirname, path, sizeof(dirname));
+    char* c = strrchr(dirname, '/');
+    if (!c)
+        c = strrchr(dirname, '\\');
+    if (c)
+        *c = 0;
+
+    if (dmModelImporter::NeedsResolve(scene))
+    {
+        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        {
+            if (scene->m_Buffers[i].m_Buffer)
+                continue;
+
+            uint32_t mem_size = 0;
+            void* mem = BufferResolveUri(dirname, scene->m_Buffers[i].m_Uri, &mem_size);
+            dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, mem, mem_size);
+        }
+    }
+
+    if (!dmModelImporter::LoadFinalize(scene))
+    {
+        DestroyScene(scene);
+        printf("Failed to load '%s'\n", path);
+        return 0;
+    }
+
     free(data);
 
     return scene;
+}
+
+bool NeedsResolve(Scene* scene)
+{
+    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    {
+        if (!scene->m_Buffers[i].m_Buffer)
+            return true;;
+    }
+    return false;
 }
 
 void EnableDebugLogging(bool enable)

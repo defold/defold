@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,7 +47,8 @@ extern "C"
 }
 
 namespace dmScript {
-    dmGameObject::HInstance CheckGOInstance(lua_State* L) {
+    static inline dmGameObject::HInstance GetGOInstance(lua_State* L)
+    {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
         if (instance == 0) {
             dmGui::HScene scene = dmGui::GetSceneFromLua(L);
@@ -55,6 +56,11 @@ namespace dmScript {
                 instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
             }
         }
+        return instance;
+    }
+
+    dmGameObject::HInstance CheckGOInstance(lua_State* L) {
+        dmGameObject::HInstance instance = GetGOInstance(L);
         // No instance for render scripts, ignored
         if (instance == 0) {
             luaL_error(L, "no instance could be found in the current script environment");
@@ -66,13 +72,7 @@ namespace dmScript {
     // Modified to support both gameobject/gui scripts
     dmGameObject::HInstance CheckGOInstance(lua_State* L, int instance_arg)
     {
-        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-        if (instance == 0) {
-            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
-            if (scene != 0) {
-                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
-            }
-        }
+        dmGameObject::HInstance instance = GetGOInstance(L);
 
         if (!lua_isnil(L, instance_arg)) {
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
@@ -92,6 +92,21 @@ namespace dmScript {
             }
         }
         return instance;
+    }
+
+    dmGameObject::HCollection CheckCollection(lua_State* L)
+    {
+        dmGameObject::HInstance instance = GetGOInstance(L);
+        if (!instance)
+            luaL_error(L, "Script context doesn't have a game object set");
+        return instance ? dmGameObject::GetCollection(instance) : 0;
+    }
+
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
+    {
+        dmGameObject::HInstance instance = CheckGOInstance(L, index);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        GetComponentUserDataFromLua(L, index, collection, component_type, (uintptr_t*)component, url, out_world);
     }
 }
 

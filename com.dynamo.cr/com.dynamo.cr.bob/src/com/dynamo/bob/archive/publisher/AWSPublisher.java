@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,8 @@ import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.Grant;
 import com.amazonaws.services.s3.model.Permission;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.archive.ArchiveEntry;
+import java.io.File;
 
 public class AWSPublisher extends Publisher {
 
@@ -70,10 +72,12 @@ public class AWSPublisher extends Publisher {
             if (client.doesBucketExist(bucket)) {
                 if (hasWritePermissions(client, bucket)) {
                 	String prefix = this.getPublisherSettings().getAmazonPrefix();
-                    for (String hexDigest : this.getEntries().keySet()) {
+                    for (File fhandle : this.getEntries().keySet()) {
+                        ArchiveEntry archiveEntry = this.getEntries().get(fhandle);
+                        String hexDigest = archiveEntry.getHexDigest();
                         String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
                         try {
-                        	client.putObject(bucket, key, this.getEntries().get(hexDigest));
+                        	client.putObject(bucket, key, fhandle);
                         } catch (AmazonS3Exception exception) {
                         	throw amazonException("Unable to upload file, " + exception.getErrorMessage() + ": " + key, exception);
                         }

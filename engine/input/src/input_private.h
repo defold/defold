@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -104,18 +104,17 @@ namespace dmInput
 
     struct Binding
     {
-        Context* m_Context;
-        KeyboardBinding* m_KeyboardBinding;
-        MouseBinding* m_MouseBinding;
-        dmArray<GamepadBinding*> m_GamepadBindings;
-        TouchDeviceBinding* m_TouchDeviceBinding;
-        AccelerationBinding* m_AccelerationBinding;
-        TextBinding* m_TextBinding;
-        dmHashTable64< Action > m_Actions;
-
+        Context*                    m_Context;
+        KeyboardBinding*            m_KeyboardBinding;
+        MouseBinding*               m_MouseBinding;
+        dmArray<GamepadBinding*>    m_GamepadBindings;
+        TouchDeviceBinding*         m_TouchDeviceBinding;
+        AccelerationBinding*        m_AccelerationBinding;
+        TextBinding*                m_TextBinding;
+        dmHashTable64<Action>       m_Actions;
+        dmArray<uint32_t>           m_DisconnectedGamepadIndices;
         dmInputDDF::GamepadTrigger* m_DDFGamepadTriggersData;
-        uint32_t m_DDFGamepadTriggersCount;
-        dmArray<uint32_t> m_DisconnectedGamepadIndices;
+        uint32_t                    m_DDFGamepadTriggersCount;
     };
 
     struct GamepadInput
@@ -137,12 +136,14 @@ namespace dmInput
 
     struct Context
     {
-        dmIndexPool8 m_GamepadIndices;
-        dmHashTable32< GamepadConfig > m_GamepadMaps;
-        dmHID::HContext m_HidContext;
-        float m_RepeatDelay;
-        float m_RepeatInterval;
-        float m_PressedThreshold;
+        dmIndexPool8                    m_GamepadIndices;
+        dmHashTable32< GamepadConfig >  m_GamepadMaps;
+        dmHashTable32<bool>             m_UnmappedGamepads;
+        dmHID::HContext                 m_HidContext;
+        Binding*                        m_Binding;
+        float                           m_RepeatDelay;
+        float                           m_RepeatInterval;
+        float                           m_PressedThreshold;
     };
 }
 

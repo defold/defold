@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -200,27 +200,19 @@ public class ResourceUnpacker {
         }
 
         if (unpackPath != null) {
-            return ensureDirectory(Paths.get(unpackPath), true);
+            return ensureDirectory(Paths.get(unpackPath));
         }
 
-        Path supportPath = Editor.getSupportPath();
         String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
-        if (sha1 != null) {
-            return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)), false);
-        }
-
-        Path tmpDir = Files.createTempDirectory("defold-unpack");
+        Path tmpDir = Files.createTempDirectory("defold-unpack" + (sha1 == null ? "" : "-" + sha1));
         deleteOnExit(tmpDir);
         return tmpDir;
     }
 
-    private static Path ensureDirectory(Path path, boolean userDir) throws IOException {
+    private static Path ensureDirectory(Path path) {
         File f = path.toFile();
         if (!f.exists()) {
             f.mkdirs();
-            if (!userDir) {
-                deleteOnExit(path);
-            }
         }
         return path;
     }

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,8 @@ package com.dynamo.bob;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
+
+import com.dynamo.bob.util.StringUtil;
 
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
@@ -173,8 +175,8 @@ public enum Platform {
     }
 
     public static Platform getJavaPlatform() {
-        String os_name = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
+        String os_name = StringUtil.toLowerCase(System.getProperty("os.name"));
+        String arch = StringUtil.toLowerCase(System.getProperty("os.arch"));
 
         if (os_name.indexOf("win") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
@@ -197,8 +199,8 @@ public enum Platform {
     }
 
     public static Platform getHostPlatform() {
-        String os_name = System.getProperty("os.name").toLowerCase();
-        String arch = System.getProperty("os.arch").toLowerCase();
+        String os_name = StringUtil.toLowerCase(System.getProperty("os.name"));
+        String arch = StringUtil.toLowerCase(System.getProperty("os.arch"));
 
         if (os_name.indexOf("win") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {

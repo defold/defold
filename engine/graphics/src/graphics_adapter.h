@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,15 +81,11 @@ namespace dmGraphics
     typedef void (*DeleteVertexBufferFn)(HVertexBuffer buffer);
     typedef void (*SetVertexBufferDataFn)(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*SetVertexBufferSubDataFn)(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
-    typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
     typedef uint32_t (*GetMaxElementsVerticesFn)(HContext context);
     typedef HIndexBuffer (*NewIndexBufferFn)(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*DeleteIndexBufferFn)(HIndexBuffer buffer);
     typedef void (*SetIndexBufferDataFn)(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*SetIndexBufferSubDataFn)(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
-    typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
     typedef bool (*IsIndexBufferFormatSupportedFn)(HContext context, IndexBufferFormat format);
     typedef uint32_t (*GetMaxElementsIndicesFn)(HContext context);
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
@@ -153,7 +149,10 @@ namespace dmGraphics
     typedef uint16_t (*GetTextureHeightFn)(HTexture texture);
     typedef uint16_t (*GetOriginalTextureWidthFn)(HTexture texture);
     typedef uint16_t (*GetOriginalTextureHeightFn)(HTexture texture);
-    typedef void (*EnableTextureFn)(HContext context, uint32_t unit, HTexture texture);
+    typedef uint16_t (*GetTextureDepthFn)(HTexture texture);
+    typedef uint8_t (*GetTextureMipmapCountFn)(HTexture texture);
+    typedef TextureType (*GetTextureTypeFn)(HTexture texture);
+    typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
     typedef uint32_t (*GetMaxTextureSizeFn)(HContext context);
     typedef uint32_t (*GetTextureStatusFlagsFn)(HTexture texture);
@@ -163,7 +162,9 @@ namespace dmGraphics
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
-    typedef bool (*IsMultiTargetRenderingSupportedFn)(HContext context);
+    typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
+    typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
+    typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -193,15 +194,11 @@ namespace dmGraphics
         DeleteVertexBufferFn m_DeleteVertexBuffer;
         SetVertexBufferDataFn m_SetVertexBufferData;
         SetVertexBufferSubDataFn m_SetVertexBufferSubData;
-        MapVertexBufferFn m_MapVertexBuffer;
-        UnmapVertexBufferFn m_UnmapVertexBuffer;
         GetMaxElementsVerticesFn m_GetMaxElementsVertices;
         NewIndexBufferFn m_NewIndexBuffer;
         DeleteIndexBufferFn m_DeleteIndexBuffer;
         SetIndexBufferDataFn m_SetIndexBufferData;
         SetIndexBufferSubDataFn m_SetIndexBufferSubData;
-        MapIndexBufferFn m_MapIndexBuffer;
-        UnmapIndexBufferFn m_UnmapIndexBuffer;
         IsIndexBufferFormatSupportedFn m_IsIndexBufferFormatSupported;
         GetMaxElementsIndicesFn m_GetMaxElementsIndices;
         NewVertexDeclarationFn m_NewVertexDeclaration;
@@ -263,8 +260,11 @@ namespace dmGraphics
         GetTextureResourceSizeFn m_GetTextureResourceSize;
         GetTextureWidthFn m_GetTextureWidth;
         GetTextureHeightFn m_GetTextureHeight;
+        GetTextureTypeFn m_GetTextureType;
         GetOriginalTextureWidthFn m_GetOriginalTextureWidth;
         GetOriginalTextureHeightFn m_GetOriginalTextureHeight;
+        GetTextureDepthFn m_GetTextureDepth;
+        GetTextureMipmapCountFn m_GetTextureMipmapCount;
         EnableTextureFn m_EnableTexture;
         DisableTextureFn m_DisableTexture;
         GetMaxTextureSizeFn m_GetMaxTextureSize;
@@ -275,9 +275,126 @@ namespace dmGraphics
         IsExtensionSupportedFn m_IsExtensionSupported;
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
-        IsMultiTargetRenderingSupportedFn m_IsMultiTargetRenderingSupported;
+        GetNumTextureHandlesFn m_GetNumTextureHandles;
         GetPipelineStateFn m_GetPipelineState;
+        IsContextFeatureSupportedFn m_IsContextFeatureSupported;
+        IsAssetHandleValidFn m_IsAssetHandleValid;
     };
+
+    #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
+        tbl.m_##fn_name = adapter_name##fn_name
+    #define DM_REGISTER_GRAPHICS_FUNCTION_TABLE(tbl, adapter_name) \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewContext); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteContext); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Initialize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Finalize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowRefreshRate); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, OpenWindow); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CloseWindow); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IconifyWindow); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowState); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWidth); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetHeight); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowWidth); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowHeight); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayScaleFactor); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowSize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ResizeWindow); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDefaultTextureFilters); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, BeginFrame); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Flip); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetSwapInterval); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Clear); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexBufferData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexBufferSubData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetMaxElementsVertices); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewIndexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteIndexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetIndexBufferData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetIndexBufferSubData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsIndexBufferFormatSupported); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclaration); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclarationStride); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStreamOffset); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexDeclaration); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclaration); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclarationProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexDeclaration); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadVertexProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetShaderProgramLanguage); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformName); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformCount); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformLocation); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantV4); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantM4); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetSampler); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetViewport); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableState); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableState); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetBlendFunc); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetColorMask); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetDepthMask); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetDepthFunc); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetScissor); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStencilMask); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStencilFunc); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStencilFuncSeparate); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStencilOp); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStencilOpSeparate); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetCullFace); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetFaceWinding); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetPolygonOffset); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewRenderTarget); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteRenderTarget); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTarget); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetRenderTargetTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetRenderTargetSize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTargetSize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsTextureFormatSupported); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureAsync); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureParams); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureResourceSize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureWidth); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureHeight); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetOriginalTextureWidth); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetOriginalTextureHeight); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureDepth); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureMipmapCount); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureType); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetMaxTextureSize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureStatusFlags); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReadPixels); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, RunApplicationLoop); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureHandle); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetMaxElementsIndices); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsExtensionSupported); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumSupportedExtensions); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
 }
 
 #endif

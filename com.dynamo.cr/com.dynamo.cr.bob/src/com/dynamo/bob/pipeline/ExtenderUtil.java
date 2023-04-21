@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,10 @@
 package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
+
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.ZipMountPoint;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -28,15 +32,17 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -53,6 +59,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.FileUtil;
 
 public class ExtenderUtil {
 
@@ -596,7 +603,7 @@ public class ExtenderUtil {
 
     /** Get the platform manifests from the extensions
      */
-    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -611,9 +618,7 @@ public class ExtenderUtil {
                     if (!(r instanceof FSExtenderResource))
                         continue;
                     File f = new File(r.getAbsPath());
-                    if (f.getName().equals(name)) {
-                        out.add( ((FSExtenderResource)r).getResource() );
-                    }
+                    out.add( ((FSExtenderResource)r).getResource() );
                 }
             }
         }
@@ -751,24 +756,10 @@ public class ExtenderUtil {
         return false;
     }
 
-    public static byte[] createSha1(File file) throws Exception  {
-        MessageDigest digest = MessageDigest.getInstance("SHA1");
-        InputStream fis = new FileInputStream(file);
-        int n = 0;
-        byte[] buffer = new byte[8192];
-        while (n != -1) {
-            n = fis.read(buffer);
-            if (n > 0) {
-                digest.update(buffer, 0, n);
-            }
-        }
-        return digest.digest();
-    }
-
     private static boolean areFilesIdentical(IResource src, File tgt) {
         try {
             byte[] sha1_src = src.sha1();
-            byte[] sha1_tgt = createSha1(tgt);
+            byte[] sha1_tgt = FileUtil.calculateSha1(tgt);
             return Arrays.equals(sha1_src, sha1_tgt);
         } catch(Exception e) {
             return false;
@@ -797,29 +788,72 @@ public class ExtenderUtil {
         }
     }
 
+    private static boolean isPluginZip(String resourcePath) {
+        Platform hostPlatform = Platform.getHostPlatform();
+        return resourcePath.endsWith("plugins/common.zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getPair() + ".zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getOs() + ".zip");
+    }
+
+    private static int getPluginZipSpecificity(String resourcePath) {
+        String baseName = FilenameUtils.getBaseName(resourcePath);
+        if (baseName.equals("common")) {
+            return 0;
+        } else if (baseName.contains("-")) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    private static File storeResource(File targetDirectory, IResource resource) throws CompileExceptionError {
+        String relativePath = resource.getPath();
+        File outputFile = new File(targetDirectory, relativePath);
+        if (!outputFile.getParentFile().exists()) {
+            outputFile.getParentFile().mkdirs();
+        }
+
+        // We do this because we might be called from within the editor, which might have the .dll's locked.
+        // and so we don't want to fail copying those if we can avoid it.
+        if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
+            return outputFile;
+        }
+
+        try {
+            byte[] data = resource.getContent();
+            FileUtils.writeByteArrayToFile(outputFile, data);
+            String outputPath = outputFile.toString();
+            if (outputPath.contains("/plugins/bin/")) {
+                outputFile.setExecutable(true);
+            }
+            return outputFile;
+        } catch (Exception e) {
+            throw new CompileExceptionError(resource, 0, e);
+        }
+    }
+
     public static void storeResources(File targetDirectory, List<IResource> resources) throws CompileExceptionError {
-        for (IResource resource : resources) {
-            String relativePath = resource.getPath();
-            File outputFile = new File(targetDirectory, relativePath);
-            if (!outputFile.getParentFile().exists()) {
-                outputFile.getParentFile().mkdirs();
-            }
-
-            // We do this because we might be called from within the editor, which ight have the .dll's locked.
-            // and so we don't want to fail copying those if we can avoid it.
-            if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
-                continue;
-            }
-
+        Map<Boolean, List<IResource>> separatedResources = resources.stream().collect(Collectors.groupingBy(r -> isPluginZip(r.getPath())));
+        // sort plugin zips in specificity order, then extract
+        List<IResource> pluginZips = separatedResources.getOrDefault(true, Collections.emptyList());
+        pluginZips.sort(Comparator.comparingInt(zip -> getPluginZipSpecificity(zip.getPath())));
+        for (IResource zipResource : pluginZips) {
+            File outputFile = storeResource(targetDirectory, zipResource);
+            ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
             try {
-                byte[] data = resource.getContent();
-                FileUtils.writeByteArrayToFile(outputFile, data);
-                if (relativePath.startsWith("plugins/bin/") || relativePath.contains("/plugins/bin/")) {
-                    outputFile.setExecutable(true);
-                }
-            } catch (Exception e) {
-                throw new CompileExceptionError(resource, 0, e);
+                zip.mount();
+                ArrayList<String> results = new ArrayList<>();
+                zip.walk("", new FileSystemWalker(), results);
+                storeResources(outputFile.getParentFile(), results.stream().map(zip::get).collect(Collectors.toList()));
+            } catch (IOException e) {
+                throw new CompileExceptionError(zipResource, 0, e);
+            } finally {
+                zip.unmount();
             }
+        }
+        // simply extract other resources
+        for (IResource resource : separatedResources.getOrDefault(false, Collections.emptyList())) {
+            storeResource(targetDirectory, resource);
         }
     }
 

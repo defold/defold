@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
@@ -40,6 +40,7 @@
    :index (.index rect)
    :x (.x rect)
    :y (.y rect)
+   :page (.page rect)
    :width (.width rect)
    :height (.height rect)
    :rotated (.rotated rect)})
@@ -54,17 +55,29 @@
      :visual-width (.visualWidth metrics)
      :visual-height (.visualHeight metrics)}))
 
+(defn- get-all-rects [layouts]
+  (let [rect-list (map (fn [^TextureSetLayout$Layout layout] (.getRectangles layout)) layouts)
+        rect-list-array (mapcat identity rect-list)]
+    (mapv Rect->map rect-list-array)))
+
 (defn- TextureSetResult->result
   [^TextureSetGenerator$TextureSetResult tex-set-result]
-  {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
-   :uv-transforms (vec (.uvTransforms tex-set-result))
-   :layout (.layoutResult tex-set-result)
-   :size [(.. tex-set-result layoutResult layout getWidth) (.. tex-set-result layoutResult layout getHeight)]
-   :rects (into [] (map Rect->map) (.. tex-set-result layoutResult layout getRectangles))})
+  (let [layouts (.. tex-set-result layoutResult layouts)
+        ^TextureSetLayout$Layout layout-first (.get layouts 0)
+        all-rects (get-all-rects layouts)]
+    {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
+     :uv-transforms (vec (.uvTransforms tex-set-result))
+     :layout (.layoutResult tex-set-result)
+     :size [(.getWidth layout-first) (.getHeight layout-first)]
+     :rects all-rects}))
 
-(defn layout-images
-  [layout-result id->image]
-  (TextureSetGenerator/layoutImages layout-result id->image))
+(defn layout-atlas-pages
+  [^TextureSetGenerator$LayoutResult layout-result id->image]
+  (let [inner-padding (.-innerPadding layout-result)
+        extrude-borders (.-extrudeBorders layout-result)]
+    (mapv (fn [^TextureSetLayout$Layout layout]
+            (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image))
+          (.-layouts layout-result))))
 
 (defn- sprite-trim-mode->hull-vertex-count
   ^long [sprite-trim-mode]
@@ -114,7 +127,7 @@
             (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))))))
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders]
+  [animations images margin inner-padding extrude-borders max-page-size]
   (let [sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
       (let [img-to-index (into {}
@@ -139,7 +152,7 @@
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
             result (TextureSetGenerator/calculateLayout
                      rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
-                     true false nil)]
+                     true false nil (get max-page-size 0) (get max-page-size 1))]
         (doto (.builder result)
           (.setTexture "unknown"))
         (TextureSetResult->result result)))))
@@ -257,7 +270,7 @@
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)
                  (:extrude-borders tile-source-attributes)
-                 false true grid)]
+                 false true grid 0.0 0.0)]
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))
@@ -268,6 +281,9 @@
     (TextureSetResult->result result)))
 
 (defn layout-tile-source
-  [layout-result ^BufferedImage image tile-source-attributes]
-  (let [id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
-    (TextureSetGenerator/layoutImages layout-result id->image)))
+  [^TextureSetGenerator$LayoutResult layout-result ^BufferedImage image tile-source-attributes]
+  (let [layout (first (.-layouts layout-result))
+        inner-padding (.-innerPadding layout-result)
+        extrude-borders (.-extrudeBorders layout-result)
+        id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
+    (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image)))

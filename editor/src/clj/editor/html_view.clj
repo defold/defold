@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,7 +25,8 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.http-util :as http-util])
   (:import [java.net URI URLDecoder]
            [javafx.scene Parent]
            [javafx.scene.control Tab]
@@ -72,9 +73,9 @@
 
         :else
         (do (log/warn :message (format "Unknown content-type %s for %s" resource-ext resource))
-            {:code 404})))
+            http-util/not-found-response)))
     (do (log/warn :message (format "Cannot find resource for %s" (:url request)))
-        {:code 404})))
+        http-util/not-found-response)))
 
 (defn- get-http-server!
   [project]
@@ -272,7 +273,7 @@
         web-view      (make-web-view project)
         web-engine    (.getEngine web-view)
         view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _] (update-web-view! view-id project)))]
+        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _ _] (update-web-view! view-id project)))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))

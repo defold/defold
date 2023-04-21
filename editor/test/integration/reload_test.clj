@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.reload-test
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -32,7 +33,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system do-until-new-mtime]])
+            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]])
   (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
@@ -94,8 +95,11 @@
      [workspace project])))
 
 (defn- template [workspace name]
-  (let [resource (workspace/file-resource workspace name)]
-    (workspace/template workspace (resource/resource-type resource))))
+  (let [resource (workspace/file-resource workspace name)
+        resource-type (resource/resource-type resource)
+        template (workspace/template workspace resource-type)
+        base-name (FilenameUtils/getBaseName (resource/resource-name resource))]
+    (asset-browser/replace-template-name template base-name)))
 
 (def ^:dynamic *no-sync* nil)
 (def ^:dynamic *moved-files* nil)
@@ -187,7 +191,7 @@
         (let [initial-node (project/get-resource-node project "/test.collection")]
           (is (= (inc initial-node-count) (node-count)))
           (is (not (nil? initial-node)))
-          (is (= "default" (g/node-value initial-node :name)))
+          (is (= "test" (g/node-value initial-node :name)))
           (is (no-undo? project))
           (testing "Change internal file"
             (write-file workspace "/test.collection" "name: \"test_name\"")

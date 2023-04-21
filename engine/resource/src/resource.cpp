@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,9 +17,6 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
 
 #ifdef __linux__
 #include <limits.h>
@@ -1026,19 +1023,9 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
     return r;
 }
 
-
-const char* GetExtFromPath(const char* path, char* buffer, uint32_t buffersize)
+const char* GetExtFromPath(const char* path)
 {
-    const char* ext = strrchr(path, '.');
-    if( !ext )
-        return 0;
-
-    int result = dmStrlCpy(buffer, ext, buffersize);
-    if( result >= 0 )
-    {
-        return buffer;
-    }
-    return 0;
+    return strrchr(path, '.');
 }
 
 // Assumes m_LoadMutex is already held
@@ -1152,8 +1139,7 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
         return RESULT_OUT_OF_RESOURCES;
     }
 
-    char extbuffer[64];
-    const char* ext = GetExtFromPath(canonical_path, extbuffer, sizeof(extbuffer));
+    const char* ext = GetExtFromPath(canonical_path);
 
     if (!ext)
     {

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,9 +19,6 @@
 
 namespace dmProfile
 {
-    /// Profile snapshot handle
-    typedef void* HProfile;
-
     // Opaque pointer to a sample
     typedef void* HSample;
 
@@ -57,19 +54,6 @@ namespace dmProfile
 
     // Note that the callback might come from a different thread!
     void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback);
-
-    /**
-     * Begin profiling, eg start of frame
-     * @note NULL is returned if profiling is disabled
-     * @return A snapshot of the current profile. Must be release by #Release after processed. It's valid to keep the profile snapshot throughout a "frame".
-     */
-    HProfile BeginFrame();
-
-    /**
-     * Release profile returned by #Begin
-     * @param profile Profile to release
-     */
-    void EndFrame(HProfile profile);
 
     void SetThreadName(const char* name);
 

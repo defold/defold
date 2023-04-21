@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -41,5 +41,36 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(textureImage);
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4;
         assertEquals(expectedSize, textureImage.getAlternatives(0).getData().size());
+    }
+
+    @Test
+    public void testAtlasPaged() throws Exception {
+        addImage("/test1.png", 16, 16);
+        addImage("/test2.png", 16, 16);
+
+        StringBuilder src = new StringBuilder();
+        src.append("images: {");
+        src.append("  image: \"/test1.png\"");
+        src.append("}");
+
+        src.append("images: {");
+        src.append("  image: \"/test2.png\"");
+        src.append("}");
+
+        src.append("max_page_width: 16\n");
+        src.append("max_page_height: 16\n");
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+        TextureImage textureImage1 = (TextureImage)outputs.get(1);
+
+        assertNotNull(textureSet);
+        assertNotNull(textureImage1);
+
+        assertEquals(textureSet.getPageIndices(0), 0);
+        assertEquals(textureSet.getPageIndices(1), 1);
+
+        int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4 * 2;
+        assertEquals(expectedSize, textureImage1.getAlternatives(0).getData().size());
     }
 }

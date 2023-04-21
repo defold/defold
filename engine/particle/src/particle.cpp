@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1049,6 +1049,8 @@ namespace dmParticle
         AnimPlayback playback = anim_data.m_Playback;
         float* tex_coords = anim_data.m_TexCoords;
         float* tex_dims = anim_data.m_TexDims;
+        uint32_t* page_indices = anim_data.m_PageIndices;
+        uint32_t* frame_indices = anim_data.m_FrameIndices;
         bool hFlip = anim_data.m_HFlip != 0;
         bool vFlip = anim_data.m_VFlip != 0;
         bool anim_playing = playback != ANIM_PLAYBACK_NONE && tile_count > 1;
@@ -1171,6 +1173,13 @@ namespace dmParticle
             tile += start_tile;
             float* tex_coord = &tex_coords[tile << 3];
 
+            float page_index = 0.0f;
+            if (frame_indices != 0x0)
+            {
+                uint32_t page_indices_index = frame_indices[tile];
+                page_index                  = (float) page_indices[page_indices_index];
+            }
+
             particle_transform.SetTranslation(Vector3(particle->GetPosition()));
             particle_transform.SetRotation(particle->GetRotation());
             particle_transform.SetScale(size);
@@ -1209,7 +1218,7 @@ namespace dmParticle
             {
                 Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
 
-#define SET_VERTEX_GO(vertex, p, c, u, v)\
+#define SET_VERTEX_GO(vertex, p, c, u, v, page)\
     vertex->m_X = p.getX();\
     vertex->m_Y = p.getY();\
     vertex->m_Z = p.getZ();\
@@ -1218,19 +1227,20 @@ namespace dmParticle
     vertex->m_Blue = c.getZ();\
     vertex->m_Alpha = c.getW();\
     vertex->m_U = u;\
-    vertex->m_V = v;
+    vertex->m_V = v;\
+    vertex->m_PageIndex = page;
 
-                SET_VERTEX_GO(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1])
+                SET_VERTEX_GO(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1], page_index)
                 ++vertex;
-                SET_VERTEX_GO(vertex, p1, c, tex_coord[tex_lookup[1] * 2], tex_coord[tex_lookup[1] * 2 + 1])
+                SET_VERTEX_GO(vertex, p1, c, tex_coord[tex_lookup[1] * 2], tex_coord[tex_lookup[1] * 2 + 1], page_index)
                 ++vertex;
-                SET_VERTEX_GO(vertex, p3, c, tex_coord[tex_lookup[2] * 2], tex_coord[tex_lookup[2] * 2 + 1])
+                SET_VERTEX_GO(vertex, p3, c, tex_coord[tex_lookup[2] * 2], tex_coord[tex_lookup[2] * 2 + 1], page_index)
                 ++vertex;
-                SET_VERTEX_GO(vertex, p3, c, tex_coord[tex_lookup[3] * 2], tex_coord[tex_lookup[3] * 2 + 1])
+                SET_VERTEX_GO(vertex, p3, c, tex_coord[tex_lookup[3] * 2], tex_coord[tex_lookup[3] * 2 + 1], page_index)
                 ++vertex;
-                SET_VERTEX_GO(vertex, p2, c, tex_coord[tex_lookup[4] * 2], tex_coord[tex_lookup[4] * 2 + 1])
+                SET_VERTEX_GO(vertex, p2, c, tex_coord[tex_lookup[4] * 2], tex_coord[tex_lookup[4] * 2 + 1], page_index)
                 ++vertex;
-                SET_VERTEX_GO(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1])
+                SET_VERTEX_GO(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1], page_index)
 
 #undef SET_VERTEX_GO
             }
@@ -1247,7 +1257,7 @@ namespace dmParticle
     vertex->m_Color[2] = c.getZ(); \
     vertex->m_Color[3] = c.getW(); \
     vertex->m_UV[0] = u;\
-    vertex->m_UV[1] = v;
+    vertex->m_UV[1] = v;\
 
                 SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1])
                 ++vertex;

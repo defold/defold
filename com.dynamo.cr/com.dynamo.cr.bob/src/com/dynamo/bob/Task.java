@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -72,7 +72,9 @@ public class Task<T> {
         }
 
         public TaskBuilder<T> addInput(IResource input) {
-            task.inputs.add(input);
+            if (!task.inputs.contains(input)){
+                task.inputs.add(input);
+            }
             return this;
         }
 
@@ -129,7 +131,7 @@ public class Task<T> {
     }
 
     public IResource input(int i) {
-        return inputs.get(i);
+        return inputs.size() > i ? inputs.get(i) : null;
     }
 
     public List<IResource> getOutputs() {
@@ -141,7 +143,7 @@ public class Task<T> {
     }
 
     public IResource output(int i) {
-        return outputs.get(i);
+        return outputs.size() > i ? outputs.get(i) : null;
     }
 
     public boolean isCacheable() {

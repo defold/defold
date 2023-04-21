@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,7 +39,11 @@
     (.order (ByteOrder/nativeOrder))
     (.asDoubleBuffer)))
 
-(scene-cache/register-object-cache! ::grid-vertex make-grid-vertex-buffer identity identity)
+(defn- ignore-grid-vertex-buffer [_1 _2 _3]
+  ;; Nothing.
+  nil)
+
+(scene-cache/register-object-cache! ::grid-vertex make-grid-vertex-buffer ignore-grid-vertex-buffer ignore-grid-vertex-buffer)
 
 (defn render-grid-axis
   [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]

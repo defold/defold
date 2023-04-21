@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -56,14 +56,14 @@
           image-file (io/as-file (g/node-value atlas-image :image))
           image-bytes (fs/read-bytes image-file)
           layout-data-generator (g/node-value atlas :layout-data-generator)
-          packed-image-generator (g/node-value atlas :packed-image-generator)
+          packed-page-images-generator (g/node-value atlas :packed-page-images-generator)
           call-generator #'atlas/call-generator]
 
       (testing "Initial project state"
         (is (not= :sprite-trim-mode-off (g/node-value atlas-image :sprite-trim-mode)))
         (testing "Generators"
           (is (not (g/error? (call-generator layout-data-generator))))
-          (is (not (g/error? (call-generator packed-image-generator)))))
+          (is (not (g/error? (call-generator packed-page-images-generator)))))
         (testing "Graph"
           (is (not (g/error? (g/node-value atlas :scene))))
           (is (not (g/error? (g/node-value atlas :build-targets))))
@@ -74,7 +74,7 @@
         (g/clear-system-cache!)
         (testing "Stale generators"
           (is (g/error? (call-generator layout-data-generator)))
-          (is (g/error? (call-generator packed-image-generator))))
+          (is (g/error? (call-generator packed-page-images-generator))))
         (testing "Graph before resource-sync"
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
@@ -90,7 +90,7 @@
         (g/clear-system-cache!)
         (testing "Stale generators"
           (is (not (g/error? (call-generator layout-data-generator))))
-          (is (not (g/error? (call-generator packed-image-generator)))))
+          (is (not (g/error? (call-generator packed-page-images-generator)))))
         (testing "Graph before resource-sync"
           (is (not (g/error? (g/node-value atlas :scene))))
           (is (not (g/error? (g/node-value atlas :build-targets))))
@@ -106,7 +106,7 @@
         (g/clear-system-cache!)
         (testing "Stale generators"
           (is (g/error? (call-generator layout-data-generator)))
-          (is (g/error? (call-generator packed-image-generator))))
+          (is (g/error? (call-generator packed-page-images-generator))))
         (testing "Graph before resource-sync"
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))

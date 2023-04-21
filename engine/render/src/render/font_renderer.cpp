@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -593,7 +593,7 @@ namespace dmRender
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
 
-        te.m_FrustumCullingRadius = Vectormath::Aos::length(cornerpoint_world - centerpoint_world);
+        te.m_FrustumCullingRadiusSq = Vectormath::Aos::lengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
 
 
@@ -664,9 +664,9 @@ namespace dmRender
 
                 uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
                 uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
-                uint8_t compression_type = *glyph_data++;
+                uint8_t is_compressed = *glyph_data++;
 
-                if (compression_type) {
+                if (is_compressed) {
 
                     // When if came to choosing between the different algorithms, here are some speed/compression tests
                     // Decoding 100 glyphs
@@ -1127,7 +1127,7 @@ namespace dmRender
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             TextEntry* te = ((TextEntry*) entry->m_UserData);
 
-            bool intersect = dmIntersection::TestFrustumSphere(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadius, true);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }

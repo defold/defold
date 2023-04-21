@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -3207,9 +3207,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         Matrix4 trans;
         CalculateNodeTransform(scene, n, (CalculateNodeTransformFlags)(CALCULATE_NODE_INCLUDE_SIZE), trans);
         dmTransform::Transform transform = dmTransform::ToTransform(trans);
-        float scale = transform.GetScalePtr()[0];
         dmParticle::SetPosition(scene->m_ParticlefxContext, inst, Point3(transform.GetTranslation()));
         dmParticle::SetRotation(scene->m_ParticlefxContext, inst, transform.GetRotation());
+        // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
+        float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
         dmParticle::SetScale(scene->m_ParticlefxContext, inst, scale);
 
         uint32_t count = scene->m_AliveParticlefxs.Size();

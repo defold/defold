@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -183,8 +183,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_set_path_a, (void**) &resource));
     ASSERT_NE((void*)0, resource);
 
-    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture);
-    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture);
+    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture);
+    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture);
 
     // Swap compiled resources to simulate an atlas update
     ASSERT_TRUE(CopyResource(texture_set_path_a, texture_set_path_tmp));
@@ -194,8 +194,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, texture_set_path_a, 0));
 
     // If the load truly was successful, we should have a new width/height for the internal image
-    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture));
-    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture));
+    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture));
+    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture));
 
     dmResource::Release(m_Factory, (void**) resource);
 }
@@ -203,13 +203,16 @@ TEST_F(ResourceTest, TestReloadTextureSet)
 TEST_F(ResourceTest, TestCreateTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -255,16 +258,67 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 6: test creating with compressed basis data
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // If the transcode function failed, the texture will be 1x1
+
+    dmGameSystem::TextureResource* texture_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &texture_res));
+    ASSERT_EQ(32, dmGraphics::GetTextureWidth(texture_res->m_Texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureHeight(texture_res->m_Texture));
+
+    // Release the dmResource::Get call above
+    dmResource::Release(m_Factory, texture_res);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 7: fail by using an empty buffer
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // res_texture will make an empty texture here if the test "worked", i.e coulnd't create a valid transcoded texture
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &texture_res));
+    ASSERT_EQ(1, dmGraphics::GetTextureWidth(texture_res->m_Texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureHeight(texture_res->m_Texture));
+
+    // Release the dmResource::Get call again
+    dmResource::Release(m_Factory, texture_res);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 8: test getting texture info
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
     // cleanup
+    DeleteInstance(m_Collection, go);
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
-    DeleteInstance(m_Collection, go);
-
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestResourceScriptBuffer)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
@@ -295,6 +349,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
@@ -304,7 +360,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     dmGameSystem::TextureSetResource* texture_set_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
 
-    dmGraphics::HTexture backing_texture = texture_set_res->m_Texture;
+    dmGraphics::HTexture backing_texture = texture_set_res->m_Texture->m_Texture;
     ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 64);
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 64);
 
@@ -333,6 +389,14 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_fail_wrong_mipmap
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: Set texture with compressed / transcoded data
+    //      -> set_texture.script::test_success_compressed
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
 
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -594,7 +658,10 @@ static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_
     dmGameObject::PropertyDesc desc;
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc));
+
+    dmGameObject::PropertyResult r = dmGameObject::GetProperty(instance, comp_name, prop_name, opt, desc);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
     dmGameObject::PropertyType type = desc.m_Variant.m_Type;
     ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type);
     *out_val = desc.m_Variant.m_Hash;
@@ -1351,6 +1418,14 @@ TEST_P(CollectionFactoryTest, Test)
             "/tile/valid.t.texturesetc", // single instance (subresource of sprite)
             "/sprite/sprite.materialc", // single instance (subresource of sprite)
     };
+    uint32_t num_resources = DM_ARRAY_SIZE(resource_path);
+
+    const char* dyn_prototype_resource_path[] = {
+            "/collection_factory/dynamic_prototype.goc",
+            "/collection_factory/dynamic_prototype.scriptc", // referenced by the goc
+    };
+    uint32_t num_dyn_prototype_resources = DM_ARRAY_SIZE(dyn_prototype_resource_path);
+
     dmHashEnableReverseHash(true);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -1359,6 +1434,14 @@ TEST_P(CollectionFactoryTest, Test)
     scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const CollectionFactoryTestParams& param = GetParam();
+
+    if (param.m_PrototypePath)
+    {
+        lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+        char buffer[256];
+        dmSnPrintf(buffer, sizeof(buffer), "prototype_path = '%s'", param.m_PrototypePath);
+        RunString(L, buffer);
+    }
 
     // Conditional preload. This is essentially testing async loading vs sync loading of parent collection
     // This only affects non-dynamic collection factories.
@@ -1393,19 +1476,17 @@ TEST_P(CollectionFactoryTest, Test)
     if(param.m_IsDynamic)
     {
         // validate that resources from dynamic collection factory is not loaded at this point. They will start loading from the script when updated below
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        for (uint32_t i = 0; i < num_resources; ++i) {
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[i])));
+        }
 
-        // --- step 1 ---
-        // update until instances are created through test script (collectionfactory.load and create)
-        // 1) load factory resource using collectionfactory.load
-        // 2) create 4 instances (two collectionfactory.create calls with a collection prototype that containes 2 references to gameobjects)
         // Do this twice in order to ensure load/unload can be called multiple times, with and without deleting created objects
         for(uint32_t i = 0; i < 2; ++i)
         {
+            // state: load
+            // update until instances are created through test script (collectionfactory.load and create)
+            // 1) load factory resource using collectionfactory.load
+            // 2) create 4 instances (two collectionfactory.create calls with a collection prototype that containes 2 references to gameobjects)
             dmhash_t last_object_id = i == 0 ? dmHashString64("/collection1/go") : dmHashString64("/collection3/go");
             for(;;)
             {
@@ -1421,9 +1502,17 @@ TEST_P(CollectionFactoryTest, Test)
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
-            // --- step 2 ---
-            // call collectionfactory.unload, derefencing 2 factory references.
+            // state: delete
             // first iteration will delete gameobjects created with factories, second will keep
+            if (i == 0)
+            {
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
+
+            // state: unload
+            // call collectionfactory.unload, dereferencing 2 factory references.
             ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
             ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
             dmGameObject::PostUpdate(m_Register);
@@ -1434,7 +1523,7 @@ TEST_P(CollectionFactoryTest, Test)
             ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
         }
 
-        // --- step 3 ---
+        // state: unload
         // call collectionfactory.unload again, which is ok by design (no operation)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1445,18 +1534,16 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
-        // --- step 4 ---
+        // state: delete
         // delete resources created by collectionfactory.create calls. All resource should be released
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        for (uint32_t i = 0; i < num_resources; ++i) {
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[i])));
+        }
 
-        // --- step 5 ---
+        // state: create
         // recreate resources without collectionfactoy.load having been called (sync load on demand)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1467,17 +1554,70 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
+        // state: delete
+        // recreate resources without collectionfactoy.load having been called (sync load on demand)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        // Verify that we can unload the resources after the game objects have been deleted
+        for (uint32_t i = 0; i < num_resources; ++i) {
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[i])));
+        }
+
+        if (param.m_PrototypePath)
+        {
+            // verify that the dynamic prototype resource hasn't been loaded yet
+            for (uint32_t i = 0; i < num_dyn_prototype_resources; ++i) {
+                ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+            }
+
+            // --- state: load prototype ---
+            // the default prototype is unloaded, and we've queued the new prototype to load
+            dmhash_t last_object_id = dmHashString64("/collection6/go");
+            for(;;)
+            {
+                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                    break;
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
+
+            // The factory holds the prototype resource
+            ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+
+            // --- state: unload prototype ---
+            // the custom prototype is unloaded
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+
+            // Only the game objects hold the resources now
+            ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+
+            // --- state: delete game objects ---
+            // the custom prototype is unloaded
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+
+            for (uint32_t i = 0; i < num_dyn_prototype_resources; ++i) {
+                ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+            }
+        }
+
         // delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
         dmGameObject::Final(m_Collection);
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        for (uint32_t i = 0; i < num_resources; ++i) {
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[i])));
+        }
     }
     else
     {
@@ -1488,7 +1628,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
-        // --- step 1 ---
+        // --- state: load ---
         // call update which will create four instances (two collectionfactory.create calls with a collection prototype that containes two references to go)
         // We also call collectionfactory.load to ensure this does nothing except always invoke the loadcomplete callback (by design)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1502,7 +1642,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
-        // --- step 2 ---
+        // --- state: unload ---
         // call collectionfactory.unload which is a no-operation for non-dynamic factories
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1513,16 +1653,70 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
+        // --- state: delete game objects ---
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        if (param.m_PrototypePath)
+        {
+            for (uint32_t i = 0; i < num_dyn_prototype_resources; ++i) {
+                ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+            }
+
+            // --- state: load prototype ---
+            // the default prototype is unloaded, and we've queued the new prototype to load
+            // update until instances are created through test script (collectionfactory.load and create)
+            dmhash_t last_object_id = dmHashString64("/collection3/go");
+            for(;;)
+            {
+                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                    break;
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
+
+            ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
+
+            // --- state: unload prototype ---
+            // the custom prototype is unloaded
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+            // --- state: delete game objects ---
+            // the custom prototype is unloaded
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+
+            for (uint32_t i = 0; i < num_dyn_prototype_resources; ++i) {
+                ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[i])));
+            }
+        }
+
         // Delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        for (uint32_t i = 0; i < num_resources; ++i) {
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[i])));
+        }
     }
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -2491,10 +2685,14 @@ INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, jc_test_values_in(factory_testpara
 
 CollectionFactoryTestParams collection_factory_testparams [] =
 {
-    {"/collection_factory/dynamic_collectionfactory_test.goc", true, true},
-    {"/collection_factory/dynamic_collectionfactory_test.goc", true, false},
-    {"/collection_factory/collectionfactory_test.goc", false, true},
-    {"/collection_factory/collectionfactory_test.goc", false, false},
+    {"/collection_factory/dynamic_collectionfactory_test.goc", 0, true, true},
+    {"/collection_factory/dynamic_collectionfactory_test.goc", 0, true, false},
+    {"/collection_factory/collectionfactory_test.goc", 0, false, true},
+    {"/collection_factory/collectionfactory_test.goc", 0, false, false},
+    {"/collection_factory/dynamic_collectionfactory_test.goc", "/collection_factory/dynamic_prototype.collectionc", true, true},
+    {"/collection_factory/dynamic_collectionfactory_test.goc", "/collection_factory/dynamic_prototype.collectionc", true, false},
+    {"/collection_factory/collectionfactory_test.goc", "/collection_factory/dynamic_prototype.collectionc", false, true},
+    {"/collection_factory/collectionfactory_test.goc", "/collection_factory/dynamic_prototype.collectionc", false, false},
 };
 INSTANTIATE_TEST_CASE_P(CollectionFactory, CollectionFactoryTest, jc_test_values_in(collection_factory_testparams));
 
@@ -2736,6 +2934,29 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
     ASSERT_EQ(m_Buffer, buffer_ptr->m_Buffer);
+
+    dmScript::LuaHBuffer* buffer_ptr2 = dmScript::CheckBufferNoError(L, -1);
+    ASSERT_NE((void*)0x0, buffer_ptr2);
+    ASSERT_EQ(m_Buffer, buffer_ptr2->m_Buffer);
+
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptBufferTest, PushCheckUnpackBuffer)
+{
+    int top = lua_gettop(L);
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
+    dmScript::PushBuffer(L, luabuf);
+
+    dmBuffer::HBuffer buf = dmScript::CheckBufferUnpack(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf);
+    ASSERT_EQ(m_Buffer, buf);
+
+    dmBuffer::HBuffer buf2 = dmScript::CheckBufferUnpackNoError(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf2);
+    ASSERT_EQ(m_Buffer, buf2);
+
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }

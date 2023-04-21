@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -112,9 +112,10 @@ namespace dmGameSystem
 
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext));
 
-        dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "color",     4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "position",   3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "color",      4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0",  2, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "page_index", 1, dmGraphics::TYPE_FLOAT, false);
 
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), stream_declaration);
 
@@ -154,7 +155,7 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
-            dmLogError("ParticleFX could not be created since the buffer is full (%d).", world->m_PrototypeIndices.Capacity());
+            ShowFullBufferError("ParticleFx", dmParticle::MAX_INSTANCE_COUNT_KEY, world->m_PrototypeIndices.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = world->m_PrototypeIndices.Pop();
@@ -284,8 +285,8 @@ namespace dmGameSystem
 
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
-        ro.m_Material = (dmRender::HMaterial)first->m_Material;
-        ro.m_Textures[0] = (dmGraphics::HTexture)first->m_Texture;
+        ro.m_Material = (dmRender::HMaterial) first->m_Material;
+        ro.m_Textures[0] = (dmGraphics::HTexture) first->m_Texture;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = ro_vertex_count;
         ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
@@ -586,9 +587,15 @@ namespace dmGameSystem
             {
                 return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
-            out_data->m_Texture = texture_set_res->m_Texture;
+
+            TextureResource* texture_res = texture_set_res->m_Texture;
+            dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
+
+            out_data->m_Texture = (void*) texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
+            out_data->m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;
+            out_data->m_FrameIndices = texture_set_res->m_TextureSet->m_FrameIndices.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
             out_data->m_FPS = animation->m_Fps;
             out_data->m_TileWidth = animation->m_Width;

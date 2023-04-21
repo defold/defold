@@ -1,16 +1,18 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+#include <float.h>  // FLT_MAX
 
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
@@ -25,6 +27,8 @@
 #include <gameobject/gameobject.h>
 
 #include "script_resource.h"
+#include "script_buffer.h"
+
 #include "../gamesys.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
@@ -211,6 +215,7 @@ namespace dmGameSystem
 struct ResourceModule
 {
     dmResource::HFactory m_Factory;
+    dmGraphics::HContext m_GraphicsContext;
 } g_ResourceModule;
 
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
@@ -266,8 +271,7 @@ static dmhash_t GetCanonicalPathHash(const char* path)
 
 static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
 {
-    char buf_ext[64];
-    const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
+    const char* path_ext = dmResource::GetExtFromPath(path_str);
 
     if (path_ext == 0x0 || dmStrCaseCmp(path_ext, path_ext_wanted) != 0)
     {
@@ -495,80 +499,107 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
-static int GraphicsTextureFormatToImageFormat(int textureformat)
+static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(int textureformat)
 {
     switch(textureformat)
     {
-        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:         return dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE;
-        case dmGraphics::TEXTURE_FORMAT_RGB:               return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB;
-        case dmGraphics::TEXTURE_FORMAT_RGBA:              return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:          return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1;
-        case dmGraphics::TEXTURE_FORMAT_RGB16F:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB16F;
-        case dmGraphics::TEXTURE_FORMAT_RGB32F:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB32F;
-        case dmGraphics::TEXTURE_FORMAT_RGBA16F:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA16F;
-        case dmGraphics::TEXTURE_FORMAT_RGBA32F:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA32F;
-        case dmGraphics::TEXTURE_FORMAT_R16F:              return dmGraphics::TextureImage::TEXTURE_FORMAT_R16F;
-        case dmGraphics::TEXTURE_FORMAT_RG16F:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RG16F;
-        case dmGraphics::TEXTURE_FORMAT_R32F:              return dmGraphics::TextureImage::TEXTURE_FORMAT_R32F;
-        case dmGraphics::TEXTURE_FORMAT_RG32F:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RG32F;
+        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:          return dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE;
+        case dmGraphics::TEXTURE_FORMAT_RGB:                return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB;
+        case dmGraphics::TEXTURE_FORMAT_RGBA:               return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ETC2;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_4x4;
+        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_BC1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC3;
+        case dmGraphics::TEXTURE_FORMAT_R_BC4:              return dmGraphics::TextureImage::TEXTURE_FORMAT_R_BC4;
+        case dmGraphics::TEXTURE_FORMAT_RG_BC5:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RG_BC5;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC7;
+        case dmGraphics::TEXTURE_FORMAT_RGB16F:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB16F;
+        case dmGraphics::TEXTURE_FORMAT_RGB32F:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB32F;
+        case dmGraphics::TEXTURE_FORMAT_RGBA16F:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA16F;
+        case dmGraphics::TEXTURE_FORMAT_RGBA32F:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA32F;
+        case dmGraphics::TEXTURE_FORMAT_R16F:               return dmGraphics::TextureImage::TEXTURE_FORMAT_R16F;
+        case dmGraphics::TEXTURE_FORMAT_RG16F:              return dmGraphics::TextureImage::TEXTURE_FORMAT_RG16F;
+        case dmGraphics::TEXTURE_FORMAT_R32F:               return dmGraphics::TextureImage::TEXTURE_FORMAT_R32F;
+        case dmGraphics::TEXTURE_FORMAT_RG32F:              return dmGraphics::TextureImage::TEXTURE_FORMAT_RG32F;
     };
-    assert(false);
-    return -1;
+    dmLogError("Unsupported texture format (%d)", textureformat);
+    return (dmGraphics::TextureImage::TextureFormat) -1;
 }
 
-static int GraphicsTextureTypeToImageType(int texturetype)
+static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype)
 {
-    if (texturetype == dmGraphics::TEXTURE_TYPE_2D)
+    switch(texturetype)
     {
-        return dmGraphics::TextureImage::TYPE_2D;
+        case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
+        case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
+        case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        default: assert(0);
     }
-    else if (texturetype == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
-    {
-        return dmGraphics::TextureImage::TYPE_CUBEMAP;
-    }
-    assert(false);
-    return -1;
+    dmLogError("Unsupported texture type (%d)", texturetype);
+    return (dmGraphics::TextureImage::Type) -1;
 }
 
 static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
-    dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format, dmGraphics::TextureImage* texture_image)
+    dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format,
+    dmGraphics::TextureImage::CompressionType compression_type, dmBuffer::HBuffer texture_buffer,
+    dmGraphics::TextureImage* texture_image)
 {
-    uint32_t* mip_map_sizes   = new uint32_t[max_mipmaps];
-    uint32_t* mip_map_offsets = new uint32_t[max_mipmaps];
-    uint8_t layer_count       = type == dmGraphics::TextureImage::TYPE_CUBEMAP ? 6 : 1;
+    uint32_t* mip_map_sizes              = new uint32_t[max_mipmaps];
+    uint32_t* mip_map_offsets            = new uint32_t[max_mipmaps];
+    uint32_t* mip_map_offsets_compressed = new uint32_t[1];
+    uint8_t layer_count = type == dmGraphics::TextureImage::TYPE_CUBEMAP ? 6 : 1;
 
     uint32_t data_size = 0;
     uint16_t mm_width  = width;
     uint16_t mm_height = height;
     for (uint32_t i = 0; i < max_mipmaps; ++i)
     {
-        mip_map_sizes[i]   = dmMath::Max(mm_width, mm_height);
-        mip_map_offsets[i] = (data_size / 8);
-        data_size += mm_width * mm_height * bitspp * layer_count;
-        mm_width  /= 2;
-        mm_height /= 2;
+        mip_map_sizes[i]    = dmMath::Max(mm_width, mm_height);
+        mip_map_offsets[i]  = (data_size / 8);
+        data_size          += mm_width * mm_height * bitspp * layer_count;
+        mm_width           /= 2;
+        mm_height          /= 2;
     }
     assert(data_size > 0);
 
     data_size                *= layer_count;
     uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
-    uint8_t* image_data       = new uint8_t[image_data_size];
+    uint8_t* image_data       = 0;
+
+    if (texture_buffer)
+    {
+        uint8_t* data     = 0;
+        uint32_t datasize = 0;
+        dmBuffer::GetBytes(texture_buffer, (void**)&data, &datasize);
+        image_data      = data;
+        image_data_size = datasize;
+    }
+    else
+    {
+        image_data = new uint8_t[image_data_size];
+    }
+
+    // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
+    //       so we only need a pointer here for the data offset.
+    mip_map_offsets_compressed[0] = image_data_size;
 
     dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
     texture_image->m_Alternatives.m_Data   = image;
     texture_image->m_Alternatives.m_Count  = 1;
     texture_image->m_Type                  = type;
+    texture_image->m_Count                 = layer_count;
 
     image->m_Width                = width;
     image->m_Height               = height;
     image->m_OriginalWidth        = width;
     image->m_OriginalHeight       = height;
     image->m_Format               = format;
-    image->m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image->m_CompressionType      = compression_type;
     image->m_CompressionFlags     = 0;
     image->m_Data.m_Data          = image_data;
     image->m_Data.m_Count         = image_data_size;
@@ -577,16 +608,20 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     image->m_MipMapOffset.m_Count = max_mipmaps;
     image->m_MipMapSize.m_Data    = mip_map_sizes;
     image->m_MipMapSize.m_Count   = max_mipmaps;
+    image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
+    image->m_MipMapSizeCompressed.m_Count = 1;
 }
 
-static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
+static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
 {
     for (int i = 0; i < texture_image.m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
         delete[] image.m_MipMapOffset.m_Data;
         delete[] image.m_MipMapSize.m_Data;
-        delete[] image.m_Data.m_Data;
+        delete[] image.m_MipMapSizeCompressed.m_Data;
+        if (destroy_image_data)
+            delete[] image.m_Data.m_Data;
     }
     delete[] texture_image.m_Alternatives.m_Data;
 }
@@ -594,10 +629,10 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
 static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
-    dmhash_t path_hash = dmScript::CheckHashOrString(L, -1);
-    void* texture_res  = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
-    *texture_out       = (dmGraphics::HTexture) texture_res;
-    *texture_path_out  = path_hash;
+    dmhash_t path_hash           = dmScript::CheckHashOrString(L, -1);
+    TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+    *texture_out                 = texture_res->m_Texture;
+    *texture_path_out            = path_hash;
     lua_pop(L, 1); // "texture"
 }
 
@@ -626,14 +661,35 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * : [type:number] The width of the texture (in pixels)
  *
  * `format`
- * : [type:number] The texture format. Supported values:
+ * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
  *
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_ETC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `resource.TEXTURE_FORMAT_RGB_BC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC3`
+ * - `resource.TEXTURE_FORMAT_R_BC4`
+ * - `resource.TEXTURE_FORMAT_RG_BC5`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC7`
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ *
+ * `compression_type`
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ *
+ * - `COMPRESSION_TYPE_DEFAULT`
+ * - `COMPRESSION_TYPE_BASIS_UASTC`
+ *
+ * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
  * @return path [type:hash] The path to the resource.
  *
@@ -667,14 +723,28 @@ static int CreateTexture(lua_State* L)
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
-    uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height      = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    dmGraphics::TextureType type = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
+    uint32_t width               = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height              = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format              = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t max_mipmaps         = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+
+    // TODO: Texture arrays
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    {
+        return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+    }
+
+    dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
+
+    dmBuffer::HBuffer buffer = 0;
+    if (dmScript::IsBuffer(L, 3))
+    {
+        dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
+        buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
+    }
 
     uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
-
     if (max_mipmaps > max_mipmaps_actual)
     {
         dmLogWarning("Max mipmaps %d requested for texture %s, but max mipmaps supported for size (%d, %d) is %d",
@@ -682,13 +752,28 @@ static int CreateTexture(lua_State* L)
         max_mipmaps = max_mipmaps_actual;
     }
 
+    if (buffer == 0 && compression_type != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT)
+    {
+        dmLogWarning("Compression type %d requested for textures %s, but no buffer was supplied. This is not supported, COMPRESSION_TYPE_DEFAULT will be used",
+            (int) compression_type, path_str);
+        compression_type = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    }
+
     // Max mipmap count is inclusive, so need at least 1
     max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
     uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
-    dmGraphics::TextureImage::Type tex_type            = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
-    dmGraphics::TextureImage::TextureFormat tex_format = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
+    dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
+    dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = {};
-    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, &texture_image);
+
+    // TODO: To support this, we need to supply separate buffers for each side as an option, or offsets into the buffer where each side is located
+    if ((tex_type == dmGraphics::TextureImage::TYPE_CUBEMAP || tex_type == dmGraphics::TextureImage::TYPE_2D_ARRAY) && compression_type != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT)
+    {
+        return luaL_error(L, "Compression type %d requested for texture %s with type '%s', but this is currently not supported.",
+            (int) compression_type, path_str, dmGraphics::GetTextureTypeLiteral(type));
+    }
+
+    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, buffer, &texture_image);
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
@@ -697,7 +782,7 @@ static int CreateTexture(lua_State* L)
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
 
-    DestroyTextureImage(texture_image);
+    DestroyTextureImage(texture_image, buffer == 0);
 
     if (res != dmResource::RESULT_OK)
     {
@@ -765,11 +850,23 @@ static int ReleaseResource(lua_State* L)
  * : [type:number] The width of the texture (in pixels)
  *
  * `format`
- * : [type:number] The texture format. Supported values:
+ * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
  *
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_ETC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `resource.TEXTURE_FORMAT_RGB_BC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC3`
+ * - `resource.TEXTURE_FORMAT_R_BC4`
+ * - `resource.TEXTURE_FORMAT_RG_BC5`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC7`
  *
  * `x`
  * : [type:number] optional x offset of the texture (in pixels)
@@ -779,6 +876,12 @@ static int ReleaseResource(lua_State* L)
  *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
+ *
+ * `compression_type`
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ *
+ * - `COMPRESSION_TYPE_DEFAULT`
+ * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
@@ -803,7 +906,7 @@ static int ReleaseResource(lua_State* L)
  *       end
  *   end
  *
- *   local resource_path = go.get("#sprite", "texture0")
+ *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, args, self.buffer )
  * end
@@ -830,7 +933,7 @@ static int ReleaseResource(lua_State* L)
  *       end
  *   end
  *
- *   local resource_path = go.get("#sprite", "texture0")
+ *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, args, self.buffer )
  * end
@@ -847,13 +950,21 @@ static int SetTexture(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type   = (uint32_t) CheckTableInteger(L, 2, "type");
-    uint32_t width  = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t format = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t mipmap = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
-    int32_t x       = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
-    int32_t y       = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
+    dmGraphics::TextureType type = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
+    uint32_t width               = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height              = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format              = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t mipmap              = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t x                    = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
+    int32_t y                    = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
+
+    // TODO: Texture arrays
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    {
+        return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
+    }
+
+    dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
@@ -869,24 +980,27 @@ static int SetTexture(lua_State* L)
     dmGraphics::TextureImage texture_image = {};
     texture_image.m_Alternatives.m_Data    = &image;
     texture_image.m_Alternatives.m_Count   = 1;
-    texture_image.m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
+    texture_image.m_Type                   = GraphicsTextureTypeToImageType(type);
+    texture_image.m_Count                  = 1;
 
     image.m_Width                = width;
     image.m_Height               = height;
     image.m_OriginalWidth        = width;
     image.m_OriginalHeight       = height;
-    image.m_Format               = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
-    image.m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image.m_Format               = GraphicsTextureFormatToImageFormat(format);
+    image.m_CompressionType      = compression_type;
     image.m_CompressionFlags     = 0;
     image.m_Data.m_Data          = data;
     image.m_Data.m_Count         = datasize;
 
-    uint32_t mip_map_offsets     = 0;
-    uint32_t mip_map_sizes       = datasize;
-    image.m_MipMapOffset.m_Data  = &mip_map_offsets;
-    image.m_MipMapOffset.m_Count = NUM_MIP_MAPS;
-    image.m_MipMapSize.m_Data    = &mip_map_sizes;
-    image.m_MipMapSize.m_Count   = NUM_MIP_MAPS;
+    uint32_t mip_map_offsets             = 0;
+    uint32_t mip_map_sizes               = datasize;
+    image.m_MipMapOffset.m_Data          = &mip_map_offsets;
+    image.m_MipMapOffset.m_Count         = NUM_MIP_MAPS;
+    image.m_MipMapSize.m_Data            = &mip_map_sizes;
+    image.m_MipMapSize.m_Count           = NUM_MIP_MAPS;
+    image.m_MipMapSizeCompressed.m_Data  = &mip_map_sizes;
+    image.m_MipMapSizeCompressed.m_Count = NUM_MIP_MAPS;
 
     ResTextureReCreateParams recreate_params;
     recreate_params.m_TextureImage = &texture_image;
@@ -908,6 +1022,131 @@ static int SetTexture(lua_State* L)
 
     assert(top == lua_gettop(L));
     return 0;
+}
+
+/*# get texture info
+ * Gets texture info from a texture resource path or a texture handle
+ *
+ * @name resource.get_texture_info
+ *
+ * @param path [type:hash|string|handle] The path to the resource or a texture handle
+ * @return table [type:table] A table containing info about the texture:
+ *
+ * `handle`
+ * : [type:handle] the opaque handle to the texture resource
+ *
+ * `width`
+ * : [type:integer] width of the texture
+ *
+ * `height`
+ * : [type:integer] height of the texture
+ *
+ * `depth`
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ *
+ * `mipmaps`
+ * : [type:integer] number of mipmaps of the texture
+ *
+ * `type`
+ * : [type:number] The texture type. Supported values:
+ *
+ * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `resource.TEXTURE_TYPE_2D_ARRAY`
+ *
+ * @examples
+ * Create a new texture and get the metadata from it
+ *
+ * ```lua
+ * function init(self)
+ *     -- create an empty texture
+ *     local tparams = {
+ *         width          = 128,
+ *         height         = 128,
+ *         type           = resource.TEXTURE_TYPE_2D,
+ *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *     }
+ *
+ *     local my_texture_path = resource.create_texture("/my_texture.texturec", tparams)
+ *     local my_texture_info = resource.get_texture_info(my_texture_path)
+ *
+ *     -- my_texture_info now contains
+ *     -- {
+ *     --      handle = <the-numeric-handle>,
+ *     --      width = 128,
+ *     --      height = 128,
+ *     --      depth = 1
+ *     --      mipmaps = 1,
+ *     --      type = resource.TEXTURE_TYPE_2D
+ *     -- }
+ * end
+ * ```
+ *
+ * @examples
+ * Get the meta data from an atlas resource
+ *
+ * ```lua
+ * function init(self)
+ *     local my_atlas_info   = resource.get_atlas("/my_atlas.a.texturesetc")
+ *     local my_texture_info = resource.get_texture_info(my_atlas_info.texture)
+ *
+ *     -- my_texture_info now contains the information about the texture that is backing the atlas
+ * end
+ * ```
+ */
+static int GetTextureInfo(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmGraphics::HTexture texture_handle = 0;
+
+    if (lua_isnumber(L, 1))
+    {
+        texture_handle = lua_tonumber(L, 1);
+        if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, texture_handle))
+        {
+            return luaL_error(L, "Texture handle is not valid.");
+        }
+    }
+    else
+    {
+        dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
+        TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+        texture_handle               = texture_res->m_Texture;
+
+        if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, texture_handle))
+        {
+            return luaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
+        }
+    }
+
+    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
+    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
+    uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
+    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
+    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+
+    lua_newtable(L);
+
+    lua_pushnumber(L, texture_handle);
+    lua_setfield(L, -2, "handle");
+
+    lua_pushinteger(L, texture_width);
+    lua_setfield(L, -2, "width");
+
+    lua_pushinteger(L, texture_height);
+    lua_setfield(L, -2, "height");
+
+    lua_pushinteger(L, texture_depth);
+    lua_setfield(L, -2, "depth");
+
+    lua_pushinteger(L, texture_mipmaps);
+    lua_setfield(L, -2, "mipmaps");
+
+    lua_pushinteger(L, texture_type);
+    lua_setfield(L, -2, "type");
+
+    assert((top + 1) == lua_gettop(L));
+    return 1;
 }
 
 // Allocates a new array and fills it with data from a lua table at top of stack.
@@ -936,6 +1175,7 @@ static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
     delete[] texture_set.m_Animations.m_Data;
     delete[] texture_set.m_Geometries.m_Data;
     delete[] texture_set.m_FrameIndices.m_Data;
+    delete[] texture_set.m_TexCoords.m_Data;
 }
 
 // These lookup functions are needed because the values for the two enums are different,
@@ -974,11 +1214,12 @@ static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::P
     return (dmGameSystemDDF::Playback) -1;
 }
 
-static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out)
+static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out, uint32_t* num_animation_frames_out)
 {
     int top = lua_gettop(L);
     uint32_t num_geometries = 0;
     uint32_t num_animations = 0;
+    uint32_t num_animation_frames = 0;
 
     lua_getfield(L, -1, "geometries");
 
@@ -1015,6 +1256,8 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
             lua_pop(L, 1);
 
             num_geometries++;
+
+            num_animation_frames++;
         }
     }
     lua_pop(L, 1);
@@ -1071,13 +1314,16 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
             lua_pop(L, 1);
 
             num_animations++;
+
+            num_animation_frames += frame_interval;
         }
     }
 
     lua_pop(L, 1);
 
-    *num_animations_out = num_animations;
-    *num_geometries_out = num_geometries;
+    *num_animations_out       = num_animations;
+    *num_geometries_out       = num_geometries;
+    *num_animation_frames_out = num_animation_frames;
 
     if (num_geometries == 0)
     {
@@ -1093,7 +1339,7 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
     texture_set_ddf->m_Texture     = 0;
@@ -1110,6 +1356,17 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
     texture_set_ddf->m_Animations.m_Count = num_animations;
     memset(texture_set_ddf->m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
+
+    const uint32_t num_tex_coords_per_quad  = 8;
+    const uint32_t num_tex_coords_byte_size = num_animation_frames * num_tex_coords_per_quad * sizeof(float);
+    texture_set_ddf->m_TexCoords.m_Data     = new uint8_t[num_tex_coords_byte_size];
+    texture_set_ddf->m_TexCoords.m_Count    = num_tex_coords_byte_size;
+    memset(texture_set_ddf->m_TexCoords.m_Data, 0, num_tex_coords_byte_size);
+
+    // Fill in the UV bounding box of each geometry so we can copy that to the texcoord pointer later
+    float* geometry_scratch_ptr    = new float[num_geometries * num_tex_coords_per_quad];
+    float* geometry_scratch_cursor = geometry_scratch_ptr;
+    float* texcoord_ptr            = (float*) texture_set_ddf->m_TexCoords.m_Data;
 
     if (num_geometries > 0)
     {
@@ -1151,12 +1408,45 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                 geometry.m_Vertices[j + 1] = 1.0 - (geometry.m_Vertices[j + 1] / geo_height) - 0.5;
             }
 
+
+            // For the UVs to work correctly if a component cannot use geometries,
+            // we need to caluclate the bounding box of the texture coordinates.
+            float min_uv_u = FLT_MAX;
+            float min_uv_v = FLT_MAX;
+            float max_uv_u = -FLT_MAX;
+            float max_uv_v = -FLT_MAX;
+
             for (int j = 0; j < geometry.m_Uvs.m_Count; j += 2)
             {
-                geometry.m_Uvs[j]     = geometry.m_Uvs[j] * inv_tex_width;
-                geometry.m_Uvs[j + 1] = 1.0 - geometry.m_Uvs[j + 1] * inv_tex_height;
+                float u = geometry.m_Uvs[j] * inv_tex_width;
+                float v = geometry.m_Uvs[j+1] * inv_tex_height;
+
+                min_uv_u = dmMath::Min(u, min_uv_u);
+                min_uv_v = dmMath::Min(v, min_uv_v);
+                max_uv_u = dmMath::Max(u, max_uv_u);
+                max_uv_v = dmMath::Max(v, max_uv_v);
+
+                geometry.m_Uvs[j]     = u;
+                geometry.m_Uvs[j + 1] = 1.0 - v;
             }
 
+            // From texture_set_ddf.proto:
+            // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+            // Note that we need to invert the V coordinates here to account for the texture coordinate space
+            // NOTE: We could perhaps do it in the loop above by swapping the V min and max coordinates
+            geometry_scratch_cursor[0] = min_uv_u;
+            geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+
+            geometry_scratch_cursor[2] = min_uv_u;
+            geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+
+            geometry_scratch_cursor[4] = max_uv_u;
+            geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+
+            geometry_scratch_cursor[6] = max_uv_u;
+            geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+
+            geometry_scratch_cursor += 8;
             frame_index_count++;
         }
         lua_pop(L, 1); // geometries
@@ -1240,6 +1530,10 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_FrameIndices.m_Count = frame_index_count;
     memset(texture_set_ddf->m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
 
+    // We can write all geometry UV bounds
+    memcpy(texcoord_ptr, geometry_scratch_ptr, num_geometries * sizeof(float) * 8);
+    texcoord_ptr += num_geometries * 8;
+
     uint32_t frame_index = 0;
     for (int i = 0; i < num_geometries; ++i)
     {
@@ -1257,9 +1551,16 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
         // the indirection works when getting animations in e.g comp_sprite
         for (int j = 0; j < frame_count; ++j)
         {
-            texture_set_ddf->m_FrameIndices[frame_index++] = frame_start + j - num_geometries;
+            uint32_t animation_frame_index = frame_start + j - num_geometries;
+            float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
+            memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
+
+            texcoord_ptr += 8;
+            texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
         }
     }
+
+    delete[] geometry_scratch_ptr;
 
     assert(top == lua_gettop(L));
 }
@@ -1337,19 +1638,20 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * ```lua
  * function init(self)
  *     -- create an empty texture
- *     local my_texture_id = resource.create_texture("/my_texture.texturec", {
+ *     local tparams = {
  *         width          = 128,
  *         height         = 128,
  *         type           = resource.TEXTURE_TYPE_2D,
  *         format         = resource.TEXTURE_FORMAT_RGBA,
- *     })
+ *     }
+ *     local my_texture_id = resource.create_texture("/my_texture.texturec", tparams)
  *
  *     -- optionally use resource.set_texture to upload data to texture
  *
  *     -- create an atlas with one animation and one square geometry
  *     -- note that the function doesn't support hashes for the texture,
  *     -- you need to use a string for the texture path here aswell
- *     local my_atlas_id = resource.create_atlas("/my_atlas.texturesetc", {
+ *     local aparams = {
  *         texture = "/my_texture.texturec",
  *         animations = {
  *             {
@@ -1377,7 +1679,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *                 indices = {0,1,2,0,2,3}
  *             }
  *         }
- *     })
+ *     }
+ *     local my_atlas_id = resource.create_atlas("/my_atlas.texturesetc", aparams)
  *
  *     -- assign the atlas to the 'sprite' component on the same go
  *     go.set("#sprite", "image", my_atlas_id)
@@ -1405,14 +1708,16 @@ static int CreateAtlas(lua_State* L)
         dmhash_t texture_path;
         CheckTextureResource(L, -1, texture_field_name, &texture_path, &texture);
 
-        uint32_t num_geometries = 0;
-        uint32_t num_animations = 0;
+        uint32_t num_geometries       = 0;
+        uint32_t num_animations       = 0;
+        uint32_t num_animation_frames = 0;
+
         // Note: We do a separate pass over the lua state to validate the data in the args table,
         //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
         //       since they longjmp away so we can't release the memory..
-        ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
+        CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
-        MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, &texture_set_ddf);
+        MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
 
         lua_pop(L, 1); // args table
     }
@@ -1576,6 +1881,7 @@ static int SetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet texture_set_ddf = {};
     uint32_t num_geometries                     = 0;
     uint32_t num_animations                     = 0;
+    uint32_t num_animation_frames               = 0;
 
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_pushvalue(L, 2);
@@ -1587,9 +1893,9 @@ static int SetAtlas(lua_State* L)
     // Note: We do a separate pass over the lua state to validate the data in the args table,
     //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
     //       since they longjmp away so we can't release the memory..
-    ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
+    CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
-    MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, &texture_set_ddf);
+    MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
     lua_pop(L, 1); // args table
 
     dmArray<uint8_t> ddf_buffer;
@@ -1634,8 +1940,8 @@ static int GetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture);
+    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture->m_Texture);
+    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture->m_Texture);
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
@@ -1781,6 +2087,185 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+/*# create a buffer resource
+ * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
+ * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
+ * By default, the new resource will take ownership of the buffer lua reference, meaning the buffer will not automatically be removed
+ * when the lua reference to the buffer is garbage collected. This behaviour can be overruled by specifying 'transfer_ownership = false'
+ * in the argument table. If the new buffer resource is created from a buffer object that is created by another resource,
+ * the buffer object will be copied and the new resource will effectively own a copy of the buffer instead.
+ *
+ * Note that the path to the new resource must have the '.bufferc' extension, "/path/my_buffer" is not a valid path but "/path/my_buffer.bufferc" is.
+ * The path must also be unique, attempting to create a buffer with the same name as an existing resource will raise an error.
+ *
+ * @name resource.create_buffer
+ *
+ * @param path [type:string] The path to the resource.
+ * @param table [type:table] A table containing info about how to create the buffer. Supported entries:
+ *
+ * * `buffer`
+ * : [type:buffer] the buffer to bind to this resource
+ *
+ * * `transfer_ownership`
+ * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default true)
+ *
+ * @return path [type:hash] Returns the buffer resource path
+ *
+ * @examples
+ * Create a buffer object and bind it to a buffer resource
+ *
+ * ```lua
+ * function init(self)
+ *     local size = 1
+ *     local positions = {
+ *         -- triangle 1
+ *          size,  size, 0,
+ *         -size, -size, 0,
+ *          size, -size, 0,
+ *         -- triangle 2
+ *          size, size,  0,
+ *         -size,  size, 0,
+ *         -size, -size, 0,
+ *     }
+ *
+ *     local buffer_handle = buffer.create(#positions, {
+ *         {
+ *             name  = hash("position"),
+ *             type  = buffer.VALUE_TYPE_FLOAT32,
+ *             count = 3
+ *         }
+ *     })
+ *
+ *     local stream = buffer.get_stream(buffer_handle, hash("position"))
+ *
+ *     -- transfer vertex data to buffer
+ *     for k=1,#positions do
+ *         stream[k] = positions[k]
+ *     end
+ *
+ *     local my_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buffer_handle })
+ *     go.set("/go#mesh", "vertices", my_buffer)
+ * end
+ * ```
+ *
+ * * @examples
+ * Create a buffer resource from existing resource
+ *
+ * ```lua
+ * function init(self)
+ *     local res = resource.get_buffer("/my_buffer_path.bufferc")
+ *     -- create a cloned buffer resource from another resource buffer
+ *     local buf = reource.create_buffer("/my_cloned_buffer.bufferc", { buffer = res })
+ *     -- assign cloned buffer to a mesh component
+ *     go.set("/go#mesh", "vertices", buf)
+ * end
+ * ```
+ */
+static int CreateBuffer(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path_str     = luaL_checkstring(L, 1);
+    const char* resource_ext = ".bufferc";
+
+    dmhash_t canonical_path_hash = 0;
+    PreCreateResource(L, path_str, resource_ext, &canonical_path_hash);
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_pushvalue(L, 2);
+
+    lua_getfield(L, -1, "buffer");
+    dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, -1);
+    lua_pop(L, 1); // "buffer"
+
+    bool transfer_ownership = CheckFieldValue<bool>(L, -1, "transfer_ownership", true);
+
+    lua_pop(L, 1); // args table
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+
+    // JG: We have to do this awkwardness because the create functions for the resource
+    //     dmDDF::LoadMessage won't accept an empty dmBufferDDF::BufferDesc structure
+    //     and the buffer res won't accept a bufferdesc with a stream that doesn't have data
+    int dummy_value_ptr = 0;
+    dmBufferDDF::StreamDesc buffer_stream_dummy_ddf = {};
+    buffer_stream_dummy_ddf.m_ValueType  = dmBufferDDF::VALUE_TYPE_INT8;
+    buffer_stream_dummy_ddf.m_ValueCount = 1;
+    buffer_stream_dummy_ddf.m_I.m_Data   = &dummy_value_ptr;
+    buffer_stream_dummy_ddf.m_I.m_Count  = 1;
+
+    dmBufferDDF::BufferDesc buffer_desc_dummy_ddf = {};
+    buffer_desc_dummy_ddf.m_Streams.m_Data = &buffer_stream_dummy_ddf;
+    buffer_desc_dummy_ddf.m_Streams.m_Count = 1;
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&buffer_desc_dummy_ddf, dmBufferDDF::BufferDesc::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
+
+    BufferResource* resource = 0x0;
+    dmResource::Result resource_res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), (void**) &resource);
+
+    if (resource_res != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, resource_res, canonical_path_hash);
+    }
+
+    dmBuffer::HBuffer buffer = dmGameSystem::UnpackLuaBuffer(lua_buffer);
+
+    // Regardless of transferring ownership, if the lua buffer is referring to a resource,
+    // we nee to copy that buffer into this new resource
+    if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+    {
+        dmBuffer::HBuffer dst_buffer;
+        dmBuffer::Result br = dmBuffer::Clone(buffer, &dst_buffer);
+        if (br != dmBuffer::RESULT_OK)
+        {
+            dmhash_t res_path_other;
+            dmResource::GetPath(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes, &res_path_other);
+            return luaL_error(L, "Unable to create buffer resource '%s' from buffer resource '%s': %s (%d).",
+                dmHashReverseSafe64(canonical_path_hash), dmHashReverseSafe64(res_path_other),
+                dmBuffer::GetResultString(br), br);
+        }
+
+        buffer = dst_buffer;
+    }
+
+    resource->m_BufferDDF = 0;
+    resource->m_Buffer    = buffer;
+    resource->m_Stride    = dmBuffer::GetStructSize(buffer);
+
+    dmBuffer::GetCount(buffer, &resource->m_ElementCount);
+    dmBuffer::GetContentVersion(buffer, &resource->m_Version);
+
+    if (transfer_ownership)
+    {
+        // IncRef if this is a lua buffer or a buffer from another resource,
+        // otherwise the GC will potentially destroy the resource prematurely
+        if (lua_buffer->m_Owner == dmScript::OWNER_LUA)
+        {
+            dmResource::IncRef(g_ResourceModule.m_Factory, resource);
+        }
+        else if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+        {
+            // We are transferring the ownership of the resource in the lua buffer
+            // from one resource to another, so we need to decref the old resource
+            // and incref the new one by the same logic as with the lua case
+            dmResource::Release(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes);
+            dmResource::IncRef(g_ResourceModule.m_Factory, resource);
+        }
+
+        lua_buffer->m_Owner     = dmScript::OWNER_RES;
+        lua_buffer->m_BufferRes = resource;
+    }
+
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+
+    dmScript::PushHash(L, canonical_path_hash);
+
+    return 1;
+}
+
 /*# get resource buffer
  * gets the buffer from a resource
  *
@@ -1813,6 +2298,12 @@ static int GetBuffer(lua_State* L)
     void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
+
+    if (!dmBuffer::IsBufferValid(buffer_resource->m_Buffer))
+    {
+        return luaL_error(L, "The buffer handle is invalid");
+    }
+
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
     dmScript::LuaHBuffer luabuf((void*)buffer_resource);
     PushBuffer(L, luabuf);
@@ -1868,69 +2359,51 @@ static int GetBuffer(lua_State* L)
 static int SetBuffer(lua_State* L)
 {
     int top = lua_gettop(L);
-    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
-    dmBuffer::HBuffer src_buffer = luabuf->m_Buffer;
-    if (luabuf->m_Owner == dmScript::OWNER_RES) {
-        src_buffer = ((BufferResource*)luabuf->m_BufferRes)->m_Buffer;
-    }
+    dmBuffer::HBuffer src_buffer = dmGameSystem::UnpackLuaBuffer(luabuf);
 
-    void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
-
+    void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
-    dmBuffer::HBuffer dst_buffer = buffer_resource->m_Buffer;
+    dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
     // Make sure the destination buffer has enough size (otherwise, resize it).
     // TODO: Check if incoming buffer size is smaller than current size -> don't allocate new dmbuffer,
     //       but copy smaller data and change "size".
     uint32_t dst_count = 0;
     dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
-    if (br != dmBuffer::RESULT_OK) {
+    if (br != dmBuffer::RESULT_OK)
+    {
         return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
     }
+
     uint32_t src_count = 0;
     br = dmBuffer::GetCount(src_buffer, &src_count);
-    if (br != dmBuffer::RESULT_OK) {
+    if (br != dmBuffer::RESULT_OK)
+    {
         return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
     }
 
-    bool new_buffer_needed = dst_count != src_count;
-    if (new_buffer_needed) {
-        // Need to create a new buffer to copy data to.
-
-        // Copy stream declaration
-        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
-        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
-        for (uint32_t i = 0; i < stream_count; ++i)
+    if (dst_count != src_count)
+    {
+        dmBuffer::HBuffer dst_buffer;
+        br = dmBuffer::Clone(src_buffer, &dst_buffer);
+        if (br != dmBuffer::RESULT_OK)
         {
-            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
-            streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
-            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+            return luaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
         }
 
-        br = dmBuffer::Create(src_count, streams_decl, stream_count, &dst_buffer);
-        free(streams_decl);
-
-        if (br != dmBuffer::RESULT_OK) {
-            return luaL_error(L, "Unable to create copy buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-        }
-    }
-
-    // Copy supplied data to buffer
-    br = dmBuffer::Copy(dst_buffer, src_buffer);
-    if (br != dmBuffer::RESULT_OK) {
-        if (new_buffer_needed) {
-            dmBuffer::Destroy(dst_buffer);
-        }
-        return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-    }
-
-    // If we created a new buffer, make sure to destroy the old one.
-    if (new_buffer_needed) {
         dmBuffer::Destroy(buffer_resource->m_Buffer);
-        buffer_resource->m_Buffer = dst_buffer;
+        buffer_resource->m_Buffer       = dst_buffer;
         buffer_resource->m_ElementCount = src_count;
+    }
+    else
+    {
+        br = dmBuffer::Copy(dst_buffer, src_buffer);
+        if (br != dmBuffer::RESULT_OK)
+        {
+            return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        }
     }
 
     // Update the content version
@@ -2046,11 +2519,13 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"create_atlas", CreateAtlas},
+    {"create_buffer", CreateBuffer},
     {"create_texture", CreateTexture},
     {"release", ReleaseResource},
     {"set_atlas", SetAtlas},
     {"get_atlas", GetAtlas},
     {"set_texture", SetTexture},
+    {"get_texture_info", GetTextureInfo},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
@@ -2078,6 +2553,12 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# 2D Array texture type
+ *
+ * @name resource.TEXTURE_TYPE_2D_ARRAY
+ * @variable
+ */
+
 /*# luminance type texture format
  *
  * @name resource.TEXTURE_FORMAT_LUMINANCE
@@ -2093,6 +2574,90 @@ static const luaL_reg Module_methods[] =
 /*# RGBA type texture format
  *
  * @name resource.TEXTURE_FORMAT_RGBA
+ * @variable
+ */
+
+/*# RGB_PVRTC_2BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+ * @variable
+ */
+
+/*# RGB_PVRTC_4BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+ * @variable
+ */
+
+/*# RGBA_PVRTC_2BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+ * @variable
+ */
+
+/*# RGBA_PVRTC_4BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+ * @variable
+ */
+
+/*# RGB_ETC1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_ETC1
+ * @variable
+ */
+
+/*# RGBA_ETC2 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_ETC2
+ * @variable
+ */
+
+/*# RGBA_ASTC_4x4 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_ASTC_4x4
+ * @variable
+ */
+
+/*# RGB_BC1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_BC1
+ * @variable
+ */
+
+/*# RGBA_BC3 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_BC3
+ * @variable
+ */
+
+/*# R_BC4 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_R_BC4
+ * @variable
+ */
+
+/*# RG_BC5 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RG_BC5
+ * @variable
+ */
+
+/*# RGBA_BC7 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_BC7
+ * @variable
+ */
+
+/*# COMPRESSION_TYPE_DEFAULT compression type
+ *
+ * @name resource.COMPRESSION_TYPE_DEFAULT
+ * @variable
+ */
+
+/*# BASIS_UASTC compression type
+ *
+ * @name resource.COMPRESSION_TYPE_BASIS_UASTC
  * @variable
  */
 
@@ -2161,6 +2726,7 @@ static void LuaInit(lua_State* L)
 
     SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D);
     SETGRAPHICSCONSTANT(TEXTURE_TYPE_CUBE_MAP);
+    SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D_ARRAY);
 
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_LUMINANCE);
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB);
@@ -2192,6 +2758,16 @@ static void LuaInit(lua_State* L)
 
 #undef SETGRAPHICSCONSTANT
 
+
+#define SETCOMPRESSIONTYPE(name) \
+    lua_pushnumber(L, (lua_Number) dmGraphics::TextureImage:: name); \
+    lua_setfield(L, -2, #name);
+
+    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_DEFAULT);
+    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
+
+#undef SETCOMPRESSIONTYPE
+
 #define SETCONSTANT(name, val) \
         lua_pushnumber(L, (lua_Number) val); \
         lua_setfield(L, -2, #name);\
@@ -2214,7 +2790,8 @@ static void LuaInit(lua_State* L)
 void ScriptResourceRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
-    g_ResourceModule.m_Factory = context.m_Factory;
+    g_ResourceModule.m_Factory         = context.m_Factory;
+    g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

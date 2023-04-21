@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -100,6 +100,7 @@ namespace dmGameSystem
         float z;
         float u;
         float v;
+        float p;
     };
 
     struct SpriteWorld
@@ -183,6 +184,7 @@ namespace dmGameSystem
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(dmRender::GetGraphicsContext(render_context));
         dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "page_index", 1, dmGraphics::TYPE_FLOAT, false);
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
@@ -345,7 +347,7 @@ namespace dmGameSystem
 
         if (sprite_world->m_Components.Full())
         {
-            dmLogError("Sprite could not be created since the sprite buffer is full (%d). See 'sprite.max_count' in game.project", sprite_world->m_Components.Capacity());
+            ShowFullBufferError("Sprite", "sprite.max_count", sprite_world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = sprite_world->m_Components.Alloc();
@@ -375,7 +377,8 @@ namespace dmGameSystem
             component->m_Size[1] = component->m_Resource->m_DDF->m_Size.getY();
         }
 
-        PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
+        PlayAnimation(component, resource->m_DefaultAnimation,
+                component->m_Resource->m_DDF->m_Offset, component->m_Resource->m_DDF->m_PlaybackRate);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -403,7 +406,7 @@ namespace dmGameSystem
 
     static void CreateVertexDataSlice9(SpriteVertex* vertices, uint8_t* indices, bool is_indices_16_bit,
         const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset,
-        const float* tc, float texture_width, float texture_height, bool flip_u, bool flip_v)
+        const float* tc, float texture_width, float texture_height, uint8_t page_index, bool flip_u, bool flip_v)
     {
         // render 9-sliced node
         //   0 1     2 3
@@ -474,6 +477,7 @@ namespace dmGameSystem
                 vertices->z = p.getZ();
                 vertices->u = us[x];
                 vertices->v = vs[y];
+                vertices->p = (float) page_index;
                 vertices++;
             }
         }
@@ -545,12 +549,14 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
             dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
+            uint32_t* frame_indices                             = texture_set_ddf->m_FrameIndices.m_Data;
+            uint32_t* page_indices                              = texture_set_ddf->m_PageIndices.m_Data;
 
             if (texture_set_ddf->m_UseGeometries != 0)
             {
                 const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
-                uint32_t* frame_indices                           = texture_set_ddf->m_FrameIndices.m_Data;
                 uint32_t frame_index                              = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
+                uint8_t page_index                                = (uint8_t) page_indices[frame_index];
 
                 // Depending on the sprite is flipped or not, we loop the vertices forward or backward
                 // to respect face winding (and backface culling)
@@ -584,6 +590,7 @@ namespace dmGameSystem
                     vertices[0].z = ((float*)&p0)[2];
                     vertices[0].u = u;
                     vertices[0].v = v;
+                    vertices[0].p = (float) page_index;
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -607,10 +614,12 @@ namespace dmGameSystem
             }
             else
             {
-                uint32_t frame_index    = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
-                const float* tex_coords = (const float*) texture_set_ddf->m_TexCoords.m_Data;
-                const float* tc         = &tex_coords[frame_index * 4 * 2];
-                uint32_t flip_flag      = 0;
+                uint32_t frame_index        = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
+                uint32_t page_indices_index = frame_indices[frame_index]; // same deference as "geometry" version
+                uint8_t page_index          = (uint8_t) page_indices[page_indices_index];
+                const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
+                const float* tc             = &tex_coords[frame_index * 4 * 2];
+                uint32_t flip_flag          = 0;
 
                 // ddf values are guaranteed to be 0 or 1 when saved by the editor
                 // component values are guaranteed to be 0 or 1
@@ -647,9 +656,9 @@ namespace dmGameSystem
                     int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
                     CreateVertexDataSlice9(vertices, indices, sprite_world->m_Is16BitIndex,
                         w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, tc,
-                        dmGraphics::GetTextureWidth(texture_set->m_Texture),
-                        dmGraphics::GetTextureHeight(texture_set->m_Texture),
-                        flipx, flipy);
+                        dmGraphics::GetTextureWidth(texture_set->m_Texture->m_Texture),
+                        dmGraphics::GetTextureHeight(texture_set->m_Texture->m_Texture),
+                        page_index, flipx, flipy);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
                     vertices      += SPRITE_VERTEX_COUNT_SLICE9;
@@ -657,12 +666,13 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    #define SET_SPRITE_VERTEX(vert, p, tc_index)   \
-                        vert.x = p.getX();                         \
-                        vert.y = p.getY();                         \
-                        vert.z = p.getZ();                         \
+                    #define SET_SPRITE_VERTEX(vert, vp, tc_index)   \
+                        vert.x = vp.getX();                         \
+                        vert.y = vp.getY();                         \
+                        vert.z = vp.getZ();                         \
                         vert.u = tc[tex_lookup[tc_index] * 2 + 0]; \
-                        vert.v = tc[tex_lookup[tc_index] * 2 + 1];
+                        vert.v = tc[tex_lookup[tc_index] * 2 + 1]; \
+                        vert.p = (float) page_index;
 
                     Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
                     Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
@@ -751,7 +761,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = GetMaterial(first, resource);
-        ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_Textures[0] = texture_set->m_Texture->m_Texture;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
 
@@ -817,7 +827,6 @@ namespace dmGameSystem
             SpriteComponent* c = &components[0];
             scale_along_z = dmGameObject::ScaleAlongZ(dmGameObject::GetCollection(c->m_Instance));
         }
-
         // Note: We update all sprites, even though they might be disabled, or not added to update
 
         if (scale_along_z) {
@@ -828,6 +837,10 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
                 c->m_World = appendScale(world * local, size);
+                // we need to consider the full scale here
+                // I.e. we want the length of the diagonal C, where C = X + Y
+                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         } else
         {
@@ -839,6 +852,10 @@ namespace dmGameSystem
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
                 c->m_World = appendScale(w, size);
+                // we need to consider the full scale here
+                // I.e. we want the length of the diagonal C, where C = X + Y
+                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         }
 
@@ -973,27 +990,6 @@ namespace dmGameSystem
         }
     }
 
-    static void CalcBoundingVolumes(SpriteWorld* sprite_world)
-    {
-        DM_PROFILE("CalcBoundingVolumes");
-
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
-        uint32_t n = components.Size();
-
-        // NOTE: Here we assume that the object pool won't be altered between this call and the call to the frustum culling.
-        // Thus, we can use the same "physical" indices used between the culling and the render items.
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            SpriteComponent* component = &components[i];
-
-            float sx = Vectormath::Aos::length(component->m_World.getCol(0).getXYZ());
-            float sy = Vectormath::Aos::length(component->m_World.getCol(1).getXYZ());
-            float radius = dmMath::Max(sx, sy) * 0.5f;
-
-            sprite_world->m_BoundingVolumes[i] = radius;
-        }
-    }
-
     static void UpdateVertexAndIndexCount(SpriteWorld* sprite_world)
     {
         DM_PROFILE("UpdateVertexAndIndexCount");
@@ -1069,7 +1065,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("Sprite");
 
-        const SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
         const float* radiuses = sprite_world->m_BoundingVolumes.Begin();
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
@@ -1078,9 +1074,9 @@ namespace dmGameSystem
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
 
-            float radius = radiuses[entry->m_UserData];
+            float radius_sq = radiuses[entry->m_UserData];
 
-            bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, radius, true);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, entry->m_WorldPosition, radius_sq, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
@@ -1133,10 +1129,6 @@ namespace dmGameSystem
         UpdateTransforms(sprite_world, sprite_context->m_Subpixels); // TODO: Why is this not in the update function?
 
         UpdateVertexAndIndexCount(sprite_world);
-
-        // Uses the m_World to calculate the actual radius of the object
-        // Note: uses the physical indices of the object pool for storing the radiuses.
-        CalcBoundingVolumes(sprite_world);
 
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 
@@ -1409,7 +1401,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
-                uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+                uint32_t* anim_id =  texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
                 if (anim_id)
                 {
                     PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
@@ -1419,6 +1411,10 @@ namespace dmGameSystem
                     component->m_Playing = 0;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
+                    dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+                    if (texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID) {
+                        component->m_AnimationID = 0;
+                    }
                 }
             }
             return res;
@@ -1481,8 +1477,13 @@ namespace dmGameSystem
             Vector4 value;
             switch(index)
             {
-                case 0: value = Vector4(transform.GetTranslation()); break;
-                case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
+                case 0:
+                    value = Vector4(transform.GetTranslation());
+                    break;
+                case 1:
+                    value = Vector4(transform.GetRotation());
+                    type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
+                    break;
                 case 2:
                     {
                         // Since the size is baked into the matrix, we divide by it here
@@ -1490,9 +1491,11 @@ namespace dmGameSystem
                         value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
                     }
                     break;
-                case 3: value = Vector4(transform.GetScale()); break; // the size is baked into this matrix as the scale
-                default:
-                    return false;
+                case 3:
+                    // the size is baked into this matrix as the scale
+                    value = Vector4(transform.GetScale());
+                    break;
+                default: return false;
             }
 
             pit->m_Property.m_Type = type;

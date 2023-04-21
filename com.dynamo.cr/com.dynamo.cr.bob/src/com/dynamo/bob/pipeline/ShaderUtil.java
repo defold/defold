@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,9 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
@@ -25,9 +27,155 @@ import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.CompileExceptionError;
-
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderUtil {
+    public static class Common {
+        public static final int     MAX_ARRAY_SAMPLERS             = 8;
+        public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
+        public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
+        public static final Pattern regexLineBreakPattern          = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
+        public static final String  regexCommentRemovePattern      = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
+        public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
+        public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
+        public static final Pattern arrayArraySamplerPattern       = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+
+        public static class GLSLCompileResult
+        {
+            public String   source;
+            public String[] arraySamplers = new String[0];
+        }
+
+        public static String stripComments(String source)
+        {
+            return source.replaceAll(regexCommentRemovePattern,"");
+        }
+
+        public static boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
+        {
+            return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+        }
+
+        private static class ShaderDataTypeConversionEntry {
+            public String                    asStr;
+            public ShaderDesc.ShaderDataType asDataType;
+            public ShaderDataTypeConversionEntry(String str, ShaderDesc.ShaderDataType dataType) {
+                this.asStr      = str;
+                this.asDataType = dataType;
+            }
+        }
+
+        private static final ArrayList<ShaderDataTypeConversionEntry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
+                new ShaderDataTypeConversionEntry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
+                new ShaderDataTypeConversionEntry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
+                new ShaderDataTypeConversionEntry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
+                new ShaderDataTypeConversionEntry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
+                new ShaderDataTypeConversionEntry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
+                new ShaderDataTypeConversionEntry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
+                new ShaderDataTypeConversionEntry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
+                new ShaderDataTypeConversionEntry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
+                new ShaderDataTypeConversionEntry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
+                new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
+                new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
+                new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
+                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)
+            ));
+
+        public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
+            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
+                if (e.asStr.equals(typeAsString)) {
+                    return e.asDataType;
+                }
+            }
+            return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
+        }
+
+        public static String shaderTypeToString(ShaderDesc.ShaderDataType dataType) {
+            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
+                if (e.asDataType == dataType) {
+                    return e.asStr;
+                }
+            }
+            return null;
+        }
+    }
+
+    public static class VariantTextureArrayFallback {
+        private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
+            buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
+            buffer.add("    int page_index = int(dm_texture_array_args.z);");
+            String lineFmt = "    %s if (page_index == %d) return texture2D(%s_%d, dm_texture_array_args.st);";
+
+            for (int i = 0; i < maxPages; i++) {
+                if (i == 0) {
+                    buffer.add(String.format(lineFmt, "", i, samplerName, i));
+                } else {
+                    buffer.add(String.format(lineFmt, "else", i, samplerName, i));
+                }
+            }
+
+            buffer.add("   return vec4(0.0);");
+            buffer.add("}");
+        }
+
+        public static boolean isRequired(ShaderDesc.Language shaderLanguage) {
+            return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+        }
+
+        public static String samplerNameToSliceSamplerName(String samplerName, int slice) {
+            return String.format("%s_%d", samplerName, slice);
+        }
+
+        public static Common.GLSLCompileResult transform(String shaderSource, int maxPageCount) {
+            // For the texture array fallback variant, we need to convert texture2DArray functions
+            // into separate texture samplers. Samplers in arrays (uniform sampler2D my_samplers[4]; does not work on all platforms unfortunately)
+            Common.GLSLCompileResult result = new Common.GLSLCompileResult();
+
+            ArrayList<String> arraySamplers = new ArrayList<String>();
+            ArrayList<String> shaderBody = new ArrayList<>();
+
+            String arrayReplaceTextureRegex  = "texture2DArray\\s*\\((([^,]+)),\\s*";
+            String uniformArrayFormat        = "uniform %s sampler2D %s_%d;";
+
+            Scanner scanner = new Scanner(shaderSource);
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                Matcher samplerMatcher = Common.arrayArraySamplerPattern.matcher(line);
+
+                if(samplerMatcher.find()) {
+                    String uniformName = samplerMatcher.group("uniform");
+                    String qualifier   = samplerMatcher.group("qualifier");
+
+                    for (int i=0; i < maxPageCount; i++) {
+                        String pageUniform = String.format(uniformArrayFormat, qualifier, uniformName, i);
+                        shaderBody.add(pageUniform);
+                    }
+
+                    shaderBody.add("");
+                    generateTextureArrayFn(shaderBody, uniformName, maxPageCount);
+                    arraySamplers.add(uniformName);
+
+                } else {
+                    shaderBody.add(line);
+                }
+            }
+
+            if (arraySamplers.size() == 0) {
+                return null;
+            }
+
+            String shaderBodyStr = String.join("\n", shaderBody);
+            shaderBodyStr        = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
+            result.source        = shaderBodyStr + "\n";
+            result.arraySamplers = arraySamplers.toArray(new String[0]);
+
+            return result;
+        }
+    }
 
     public static class SPIRVReflector {
         private static JsonNode root;
@@ -187,16 +335,12 @@ public class ShaderUtil {
         };
 
         private static final String[] opaqueUniformTypesPrefix = { "sampler", "image", "atomic_uint" };
-
-        private static final String  regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
-        private static final Pattern regexLineBreakPattern = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
         private static final Pattern regexVersionStringPattern = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
-        private static final Pattern regexUniformKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
         private static final Pattern regexFragDataArrayPattern = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
-        private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"textureCube", "texture"}};
-        private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"textureCube", "texture"}};
+        private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
+        private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
 
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
 
@@ -211,11 +355,12 @@ public class ShaderUtil {
         public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
-            // Remove comments, early bail if zero code
-            input = input.replaceAll(regexCommentRemovePattern,"");
             if(input.isEmpty()) {
                 return result;
             }
+
+            // Preprocess the source so we can potentially reduce the workload a bit
+            input = Common.stripComments(input);
 
             int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
 
@@ -256,7 +401,7 @@ public class ShaderUtil {
                 maxColorOutputs = Math.max(maxColorOutputs, Integer.parseInt(fragDataArrayIndex) + 1);
             }
 
-            // Replace fragment output variables 
+            // Replace fragment output variables
             boolean output_glFragColor = input.contains(glFragColorKeyword);
             boolean output_glFragData = input.contains(glFragDataKeyword);
 
@@ -272,7 +417,7 @@ public class ShaderUtil {
 
             // Split into slices separated by semicolon, curly bracket scopes and preprocessor definition lines: ";", "{", "}" and "#..<\n>"
             // This to reduce parsing complexity
-            String[] inputLines = regexLineBreakPattern.split(input);
+            String[] inputLines = Common.regexLineBreakPattern.split(input);
 
             // Find the first non directive line
             Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
@@ -299,7 +444,7 @@ public class ShaderUtil {
                 if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
                 {
                     // Transform non-opaque uniforms into uniform blocks (UB's). Do not process existing UB's
-                    Matcher uniformMatcher = regexUniformKeywordPattern.matcher(line);
+                    Matcher uniformMatcher = Common.regexUniformKeywordPattern.matcher(line);
                     if(uniformMatcher.find()) {
                         String keyword = uniformMatcher.group("keyword");
                         if(keyword != null) {

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -562,7 +562,28 @@ namespace dmScript
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return [type:hash] handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return handle [type:hash] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @examples
+     *
+     * A simple one-shot timer
+     * ```lua
+     * timer.delay(1, false, function() print("print in one second") end)
+     * ```
+     *
+     * Repetitive timer which canceled after 10 calls
+     * ```lua
+     * local function call_every_second(self, handle, time_elapsed)
+     *   self.counter = self.counter + 1
+     *   print("Call #", self.counter)
+     *   if self.counter == 10 then
+     *     timer.cancel(handle) -- cancel timer after 100 calls
+     *   end
+     * end
+     * 
+     * self.counter = 0
+     * timer.delay(1, true, call_every_second)
+     * ```
+     *
      */
     static int TimerDelay(lua_State* L) {
         int top = lua_gettop(L);
@@ -605,6 +626,17 @@ namespace dmScript
      * @name timer.cancel
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @examples
+     * 
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second") end)
+     * ...
+     * local result = timer.cancel(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled")
+     * end
+     * ```
+     * 
      */
     static int TimerCancel(lua_State* L)
     {
@@ -631,6 +663,16 @@ namespace dmScript
      * @name timer.trigger
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @examples
+     * 
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second or manually by timer.trigger") end)
+     * ...
+     * local result = timer.trigger(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled or complete")
+     * end
+     * ``
      */
     static int TimerTrigger(lua_State* L)
     {
@@ -676,10 +718,82 @@ namespace dmScript
         return 1;
     }
 
+    /*# get information about timer
+     *
+     * Get information about timer.
+     *
+     * @name  timer.get_info
+     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @return data [type:table] or nil if timer is cancelled/completed. table with data in the following fields:
+     * 
+     * `time_remaining`
+     * : [type:number] Time remaining until the next time a timer.delay() fires.
+     *
+     * `delay`
+     * : [type:number] Time interval.
+     * 
+     * `repeating`
+     *: [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     * @examples
+     * 
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second") end)
+     * ...
+     * local result = timer.get_info(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled or complete")
+     * else
+     *    pprint(result) -- delay, time_remaining, repeating
+     * end
+     * 
+     * ```
+     *
+     */
+    static int TimerGetInfo(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int timer_handle = luaL_checkint(L, 1);
+        
+        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
+        if (timer_world == 0x0)
+        {
+            dmLogError("Unable to get remaining time, the lua context does not have a timer world");
+            lua_pushnil(L);
+            return 1;
+        }
+
+        uint16_t lookup_index = GetLookupIndex(timer_handle);
+        if (lookup_index >= timer_world->m_IndexLookup.Size())
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
+        if (timer_index >= timer_world->m_Timers.Size())
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        Timer& timer = timer_world->m_Timers[timer_index];
+        
+        lua_newtable(L);
+        lua_pushnumber(L,timer.m_Remaining);
+        lua_setfield(L, -2, "time_remaining");
+        lua_pushnumber(L,timer.m_Delay);
+        lua_setfield(L, -2, "delay");
+        lua_pushboolean(L,timer.m_Repeat==1);
+        lua_setfield(L, -2, "repeating");
+        return 1;
+    }
+
     static const luaL_reg TIMER_COMP_FUNCTIONS[] = {
         { "delay", TimerDelay },
         { "cancel", TimerCancel },
         { "trigger", TimerTrigger},
+        { "get_info", TimerGetInfo},
         { 0, 0 }
     };
 

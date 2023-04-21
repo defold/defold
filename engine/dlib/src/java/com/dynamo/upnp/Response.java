@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -64,7 +64,7 @@ public final class Response {
             } else {
                 int index = token.indexOf(":");
                 if (index != -1) {
-                    String key = token.substring(0, index).toUpperCase();;
+                    String key = token.substring(0, index).toUpperCase();
                     String value = token.substring(index+1).trim();
                     headers.put(key, value);
                 }

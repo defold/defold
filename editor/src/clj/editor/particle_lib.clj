@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,7 @@
            [com.sun.jna Pointer]
            [com.sun.jna.ptr IntByReference]
            [com.jogamp.common.nio Buffers]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer IntBuffer]
            [javax.vecmath Point3d Quat4d Vector3d Matrix4d]
            [com.google.protobuf Message]))
 
@@ -36,7 +36,8 @@
 (vertex/defvertex vertex-format
   (vec3 position)
   (vec4 color true)
-  (vec2 texcoord0 true))
+  (vec2 texcoord0 true)
+  (vec1 page_index))
 
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
@@ -90,20 +91,21 @@
     (if (or (nil? data) (nil? (:texture-set-anim data)))
       ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_NOT_FOUND
       (let [anim (:texture-set-anim data)]
-        (do
-          (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
-          (set! (. out-data texture) (Pointer. index))
-          (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
-          (set! (. out-data playback) (get playback-map (:playback anim)))
-          (set! (. out-data tileWidth) (int (:width anim)))
-          (set! (. out-data tileHeight) (int (:height anim)))
-          (set! (. out-data startTile) (:start anim))
-          (set! (. out-data endTile) (:end anim))
-          (set! (. out-data fps) (:fps anim))
-          (set! (. out-data hFlip) (:flip-horizontal anim))
-          (set! (. out-data vFlip) (:flip-vertical anim))
-          (set! (. out-data structSize) (.size out-data))
-          ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK)))))
+        (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
+        (set! (. out-data texture) (Pointer. index))
+        (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
+        (set! (. out-data pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
+        (set! (. out-data frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
+        (set! (. out-data playback) (get playback-map (:playback anim)))
+        (set! (. out-data tileWidth) (int (:width anim)))
+        (set! (. out-data tileHeight) (int (:height anim)))
+        (set! (. out-data startTile) (:start anim))
+        (set! (. out-data endTile) (:end anim))
+        (set! (. out-data fps) (:fps anim))
+        (set! (. out-data hFlip) (:flip-horizontal anim))
+        (set! (. out-data vFlip) (:flip-vertical anim))
+        (set! (. out-data structSize) (.size out-data))
+        ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))
 
 (defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]

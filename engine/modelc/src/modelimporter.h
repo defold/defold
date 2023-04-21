@@ -1,5 +1,5 @@
 
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,6 +32,11 @@ namespace dmModelImporter
         const char* m_Name;
     };
 
+    struct Aabb
+    {
+        float m_Min[3];
+        float m_Max[3];
+    };
     struct Mesh
     {
         const char* m_Name;
@@ -47,6 +52,8 @@ namespace dmModelImporter
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3
         float*      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
+
+        Aabb        m_Aabb; // The min/max of the positions data
 
         uint32_t*   m_Indices;
         uint32_t    m_VertexCount;
@@ -120,10 +127,19 @@ namespace dmModelImporter
         float           m_Duration;
     };
 
+    struct Buffer // GLTF format
+    {
+        const char*     m_Uri;
+        void*           m_Buffer;
+        uint32_t        m_BufferSize;
+    };
+
     struct Scene
     {
         void*       m_OpaqueSceneData;
-        void        (*m_DestroyFn)(void* opaque_scene_data);
+        bool        (*m_LoadFinalizeFn)(Scene*);
+        bool        (*m_ValidateFn)(Scene*);
+        void        (*m_DestroyFn)(Scene*);
 
         // There may be more than one root node
         Node*       m_Nodes;
@@ -140,6 +156,9 @@ namespace dmModelImporter
 
         Animation*  m_Animations;
         uint32_t    m_AnimationsCount;
+
+        Buffer*     m_Buffers;
+        uint32_t    m_BuffersCount;
     };
 
     struct Options
@@ -152,9 +171,21 @@ namespace dmModelImporter
 
     #pragma pack(pop)
 
-    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size);
+    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t data_size);
+
+    // GLTF: Returns true if there are unresolved data buffers
+    extern "C" DM_DLLEXPORT bool NeedsResolve(Scene* scene);
+
+    // GLTF: Loop over the buffers, and for each missing one, supply the data here
+    extern "C" DM_DLLEXPORT void ResolveBuffer(Scene* scene, const char* uri, void* data, uint32_t data_size);
 
     extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size);
+
+    // GLTF: Finalize the load and create the actual scene structure
+    extern "C" DM_DLLEXPORT bool LoadFinalize(Scene* scene);
+
+    // GLTF: Validate after all buffers are resolved
+    extern "C" DM_DLLEXPORT bool Validate(Scene* scene);
 
     extern "C" DM_DLLEXPORT Scene* LoadFromPath(Options* options, const char* path);
 
@@ -172,6 +203,7 @@ namespace dmModelImporter
 
     // For tests. User needs to call free() on the returned memory
     void* ReadFile(const char* path, uint32_t* file_size);
+    void* ReadFileToBuffer(const char* path, uint32_t buffer_size, void* buffer);
 }
 
 

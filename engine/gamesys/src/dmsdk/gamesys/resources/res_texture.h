@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,14 @@
 #ifndef DMSDK_GAMESYS_RES_TEXTURE_H
 #define DMSDK_GAMESYS_RES_TEXTURE_H
 
-// Resource is an instance of mGraphics::HTexture
+#include <dmsdk/graphics/graphics.h>
+
+namespace dmGameSystem
+{
+    struct TextureResource
+    {
+        dmGraphics::HTexture m_Texture;
+    };
+}
 
 #endif

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,6 +31,7 @@ CLASSPATH=$SCRIPTDIR/../ext/jetty-all-7.0.2.v20100331.jar${PATHSEP}$SCRIPTDIR/..
 
 echo $CLASSPATH
 
-java -cp $CLASSPATH TestHttpServer &
-echo $! > test_http_server.pid
+#DEBUG="-DDEBUG=true -Dorg.eclipse.jetty.LEVEL=DEBUG -Djavax.net.debug=ssl,handshake,data"
 
+java -cp $CLASSPATH ${DEBUG} TestHttpServer &
+echo $! > test_http_server.pid

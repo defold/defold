@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -215,7 +216,8 @@ public class ModelUtilTest {
 
    ModelImporter.Scene loadScene(String path) {
         try {
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options());
+            File cwd = new File(".");
+            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options(), new ModelImporter.FileDataResolver(cwd));
         } catch (IOException e) {
             e.printStackTrace();
             return null;

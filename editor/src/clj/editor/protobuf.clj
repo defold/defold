@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,19 +19,19 @@ call the appropriate methods. Since this is very expensive (specifically
 fetching the Method from the Class), it uses memoization wherever possible.
 It should be possible to use macros instead and retain the same API.
 Macros currently mean no foreseeable performance gain however."
-  (:require [camel-snake-kebab :refer [->kebab-case ->CamelCase]]
+  (:require [camel-snake-kebab :refer [->CamelCase ->kebab-case]]
             [clojure.java.io :as io]
             [clojure.string :as s]
-            [internal.java :as j]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.java :as j]
             [util.digest :as digest])
-  (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor DescriptorProtos$FieldOptions
-            Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
-           [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
-           [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
-           [java.lang.reflect Method]
+  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
+           [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor GeneratedMessage$Builder Message ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
+           [java.lang.reflect Method]
+           [java.nio.charset StandardCharsets]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -49,15 +49,25 @@ Macros currently mean no foreseeable performance gain however."
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
 
+(defn escape-string
+  ^String [^String string]
+  (-> string
+      (.getBytes StandardCharsets/UTF_8)
+      (TextFormat/escapeBytes)))
+
 (defn- new-builder ^GeneratedMessage$Builder
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
+(defn- field-name->key-raw [^String field-name]
+  (keyword (if (re-find upper-pattern field-name)
+             (->kebab-case field-name)
+             (s/replace field-name "_" "-"))))
+
+(def field-name->key (memoize field-name->key-raw))
+
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
-  (let [field-name (.getName field-desc)]
-    (keyword (if (re-find upper-pattern field-name)
-               (->kebab-case field-name)
-               (s/replace field-name "_" "-")))))
+  (field-name->key (.getName field-desc)))
 
 (defn pb-enum->val
   [val-or-desc]
@@ -394,7 +404,8 @@ Macros currently mean no foreseeable performance gain however."
                   (keep (fn [^Method m]
                           (let [m-name (.getName m)
                                 set-via-builder? (and (.startsWith m-name "set")
-                                                   (some-> m (.getParameterTypes) ^Class first (.getName) (.endsWith "$Builder")))]
+                                                      (when-some [^Class first-arg-class (first (.getParameterTypes m))]
+                                                        (.endsWith (.getName first-arg-class) "$Builder")))]
                             (when (not set-via-builder?)
                               [m-name m]))))
                   (.getDeclaredMethods builder-class))
@@ -610,7 +621,10 @@ Macros currently mean no foreseeable performance gain however."
 
 (defn- fields-by-indices-raw [^Class cls]
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
-    (into {} (map (fn [^Descriptors$FieldDescriptor field] [(.getNumber field) (field->key field)]) (.getFields desc)))))
+    (into {}
+          (map (fn [^Descriptors$FieldDescriptor field]
+                 [(.getNumber field) (field->key field)]))
+          (.getFields desc))))
 
 (def fields-by-indices (memoize fields-by-indices-raw))
 

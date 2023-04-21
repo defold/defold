@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
             [editor.buffers :as buffers]
             [editor.code.lang.json :as json]
             [editor.code.resource :as r]
+            [util.murmur :as murmur]
             [editor.pipeline :as pipeline])
   (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
@@ -74,6 +75,7 @@
 
 (defn- json-stream->pb-stream [{:keys [name type count data] :as _json-stream}]
   (assoc {:name name
+          :name-hash (murmur/hash64 name)
           :value-type type
           :value-count count}
     (pb-value-type->pb-stream-field type) data))

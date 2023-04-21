@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -60,6 +60,9 @@ public class ModelBuilder extends Builder<Void> {
             taskBuilder.addInput(animations);
         }
         for (String t : modelDescBuilder.getTexturesList()) {
+            if (t.isEmpty())
+                continue; // TODO: Perhaps we can check if the material expects textures?
+
             IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
             Task<?> embedTask = this.project.createTask(res);
             if (embedTask == null) {
@@ -117,6 +120,9 @@ public class ModelBuilder extends Builder<Void> {
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : modelDescBuilder.getTexturesList()) {
+            if (t.isEmpty())
+                continue; // TODO: Perhaps we can check if the material expects textures?
+
             BuilderUtil.checkResource(this.project, resource, "texture", t);
             newTextureList.add(ProtoBuilders.replaceTextureName(t));
         }

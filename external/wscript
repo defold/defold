@@ -13,13 +13,13 @@ def get_packages():
     return PACKAGES
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
 
     for d in get_packages():
         opt.recurse(d)
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
     for d in get_packages():
         conf.recurse(d)

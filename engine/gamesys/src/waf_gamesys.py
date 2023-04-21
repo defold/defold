@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -147,6 +147,13 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_model(task):
+
+    def _replace_model_ext(orig, newext):
+        if 'dae' in orig:
+            return orig.replace(".dae", newext)
+        else:
+            return orig.replace(".gltf", newext)
+
     try:
         import google.protobuf.text_format
         import model_ddf_pb2
@@ -157,9 +164,9 @@ def compile_model(task):
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
         msg_out = rig.rig_ddf_pb2.RigScene()
-        msg_out.mesh_set = "/" + msg.mesh.replace(".dae", ".meshsetc")
-        msg_out.skeleton = "/" + msg.mesh.replace(".dae", ".skeletonc")
-        msg_out.animation_set = "/" + msg.animations.replace(".dae", ".animationsetc")
+        msg_out.mesh_set = "/" + _replace_model_ext(msg.mesh, ".meshsetc")
+        msg_out.skeleton = "/" + _replace_model_ext(msg.mesh, ".skeletonc")
+        msg_out.animation_set = "/" + _replace_model_ext(msg.animations, ".animationsetc")
         with open(task.outputs[1].abspath(), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
@@ -173,7 +180,7 @@ def compile_model(task):
             out_f.write(msg_out.SerializeToString())
 
         return 0
-    except (google.protobuf.text_format.ParseError,e):
+    except (google.protobuf.text_format.ParseError,) as e:
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
@@ -242,7 +249,7 @@ def compile_animationset(task):
         with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg_animset.SerializeToString())
         return 0
-    except (google.protobuf.text_format.ParseError,e):
+    except (google.protobuf.text_format.ParseError,) as e:
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
@@ -576,7 +583,7 @@ def compile_mesh(task):
             out_f.write(rig.rig_ddf_pb2.AnimationSet().SerializeToString())
 
         return 0
-    except (google.protobuf.text_format.ParseError,e):
+    except (google.protobuf.text_format.ParseError,) as e:
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
@@ -586,6 +593,18 @@ waflib.Task.task_factory('mesh',
 
 @extension('.dae')
 def dae_file(self, node):
+    mesh = self.create_task('mesh')
+    mesh.set_inputs(node)
+    ext_skeleton      = '.skeletonc'
+    ext_mesh_set      = '.meshsetc'
+    ext_animation_set = '.animationsetc'
+    out_skeleton      = node.change_ext(ext_skeleton)
+    out_mesh_set      = node.change_ext(ext_mesh_set)
+    out_animation_set = node.change_ext(ext_animation_set)
+    mesh.set_outputs([out_skeleton, out_mesh_set, out_animation_set])
+
+@extension('.gltf')
+def gltf_file(self, node):
     mesh = self.create_task('mesh')
     mesh.set_inputs(node)
     ext_skeleton      = '.skeletonc'

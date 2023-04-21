@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -564,6 +564,21 @@ TEST_F(ScriptTest, TestInstanceContext)
 
     dmGameObject::PostUpdate(m_Collection);
 }
+
+
+TEST_F(ScriptTest, TestExists)
+{
+    dmGameObject::HInstance go_null = dmGameObject::New(m_Collection, "/null.goc");
+    ASSERT_NE((void*) 0, (void*) go_null);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_null, "a"));
+
+    dmGameObject::HInstance go_exists = dmGameObject::New(m_Collection, "/exists.goc");
+    ASSERT_NE((void*) 0, (void*) go_exists);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_exists, "b"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+}
+
 
 int main(int argc, char **argv)
 {

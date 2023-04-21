@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,8 +28,6 @@ import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.net.URLClassLoader;
 import java.net.URL;
 import java.lang.Math;
@@ -50,8 +48,8 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
@@ -71,6 +69,8 @@ import com.google.protobuf.Message;
  *
  */
 public abstract class LuaBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
@@ -132,13 +132,21 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
-            if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
-                String value = (String)property.value;
-                if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                    IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
-                    taskBuilder.addInput(resource);
-                    PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
+
+            if (property.isResource) {
+                String value = (String) property.value;
+
+                if (value.isEmpty())
+                {
+                    continue;
                 }
+                else if (!PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                    throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
+                }
+
+                IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
+                taskBuilder.addInput(resource);
+                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
             }
         }
 
@@ -200,7 +208,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
             } catch (InterruptedException e) {
-                Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
+                logger.severe("Unexpected interruption", e);
             } finally {
                 IOUtils.closeQuietly(is);
             }
@@ -358,7 +366,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // write index, count and bytes
             if (count > 0) {
                 if (count == 256) {
-                    Bob.verbose("\n\nLuaBuilder count %d\n\n", count);
+                    logger.info("\n\nLuaBuilder count %d\n\n", count);
                 }
 
                 // write index of diff
@@ -478,15 +486,15 @@ public abstract class LuaBuilder extends Builder<Void> {
                 Platform p = architectures.get(0);
                 if (p.is64bit()) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-                    Bob.verbose("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }
                 else {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
-                    Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.info("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                Bob.verbose("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                logger.info("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
@@ -494,7 +502,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
                 srcBuilder.setDelta(ByteString.copyFrom(delta));
 
-                Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                logger.info("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
             }
         }

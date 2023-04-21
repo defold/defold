@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -122,7 +122,8 @@
       (doseq [[header value] http-headers]
         (.setRequestProperty http-connection header value))
       (when tag
-        (.setRequestProperty http-connection "If-None-Match" tag)))
+        (.setRequestProperty http-connection "If-None-Match" tag))
+      (.setRequestProperty http-connection "Accept" "application/zip"))
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)

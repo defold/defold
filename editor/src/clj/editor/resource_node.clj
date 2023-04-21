@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -62,9 +62,6 @@
                                          (when (and editable (resource/exists? resource))
                                            (resource-io/with-error-translation resource _node-id :source-value
                                              (read-fn resource))))))
-  (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
-                                              (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-                                                (dependencies-fn save-value))))
   
   (output save-value g/Any (g/constantly nil))
 
@@ -161,6 +158,38 @@
   (let [value (g/node-value resource-node :valid-node-id+type+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
+
+(defn owner-resource-node-id
+  ([node-id]
+   (owner-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   ;; The owner resource node is the first non-override ResourceNode we find by
+   ;; traversing the explicit :cascade-delete connections between nodes. I.e, we
+   ;; want to find the ResourceNode that will delete our node if the resource is
+   ;; deleted from the project.
+   (let [node (g/node-by-id basis node-id)]
+     ;; Embedded resources will be represented by ResourceNodes, but we want the
+     ;; ultimate owner of the embedded resource, so we keep looking if we
+     ;; encounter an override node or a ResourceNode whose resource does not
+     ;; have a valid proj-path.
+     (if (and (nil? (gt/original node))
+              (g/node-instance*? ResourceNode node)
+              (some? (resource/proj-path (resource-node-resource basis node))))
+
+       ;; We found our owner ResourceNode. Return its node-id.
+       node-id
+
+       ;; This is not our owner ResourceNode. Recursively follow the outgoing
+       ;; connections that connect to a :cascade-delete input.
+       (some->> (core/owner-node-id basis node-id)
+                (owner-resource-node-id basis))))))
+
+(defn owner-resource
+  ([node-id]
+   (owner-resource (g/now) node-id))
+  ([basis node-id]
+   (some->> (owner-resource-node-id basis node-id)
+            (resource basis))))
 
 (defn make-ddf-dependencies-fn [ddf-type]
   (fn [source-value]

@@ -1,4 +1,4 @@
--- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2020-2023 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -63,28 +63,30 @@ local function remove_breakpoint(line, file)
   end
 end
 
+local file_cache = {}
 -- This hook fires only on Lua functions calls and checks if this function has lines
 -- we have breakpoints on
-local function lightweight_hook()
-  local caller = debug.getinfo(2,"S")
-  local file = mobdebug.get_filename(caller.source)
+local function lightweight_hook(source, lastlinedefined, co)
+  local file = file_cache[source]
+  if not file then 
+    file = mobdebug.get_filename(source)
+    file_cache[source] = file
+  end
   mobdebug.get_server_data(file)
   local brk = breakpoints[file]
-  local co = coroutine.running()
   local in_co = false
   if co then
     -- If it's the first call after the [C] call - save function metricks
-    if caller.lastlinedefined ~= -1 and coroutines[co] == false then
+    if lastlinedefined ~= -1 and coroutines[co] == false then
         -- Coroutine provide this info only on the first coroutine fn call
         -- we should save it for later usage
         coroutines[co] = {
           ["lines"] = debug.getinfo(2,"L"),
-          ["file"] = file,
-          ["caller"] = caller
+          ["file"] = file
         }
     end
     -- Make sure [C] function call was before the first coroutine call
-    if not coroutines[co] and caller.lastlinedefined == -1 then
+    if not coroutines[co] and lastlinedefined == -1 then
       coroutines[co] = false
     end
     if not brk then
@@ -121,10 +123,10 @@ local function set_lightweight_hook(force, co)
     continue_execution = false
     if co then
       debug.sethook(co, nil, "lcr")
-      debug.sethook(co, lightweight_hook, "c")
+      sys.set_debugger_lightweight_hook(co, lightweight_hook)
     else
       debug.sethook(nil, "lcr")
-      debug.sethook(lightweight_hook, "c")
+      sys.set_debugger_lightweight_hook(lightweight_hook)
     end
   end
 end

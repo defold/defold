@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -495,7 +495,7 @@
       (send-command! out "STACK")
       (let [[status rest] (read-status in)]
         (case status
-          "200" (when-let [[stack] (re-match #"^OK\s+(.*)$" rest)]
+          "200" (when-let [[stack] (re-match #"^OK\s+" rest)]
                   {:stack (stack-data (decode-serialized-data stack))})
           "401" (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
                   (let [n (Integer/parseInt size)]

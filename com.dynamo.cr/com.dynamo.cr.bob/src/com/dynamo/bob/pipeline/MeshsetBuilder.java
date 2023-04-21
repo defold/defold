@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -34,6 +35,7 @@ import java.nio.channels.FileChannel;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
@@ -44,6 +46,30 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 @BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc")
 public class MeshsetBuilder extends Builder<Void>  {
+    public static class ResourceDataResolver implements ModelImporter.DataResolver
+    {
+        Project project;
+
+        public ResourceDataResolver(Project project) {
+            this.project = project;
+        }
+
+        public byte[] getData(String path, String uri) {
+            File file = new File(path);
+            File bufferFile = new File(file.getParentFile(), uri);
+            IResource resource = project.getResource(bufferFile.getPath());
+            if (resource == null)
+            {
+                System.out.printf("Failed to find data for %s\n", bufferFile.getPath());
+                return null;
+            }
+            try {
+                return resource.getContent();
+            } catch (IOException e) {
+                return null; // Actual errors are reported by ModeulUtil.loadScene
+            }
+        }
+    };
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -119,7 +145,8 @@ public class MeshsetBuilder extends Builder<Void>  {
         }
 
         ModelImporter.Options options = new ModelImporter.Options();
-        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options);
+        ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
+        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
         if (scene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }
@@ -176,7 +203,3 @@ public class MeshsetBuilder extends Builder<Void>  {
         ModelUtil.unloadScene(scene);
     }
 }
-
-
-
-

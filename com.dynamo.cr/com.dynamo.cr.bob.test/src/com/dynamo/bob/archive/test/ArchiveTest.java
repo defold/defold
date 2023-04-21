@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -173,8 +173,8 @@ public class ArchiveTest {
             ArchiveEntry ePrev = entries.get(i-1);
             ArchiveEntry eCurr = entries.get(i);
             correctOrder = false;
-            for (int j = 0; j < eCurr.hash.length; j++) {
-                correctOrder = bitwiseCompare(eCurr.hash[j], ePrev.hash[j]) == 1;
+            for (int j = 0; j < eCurr.getHash().length; j++) {
+                correctOrder = bitwiseCompare(eCurr.getHash()[j], ePrev.getHash()[j]) == 1;
 
                 if(correctOrder)
                     break;
@@ -284,8 +284,8 @@ public class ArchiveTest {
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(2, instance.getArchiveEntrySize());
-        assertEquals("/main.collectionproxyc", instance.getArchiveEntry(0).relName);    // 987bcab01b929eb2c07877b224215c92
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // 2c1743a391305fbf367df8e4f069f9f9
+        assertEquals("/main.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());    // 987bcab01b929eb2c07877b224215c92
+        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // 2c1743a391305fbf367df8e4f069f9f9
     }
 
     @SuppressWarnings("unused")
@@ -314,10 +314,10 @@ public class ArchiveTest {
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -346,10 +346,10 @@ public class ArchiveTest {
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/shared.goc", instance.getArchiveEntry(0).relName);
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(1).relName);  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(2).relName);         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(3).relName);  // bc05302047f95ca60709254556402710
+        assertEquals("/shared.goc", instance.getArchiveEntry(0).getRelativeFilename());
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(1).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(2).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(3).getRelativeFilename());  // bc05302047f95ca60709254556402710
     }
 
     @SuppressWarnings("unused")
@@ -378,10 +378,10 @@ public class ArchiveTest {
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -442,10 +442,10 @@ public class ArchiveTest {
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
-        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).relName);  // bc05302047f95ca60709254556402710
-        assertEquals("/level1.goc", instance.getArchiveEntry(3).relName);               // d25298c59a872b5bfd5473de7b36a4a4
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(2).getRelativeFilename());  // bc05302047f95ca60709254556402710
+        assertEquals("/level1.goc", instance.getArchiveEntry(3).getRelativeFilename());               // d25298c59a872b5bfd5473de7b36a4a4
     }
 
     @SuppressWarnings("unused")
@@ -474,8 +474,8 @@ public class ArchiveTest {
         instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
 
         assertEquals(2, instance.getArchiveEntrySize());
-        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).relName);  // 617905b1d0e858ca35230357710cf5f2
-        assertEquals("/main.collectionc", instance.getArchiveEntry(1).relName);         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(1).getRelativeFilename());         // b32b3904944e63ed5a269caa47904645
     }
 
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import com.dynamo.bob.util.StringUtil;
 
 public class BMFont
 {
@@ -317,7 +318,7 @@ public class BMFont
         while ((line = in.readLine()) != null) {
 
             String[] line_parts = line.split(" ", 2);
-            entry_id = line_parts[0].toLowerCase();
+            entry_id = StringUtil.toLowerCase(line_parts[0]);
             DefaultHashMap<String,String> entries = null;
 
             if (line_parts.length > 1)

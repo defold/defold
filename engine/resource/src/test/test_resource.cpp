@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 #include <dlib/log.h>
 
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -1049,9 +1050,16 @@ TEST(RecreateTest, RecreateTest)
     dmResource::DeleteFactory(factory);
 }
 
-volatile bool SendReloadDone = false;
-void SendReloadThread(void*)
+struct ReloadedContext
 {
+    void*           m_Resource;
+    int32_atomic_t* m_Reloaded;
+};
+
+static void SendReloadThread(void* _ctx)
+{
+    ReloadedContext* ctx = (ReloadedContext*)_ctx;
+
     uint32_t msg_size = sizeof(dmResourceDDF::Reload) + sizeof(uintptr_t) + (strlen("__testrecreate__.foo") + 1);
     dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
     memset(reload_resources, 0x0, msg_size);
@@ -1065,11 +1073,27 @@ void SendReloadThread(void*)
     dmMessage::URL url;
     url.m_Fragment = 0;
     url.m_Path = 0;
-    dmMessage::GetSocket("@resource", &url.m_Socket);
-    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, reload_resources, msg_size, 0);
+    dmMessage::Result result;
+    result = dmMessage::GetSocket("@resource", &url.m_Socket);
+    assert(result == dmMessage::RESULT_OK);
+    result = dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, reload_resources, msg_size, 0);
+    assert(result == dmMessage::RESULT_OK);
 
-    SendReloadDone = true;
+    if (ctx)
+    {
+        dmAtomicStore32(ctx->m_Reloaded, 1);
+    }
     free(reload_resources);
+}
+
+static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParams& params)
+{
+    ReloadedContext* ctx = (ReloadedContext*) params.m_UserData;
+
+    if (dmResource::GetResource(params.m_Resource) == ctx->m_Resource)
+    {
+        dmAtomicStore32(ctx->m_Reloaded, 1);
+    }
 }
 
 TEST(RecreateTest, RecreateTestHttp)
@@ -1114,29 +1138,46 @@ TEST(RecreateTest, RecreateTestHttp)
     fprintf(f, "456");
     fclose(f);
 
-    SendReloadDone = false;
+    int32_atomic_t send_reload_done = 0 ;
+
+    ReloadedContext state;
+    state.m_Resource = resource;
+    state.m_Reloaded = &send_reload_done;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedHttpCallback, &state);
+
     dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
 
+    uint64_t t_start = dmTime::GetTime();
     do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
-    } while (!SendReloadDone);
+
+        uint64_t t = dmTime::GetTime();
+        if ((t - t_start) >= 2 * 1000000)
+        {
+            ASSERT_TRUE(false && "Test timed out");
+            break;
+        }
+    } while (!dmAtomicGet32(&send_reload_done));
 
     dmThread::Join(send_thread);
 
     ASSERT_EQ(456, *resource);
 
+    dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedHttpCallback, resource);
+
     dmSys::Unlink(host_name);
 
-    SendReloadDone = false;
-    send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
+    send_reload_done = 0;
+    send_thread = dmThread::New(&SendReloadThread, 0x8000, (void*)&state, "reload");
 
     do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
-    } while (!SendReloadDone);
+    } while (!dmAtomicGet32(&send_reload_done));
+
     dmThread::Join(send_thread);
 
     dmResource::Result rr = dmResource::ReloadResource(factory, resource_name, 0);
@@ -1508,6 +1549,8 @@ int main(int argc, char **argv)
     #if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
     #endif
+
+    dmHashEnableReverseHash(true);
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

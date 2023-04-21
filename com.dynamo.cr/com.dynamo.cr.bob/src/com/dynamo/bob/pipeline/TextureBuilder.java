@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,12 +26,15 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
 public class TextureBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(TextureBuilder.class.getName());
 
     @Override
     public Task<Void> create(IResource input) throws IOException {
@@ -56,7 +59,7 @@ public class TextureBuilder extends Builder<Void> {
             IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.input(0).getContent());
         TextureImage texture;

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,9 +37,9 @@
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
 
-(namespaces/import-vars [internal.graph arc node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
@@ -160,8 +160,9 @@
          basis (is/basis system)
          id-generators (is/id-generators system)
          override-id-generator (is/override-id-generator system)
+         tx-data-context-map (or (:tx-data-context-map opts) {})
          metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator metrics-collector)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))
@@ -226,6 +227,7 @@
   (let [param        (gensym "m")
         [alias argv] (strip-alias (vec argv))
         kargv        (mapv keyword argv)
+        annotations  (into {} (map (juxt keyword meta)) argv)
         arglist      (interleave argv (map #(list `get param %) kargv))]
     (if alias
       `(with-meta
@@ -233,11 +235,13 @@
            (let [~alias (select-keys ~param ~kargv)
                  ~@(vec arglist)]
              ~@tail))
-         {:arguments (quote ~kargv)})
+         {:arguments (quote ~kargv)
+          :annotations (quote ~annotations)})
       `(with-meta
          (fn [~param]
            (let ~(vec arglist) ~@tail))
-         {:arguments (quote ~kargv)}))))
+         {:arguments (quote ~kargv)
+          :annotations (quote ~annotations)}))))
 
 (defmacro defnk
   [symb & body]
@@ -335,6 +339,12 @@
   Define an output to produce values of type. The ':cached' flag is
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
+
+  In the arglist, you can specify ^:try metadata on arguments to allow
+  the computation of the output even when some of its arguments are
+  errors. Note that adding ^:try metadata on an array input will never
+  supply an error value to the output fnk; instead, it will provide
+  an array where some items might be errors.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or

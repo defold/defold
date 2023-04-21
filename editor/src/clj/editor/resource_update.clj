@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -91,12 +91,10 @@
                          (catch Exception _
                            nil))
             new-sha256 (try
-                         (if (and read-fn write-fn)
+                         (when (and read-fn write-fn)
                            (let [source-value (read-fn new-resource)
                                  sanitized-content (write-fn source-value)]
-                             (DigestUtils/sha256Hex ^String sanitized-content))
-                           (with-open [input-stream (io/input-stream new-resource)]
-                             (DigestUtils/sha256Hex ^InputStream input-stream)))
+                             (DigestUtils/sha256Hex ^String sanitized-content)))
                          (catch Exception _
                            nil))]
         (and (some? old-sha256)

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
 
 #define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
 #define DDF_MAX_FIELDS (128)
+#define DDF_NO_ONE_OF_INDEX 0
 
 namespace dmDDF
 {
@@ -51,6 +52,8 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
+        uint8_t     m_OneOfIndex : 7;
+        uint8_t     m_OneOfSet   : 1;
     };
 
     struct Descriptor
