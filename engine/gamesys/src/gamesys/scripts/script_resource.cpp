@@ -661,11 +661,13 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * : [type:number] The width of the texture (in pixels)
  *
  * `format`
- * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
+ * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
+ * 
+ * These constants might not be available on the device:
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
  * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
@@ -678,6 +680,22 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * - `resource.TEXTURE_FORMAT_R_BC4`
  * - `resource.TEXTURE_FORMAT_RG_BC5`
  * - `resource.TEXTURE_FORMAT_RGBA_BC7`
+ * - `resource.TEXTURE_FORMAT_RGB16F`
+ * - `resource.TEXTURE_FORMAT_RGB32F`
+ * - `resource.TEXTURE_FORMAT_RGBA16F`
+ * - `resource.TEXTURE_FORMAT_RGBA32F`
+ * - `resource.TEXTURE_FORMAT_R16F`
+ * - `resource.TEXTURE_FORMAT_RG16F`
+ * - `resource.TEXTURE_FORMAT_R32F`
+ * - `resource.TEXTURE_FORMAT_RG32F`
+ *
+ * You can test if the device supports these values by checking if a specific enum is nil or not:
+ *
+ * ```lua
+ * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ *     -- it is same to use this format
+ * end
+ * ```
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
@@ -855,6 +873,8 @@ static int ReleaseResource(lua_State* L)
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
+ *
+ * These constants might not be available on the device:
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
  * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
@@ -867,6 +887,22 @@ static int ReleaseResource(lua_State* L)
  * - `resource.TEXTURE_FORMAT_R_BC4`
  * - `resource.TEXTURE_FORMAT_RG_BC5`
  * - `resource.TEXTURE_FORMAT_RGBA_BC7`
+ * - `resource.TEXTURE_FORMAT_RGB16F`
+ * - `resource.TEXTURE_FORMAT_RGB32F`
+ * - `resource.TEXTURE_FORMAT_RGBA16F`
+ * - `resource.TEXTURE_FORMAT_RGBA32F`
+ * - `resource.TEXTURE_FORMAT_R16F`
+ * - `resource.TEXTURE_FORMAT_RG16F`
+ * - `resource.TEXTURE_FORMAT_R32F`
+ * - `resource.TEXTURE_FORMAT_RG32F`
+ *
+ * You can test if the device supports these values by checking if a specific enum is nil or not:
+ *
+ * ```lua
+ * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ *     -- it is same to use this format
+ * end
+ * ```
  *
  * `x`
  * : [type:number] optional x offset of the texture (in pixels)
@@ -2649,6 +2685,59 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# RGB16F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB16F
+ * @variable
+ */
+
+/*# RGB32F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB32F
+ * @variable
+ */
+
+/*# RGBA16F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA16F
+ * @variable
+ */
+
+
+/*# RGBA32F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA32F
+ * @variable
+ */
+
+
+/*# R16F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_R16F
+ * @variable
+ */
+
+
+/*# RG16F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RG16F
+ * @variable
+ */
+
+
+/*# R32F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_R32F
+ * @variable
+ */
+
+
+/*# RG32F type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RG32F
+ * @variable
+ */
+
 /*# COMPRESSION_TYPE_DEFAULT compression type
  *
  * @name resource.COMPRESSION_TYPE_DEFAULT
@@ -2715,48 +2804,59 @@ static const luaL_reg Module_methods[] =
  * @name resource.LIVEUPDATE_FORMAT_ERROR
  * @variable
  */
-static void LuaInit(lua_State* L)
+static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
 
-#define SETGRAPHICSCONSTANT(name) \
+#define SETGRAPHICS_ENUM(name) \
     lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-    lua_setfield(L, -2, #name); \
+    lua_setfield(L, -2, #name);
 
-    SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D);
-    SETGRAPHICSCONSTANT(TEXTURE_TYPE_CUBE_MAP);
-    SETGRAPHICSCONSTANT(TEXTURE_TYPE_2D_ARRAY);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
+#undef SETGRAPHICS_ENUM
 
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_LUMINANCE);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_DEPTH);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_STENCIL);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_ETC1);
+#define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
+    if (dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
+    { \
+        lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
+        lua_setfield(L, -2, #name); \
+    }
 
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_ETC2);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_ASTC_4x4);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB_BC1);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC3);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_R_BC4);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RG_BC5);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC7);
+    // JG: Perhaps these should be in a 'graphics' namespace shared with the render script,
+    //     feels a bit strange to have different modules that expose the same enums but with different names..
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_DEPTH);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_STENCIL);
 
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB16F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGB32F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA16F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA32F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_R16F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RG16F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_R32F);
-    SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RG32F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_ETC1);
 
-#undef SETGRAPHICSCONSTANT
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ETC2);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_BC1);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC3);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R_BC4);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG_BC5);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC7);
+
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB16F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB32F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA16F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA32F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R16F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG16F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32F);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RG32F);
+
+#undef SETTEXTUREFORMAT_IF_SUPPORTED
 
 
 #define SETCOMPRESSIONTYPE(name) \
@@ -2789,7 +2889,7 @@ static void LuaInit(lua_State* L)
 
 void ScriptResourceRegister(const ScriptLibContext& context)
 {
-    LuaInit(context.m_LuaState);
+    LuaInit(context.m_LuaState, context.m_GraphicsContext);
     g_ResourceModule.m_Factory         = context.m_Factory;
     g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
 }

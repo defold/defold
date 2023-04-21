@@ -150,6 +150,23 @@ namespace dmGraphics
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_RenderDocSupport        = params.m_RenderDocSupport;
 
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_STENCIL;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+
+        // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
+        // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
@@ -841,10 +858,6 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_RGB_16BPP,
                                             TEXTURE_FORMAT_RGBA_16BPP,
                                         };
-
-        // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
-        // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
-        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
 
         // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
