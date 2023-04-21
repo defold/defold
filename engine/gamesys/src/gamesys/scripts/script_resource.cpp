@@ -693,7 +693,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  *
  * ```lua
  * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
- *     -- it is same to use this format
+ *     -- it is safe to use this format
  * end
  * ```
  *
@@ -900,7 +900,7 @@ static int ReleaseResource(lua_State* L)
  *
  * ```lua
  * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
- *     -- it is same to use this format
+ *     -- it is safe to use this format
  * end
  * ```
  *
@@ -2703,13 +2703,11 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
-
 /*# RGBA32F type texture format
  *
  * @name resource.TEXTURE_FORMAT_RGBA32F
  * @variable
  */
-
 
 /*# R16F type texture format
  *
@@ -2717,20 +2715,17 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
-
 /*# RG16F type texture format
  *
  * @name resource.TEXTURE_FORMAT_RG16F
  * @variable
  */
 
-
 /*# R32F type texture format
  *
  * @name resource.TEXTURE_FORMAT_R32F
  * @variable
  */
-
 
 /*# RG32F type texture format
  *
@@ -2826,7 +2821,9 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     }
 
     // JG: Perhaps these should be in a 'graphics' namespace shared with the render script,
-    //     feels a bit strange to have different modules that expose the same enums but with different names..
+    //     feels a bit strange to have different modules that expose the same enums but with different names.
+    //     In the render scripts we call them "FORMAT_RGB16F" but here it's "TEXTURE_FORMAT_RGB16F", and we only expose
+    //     a couple of select formats in render scripts. Would be nice to have a single point of exposure for these things
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);
