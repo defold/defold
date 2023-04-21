@@ -501,31 +501,32 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
 
 static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(int textureformat)
 {
+    #define GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(x) case dmGraphics::x: return dmGraphics::TextureImage::x
     switch(textureformat)
     {
-        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:          return dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE;
-        case dmGraphics::TEXTURE_FORMAT_RGB:                return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB;
-        case dmGraphics::TEXTURE_FORMAT_RGBA:               return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
-        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ETC2;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_4x4;
-        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_BC1;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC3;
-        case dmGraphics::TEXTURE_FORMAT_R_BC4:              return dmGraphics::TextureImage::TEXTURE_FORMAT_R_BC4;
-        case dmGraphics::TEXTURE_FORMAT_RG_BC5:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RG_BC5;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC7;
-        case dmGraphics::TEXTURE_FORMAT_RGB16F:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB16F;
-        case dmGraphics::TEXTURE_FORMAT_RGB32F:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB32F;
-        case dmGraphics::TEXTURE_FORMAT_RGBA16F:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA16F;
-        case dmGraphics::TEXTURE_FORMAT_RGBA32F:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA32F;
-        case dmGraphics::TEXTURE_FORMAT_R16F:               return dmGraphics::TextureImage::TEXTURE_FORMAT_R16F;
-        case dmGraphics::TEXTURE_FORMAT_RG16F:              return dmGraphics::TextureImage::TEXTURE_FORMAT_RG16F;
-        case dmGraphics::TEXTURE_FORMAT_R32F:               return dmGraphics::TextureImage::TEXTURE_FORMAT_R32F;
-        case dmGraphics::TEXTURE_FORMAT_RG32F:              return dmGraphics::TextureImage::TEXTURE_FORMAT_RG32F;
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_LUMINANCE);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_ETC1);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_ETC2);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_BC1);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_BC3);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R_BC4);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG_BC5);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_BC7);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB16F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB32F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA16F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA32F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R16F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG16F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R32F);
+        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG32F);
     };
     dmLogError("Unsupported texture format (%d)", textureformat);
     return (dmGraphics::TextureImage::TextureFormat) -1;
