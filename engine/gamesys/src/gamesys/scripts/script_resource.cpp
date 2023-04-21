@@ -726,6 +726,42 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  *    go.set("#model", "texture0", my_texture_id)
  * end
  * ```
+ *
+ * @examples
+ * How to create an 128x128 floating point texture (RGBA32F) resource from a buffer object
+ *
+ * ```lua
+ * function init(self)
+ *     -- Create a new buffer with 4 components and FLOAT32 type
+ *     local tbuffer = buffer.create(128 * 128, { {name=hash("rgba"), type=buffer.VALUE_TYPE_FLOAT32, count=4} } )   
+ *     local tstream = buffer.get_stream(tbuffer, hash("rgba"))
+ *
+ *     -- Fill the buffer stream with some float values
+ *     for y=1,128 do
+ *         for x=1,128 do
+ *             local index = (y-1) * 128 * 4 + (x-1) * 4 + 1
+ *             tstream[index + 0] = 999.0
+ *             tstream[index + 1] = -1.0
+ *             tstream[index + 2] = 0.5
+ *             tstream[index + 3] = 1.0
+ *         end
+ *     end
+ *      
+ *     -- Create a 2D Texture with a RGBA23F format
+ *     local tparams = {
+ *        width          = 128,
+ *        height         = 128,
+ *        type           = resource.TEXTURE_TYPE_2D,
+ *        format         = resource.TEXTURE_FORMAT_RGBA32F,
+ *    }
+ *
+ *    -- Note that we pass the buffer as the last argument here!
+ *    local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, tbuffer)
+ *    
+ *    -- assign the texture to a model
+ *    go.set("#model", "texture0", my_texture_id)
+ * end
+ * ```
  */
 static int CreateTexture(lua_State* L)
 {
