@@ -804,6 +804,8 @@
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
 
+  (property camera-movement-state g/Any)
+
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
   (input tool-info-text g/Str)
@@ -1218,25 +1220,42 @@
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
-(defn- make-key-pressed-event [^KeyEvent event view-id]
-  (let [action (i/action-from-jfx event)]
-    (g/transact (g/update-property view-id :input-action-queue conj action))))
+(defn- handle-camera-wasd-movement [^KeyEvent event view-id key state-value]
+  (let [camera-movement-state (g/node-value view-id :camera-movement-state)
+        camera-movement-state' (if state-value
+                                 (assoc camera-movement-state key true)
+                                 (dissoc camera-movement-state key))]
+    #_(println camera-movement-state')
+    (g/transact
+      (g/set-property view-id :camera-movement-state camera-movement-state'))))
 
 (defn- handle-key-pressed! [^KeyEvent event view-id]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when (not= ::unhandled
               (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
-                ::unhandled
+                (condp = (.getCode event)
+                  KeyCode/W (handle-camera-wasd-movement event view-id :W true)
+                  KeyCode/A (handle-camera-wasd-movement event view-id :A true)
+                  KeyCode/S (handle-camera-wasd-movement event view-id :S true)
+                  KeyCode/D (handle-camera-wasd-movement event view-id :D true)
+                  ::unhandled)
                 (condp = (.getCode event)
                   KeyCode/UP (ui/run-command (.getSource event) :up)
                   KeyCode/DOWN (ui/run-command (.getSource event) :down)
                   KeyCode/LEFT (ui/run-command (.getSource event) :left)
                   KeyCode/RIGHT (ui/run-command (.getSource event) :right)
-                  KeyCode/W (make-key-pressed-event event view-id)
-                  KeyCode/A (make-key-pressed-event event view-id)
-                  KeyCode/S (make-key-pressed-event event view-id)
-                  KeyCode/D (make-key-pressed-event event view-id)
                   ::unhandled)))
+    (.consume event)))
+
+(defn- handle-key-released! [^KeyEvent event view-id]
+  ;; Only handle bare key events that cannot be bound to handlers here.
+  (when (not= ::unhandled
+              (condp = (.getCode event)
+                KeyCode/W (handle-camera-wasd-movement event view-id :W false)
+                KeyCode/A (handle-camera-wasd-movement event view-id :A false)
+                KeyCode/S (handle-camera-wasd-movement event view-id :S false)
+                KeyCode/D (handle-camera-wasd-movement event view-id :D false)
+                ::unhandled))
     (.consume event)))
 
 (defn register-event-handler! [^Parent parent view-id]
@@ -1273,7 +1292,10 @@
     (.setOnScroll parent event-handler)
     (.setOnKeyPressed parent (ui/event-handler e
                                (when @process-events?
-                                 (handle-key-pressed! e view-id))))))
+                                 (handle-key-pressed! e view-id))))
+    (.setOnKeyReleased parent (ui/event-handler e
+                                (when @process-events?
+                                  (handle-key-released! e view-id))))))
 
 (defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
@@ -1331,9 +1353,28 @@
                                               (g/update-property! view-id :render-mode render-mode-transitions))))))
     scene-view-pane))
 
+(defn- update-scene-camera-fn [view-id]
+  (let [camera-node (view->camera view-id)
+        camera-obj (g/node-value camera-node :camera)
+        camera-movement-state (g/node-value view-id :camera-movement-state)]
+    (when (not (nil? camera-obj))
+      (let [camera-obj-augmented (c/tick-camera camera-obj camera-movement-state)]
+        #_(println camera-obj-augmented)
+        (g/transact
+          (g/set-property camera-node :local-camera camera-obj-augmented))))))
+
 (defn- make-scene-view [scene-graph ^Parent parent opts]
   (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
-        scene-view-pane (make-scene-view-pane view-id opts)]
+        scene-view-pane (make-scene-view-pane view-id opts)
+        update-camera-timer (ui/->timer "update-scene-camera" (fn [_ elapsed-time _]
+                                                                ;; TODO: Can I get dt somehow without doing it manually?
+                                                                (update-scene-camera-fn view-id)))]
+    (ui/on-closed! (:tab opts) (fn [_]
+                                 (ui/timer-stop! update-camera-timer)
+                                 #_(ui/kill-event-dispatch! this)
+                                 #_(dispose-scene-view! view-id)))
+
+    (ui/timer-start! update-camera-timer)
     (ui/children! parent [scene-view-pane])
     (ui/with-controls scene-view-pane [scene-view-info-label]
       (g/set-property! view-id :info-label scene-view-info-label))

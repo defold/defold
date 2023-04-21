@@ -66,6 +66,13 @@
                        :shift (.isShiftDown key-pressed-event)
                        :meta (.isMetaDown key-pressed-event)
                        :control (.isControlDown key-pressed-event)))
+      :key-released (let [key-released-event ^KeyEvent jfx-event]
+                     (assoc action
+                       :code (.getCode key-released-event)
+                       :alt (.isAltDown key-released-event)
+                       :shift (.isShiftDown key-released-event)
+                       :meta (.isMetaDown key-released-event)
+                       :control (.isControlDown key-released-event)))
       (let [mouse-event ^MouseEvent jfx-event]
         (assoc action
                :button (translate-button (.getButton mouse-event))
