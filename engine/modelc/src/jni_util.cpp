@@ -3,6 +3,7 @@
 
 #include <memory.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,12 @@
 #include <libunwind.h>
 #include <stdio.h>
 #endif
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <Dbghelp.h>
+#endif
+
 
 namespace dmJNI
 {
@@ -32,12 +39,23 @@ static void DefaultSignalHandler(int sig) {
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 
+EXCEPTION_POINTERS* g_ExceptionPointers = 0;
+
+LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS* ptr)
+{
+    g_ExceptionPointers = ptr;
+    g_UserCallback(0xDEAD, g_UserContext);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 static void SetHandlers()
 {
     g_signal_handlers[0] = signal(SIGILL, DefaultSignalHandler);
     g_signal_handlers[1] = signal(SIGABRT, DefaultSignalHandler);
     g_signal_handlers[2] = signal(SIGFPE, DefaultSignalHandler);
     g_signal_handlers[3] = signal(SIGSEGV, DefaultSignalHandler);
+
+    ::SetUnhandledExceptionFilter(ExceptionHandler);
 }
 
 static void UnsetHandlers()
@@ -126,12 +144,32 @@ void TestSignalFromString(const char* message)
 {
     if (strstr(message, "SIGILL"))    raise(SIGILL);
     if (strstr(message, "SIGABRT"))   raise(SIGABRT);
-    if (strstr(message, "SIGBUS"))    raise(SIGBUS);
     if (strstr(message, "SIGFPE"))    raise(SIGFPE);
     if (strstr(message, "SIGSEGV"))   raise(SIGSEGV);
+#if !defined(_WIN32)
     if (strstr(message, "SIGPIPE"))   raise(SIGPIPE);
+    if (strstr(message, "SIGBUS"))    raise(SIGBUS);
+#endif
+
     printf("No signal found in string: %s!\n", message);
 }
+
+
+#define APPEND_STRING(...) \
+    { \
+        int result; \
+        do { \
+            result = dmSnPrintf(output + output_cursor, output_size - output_cursor, __VA_ARGS__); \
+            if (result == -1) \
+            { \
+                output_size += 64; \
+                output = (char*)realloc(output, output_size); \
+            } else { \
+                output_cursor += result; \
+            } \
+        } while(result == -1); \
+    }
+
 
 #ifdef __APPLE__
 
@@ -148,21 +186,6 @@ char* GenerateCallstack()
     int output_size = 0;
     int output_cursor = 0;
     char* output = 0;
-
-#define APPEND_STRING(...) \
-    { \
-        int result; \
-        do { \
-            result = dmSnPrintf(output + output_cursor, output_size - output_cursor, __VA_ARGS__); \
-            if (result == -1) \
-            { \
-                output_size += 64; \
-                output = (char*)realloc(output, output_size); \
-            } else { \
-                output_cursor += result; \
-            } \
-        } while(result == -1); \
-    }
 
     // Unwind frames one by one, going up the frame stack.
     while (unw_step(&cursor) > 0) {
@@ -188,14 +211,137 @@ char* GenerateCallstack()
     return output;
 }
 
+#elif defined(_WIN32)
+
+
+static uint32_t GetCallstackPointers(EXCEPTION_POINTERS* pep, void** ptrs, uint32_t num_ptrs)
+{
+    if (!pep)
+    {
+        // The API only accepts 62 or less
+        uint32_t max = num_ptrs > 62 ? 62 : num_ptrs;
+        num_ptrs = CaptureStackBackTrace(0, max, ptrs, 0);
+    } else
+    {
+        HANDLE process = ::GetCurrentProcess();
+        HANDLE thread = ::GetCurrentThread();
+        uint32_t count = 0;
+
+        // Initialize stack walking.
+        STACKFRAME64 stack_frame;
+        memset(&stack_frame, 0, sizeof(stack_frame));
+        #if defined(_WIN64)
+            int machine_type = IMAGE_FILE_MACHINE_AMD64;
+            stack_frame.AddrPC.Offset = pep->ContextRecord->Rip;
+            stack_frame.AddrFrame.Offset = pep->ContextRecord->Rbp;
+            stack_frame.AddrStack.Offset = pep->ContextRecord->Rsp;
+        #else
+            int machine_type = IMAGE_FILE_MACHINE_I386;
+            stack_frame.AddrPC.Offset = pep->ContextRecord->Eip;
+            stack_frame.AddrFrame.Offset = pep->ContextRecord->Ebp;
+            stack_frame.AddrStack.Offset = pep->ContextRecord->Esp;
+        #endif
+        stack_frame.AddrPC.Mode = AddrModeFlat;
+        stack_frame.AddrFrame.Mode = AddrModeFlat;
+        stack_frame.AddrStack.Mode = AddrModeFlat;
+        while (StackWalk64(machine_type,
+            process,
+            thread,
+            &stack_frame,
+            pep->ContextRecord,
+            NULL,
+            &SymFunctionTableAccess64,
+            &SymGetModuleBase64,
+            NULL) &&
+            count < num_ptrs) {
+            ptrs[count++] = reinterpret_cast<void*>(stack_frame.AddrPC.Offset);
+        }
+        num_ptrs = count;
+    }
+    return num_ptrs;
+}
+
+HMODULE GetCurrentModule()
+{   // NB: XP+ solution!
+    HMODULE hModule = NULL;
+    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCTSTR)GetCurrentModule, &hModule);
+    return hModule;
+}
+
+char* GenerateCallstack()
+{
+    int output_size = 0;
+    int output_cursor = 0;
+    char* output = 0;
+
+    HANDLE process = ::GetCurrentProcess();
+
+    ::SymSetOptions(SYMOPT_DEBUG);
+    BOOL initialized = ::SymInitialize(process, 0, TRUE);
+
+    if (!initialized)
+    {
+        APPEND_STRING("No symbols available (Failed to initialize: %d)\n", GetLastError());
+    }
+
+    void* stack[62];
+    uint32_t count = GetCallstackPointers(g_ExceptionPointers, stack, sizeof(stack)/sizeof(stack[0]));
+
+    // Get a nicer printout as well
+    const int name_length = 1024;
+    char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
+    SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolbuffer;
+    symbol->MaxNameLen = name_length;
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+    DWORD displacement;
+    IMAGEHLP_LINE64 line;
+    line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+
+    for(uint32_t c = 0; c < count; c++)
+    {
+        DWORD64 address = (DWORD64)stack[c];
+        APPEND_STRING("    %d: %p: ", c, address);
+
+        const char* symbolname = "<unknown symbol>";
+        DWORD64 symboladdress = address;
+
+        DWORD64 symoffset = 0;
+
+        if (::SymFromAddr(process, address, &symoffset, symbol))
+        {
+            symbolname = symbol->Name;
+            symboladdress = symbol->Address;
+        }
+
+        const char* filename = "<unknown>";
+        int line_number = 0;
+        if (::SymGetLineFromAddr64(process, address, &displacement, &line))
+        {
+            filename = line.FileName;
+            line_number = line.LineNumber;
+        }
+
+        APPEND_STRING("%s(%d): %s\n", filename, line_number, symbolname);
+    }
+
+    ::SymCleanup(process);
+
+    APPEND_STRING("    # <- native");
+    return output;
+}
+
 #else
 
-char* dmGenerateCallstack()
+char* GenerateCallstack()
 {
     char* output = strdup("Callstack generation needs implementation for this platform!");
+    fprintf(stderr, "%s!\n", output);
     return output;
 }
 
 #endif
+
+#undef APPEND_STRING
 
 } // namespace
