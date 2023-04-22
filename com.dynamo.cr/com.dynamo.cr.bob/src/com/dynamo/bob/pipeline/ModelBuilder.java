@@ -120,37 +120,41 @@ public class ModelBuilder extends Builder<Void> {
         Model.Builder model = Model.newBuilder();
         model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
 
-        String singleMaterial = modelDescBuilder.getMaterial();
-        if (!singleMaterial.isEmpty()) {
+        if (modelDescBuilder.getMaterialsCount() > 0)
+        {
+            for (Material material : modelDescBuilder.getMaterialsList()) {
+                Material.Builder materialBuilder = Material.newBuilder();
 
-            logger.log(Level.WARNING, String.format("Model %s uses deprecated material format. Please resave in the editor!", task.input(0).getAbsPath()));
+                BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
+                materialBuilder.setName(material.getName());
+                materialBuilder.setMaterial(BuilderUtil.replaceExt(material.getMaterial(), ".material", ".materialc"));
 
-            BuilderUtil.checkResource(this.project, resource, "material", singleMaterial);
+                List<Texture> texturesList = new ArrayList<>();
+                for (Texture t : material.getTexturesList()) {
+                    BuilderUtil.checkResource(this.project, resource, "texture", t.getTexture());
 
-            Material.Builder materialBuilder = Material.newBuilder();
-            materialBuilder.setName("default");
-            materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
-            model.addMaterials(materialBuilder);
-        }
+                    Texture.Builder textureBuilder = Texture.newBuilder(t);
+                    textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t.getTexture()));
+                    texturesList.add(textureBuilder.build());
+                }
 
-        for (Material material : modelDescBuilder.getMaterialsList()) {
-            Material.Builder materialBuilder = Material.newBuilder();
-
-            BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
-            materialBuilder.setName(material.getName());
-            materialBuilder.setMaterial(BuilderUtil.replaceExt(material.getMaterial(), ".material", ".materialc"));
-
-            List<Texture> texturesList = new ArrayList<>();
-            for (Texture t : material.getTexturesList()) {
-                BuilderUtil.checkResource(this.project, resource, "texture", t.getTexture());
-
-                Texture.Builder textureBuilder = Texture.newBuilder(t);
-                textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t.getTexture()));
-                texturesList.add(textureBuilder.build());
+                materialBuilder.addAllTextures(texturesList);
+                model.addMaterials(materialBuilder);
             }
+        } else {
+            // Deprecated workflow
+            String singleMaterial = modelDescBuilder.getMaterial();
+            if (!singleMaterial.isEmpty()) {
 
-            materialBuilder.addAllTextures(texturesList);
-            model.addMaterials(materialBuilder);
+                logger.log(Level.WARNING, String.format("Model %s uses deprecated material format. Please resave in the editor!", task.input(0).getAbsPath()));
+
+                BuilderUtil.checkResource(this.project, resource, "material", singleMaterial);
+
+                Material.Builder materialBuilder = Material.newBuilder();
+                materialBuilder.setName("default");
+                materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
+                model.addMaterials(materialBuilder);
+            }
         }
 
         List<Texture> texturesList = new ArrayList<>();

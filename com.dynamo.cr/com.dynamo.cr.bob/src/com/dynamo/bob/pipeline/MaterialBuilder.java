@@ -199,6 +199,17 @@ public class MaterialBuilder extends Builder<Void>  {
         task.addInput(vertexProgramOutputResource);
         task.addInput(fragmentProgramOutputResource);
 
+        for (MaterialDesc.Sampler materialSampler : materialBuilder.getSamplersList()) {
+            String texture = materialSampler.getTexture();
+            if (texture.isEmpty())
+                continue;
+            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
+            Task<?> embedTask = this.project.createTask(res);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
+            }
+        }
+
         return task.build();
     }
 
@@ -218,6 +229,17 @@ public class MaterialBuilder extends Builder<Void>  {
 
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
+
+        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
+            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
+            String texture = materialSampler.getTexture();
+            if (texture.isEmpty())
+                continue;
+
+            MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
+            samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
+            materialBuilder.setSamplers(i, samplerBuilder.build());
+        }
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
