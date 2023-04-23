@@ -23,6 +23,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
@@ -264,6 +265,11 @@ namespace dmProfileRender
         Size s;
     };
 
+    static inline uint64_t GetMaxAge()
+    {
+        return 1000000; // microseconds
+    }
+
     static Area GetProfilerArea(DisplayMode display_mode, const Size& display_size)
     {
         if (display_mode == DISPLAYMODE_MINIMIZED)
@@ -320,6 +326,131 @@ namespace dmProfileRender
         dmRender::Square2d(render_context, a.p.x, a.p.y, a.p.x + a.s.w, a.p.y + a.s.h, col);
     }
 
+    // **************************************************************************************************************
+
+    static SampleNode* AllocNode(dmArray<SampleNode*>& free_nodes)
+    {
+        if (free_nodes.Empty())
+        {
+            //printf("  AllocNode!\n");
+            return new SampleNode;
+        }
+
+        SampleNode* node = free_nodes.Back();
+        free_nodes.Pop();
+        return node;
+    }
+
+    static void FreeNode(dmArray<SampleNode*>& free_nodes, SampleNode* node)
+    {
+        //printf("  FreeNode!\n");
+        if (free_nodes.Full())
+            free_nodes.OffsetCapacity(16);
+        free_nodes.Push(node);
+    }
+
+    static void FreeNodes(dmArray<SampleNode*>& free_nodes, SampleNode* node)
+    {
+        FreeNode(free_nodes, node);
+        for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
+        {
+            FreeNodes(free_nodes, node->m_Children[i]);
+        }
+    }
+
+    static void DeleteNodes(SampleNode* node)
+    {
+        //printf("  DeleteNodes!\n");
+        for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
+        {
+            DeleteNodes(node->m_Children[i]);
+            delete node->m_Children[i];
+        }
+    }
+
+    // Finds a node recursively in the tree
+    static SampleNode* FindNodeRecursive(SampleNode* node, uint64_t id)
+    {
+        if (node->m_Id == id)
+            return node;
+        uint32_t size = node->m_Children.Size();
+        SampleNode** children = node->m_Children.Begin();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            SampleNode* child = FindNodeRecursive(children[i], id);
+            if (child)
+                return child;
+        }
+        return 0;
+    }
+
+    static SampleNode* FindChildNode(SampleNode* node, uint64_t id)
+    {
+        uint32_t size = node->m_Children.Size();
+        SampleNode** children = node->m_Children.Begin();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            if (children[i]->m_Id == id)
+                return children[i];
+        }
+        return 0;
+    }
+
+    SampleNode* FindChildNodeByHash(SampleNode* node, uint32_t name_hash)
+    {
+        uint32_t size = node->m_Children.Size();
+        SampleNode** children = node->m_Children.Begin();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            if (children[i]->m_Sample.m_NameHash == name_hash)
+                return children[i];
+        }
+        return 0;
+    }
+
+    SampleNode* GetRootNode(ProfilerThread* thread)
+    {
+        return &thread->m_Root;
+    }
+
+    SampleNode* GetSampleNode(ProfilerThread* thread, uint64_t id)
+    {
+        SampleNode* node = FindNodeRecursive(&thread->m_Root, id); // Use hash table?
+        return node ? node : GetRootNode(thread);
+    }
+
+    static void ValidateTree(SampleNode* node)
+    {
+        for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
+        {
+            assert(node->m_Children[i]->m_Parent == node);
+            ValidateTree(node->m_Children[i]);
+        }
+    }
+
+    static void DebugPrintTree(SampleNode* node, int indent)
+    {
+        if (indent > 4)
+            return;
+
+        for (int i = 0; i < indent; ++i)
+            printf("  ");
+
+        const char* name = dmHashReverseSafe32(node->m_Sample.m_NameHash);
+
+        uint64_t sample_age = (dmTime::GetTime() - node->m_Sample.m_TimeWhenUpdated);
+        SampleNode* parent = node->m_Parent;
+        printf("%s  age: %.2f s  id: %p  parent: %s %p\n", name, sample_age / 1000000.0f, (void*)node->m_Id, parent ? dmHashReverseSafe32(parent->m_Sample.m_NameHash):"root", (void*)(parent ? parent->m_Id : 0));
+
+        for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
+        {
+            DebugPrintTree(node->m_Children[i], indent+1);
+        }
+    }
+
+    // **************************************************************************************************************
+
+
     struct ThreadSortTimePred
     {
         ThreadSortTimePred() {}
@@ -329,10 +460,116 @@ namespace dmProfileRender
         }
     };
 
+    struct RenderContext
+    {
+        HRenderProfile              m_RenderProfile;
+        dmRender::HRenderContext    m_RenderContext;
+        dmRender::HFontMap          m_FontMap;
+        DisplayMode                 m_DisplayMode;
+        uint64_t                    m_BatchKey;
+        uint64_t                    m_Time;
+        uint64_t                    m_MaxAge;
+        uint64_t                    m_FrameStart;
+        uint64_t                    m_FrameLength;
+    };
+
+    static int DrawNode(RenderContext& ctx, ProfilerThread* thread, SampleNode* node, int indent, float y, const Area& samples_area, const Area& sample_frames_area)
+    {
+        const ProfilerSample& sample = node->m_Sample;
+
+        uint64_t sample_age = ctx.m_Time - sample.m_TimeWhenUpdated;
+        if (sample_age > ctx.m_MaxAge)
+            return 0; // This tree is old
+
+        // Fade color
+        float unittime = sample_age / (float)ctx.m_MaxAge;
+        float color_scale = 1.0f - unittime;
+
+        // There are so many samples and so little screen space, so we omit the smallest ones
+        if (indent > 4)
+            return 0;
+
+        y -= LINE_SPACING;
+
+        if (y < (samples_area.p.y + LINE_SPACING))
+        {
+            return 0;
+        }
+
+        char buffer[256];
+        dmRender::DrawTextParams params;
+        params.m_ShadowColor = TITLE_SHADOW_COLOR;
+
+        float t = (sample.m_Time * 1000) / (float)ctx.m_RenderProfile->m_TicksPerSecond; // in milliseconds
+
+        const int SAMPLE_FRAMES_NAME_WIDTH = ctx.m_DisplayMode == DISPLAYMODE_LANDSCAPE ? LANDSCAPE_SAMPLE_FRAMES_NAME_WIDTH : PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH;
+
+        int name_x   = samples_area.p.x;
+        int time_x   = name_x + SAMPLE_FRAMES_NAME_WIDTH + CHARACTER_WIDTH;
+        int count_x  = time_x + SAMPLE_FRAMES_TIME_WIDTH + CHARACTER_WIDTH;
+        int frames_x = sample_frames_area.p.x;
+
+        float x = indent * INDENT_WIDTH;
+        params.m_WorldTransform.setElem(3, 0, name_x + x);
+        params.m_WorldTransform.setElem(3, 1, y);
+
+        uint32_t color = sample.m_Color;
+        float b = ((color >> 0 ) & 0xFF) / 255.0f;
+        float g = ((color >> 8 ) & 0xFF) / 255.0f;
+        float r = ((color >> 16) & 0xFF) / 255.0f;
+
+
+        params.m_FaceColor = Vector4(color_scale * r, color_scale * g, color_scale * b, 1.0f);
+
+        const char* name = dmHashReverseSafe32(sample.m_NameHash);
+        dmSnPrintf(buffer, sizeof(buffer), "%s", name);
+        params.m_Text = buffer;
+        dmRender::DrawText(ctx.m_RenderContext, ctx.m_FontMap, 0, ctx.m_BatchKey, params);
+
+        dmSnPrintf(buffer, sizeof(buffer), "%6.3f", t);
+        params.m_WorldTransform.setElem(3, 0, time_x);
+        dmRender::DrawText(ctx.m_RenderContext, ctx.m_FontMap, 0, ctx.m_BatchKey, params);
+
+        dmSnPrintf(buffer, sizeof(buffer), "%3u", sample.m_Count);
+        params.m_WorldTransform.setElem(3, 0, count_x);
+        dmRender::DrawText(ctx.m_RenderContext, ctx.m_FontMap, 0, ctx.m_BatchKey, params);
+
+        uint32_t sample_frame_width = sample_frames_area.s.w;
+        uint64_t start_time = sample.m_StartTime - ctx.m_FrameStart;
+        float unit_start = start_time / (float)ctx.m_FrameLength;
+        float unit_length = sample.m_Time / (float)ctx.m_FrameLength;
+        x = frames_x + unit_start * sample_frame_width;
+        float w = unit_length * sample_frame_width;
+
+        if (w < 0.5f)
+        {
+            w = 0.5f;
+        }
+
+        dmRender::Square2d(ctx.m_RenderContext, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(r, g, b, 1.0f));
+
+        int num_lines_printed = 1;
+
+        uint32_t num_children = node->m_Children.Size();
+        for (uint32_t i = 0; i < num_children; ++i)
+        {
+            int num_lines = DrawNode(ctx, thread, node->m_Children[i], indent + 1, y, samples_area, sample_frames_area);
+            if (num_lines == 0)
+            {
+                //FreeNodes(thread->m_FreeNodes, node->m_Children[i]);
+                node->m_Children.EraseSwap(i); // We don't really want to reorder the children here, but it's not crucial
+                return num_lines_printed;
+            }
+            num_lines_printed += num_lines;
+            y -= num_lines * LINE_SPACING;
+        }
+
+        return num_lines_printed;
+    }
 
     static void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const Size display_size, DisplayMode display_mode)
     {
-        uint32_t batch_key = 0;
+        uint64_t batch_key = 0;
         {
             HashState64 key_state;
             dmHashInit64(&key_state, false);
@@ -511,71 +748,39 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 0, frames_x);
             dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
-            uint32_t sample_frame_width         = sample_frames_area.s.w;
-
-            uint32_t num_samples = thread->m_Samples.Size();
-
-            uint64_t frame_start = num_samples ? thread->m_Samples[0].m_StartTime : 0;
-            for (uint32_t i = 0; i < num_samples; ++i)
+            uint64_t frame_start = 0xFFFFFFFFFFFFFFFF;
+            uint64_t frame_end   = 0;
+            uint64_t max_age     = GetMaxAge();
+            uint64_t time        = dmTime::GetTime();
+            uint32_t num_root_samples = thread->m_Root.m_Children.Size();
+            for (uint32_t i = 0; i < num_root_samples; ++i)
             {
-                ProfilerSample& sample = thread->m_Samples[i];
-                sample.m_StartTime -= frame_start;
+                const SampleNode& sample = *thread->m_Root.m_Children[i];
+                // Check if it's too old, then don't count it!
+                uint64_t age = time - sample.m_Sample.m_TimeWhenUpdated;
+                if (age > max_age)
+                    continue;
+                frame_start = dmMath::Min(sample.m_Sample.m_StartTime, frame_start);
+                frame_end   = dmMath::Max(sample.m_Sample.m_StartTime+sample.m_Sample.m_Time, frame_end);
             }
 
-            uint64_t frame_length = num_samples ? thread->m_Samples[0].m_Time : 1;
+            uint64_t frame_length = num_root_samples ? (frame_end - frame_start) : 1;
 
-            for (uint32_t i = 0; i < num_samples; ++i)
+            RenderContext ctx;
+            ctx.m_RenderProfile = render_profile;
+            ctx.m_RenderContext = render_context;
+            ctx.m_FontMap       = font_map;
+            ctx.m_DisplayMode   = display_mode;
+            ctx.m_Time          = time;
+            ctx.m_MaxAge        = max_age;
+            ctx.m_BatchKey      = batch_key;
+            ctx.m_FrameStart    = frame_start;
+            ctx.m_FrameLength   = frame_length;
+
+            for (uint32_t i = 0; i < thread->m_Root.m_Children.Size(); ++i)
             {
-                const ProfilerSample& sample = thread->m_Samples[i];
-
-                // There are so many samples and so little screen space, so we omit the smallest ones
-                if (sample.m_Indent > 4)
-                    continue;
-
-                y -= LINE_SPACING;
-
-                if (y < (samples_area.p.y + LINE_SPACING))
-                {
-                    break;
-                }
-
-                float t = (sample.m_Time * 1000) / (float)ticks_per_second; // in milliseconds
-
-                float x = sample.m_Indent * INDENT_WIDTH;
-                params.m_WorldTransform.setElem(3, 0, name_x + x);
-                params.m_WorldTransform.setElem(3, 1, y);
-
-                uint32_t color = sample.m_Color;
-                float b = ((color >> 0 ) & 0xFF) / 255.0f;
-                float g = ((color >> 8 ) & 0xFF) / 255.0f;
-                float r = ((color >> 16) & 0xFF) / 255.0f;
-                params.m_FaceColor = Vector4(r, g, b, 1.0f);
-
-                const char* name = dmHashReverseSafe32(sample.m_NameHash);
-                dmSnPrintf(buffer, sizeof(buffer), "%s", name);
-                params.m_Text = buffer;
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-                dmSnPrintf(buffer, sizeof(buffer), "%6.3f", t);
-                params.m_WorldTransform.setElem(3, 0, time_x);
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-                dmSnPrintf(buffer, sizeof(buffer), "%3u", sample.m_Count);
-                params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-                float unit_start = sample.m_StartTime / (float)frame_length;
-                float unit_length = sample.m_Time / (float)frame_length;
-                x = frames_x + unit_start * sample_frame_width;
-                float w = unit_length * sample_frame_width;
-
-                if (w < 0.5f)
-                {
-                    w = 0.5f;
-                }
-
-                dmRender::Square2d(render_context, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(r, g, b, 1.0f));
-
+                int num_lines = DrawNode(ctx, thread, thread->m_Root.m_Children[i], 0, y, samples_area, sample_frames_area);
+                y -= num_lines * LINE_SPACING;
             }
         }
     }
@@ -617,65 +822,90 @@ namespace dmProfileRender
         return frame->m_Threads[0];
     }
 
-    void UpdateRenderProfile(HRenderProfile render_profile, const dmProfileRender::ProfilerFrame* current_frame)
+    // Add the source data to another thread
+    static ProfilerThread* AddThreadSamples(ProfilerFrame* tgtframe, ProfilerThread* srcthread)
+    {
+        ProfilerThread* tgtthread = FindOrCreateProfilerThread(tgtframe, srcthread->m_NameHash);
+
+        tgtthread->m_Time = dmTime::GetTime();
+        tgtthread->m_SamplesTotalTime = srcthread->m_SamplesTotalTime;
+
+        MergeProfilerThreadSamples(srcthread, tgtthread);
+        //FlattenProfilerThreadSamples(tgtthread);   // fill the m_Samples array
+        //SortProfilerThreadSamples(tgtthread);      // try to preserve the order old entries was added in
+        return tgtthread;
+    }
+
+    void UpdateRenderProfile(HRenderProfile render_profile, const dmProfileRender::ProfilerFrame* src_frame)
     {
         if (render_profile->m_Mode == PROFILER_MODE_PAUSE)
         {
             return;
         }
 
-        if (render_profile->m_CurrentFrame)
-        {
-            DeleteProfilerFrame(render_profile->m_CurrentFrame);
-            render_profile->m_CurrentFrame = 0;
-        }
+        // if (render_profile->m_CurrentFrame)
+        // {
+        //     DeleteProfilerFrame(render_profile->m_CurrentFrame);
+        //     render_profile->m_CurrentFrame = 0;
+        // }
 
-        if (!current_frame)
+        if (!src_frame)
             return;
 
-        ProfilerThread* last_thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
+        if (!render_profile->m_CurrentFrame)
+            render_profile->m_CurrentFrame = new ProfilerFrame;
 
-        render_profile->m_CurrentFrame = DuplicateProfilerFrame(current_frame);
-
-        ProfilerThread* current_thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
-        if (last_thread->m_NameHash != current_thread->m_NameHash)
+        for (uint32_t i = 0; i < src_frame->m_Threads.Size(); ++i)
         {
-            last_thread = 0;
-            render_profile->m_MaxFrameTime = 0;
+            ProfilerThread* srcthread = src_frame->m_Threads[i];
+            ProfilerThread* tgtthread = AddThreadSamples(render_profile->m_CurrentFrame, srcthread);
         }
 
-        //uint64_t last_frame_time = last_thread ? last_thread->m_SamplesTotalTime : 0;
-        uint64_t this_frame_time = current_thread->m_SamplesTotalTime;
+        //render_profile->m_CurrentFrame = DuplicateProfilerFrame(current_frame);
 
-        bool new_peak_frame = render_profile->m_MaxFrameTime < this_frame_time;
-        render_profile->m_MaxFrameTime = dmMath::Max(render_profile->m_MaxFrameTime, this_frame_time);
+        //ProfilerThread* thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
+        // calculate the max frame time of the
 
-        if (render_profile->m_Mode == PROFILER_MODE_SHOW_PEAK_FRAME)
-        {
-            if (new_peak_frame)
-            {
-                ProfilerFrame* snapshot = DuplicateProfilerFrame(render_profile->m_CurrentFrame);
+        // ProfilerThread* last_thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
+        // ProfilerThread* current_thread = GetSelectedThread(render_profile, render_profile->m_CurrentFrame);
+        // if (last_thread->m_NameHash != current_thread->m_NameHash)
+        // {
+        //     last_thread = 0;
+        //     render_profile->m_MaxFrameTime = 0;
+        // }
 
-                FlushRecording(render_profile, 1);
-                render_profile->m_RecordBuffer.SetSize(1);
-                render_profile->m_RecordBuffer[0] = snapshot;
-            }
+        // //uint64_t last_frame_time = last_thread ? last_thread->m_SamplesTotalTime : 0;
+        // uint64_t this_frame_time = current_thread->m_SamplesTotalTime;
 
-            GotoRecordedFrame(render_profile, 0);
-            return;
-        }
+        // bool new_peak_frame = render_profile->m_MaxFrameTime < this_frame_time;
+        // render_profile->m_MaxFrameTime = dmMath::Max(render_profile->m_MaxFrameTime, this_frame_time);
 
-        if (render_profile->m_Mode == PROFILER_MODE_RECORD)
-        {
-            ProfilerFrame* snapshot = DuplicateProfilerFrame(render_profile->m_CurrentFrame);
+        // if (render_profile->m_Mode == PROFILER_MODE_SHOW_PEAK_FRAME)
+        // {
+        //     if (new_peak_frame)
+        //     {
+        //         ProfilerFrame* snapshot = DuplicateProfilerFrame(render_profile->m_CurrentFrame);
 
-            if (render_profile->m_RecordBuffer.Remaining() == 0)
-            {
-                render_profile->m_RecordBuffer.SetCapacity(render_profile->m_RecordBuffer.Size() + (uint32_t)render_profile->m_FPS);
-            }
-            render_profile->m_RecordBuffer.Push(snapshot);
-            render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
-        }
+        //         FlushRecording(render_profile, 1);
+        //         render_profile->m_RecordBuffer.SetSize(1);
+        //         render_profile->m_RecordBuffer[0] = snapshot;
+        //     }
+
+        //     GotoRecordedFrame(render_profile, 0);
+        //     return;
+        // }
+
+        // if (render_profile->m_Mode == PROFILER_MODE_RECORD)
+        // {
+        //     ProfilerFrame* snapshot = DuplicateProfilerFrame(render_profile->m_CurrentFrame);
+
+        //     if (render_profile->m_RecordBuffer.Remaining() == 0)
+        //     {
+        //         render_profile->m_RecordBuffer.SetCapacity(render_profile->m_RecordBuffer.Size() + (uint32_t)render_profile->m_FPS);
+        //     }
+        //     render_profile->m_RecordBuffer.Push(snapshot);
+        //     render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
+        // }
 
         if (render_profile->m_ViewMode != PROFILER_VIEW_MODE_MINIMIZED)
         {
@@ -755,15 +985,30 @@ namespace dmProfileRender
         return 0;
     }
 
+    template <typename T>
+    static void GrowSampleTable(dmHashTable64<T>* ht)
+    {
+        uint32_t capacity = ht->Capacity();
+        capacity += 32;
+        uint32_t table_size = (capacity*2)/3;
+        ht->SetCapacity(table_size, capacity);
+    }
+
     ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, uint32_t name_hash)
     {
         ProfilerThread* thread = FindProfilerThread(ctx, name_hash);
+
         if (thread != 0)
             return thread;
 
         thread = new ProfilerThread;
         thread->m_NameHash = name_hash;
-        thread->m_Samples.SetCapacity(1); //TODO: Increase!!
+        thread->m_Root.m_Id = dmHashString32("root");
+        thread->m_Root.m_Parent = 0;
+        thread->m_Root.m_Children.SetCapacity(4);
+        memset(&thread->m_Root.m_Sample, 0, sizeof(thread->m_Root.m_Sample));
+        thread->m_Root.m_Sample.m_TimeWhenUpdated = dmTime::GetTime();
+        thread->m_Root.m_Sample.m_NameHash = thread->m_Root.m_Id;
 
         if (ctx->m_Threads.Full())
             ctx->m_Threads.OffsetCapacity(8);
@@ -771,14 +1016,92 @@ namespace dmProfileRender
         return thread;
     }
 
-    void ClearProfilerThreadSamples(ProfilerThread* thread)
+    SampleNode* PushProfilerThreadSample(ProfilerThread* thread, SampleNode* parent_node, uint64_t id, ProfilerSample* insample)
     {
-        thread->m_Samples.SetSize(0);
+        SampleNode* sample_node = FindChildNodeByHash(parent_node, insample->m_NameHash);
+        if (!sample_node)
+        {
+            sample_node = AllocNode(thread->m_FreeNodes);
+            sample_node->m_Id = id;
+            sample_node->m_Parent = parent_node;
+            sample_node->m_Sample.m_TimeWhenUpdated = dmTime::GetTime();
+
+            if (parent_node->m_Children.Full())
+                parent_node->m_Children.OffsetCapacity(8);
+            parent_node->m_Children.Push(sample_node);
+        }
+        sample_node->m_Sample = *insample;
+        sample_node->m_Sample.m_TimeWhenUpdated = dmTime::GetTime();
+
+        // We don't want the smaller items to not flicker in and out
+
+        // printf("thread: %s Pushed item: %s %p  nchildren: %u\n", dmHashReverseSafe32(thread->m_NameHash),
+        //                 dmHashReverseSafe32(insample->m_NameHash), (void*)id, sample_node->m_Children.Size());
+
+        return sample_node;
+    }
+
+    // We want the target tree to have the same structure
+    static void MergeNode(dmArray<SampleNode*>& free_nodes, SampleNode* src, SampleNode* tgt)
+    {
+        assert(src->m_Id == tgt->m_Id);
+
+        uint32_t srcsize = src->m_Children.Size();
+        SampleNode** srcchildren = src->m_Children.Begin();
+
+        uint32_t tgtsize = tgt->m_Children.Size();
+        SampleNode** tgtchildren = tgt->m_Children.Begin();
+
+        for (uint32_t i = 0; i < srcsize; ++i)
+        {
+            SampleNode* srcchild = srcchildren[i];
+            uint64_t srcchild_id = srcchild->m_Id;
+
+            SampleNode* tgtchild = 0;
+            for (uint32_t j = 0; j < tgtsize; ++j)
+            {
+                if (tgtchildren[j]->m_Id == srcchild_id)
+                {
+                    tgtchild = tgtchildren[j];
+                    break;
+                }
+            }
+
+            if (!tgtchild)
+            {
+                if (tgt->m_Children.Full())
+                    tgt->m_Children.OffsetCapacity(8);
+
+                tgtchild = AllocNode(free_nodes);
+                tgtchild->m_Parent = tgt;
+                tgt->m_Children.Push(tgtchild);
+
+                tgtchildren = tgt->m_Children.Begin();
+                tgtsize = tgt->m_Children.Size();
+            }
+
+            tgtchild->m_Sample = srcchild->m_Sample;
+            tgtchild->m_Id = srcchild->m_Id;
+
+            MergeNode(free_nodes, srcchild, tgtchild);
+        }
+    }
+
+    void MergeProfilerThreadSamples(ProfilerThread* srcthread, ProfilerThread* tgtthread)
+    {
+        MergeNode(tgtthread->m_FreeNodes, &srcthread->m_Root, &tgtthread->m_Root);
+        ValidateTree(&srcthread->m_Root);
+        ValidateTree(&tgtthread->m_Root);
     }
 
     static void DeleteProfilerThread(ProfilerThread* thread)
     {
-        ClearProfilerThreadSamples(thread);
+        DeleteNodes(&thread->m_Root);
+
+        for (uint32_t i = 0; i < thread->m_FreeNodes.Size(); ++i)
+        {
+            delete thread->m_FreeNodes[i];
+        }
         delete thread;
     }
 
@@ -799,34 +1122,7 @@ namespace dmProfileRender
         cpy->m_SamplesTotalTime = thread->m_SamplesTotalTime;
         cpy->m_NameHash = thread->m_NameHash;
 
-        uint32_t num_samples = thread->m_Samples.Size();
-        cpy->m_Samples.SetCapacity(num_samples);
-
-        for (uint32_t i = 0; i < num_samples; ++i)
-        {
-            cpy->m_Samples.Push(thread->m_Samples[i]);
-        }
-        return cpy;
-    }
-
-    static ProfilerFrame* DuplicateProfilerFrame(const ProfilerFrame* frame)
-    {
-        ProfilerFrame* cpy = new ProfilerFrame;
-        cpy->m_Time = frame->m_Time;
-
-        uint32_t num_threads = frame->m_Threads.Size();
-        cpy->m_Threads.SetCapacity(num_threads);
-        for (uint32_t i = 0; i < num_threads; ++i)
-        {
-            cpy->m_Threads.Push(DuplicateProfilerThread(frame->m_Threads[i]));
-        }
-
-        uint32_t num_properties = frame->m_Properties.Size();
-        cpy->m_Properties.SetCapacity(num_properties);
-        for (uint32_t i = 0; i < num_properties; ++i)
-        {
-            cpy->m_Properties.Push(frame->m_Properties[i]);
-        }
+        MergeNode(cpy->m_FreeNodes, &thread->m_Root, &cpy->m_Root);
         return cpy;
     }
 

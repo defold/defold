@@ -94,6 +94,7 @@ namespace dmProfile
 
     // Sample accessors
 
+    HSample         SampleGetParent(HSample sample);
     uint32_t        SampleGetNameHash(HSample sample);
     const char*     SampleGetName(HSample sample);
     uint64_t        SampleGetStart(HSample sample);
@@ -101,6 +102,7 @@ namespace dmProfile
     uint64_t        SampleGetSelfTime(HSample sample);  // in ticks per second
     uint32_t        SampleGetCallCount(HSample sample);
     uint32_t        SampleGetColor(HSample sample);
+    uint64_t        SampleGetUniqueId(HSample sample);
 
 
     // *******************************************************************
@@ -149,6 +151,7 @@ namespace dmProfile
     const char*     PropertyGetDesc(HProperty property);
     PropertyType    PropertyGetType(HProperty property);
     PropertyValue   PropertyGetValue(HProperty property);
+    uint64_t        PropertyGetUniqueId(HProperty property);
 
     // *******************************************************************
 

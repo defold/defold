@@ -54,7 +54,6 @@ static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
 static dmMutex::HMutex                  g_ProfilerMutex = 0;
 static dmHashTable64<int>               g_ProfilerThreadSortOrder;
 
-
 void SetUpdateFrequency(uint32_t update_frequency)
 {
     gUpdateFrequency = update_frequency;
@@ -101,7 +100,6 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
-
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -532,33 +530,38 @@ static int ProfilerScopeEnd(lua_State* L)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+static dmProfileRender::SampleNode* ProcessSample(dmProfileRender::ProfilerThread* thread, dmProfileRender::SampleNode* parent_node, dmProfile::HSample sample)
 {
-    dmProfileRender::ProfilerSample out;
-
-    out.m_StartTime = dmProfile::SampleGetStart(sample);
-    out.m_Time = dmProfile::SampleGetTime(sample);
-    out.m_SelfTime = dmProfile::SampleGetSelfTime(sample);
-    out.m_Count = dmProfile::SampleGetCallCount(sample);
-    out.m_Color = dmProfile::SampleGetColor(sample);
-    out.m_Indent = (uint8_t)indent;
     const char* name = dmProfile::SampleGetName(sample);
-    out.m_NameHash = dmHashString32(name?name:"<empty_sample_name>");
+    name = name ? name : "null";
 
-    if (thread->m_Samples.Full())
-        thread->m_Samples.OffsetCapacity(32);
-    thread->m_Samples.Push(out);
+    dmProfileRender::ProfilerSample out;
+    //out.m_Parent    = parent;
+    out.m_StartTime = dmProfile::SampleGetStart(sample);
+    out.m_Time      = dmProfile::SampleGetTime(sample);
+    out.m_SelfTime  = dmProfile::SampleGetSelfTime(sample);
+    out.m_Count     = dmProfile::SampleGetCallCount(sample);
+    out.m_Color     = dmProfile::SampleGetColor(sample);
+    //out.m_Indent    = (uint8_t)indent;
+
+    out.m_NameHash  = dmHashString32(name); // TODO: We want to go back to use our own hash function eventually, so we can use dmProfile::SampleGetNameHash(sample)
+
+    uint64_t sampleid = dmProfile::SampleGetUniqueId(sample);
+
+    return dmProfileRender::PushProfilerThreadSample(thread, parent_node, sampleid, &out);
 }
 
-static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, dmProfileRender::SampleNode* parent_node, dmProfile::HSample sample)
 {
-    ProcessSample(thread, indent, sample);
+    dmProfileRender::SampleNode* node = ProcessSample(thread, parent_node, sample);
+    if (!node)
+        return; // the sample was rejected
 
     dmProfile::SampleIterator iter;
     dmProfile::SampleIterateChildren(sample, &iter);
     while (dmProfile::SampleIterateNext(&iter))
     {
-        TraverseSampleTree(thread, indent + 1, iter.m_Sample);
+        TraverseSampleTree(thread, node, iter.m_Sample);
     }
 }
 
@@ -574,21 +577,22 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
     dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
-    frame->m_Time = dmTime::GetTime();
+    uint64_t time = dmTime::GetTime();
 
     // Prune old profiler threads
-    dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
+    dmProfileRender::PruneProfilerThreads(frame, time - 150000);
+
+    // printf("----------------------------------------------------------------------\n");
 
     uint32_t name_hash = dmHashString32(thread_name);
     dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, name_hash);
-    dmProfileRender::ClearProfilerThreadSamples(thread);
 
-    thread->m_Time = frame->m_Time;
+    thread->m_Time = time;
 
     thread->m_SamplesTotalTime = dmProfile::SampleGetTime(root);
+    dmProfileRender::SampleNode* root_node = dmProfileRender::GetRootNode(thread);
 
-    //printf("Thread: %s\n", thread_name);
-    TraverseSampleTree(thread, 0, root);
+    TraverseSampleTree(thread, root_node, root);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

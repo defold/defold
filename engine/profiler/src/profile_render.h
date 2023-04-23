@@ -17,6 +17,7 @@
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dlib/profile.h>
 
 namespace dmRender
@@ -49,13 +50,23 @@ namespace dmProfileRender
 
     struct ProfilerSample
     {
-        uint32_t m_NameHash;
         uint64_t m_StartTime;
         uint64_t m_Time;
         uint64_t m_SelfTime;
+        uint64_t m_TimeWhenUpdated;       // for the profiler to avoid flickering
+        uint32_t m_NameHash;
         uint32_t m_Count;
         uint32_t m_Color;
-        uint8_t  m_Indent; // The stack depth
+    };
+
+    struct SampleNode
+    {
+        ProfilerSample          m_Sample;
+        uint64_t                m_Id;
+        dmArray<SampleNode*>    m_Children;
+
+        // debugging
+        SampleNode*             m_Parent;
     };
 
     struct ProfilerProperty
@@ -68,10 +79,12 @@ namespace dmProfileRender
 
     struct ProfilerThread
     {
-        dmArray<ProfilerSample>     m_Samples;
-        uint32_t                    m_NameHash;
-        uint64_t                    m_Time;             // The time of the last update for this thread
-        uint64_t                    m_SamplesTotalTime; // The elapsed time of the samples in the thread
+        SampleNode                      m_Root;             // The children are the top level nodes
+        dmArray<SampleNode*>            m_FreeNodes;
+
+        uint32_t                        m_NameHash;
+        uint64_t                        m_Time;             // The time of the last update for this thread
+        uint64_t                        m_SamplesTotalTime; // The elapsed time of the samples in the thread
 
         ProfilerThread();
     };
@@ -81,7 +94,6 @@ namespace dmProfileRender
     {
         dmArray<ProfilerThread*>    m_Threads;
         dmArray<ProfilerProperty>   m_Properties;
-        uint64_t                    m_Time;           // The time of the last update for this frame
     };
 
 
@@ -97,8 +109,21 @@ namespace dmProfileRender
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
 
-    //
-    void ClearProfilerThreadSamples(ProfilerThread* thread);
+    // ProfilerThread
+    void PruneProfilerThreadSamples(ProfilerThread* thread, uint64_t age);
+
+    SampleNode* GetRootNode(ProfilerThread* thread);
+    SampleNode* GetSampleNode(ProfilerThread* thread, uint64_t id);
+    SampleNode* FindChildNodeByHash(SampleNode* node, uint32_t name_hash);
+
+    //void PushProfilerThreadSample(ProfilerThread* thread, uint64_t parentid, uint64_t id, ProfilerSample* sample);
+    SampleNode* PushProfilerThreadSample(ProfilerThread* thread, SampleNode* parent_node, uint64_t id, ProfilerSample* insample);
+
+    void FlattenProfilerThreadSamples(ProfilerThread* thread);
+    void SortProfilerThreadSamples(ProfilerThread* thread);
+    void MergeProfilerThreadSamples(ProfilerThread* srcthread, ProfilerThread* tgtthread);
+
+    // ProfilerFrame
     ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, uint32_t name_hash);
     void DeleteProfilerFrame(ProfilerFrame* frame);
     void PruneProfilerThreads(ProfilerFrame* ctx, uint64_t time);

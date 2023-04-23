@@ -847,6 +847,13 @@ typedef struct rmtSampleIterator
 
 // Should only called from within the sample tree callback,
 // when the internal string lookup table is valid (i.e. on the main Remotery thread)
+
+#define rmt_SampleGetParent(sample)                                                 \
+    RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_SampleGetParent(sample), NULL)
+
+#define rmt_SampleGetUniqueId(sample)                                               \
+    RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_SampleGetUniqueId(sample), 0U)
+
 #define rmt_SampleGetName(sample)                                                   \
     RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_SampleGetName(sample), NULL)
 
@@ -1072,6 +1079,8 @@ RMT_API const char*         _rmt_SampleTreeGetThreadName(rmtSampleTree* sample_t
 RMT_API rmtSample*          _rmt_SampleTreeGetRootSample(rmtSampleTree* sample_tree);
 
 // Sample accessors
+RMT_API rmtSample*          _rmt_SampleGetParent(rmtSample* sample);
+RMT_API rmtU32              _rmt_SampleGetUniqueId(rmtSample* sample);
 RMT_API const char*         _rmt_SampleGetName(rmtSample* sample);
 RMT_API rmtU32              _rmt_SampleGetNameHash(rmtSample* sample);
 RMT_API rmtU32              _rmt_SampleGetCallCount(rmtSample* sample);

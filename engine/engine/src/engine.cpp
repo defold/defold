@@ -1480,8 +1480,6 @@ bail:
 
         dmProfile::HProfile profile = dmProfile::BeginFrame();
         {
-            DM_PROFILE("Frame");
-
             {
                 DM_PROFILE("Sim");
 

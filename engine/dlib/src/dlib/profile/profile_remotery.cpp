@@ -252,6 +252,18 @@ namespace dmProfile
         return result;
     }
 
+    HSample SampleGetParent(HSample sample)
+    {
+        rmtSample* rsample = SampleFromHandle(sample);
+        rmtSample* rparent = rmt_SampleGetParent(rsample);
+        return SampleToHandle(rparent);
+    }
+
+    uint64_t SampleGetUniqueId(HSample sample)
+    {
+        return (uint32_t)rmt_SampleGetUniqueId(SampleFromHandle(sample));
+    }
+
     uint32_t SampleGetNameHash(HSample sample)
     {
         return (uint32_t)rmt_SampleGetNameHash(SampleFromHandle(sample));
@@ -381,6 +393,11 @@ namespace dmProfile
             dmLogError("Unknown property type: %d", property->type); break;
         }
         return out;
+    }
+
+    uint64_t PropertyGetUniqueId(HProperty hproperty)
+    {
+        return (uint64_t)PropertyGetNameHash(hproperty);
     }
 
     // *******************************************************************

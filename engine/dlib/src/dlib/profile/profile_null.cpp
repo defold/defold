@@ -102,6 +102,11 @@ namespace dmProfile
         return false;
     }
 
+    HSample SampleGetParent(HSample sample)
+    {
+        return 0;
+    }
+
     uint32_t SampleGetNameHash(HSample sample)
     {
         return 0;
@@ -137,6 +142,10 @@ namespace dmProfile
         return 0;
     }
 
+    uint64_t SampleGetUniqueId(HSample sample)
+    {
+        return 0;
+    }
 
     // *******************************************************************
 
@@ -186,6 +195,11 @@ namespace dmProfile
     {
         PropertyValue out = {};
         return out;
+    }
+
+    uint64_t PropertyGetUniqueId(HProperty hproperty)
+    {
+        return 0;
     }
 
     // *******************************************************************

@@ -9938,6 +9938,16 @@ RMT_API const char* _rmt_SampleGetName(rmtSample* sample)
     return name;
 }
 
+RMT_API rmtSample* _rmt_SampleGetParent(rmtSample* sample)
+{
+    return sample->parent;
+}
+
+RMT_API rmtU32 _rmt_SampleGetUniqueId(rmtSample* sample)
+{
+    return sample->unique_id;
+}
+
 RMT_API rmtU32 _rmt_SampleGetNameHash(rmtSample* sample)
 {
     return sample->name_hash;
