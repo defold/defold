@@ -322,6 +322,9 @@
 (g/defnk produce-animation-ids [content]
   (:animation-ids content))
 
+(g/defnk produce-material-ids [content]
+  (:material-ids content))
+
 (defn- index-oob [vs is comp-count]
   (> (* comp-count (reduce max 0 is)) (count vs)))
 
@@ -391,6 +394,7 @@
   (output bones g/Any produce-bones)
   (output animation-info g/Any produce-animation-info)
   (output animation-ids g/Any produce-animation-ids)
+  (output material-ids g/Any produce-material-ids)
   (output mesh-set g/Any produce-mesh-set)
   (output meshes g/Any :cached produce-meshes)
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)

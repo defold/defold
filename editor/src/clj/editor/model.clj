@@ -297,6 +297,7 @@
                                                         (update :display-order into (map first p)))))))
 
 (defn load-model [project self resource pb]
+  ; TODO: Migrate the single "material" into "materials"
   (concat
     (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
     (for [res [:mesh :material [:textures] :skeleton :animations]]
