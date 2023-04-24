@@ -1578,7 +1578,7 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
-    def _get_tag_pattern_from_tag_name(channel, tag_name):
+    def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
         #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
         channel_pattern = ''
@@ -1598,12 +1598,20 @@ class Configuration(object):
         editor_channel = None
         engine_sha1 = None
         editor_sha1 = None
-        if self.channel in ('editor-alpha',):
+        if self.channel in ('stable','beta'):
+            engine_sha1 = self._git_sha1()
+
+        elif self.channel in ('editor-alpha',):
             engine_channel = 'stable'
             editor_channel = self.channel
             editor_sha1 = self._git_sha1()
+            engine_sha1 = self._git_sha1(self.version) # engine version
 
-        engine_sha1 = self._git_sha1(self.version) # engine version
+        else:
+            engine_sha1 = self._git_sha1()
+            engine_channel = self.channel
+            editor_channel = self.channel
+
         if not editor_sha1:
             editor_sha1 = engine_sha1
 
@@ -1651,7 +1659,7 @@ class Configuration(object):
             is_editor_branch = True
 
         if tag_name is not None and not is_editor_branch:
-            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
@@ -1701,7 +1709,7 @@ class Configuration(object):
         tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
 
         if tag_name is not None and not is_editor_branch:
-            pattern = _get_tag_pattern_from_tag_name(self.channel, tag_name)
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
