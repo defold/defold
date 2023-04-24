@@ -9,14 +9,16 @@
 #include <string.h>
 
 #ifdef __APPLE__
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-#include <stdio.h>
-#endif
+    #define UNW_LOCAL_ONLY
+    #include <libunwind.h>
+    #include <stdio.h>
 
-#ifdef _WIN32
-#include <Windows.h>
-#include <Dbghelp.h>
+#elif defined(_WIN32)
+    #include <Windows.h>
+    #include <Dbghelp.h>
+
+#else
+    #include <execinfo.h>
 #endif
 
 
@@ -335,8 +337,22 @@ char* GenerateCallstack()
 
 char* GenerateCallstack()
 {
-    char* output = strdup("Callstack generation needs implementation for this platform!");
-    fprintf(stderr, "%s!\n", output);
+    int output_size = 0;
+    int output_cursor = 0;
+    char* output = 0;
+
+    void* buffer[64];
+    int num_pointers = backtrace(buffer, sizeof(buffer)/sizeof(buffer[0]));
+
+    char** stacktrace = backtrace_symbols(buffer, num_pointers);
+    for (uint32_t i = 0; i < num_pointers; ++i)
+    {
+        APPEND_STRING("    %p: %s\n", buffer[i], stacktrace[i]);
+    }
+
+    free(stacktrace);
+
+    APPEND_STRING("    # <- native");
     return output;
 }
 
