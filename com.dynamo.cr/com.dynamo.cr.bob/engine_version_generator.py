@@ -45,9 +45,12 @@ if __name__ == '__main__':
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     output = 'src/com/dynamo/bob/archive/EngineVersion.java'
-    if len(sys.argv) > 2:
-        output = sys.argv[2]
+    if len(sys.argv) > 1:
+        output = sys.argv[1]
 
     fullpath_java = os.path.abspath(output)
+    basedir = os.path.dirname(fullpath_java)
+    if not os.path.exists(basedir):
+        os.makedirs(basedir)
     with open(fullpath_java, 'w') as f:
         f.write(engine_version_java % {"version": version, "sha1": sha1, "timestamp": timestamp})

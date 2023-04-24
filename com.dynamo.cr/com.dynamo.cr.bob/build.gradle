@@ -12,7 +12,6 @@ import java.nio.file.Path
 plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java-library'
-    //id "com.google.protobuf" version "0.9.2"
 }
 
 repositories {
@@ -138,7 +137,7 @@ tasks.register('sys_ddf', Protoc, 'engine/script/src', 'engine/script/src/script
 task EngineVersion(type: Exec) {
     executable 'python'
     args('engine_version_generator.py')
-    args('src/com/dynamo/bob/archive/EngineVersion.java')
+    args(new File(project.buildDir, 'com/dynamo/bob/archive/EngineVersion.java').canonicalPath)
 }
 
 compileJava {
