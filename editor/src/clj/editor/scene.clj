@@ -1220,12 +1220,11 @@
   (active? [selection] (selection->movable selection))
   (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
 
-(defn- handle-camera-wasd-movement [^KeyEvent event view-id key state-value]
+(defn- handle-camera-wasd-movement [view-id key state-value]
   (let [camera-movement-state (g/node-value view-id :camera-movement-state)
         camera-movement-state' (if state-value
                                  (assoc camera-movement-state key true)
                                  (dissoc camera-movement-state key))]
-    #_(println camera-movement-state')
     (g/transact
       (g/set-property view-id :camera-movement-state camera-movement-state'))))
 
@@ -1234,10 +1233,12 @@
   (when (not= ::unhandled
               (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
                 (condp = (.getCode event)
-                  KeyCode/W (handle-camera-wasd-movement event view-id :W true)
-                  KeyCode/A (handle-camera-wasd-movement event view-id :A true)
-                  KeyCode/S (handle-camera-wasd-movement event view-id :S true)
-                  KeyCode/D (handle-camera-wasd-movement event view-id :D true)
+                  KeyCode/W (handle-camera-wasd-movement view-id :W true)
+                  KeyCode/A (handle-camera-wasd-movement view-id :A true)
+                  KeyCode/S (handle-camera-wasd-movement view-id :S true)
+                  KeyCode/D (handle-camera-wasd-movement view-id :D true)
+                  KeyCode/E (handle-camera-wasd-movement view-id :E true)
+                  KeyCode/Q (handle-camera-wasd-movement view-id :Q true)
                   ::unhandled)
                 (condp = (.getCode event)
                   KeyCode/UP (ui/run-command (.getSource event) :up)
@@ -1251,10 +1252,12 @@
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when (not= ::unhandled
               (condp = (.getCode event)
-                KeyCode/W (handle-camera-wasd-movement event view-id :W false)
-                KeyCode/A (handle-camera-wasd-movement event view-id :A false)
-                KeyCode/S (handle-camera-wasd-movement event view-id :S false)
-                KeyCode/D (handle-camera-wasd-movement event view-id :D false)
+                KeyCode/W (handle-camera-wasd-movement view-id :W false)
+                KeyCode/A (handle-camera-wasd-movement view-id :A false)
+                KeyCode/S (handle-camera-wasd-movement view-id :S false)
+                KeyCode/D (handle-camera-wasd-movement view-id :D false)
+                KeyCode/E (handle-camera-wasd-movement view-id :E false)
+                KeyCode/Q (handle-camera-wasd-movement view-id :Q false)
                 ::unhandled))
     (.consume event)))
 
@@ -1359,7 +1362,6 @@
         camera-movement-state (g/node-value view-id :camera-movement-state)]
     (when (not (nil? camera-obj))
       (let [camera-obj-augmented (c/tick-camera camera-obj camera-movement-state)]
-        #_(println camera-obj-augmented)
         (g/transact
           (g/set-property camera-node :local-camera camera-obj-augmented))))))
 
