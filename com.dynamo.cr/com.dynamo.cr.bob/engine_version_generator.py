@@ -44,6 +44,10 @@ if __name__ == '__main__':
     sha1 = git_sha1()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    fullpath_java = os.path.abspath('src/com/dynamo/bob/archive/EngineVersion.java')
+    output = 'src/com/dynamo/bob/archive/EngineVersion.java'
+    if len(sys.argv) > 2:
+        output = sys.argv[2]
+
+    fullpath_java = os.path.abspath(output)
     with open(fullpath_java, 'w') as f:
         f.write(engine_version_java % {"version": version, "sha1": sha1, "timestamp": timestamp})
