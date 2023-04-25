@@ -31,7 +31,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.dynamo.graphics.proto Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -213,7 +213,7 @@
                       {:path [:element-count]
                        :label "Element Count"
                        :type :integer
-                       :default 4}                          ;; What's a good deafult?
+                       :default 4}                          ;; TODO: What's a good default for this?
                       {:path [:normalize]
                        :label "Normalize"
                        :type :boolean

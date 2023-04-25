@@ -341,7 +341,7 @@
         attribute-value-vec (take (:element-count attribute) (:v attribute-value-entry))]
     (vec attribute-value-vec)))
 
-(defn- get-attribute-type [attribute]
+(defn- get-attribute-property-type [attribute]
   (let [attribute-element-count (:element-count attribute)
         attribute-semantic-type (:semantic-type attribute)]
     (cond (= attribute-semantic-type :semantic-type-color) types/Color
@@ -391,14 +391,13 @@
                                     (let [attribute-desc (first (filter #(= (:name %) attribute-name) material-attributes))
                                           attribute-key (keyword attribute-name)
                                           attribute-values (get-attribute-values-from-node attribute-key attribute-desc vertex-attribute-overrides) #_(get-attribute-values attribute-desc)
-                                          attribute-type (get-attribute-type attribute-desc)
+                                          attribute-type (get-attribute-property-type attribute-desc)
                                           attribute-expected-value-count (get-attribute-expected-element-count attribute-desc)
-                                          attribute-values-padded-with-zeros (fill-with-zeros attribute-values attribute-expected-value-count)
                                           attribute-edit-type (get-attribute-edit-type attribute-desc attribute-type)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
-                                                          :value attribute-values-padded-with-zeros
+                                                          :value (fill-with-zeros attribute-values attribute-expected-value-count)
                                                           :label attribute-name}]
                                       {attribute-key attribute-prop}))
                                   attribute-property-names)]
