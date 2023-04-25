@@ -369,6 +369,7 @@ namespace dmGameSystem
 
         dmGui::SetNodeEnabled(scene, n, node_desc->m_Enabled);
         dmGui::SetNodeVisible(scene, n, node_desc->m_Visible);
+        dmGui::SetNodeMaterial(scene, n, node_desc->m_Material);
 
         // type specific attributes
         switch(node_desc->m_Type)
@@ -528,6 +529,17 @@ namespace dmGameSystem
             dmGui::Result r = dmGui::AddParticlefx(scene, name, (void*) scene_resource->m_ParticlePrototypes[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add particlefx '%s' to GUI scene (%d)", name, r);
+                return false;
+            }
+        }
+
+        for (uint32_t i = 0; i < scene_resource->m_Materials.Size(); ++i)
+        {
+            const char* name = scene_desc->m_Materials[i].m_Name;
+            dmGui::Result r = dmGui::AddMaterial(scene, name, (void*) scene_resource->m_Materials[i]);
+
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to add material '%s' to GUI scene (%d)", name, r);
                 return false;
             }
         }
@@ -710,6 +722,7 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_MaxMaterials = 16;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
@@ -891,6 +904,12 @@ namespace dmGameSystem
     static void ApplyStencilClipping(RenderGuiContext* gui_context, const dmGui::StencilScope* state, dmRender::DrawTextParams& params) {
         params.m_StencilTestParamsSet = 1;
         ApplyStencilClipping(gui_context, state, params.m_StencilTestParams);
+    }
+
+    static inline dmRender::HMaterial GetNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
+    {
+        void* node_material = dmGui::GetNodeMaterial(scene, node);
+        return node_material ? (dmRender::HMaterial) node_material : gui_context->m_Material;
     }
 
     static dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
@@ -1254,12 +1273,12 @@ namespace dmGameSystem
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
-        ro.m_SetBlendFactors = 1;
+        ro.m_SetBlendFactors   = 1;
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
-        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_Material = gui_context->m_Material;
+        ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
 
         // Set default texture
         dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
@@ -1766,15 +1785,16 @@ namespace dmGameSystem
         gui_world->m_RenderedParticlesSize = 0;
         gui_context->m_FirstStencil = true;
 
-        dmGui::HNode first_node = entries[0].m_Node;
-        dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
-        dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
-        uint32_t prev_custom_type = dmGui::GetNodeCustomType(scene, first_node);
-        uint64_t prev_combined_type = GetCombinedNodeType(prev_node_type, prev_custom_type);
-        dmGraphics::HTexture prev_texture = dmGameSystem::GetNodeTexture(scene, first_node);
-        void* prev_font = dmGui::GetNodeFont(scene, first_node);
+        dmGui::HNode first_node                       = entries[0].m_Node;
+        dmGui::BlendMode prev_blend_mode              = dmGui::GetNodeBlendMode(scene, first_node);
+        dmGui::NodeType prev_node_type                = dmGui::GetNodeType(scene, first_node);
+        uint32_t prev_custom_type                     = dmGui::GetNodeCustomType(scene, first_node);
+        uint64_t prev_combined_type                   = GetCombinedNodeType(prev_node_type, prev_custom_type);
+        dmGraphics::HTexture prev_texture             = dmGameSystem::GetNodeTexture(scene, first_node);
+        dmRender::HMaterial prev_material             = dmGameSystem::GetNodeMaterial(gui_context, scene, first_node);
+        void* prev_font                               = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
-        uint32_t prev_emitter_batch_key = 0;
+        uint32_t prev_emitter_batch_key               = 0;
 
         if (prev_node_type == dmGui::NODE_TYPE_PARTICLEFX)
         {
@@ -1785,17 +1805,18 @@ namespace dmGameSystem
         uint32_t i = 0;
         uint32_t start = 0;
 
-        while (i < node_count) {
-            dmGui::HNode node = entries[i].m_Node;
-
-            dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
-            dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
-            uint32_t custom_type = dmGui::GetNodeCustomType(scene, node);
-            uint64_t combined_type = GetCombinedNodeType(node_type, custom_type);
-            dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, node);
-            void* font = dmGui::GetNodeFont(scene, node);
+        while (i < node_count)
+        {
+            dmGui::HNode node                        = entries[i].m_Node;
+            dmGui::BlendMode blend_mode              = dmGui::GetNodeBlendMode(scene, node);
+            dmGui::NodeType node_type                = dmGui::GetNodeType(scene, node);
+            uint32_t custom_type                     = dmGui::GetNodeCustomType(scene, node);
+            uint64_t combined_type                   = GetCombinedNodeType(node_type, custom_type);
+            dmGraphics::HTexture texture             = dmGameSystem::GetNodeTexture(scene, node);
+            dmRender::HMaterial material             = dmGameSystem::GetNodeMaterial(gui_context, scene, node);
+            void* font                               = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
-            uint32_t emitter_batch_key = 0;
+            uint32_t emitter_batch_key               = 0;
 
             if (node_type == dmGui::NODE_TYPE_PARTICLEFX)
             {
@@ -1803,16 +1824,18 @@ namespace dmGameSystem
                 emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
             }
 
-            bool batch_change = combined_type != prev_combined_type ||
-                                blend_mode != prev_blend_mode ||
-                                texture != prev_texture ||
-                                font != prev_font ||
-                                prev_stencil_scope != stencil_scope ||
+            bool batch_change = combined_type          != prev_combined_type ||
+                                blend_mode             != prev_blend_mode    ||
+                                texture                != prev_texture       ||
+                                material               != prev_material      ||
+                                font                   != prev_font          ||
+                                prev_stencil_scope     != stencil_scope      ||
                                 prev_emitter_batch_key != emitter_batch_key;
 
             bool flush = (i > 0 && batch_change);
 
-            if (flush) {
+            if (flush)
+            {
                 uint32_t n = i - start;
 
                 switch (prev_node_type)
@@ -1843,6 +1866,7 @@ namespace dmGameSystem
             prev_combined_type = combined_type;
             prev_blend_mode = blend_mode;
             prev_texture = texture;
+            prev_material = material;
             prev_font = font;
             prev_stencil_scope = stencil_scope;
             prev_emitter_batch_key = emitter_batch_key;

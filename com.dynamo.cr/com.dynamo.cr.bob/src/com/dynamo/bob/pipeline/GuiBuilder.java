@@ -53,6 +53,7 @@ import com.dynamo.gamesys.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.TextureDesc;
+import com.dynamo.gamesys.proto.Gui.SceneDesc.MaterialDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.GeneratedMessage;
@@ -240,7 +241,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames) throws CompileExceptionError {
+    private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
         if(builder == null) {
             return;
         }
@@ -262,6 +263,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if (n.hasTexture() && !n.getTexture().isEmpty()) {
             if (!textureNames.contains(n.getTexture().split("/")[0])) {
                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture().split("/")[0]));
+            }
+        }
+        if (n.hasMaterial() && !n.getMaterial().isEmpty()) {
+            if (!materialNames.contains(n.getMaterial())) {
+                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getMaterial()));
             }
         }
         if (n.hasFont() && !n.getFont().isEmpty()) {
@@ -394,6 +400,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         Set<String> resourceNames = new HashSet<String>();
         List<ResourceDesc> newResourcesList = new ArrayList<>();
 
+        Set<String> materialNames          = new HashSet<String>();
+        List<MaterialDesc> newMaterialList = new ArrayList<MaterialDesc>();
+
 
         if(builder != null) {
             // transform and register scene external resources (if compiling)
@@ -435,6 +444,15 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 }
                 textureNames.add(f.getName());
                 newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
+            }
+
+            for (MaterialDesc f : sceneBuilder.getMaterialsList()) {
+                if (materialNames.contains(f.getName())) {
+                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_TEXTURE,
+                            f.getName()));
+                }
+                materialNames.add(f.getName());
+                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(BuilderUtil.replaceExt(f.getMaterial(), ".material", ".materialc")).build());
             }
 
             for (ResourceDesc f : sceneBuilder.getResourcesList()) {
@@ -512,11 +530,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             // add current scene nodes
             newScene.get("").add(node);
-            validateNodeResources(node, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames);
+            validateNodeResources(node, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
-                    validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames);
+                    validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
                     newScene.get(layout).add(n);
                 }
             }
@@ -587,6 +605,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     textureNames.add(f.getName());
                     newTextureList.add(f);
                 }
+                for (MaterialDesc f : templateBuilder.getMaterialsList()) {
+                    if (materialNames.contains(f.getName())) {
+                        continue;
+                    }
+                    materialNames.add(f.getName());
+                    newMaterialList.add(f);
+                }
                 for (ResourceDesc f : templateBuilder.getResourcesList()) {
                     if (resourceNames.contains(f.getName())) {
                         continue;
@@ -641,6 +666,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearTextures();
         sceneBuilder.addAllTextures(newTextureList);
+
+        sceneBuilder.clearMaterials();
+        sceneBuilder.addAllMaterials(newMaterialList);
 
         sceneBuilder.clearResources();
         sceneBuilder.addAllResources(newResourcesList);

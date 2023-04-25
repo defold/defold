@@ -70,16 +70,16 @@
 (def ^:private layer-icon "icons/32/Icons_42-Layers.png")
 (def ^:private layout-icon "icons/32/Icons_50-Display-profiles.png")
 (def ^:private template-icon gui-icon)
-
 (def ^:private text-icon "icons/32/Icons_39-GUI-Text-node.png")
 (def ^:private box-icon "icons/32/Icons_40-GUI-Box-node.png")
 (def ^:private pie-icon "icons/32/Icons_41-GUI-Pie-node.png")
+(def ^:private material-icon "icons/32/Icons_25-AT-Image.png")
 
 (def pb-def {:ext "gui"
              :label "Gui"
              :icon gui-icon
              :pb-class Gui$SceneDesc
-             :resource-fields [:script :material [:fonts :font] [:textures :texture] [:particlefxs :particlefx] [:resources :path]]
+             :resource-fields [:script :material [:fonts :font] [:textures :texture] [:materials :material] [:particlefxs :particlefx] [:resources :path]]
              :tags #{:component :non-embeddable}
              :tag-opts {:component {:transform-properties #{}}}})
 
@@ -349,6 +349,7 @@
    [:texture-gpu-textures :texture-gpu-textures]
    [:texture-anim-datas :texture-anim-datas]
    [:texture-names :texture-names]
+   [:material-names :material-names]
    [:font-shaders :font-shaders]
    [:font-datas :font-datas]
    [:font-names :font-names]
@@ -432,6 +433,7 @@
 ;; SDK api
 (g/deftype GuiResourceNames s/Any #_(sorted-set s/Str))
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
+(g/deftype ^:private GuiResourceMaterials s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (g/deftype ^:private TextureAnimDatas s/Any #_{s/Str (s/maybe {s/Keyword s/Any})})
 (g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
@@ -621,6 +623,8 @@
   (output texture-anim-datas TextureAnimDatas (gu/passthrough texture-anim-datas))
   (input texture-names GuiResourceNames)
   (output texture-names GuiResourceNames (gu/passthrough texture-names))
+  (input material-names GuiResourceNames)
+  (output material-names GuiResourceNames (gu/passthrough material-names))
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
   (input font-datas FontDatas)
@@ -866,11 +870,12 @@
                  (not-any? is-size-prop-index? overridden-fields))
             (add-size-to-overridden-fields-in-node-desc))))
 
-(g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
+(g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture material clipping-mode clipping-visible clipping-inverted]
   (-> visual-base-node-msg
       (assoc :size (v3->v4 manual-size)
              :size-mode size-mode
              :texture texture
+             :material material
              :clipping-mode clipping-mode
              :clipping-visible clipping-visible
              :clipping-inverted clipping-inverted)
@@ -906,6 +911,11 @@
             (default "")
             (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
             (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
+
+  (property material g/Str
+            (default "")
+            (dynamic edit-type (g/fnk [material-names] (optional-gui-resource-choicebox material-names)))
+            #_(dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -957,7 +967,7 @@
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (display-order (into base-display-order
-                       [:size :size-mode :enabled :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:size :size-mode :enabled :visible :texture :material :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -1002,7 +1012,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:size :size-mode :enabled :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:size :size-mode :enabled :visible :texture :material :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -1286,6 +1296,7 @@
                                                                   [:texture-gpu-textures :aux-texture-gpu-textures]
                                                                   [:texture-anim-datas :aux-texture-anim-datas]
                                                                   [:texture-names :aux-texture-names]
+                                                                  [:material-names :aux-material-names]
                                                                   [:font-shaders :aux-font-shaders]
                                                                   [:font-datas :aux-font-datas]
                                                                   [:font-names :aux-font-names]
@@ -1597,6 +1608,48 @@
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
                                                  (prop-resource-error _node-id :font font "Font")))))
 
+(g/defnode MaterialNode
+  (inherits outline/OutlineNode)
+  (property name g/Str
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (set (partial update-gui-resource-references :material)))
+  (property child-index g/Int (dynamic visible (g/constantly false)) (default 0))
+
+  (property material resource/Resource
+            (value (gu/passthrough material-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter
+                     evaluation-context self old-value new-value
+                     [:resource :material-resource]
+                     [:build-targets :dep-build-targets])))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["material"]})))
+
+  (input name-counts NameCounts)
+
+  (input material-resource resource/Resource)
+
+  (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
+  (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name child-index build-errors]
+                                                     {:node-id _node-id
+                                                      :node-outline-key name
+                                                      :label name
+                                                      :icon layer-icon
+                                                      :child-index child-index
+                                                      :outline-error? (g/error-fatal? build-errors)}))
+  (output resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
+  (input dep-build-targets g/Any)
+  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
+  (output pb-msg g/Any (g/fnk [name material-resource]
+                         {:name name
+                          :material (resource/resource->proj-path material-resource)}))
+  (output material-names GuiResourceNames (g/fnk [name] (sorted-set name)))
+  (output build-errors g/Any (g/fnk [_node-id name name-counts]
+                               (g/package-errors _node-id
+                                                 (prop-unique-id-error _node-id :name name name-counts "Name")))))
+
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str
@@ -1825,6 +1878,8 @@
   (output texture-anim-datas TextureAnimDatas (gu/passthrough texture-anim-datas))
   (input texture-names GuiResourceNames)
   (output texture-names GuiResourceNames (gu/passthrough texture-names))
+  (input material-names GuiResourceNames)
+  (output material-names GuiResourceNames (gu/passthrough material-names))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input font-shaders GuiResourceShaders)
@@ -1927,6 +1982,44 @@
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Textures..." texture-icon add-textures-handler {}])))
+
+;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+(defn- attach-material
+  ([self materials-node material]
+   (attach-material self materials-node material false))
+  ([self materials-node material internal?]
+   (concat
+     (g/connect material :_node-id self :nodes)
+     (when (not internal?)
+       (concat
+         (g/connect material :material-names self :material-names)
+         (g/connect material :dep-build-targets self :dep-build-targets)
+         (g/connect material :pb-msg self :material-msgs)
+         (g/connect material :build-errors materials-node :build-errors)
+         (g/connect material :node-outline materials-node :child-outlines)
+         (g/connect material :name materials-node :names)
+         (g/connect materials-node :name-counts material :name-counts))))))
+
+(defn add-material [scene materials-node resource name]
+  (g/make-nodes (g/node-id->graph-id scene) [node [MaterialNode :name name :material resource]]
+    (attach-material scene materials-node node)))
+
+(defn- add-materials-handler [project {:keys [scene parent]} select-fn]
+  (query-and-add-resources!
+    "Materials" ["material"] (g/node-value parent :name-counts) project select-fn
+    (partial add-material scene parent)))
+
+(g/defnode MaterialsNode
+  (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
+  (input build-errors g/Any :array)
+  (output build-errors g/Any (gu/passthrough build-errors))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Materials" "Materials" 1 false []))
+  (output add-handler-info g/Any
+          (g/fnk [_node-id]
+            [_node-id "Materials..." material-icon add-materials-handler {}])))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2153,7 +2246,7 @@
       clipping/setup-states
       sort-scene)))
 
-(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   {:script (resource/resource->proj-path script-resource)
    :material (resource/resource->proj-path material-resource)
    :adjust-reference adjust-reference
@@ -2163,12 +2256,13 @@
    :layers layer-msgs
    :fonts font-msgs
    :textures texture-msgs
+   :materials material-msgs
    :layouts layout-msgs
    :particlefxs particlefx-resource-msgs
    :resources resource-msgs})
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs))
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
@@ -2185,8 +2279,9 @@
 
 (defn- merge-rt-pb-msg [rt-pb-msg template-build-targets]
   (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
-        [textures fonts particlefx-resources resources]
+        [textures materials fonts particlefx-resources resources]
         (loop [textures (transient {})
+        					  materials (transient {})
                fonts (transient {})
                particlefx-resources (transient {})
                resources (transient {})
@@ -2194,12 +2289,13 @@
           (if-let [msg (first msgs)]
             (recur
               (merge-fn! textures msg :textures)
+              (merge-fn! materials msg :materials)
               (merge-fn! fonts msg :fonts)
               (merge-fn! particlefx-resources msg :particlefxs)
               (merge-fn! resources msg :resources)
               (next msgs))
-            [(persistent! textures) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
-    (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
+            [(persistent! textures) (persistent! materials) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
+    (assoc rt-pb-msg :textures (mapv second textures) :materials (mapv second materials) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
 (defn nodes->rt-nodes [nodes]
   (into []
@@ -2243,6 +2339,7 @@
       (update :layouts (fn [layouts] (mapv #(update % :nodes nodes->rt-nodes) layouts)))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets]
+  (println "YSE SIR" _node-id resource pb-msg)
   (g/precluding-errors build-errors
     (let [def pb-def
           template-build-targets (flatten template-build-targets)
@@ -2252,6 +2349,7 @@
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
           resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
           dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
+      (println "THIS IS AFTER" rt-pb-msg)
       [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
@@ -2278,6 +2376,7 @@
                         pb (-> template-build-target :user-data :pb)]
                   [gui-resource-pb-key gui-value-key] [[:textures :texture]
                                                        [:fonts :font]
+                                                       [:materials :material]
                                                        [:particlefxs :particlefx]
                                                        [:resources :path]]
                   gui-resource (get pb gui-resource-pb-key)]
@@ -2289,6 +2388,7 @@
                               (format "%s \"%s\" has conflicting values in templates: %s"
                                       (case gui-resource-type
                                         :textures "Texture"
+                                        :materials "Material"
                                         :fonts "Font"
                                         :particlefxs "Particle FX"
                                         :resources "Custom resource")
@@ -2388,6 +2488,7 @@
   (input layouts-node g/NodeID) ; for tests
   (input fonts-node g/NodeID) ; for tests
   (input textures-node g/NodeID) ; for tests
+  (input materials-node g/NodeID) ; for tests
   (input particlefx-resources-node g/NodeID) ; for tests
   (input handler-infos g/Any :array)
   (output handler-infos g/Any (g/fnk [handler-infos]
@@ -2405,6 +2506,7 @@
   (output node-overrides g/Any :cached (gu/passthrough node-overrides))
   (input font-msgs g/Any :array)
   (input texture-msgs g/Any :array)
+  (input material-msgs g/Any :array)
   (input layer-msgs g/Any)
   (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
@@ -2423,6 +2525,10 @@
   (input aux-texture-names GuiResourceNames :array)
   (input texture-names GuiResourceNames :array)
   (output texture-names GuiResourceNames :cached (g/fnk [aux-texture-names texture-names] (into (sorted-set) cat (concat aux-texture-names texture-names))))
+
+  (input aux-material-names GuiResourceNames :array)
+  (input material-names GuiResourceNames :array)
+  (output material-names GuiResourceNames :cached (g/fnk [aux-material-names material-names] (into (sorted-set) cat (concat aux-material-names material-names))))
 
   (input aux-font-shaders GuiResourceShaders :array)
   (input font-shaders GuiResourceShaders :array)
@@ -2716,6 +2822,21 @@
                       (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
                                     (attach-texture self textures-node texture))))
 
+      ;; Materials list
+      (g/make-nodes graph-id [materials-node MaterialsNode
+                              no-material [MaterialNode
+                                          :name ""]]
+        (g/connect materials-node :_node-id self :materials-node) ; for the tests :/
+        (g/connect materials-node :_node-id self :nodes)
+        (g/connect materials-node :build-errors self :build-errors)
+        (g/connect materials-node :node-outline self :child-outlines)
+        (g/connect materials-node :add-handler-info self :handler-infos)
+        (attach-material self materials-node no-material true)
+        (for [materials-desc (:materials scene)
+              :let [resource (workspace/resolve-resource resource (:material materials-desc))]]
+          (g/make-nodes graph-id [material [MaterialNode :name (:name materials-desc) :material resource]]
+            (attach-material self materials-node material))))
+
       (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
                               no-particlefx-resource [ParticleFXResource
                                                       :name ""]]
@@ -2771,6 +2892,7 @@
                                      [:texture-gpu-textures :texture-gpu-textures]
                                      [:texture-anim-datas :texture-anim-datas]
                                      [:texture-names :texture-names]
+                                     [:material-names :material-names]
                                      [:font-shaders :font-shaders]
                                      [:font-datas :font-datas]
                                      [:font-names :font-names]

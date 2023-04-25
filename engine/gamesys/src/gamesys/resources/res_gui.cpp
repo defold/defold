@@ -91,6 +91,21 @@ namespace dmGameSystem
             resource->m_FontMapPaths.Push(path_hash);
         }
 
+        resource->m_Materials.SetCapacity(resource->m_SceneDesc->m_Materials.m_Count);
+        resource->m_Materials.SetSize(0);
+
+        for (uint32_t i = 0; i < resource->m_SceneDesc->m_Materials.m_Count; ++i)
+        {
+            dmRender::HMaterial material;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Materials[i].m_Material, (void**) &material);
+            if (r != dmResource::RESULT_OK)
+            {
+                return r;
+            }
+
+            resource->m_Materials.Push(material);
+        }
+
         // Note: For backwards compability, we add proxy textureset resources containing texures for single texture file resources (deprecated)
         // Once this is not supported anymore, we can remove this behaviour and rely on resource being loaded to be a textureset resource.
         // This needs to be reflected in the ReleaseResources method.
@@ -160,6 +175,10 @@ namespace dmGameSystem
         for (uint32_t j = 0; j < resource->m_FontMaps.Size(); ++j)
         {
             dmResource::Release(factory, resource->m_FontMaps[j]);
+        }
+        for (uint32_t j = 0; j < resource->m_Materials.Size(); ++j)
+        {
+            dmResource::Release(factory, resource->m_Materials[j]);
         }
         for (uint32_t j = 0; j < resource->m_GuiTextureSets.Size(); ++j)
         {
