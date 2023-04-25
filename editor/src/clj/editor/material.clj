@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
+            [editor.graphics :as graphics]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource :as resource]
@@ -102,11 +103,13 @@
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
             samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers pb-msg) max-page-count)
+            attributes-build-target (graphics/attributes->build-target (:attributes pb-msg))
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
             material-desc-with-build-resources (assoc pb-msg
                                                  :vertex-program (:resource vertex-shader-build-target)
                                                  :fragment-program (:resource fragment-shader-build-target)
-                                                 :samplers samplers-with-indirect-hashes)]
+                                                 :samplers samplers-with-indirect-hashes
+                                                 :attributes attributes-build-target)]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)

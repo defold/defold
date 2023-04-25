@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.sprite
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -24,6 +23,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics :as graphics]
             [editor.material :as material]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -217,13 +217,25 @@
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
+(defn- produce-attributes [material-attributes vertex-attribute-overrides]
+  (let [overriden-material-attributes (filter #(contains? vertex-attribute-overrides (keyword (:name %))) material-attributes)
+        overriden-material-attributes+values (map (fn [attr]
+                                                    (let [overriden-value ((keyword (:name attr)) vertex-attribute-overrides)
+                                                          value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attr))]
+                                                      (-> attr
+                                                          (assoc value-keyword {:v overriden-value})
+                                                          (dissoc :name-hash))))
+                                                  overriden-material-attributes)]
+    overriden-material-attributes+values))
+
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9 offset playback-rate]
+(g/defnk produce-save-value [image default-animation material material-attributes blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-overrides]
   (cond-> {:tile-set (resource/resource->proj-path image)
            :default-animation default-animation
            :material (resource/resource->proj-path material)
-           :blend-mode blend-mode}
+           :blend-mode blend-mode
+           :attributes (produce-attributes material-attributes vertex-attribute-overrides)}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -299,7 +311,7 @@
         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-attributes material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate vertex-attribute-overrides]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -309,29 +321,23 @@
         (g/error-aggregate errors))
       [(pipeline/make-protobuf-build-target resource dep-build-targets
                                             Sprite$SpriteDesc
-                                            {:tile-set          image
+                                            {:tile-set image
                                              :default-animation default-animation
-                                             :material          material
-                                             :blend-mode        blend-mode
-                                             :size-mode         size-mode
-                                             :size              (v3->v4 manual-size)
-                                             :slice9            slice9
-                                             :offset            offset
-                                             :playback-rate     playback-rate}
+                                             :material material
+                                             :blend-mode blend-mode
+                                             :size-mode size-mode
+                                             :size (v3->v4 manual-size)
+                                             :slice9 slice9
+                                             :offset offset
+                                             :playback-rate playback-rate
+                                             :attributes (graphics/attributes->build-target (produce-attributes material-attributes vertex-attribute-overrides))}
                                             [:tile-set :material])]))
 (defn- fill-with-zeros [values expected-count]
   (let [trailing-vec-with-zeros (repeat (- expected-count (count values)) 0)]
     (vec (concat values trailing-vec-with-zeros))))
 
 (defn- get-attribute-values [attribute]
-  (let [attribute-value-entry (case (:data-type attribute)
-                                :type-byte           (:int-values attribute)
-                                :type-unsigned-byte  (:uint-values attribute)
-                                :type-short          (:int-values attribute)
-                                :type-unsigned-short (:uint-values attribute)
-                                :type-int            (:int-values attribute)
-                                :type-unsigned-int   (:int-values attribute)
-                                :type-float          (:float-values attribute))
+  (let [attribute-value-entry (graphics/attribute->values attribute)
         attribute-value-vec (take (:element-count attribute) (:v attribute-value-entry))]
     (vec attribute-value-vec)))
 
@@ -353,32 +359,38 @@
 
 (defn- attribute-update-property [current-property-value attribute new-value]
   (let [attribute-name (:name attribute)
-        attribute-tbl (if (nil? current-property-value)
-                        {}
-                        current-property-value)
-        attribute-tbl-updated (assoc attribute-tbl (keyword attribute-name) new-value)]
-    (println current-property-value attribute-name new-value)
-    (println attribute-tbl-updated)
+        attribute-tbl-updated (assoc current-property-value (keyword attribute-name) new-value)]
     attribute-tbl-updated))
 
 (defn- get-attribute-edit-type [attribute prop-type]
   (let [attribute-semantic-type (:semantic-type attribute)
-        attribute-update-fn (fn [_evaluation-context self old-value new-value]
-                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))
-        ]
+        attribute-update-fn (fn [_evaluation-context self _old-value new-value]
+                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))]
     (if (= attribute-semantic-type :semantic-type-color)
       {:type types/Color
-       :ignore-alpha? true
+       :ignore-alpha? false
        :set-fn attribute-update-fn}
       {:type prop-type
        :set-fn attribute-update-fn})))
 
-(g/defnk produce-properties [_node-id _declared-properties material-attributes]
+(defn- attributes->intermediate-backing [attributes]
+  (reduce (fn [attribute-mapping attr]
+            (assoc attribute-mapping (keyword (:name attr)) (get-attribute-values attr)))
+          {}
+          attributes))
+
+(defn- get-attribute-values-from-node [attribute-key material-attribute vertex-attribute-overrides]
+  (if (contains? vertex-attribute-overrides attribute-key)
+    (attribute-key vertex-attribute-overrides)
+    (get-attribute-values material-attribute)))
+
+(g/defnk produce-properties [_node-id _declared-properties material-attributes vertex-attribute-overrides]
   (let [attribute-property-names (map :name material-attributes)
         attribute-property-keys (map keyword attribute-property-names)
         attribute-properties (map (fn [attribute-name]
-                                    (let [attribute-desc (first (filter #(= (:name %) attribute-name)  material-attributes))
-                                          attribute-values (get-attribute-values attribute-desc)
+                                    (let [attribute-desc (first (filter #(= (:name %) attribute-name) material-attributes))
+                                          attribute-key (keyword attribute-name)
+                                          attribute-values (get-attribute-values-from-node attribute-key attribute-desc vertex-attribute-overrides) #_(get-attribute-values attribute-desc)
                                           attribute-type (get-attribute-type attribute-desc)
                                           attribute-expected-value-count (get-attribute-expected-element-count attribute-desc)
                                           attribute-values-padded-with-zeros (fill-with-zeros attribute-values attribute-expected-value-count)
@@ -388,7 +400,7 @@
                                                           :edit-type attribute-edit-type
                                                           :value attribute-values-padded-with-zeros
                                                           :label attribute-name}]
-                                      {(keyword attribute-name) attribute-prop}))
+                                      {attribute-key attribute-prop}))
                                   attribute-property-names)]
     (-> _declared-properties
         (update :properties into attribute-properties)
@@ -473,7 +485,7 @@
                                               :max 1.0
                                               :precision 0.01})))
   (property vertex-attribute-overrides g/Any
-            (default [])
+            (default {})
             (dynamic visible (g/constantly false)))
 
   (input image-resource resource/Resource)
@@ -508,7 +520,7 @@
   (output _properties g/Properties :cached produce-properties))
 
 (defn load-sprite [project self resource sprite]
-  (let [image    (workspace/resolve-resource resource (:tile-set sprite))
+  (let [image (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
@@ -520,7 +532,8 @@
       (g/set-property self :slice9 (:slice9 sprite))
       (g/set-property self :image image)
       (g/set-property self :offset (:offset sprite))
-      (g/set-property self :playback-rate (:playback-rate sprite)))))
+      (g/set-property self :playback-rate (:playback-rate sprite))
+      (g/set-property self :vertex-attribute-overrides (attributes->intermediate-backing (:attributes sprite))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
