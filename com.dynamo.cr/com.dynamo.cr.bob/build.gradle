@@ -14,6 +14,14 @@ plugins {
     id 'java-library'
 }
 
+ext {
+    dynamoHome = System.getenv('DYNAMO_HOME')
+    dynamoHomeDir = new File(System.getenv('DYNAMO_HOME'))
+
+    defoldDir = new File(project.ext.dynamoHomeDir, '../..').canonicalFile
+    defoldHome = defoldDir.canonicalPath
+}
+
 repositories {
     // Use Maven Central for resolving dependencies.
     mavenCentral()
@@ -32,6 +40,10 @@ dependencies {
 
     implementation fileTree(dir: "lib", includes: ['*.jar'])
     implementation fileTree(dir: "ext", includes: ['**/*.jar'])
+
+    implementation files(project.ext.dynamoHome + '/share/java/modelimporter.jar')
+    implementation files(project.ext.dynamoHome + '/share/java/texturecompiler.jar')
+    implementation files(project.ext.dynamoHome + '/share/java/dlib.jar')
 }
 
 sourceSets {
@@ -61,6 +73,8 @@ java {
 }
 
 jar {
+    version ''
+    archiveBaseName = 'bob-light'
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
@@ -73,29 +87,26 @@ jar {
     }
 }
 
-class Protoc extends Exec {
-    private final File dynamoHomeDir = new File(System.getenv('DYNAMO_HOME'))
 
+class Protoc extends Exec {
     @Inject
     Protoc(String dir, String source) {
-        File defoldDir = new File(dynamoHomeDir, '../..').canonicalFile
-        File externalDir = new File(dynamoHomeDir, '/ext/include').canonicalFile
-        File srcDir = new File(defoldDir, dir).canonicalFile
-        File srcFile = new File(defoldDir, source).canonicalFile
+        String externalDir = project.ext.dynamoHome + '/ext/include'
+        String srcDir = project.ext.defoldHome + "/" + dir
+        String srcFile = project.ext.defoldHome + "/" + source
 
-        //executable = 'echo'
-        executable = dynamoHomeDir.canonicalPath + '/ext/bin/x86_64-macos/protoc'
+        executable = project.ext.dynamoHome + '/ext/bin/x86_64-macos/protoc'
 
         File buildDir = project.buildDir
         buildDir.mkdirs()
 
         args('--java_out=' + buildDir)
-        args("-I" + srcDir.canonicalPath)
-        args("-I" + externalDir.canonicalPath)
-        args("-I" + new File(defoldDir, 'engine/gameobject/proto').canonicalPath)
-        args("-I" + new File(defoldDir, 'engine/script/src').canonicalPath)
-        args("-I" + new File(defoldDir, 'engine/ddf/src').canonicalPath)
-        args(srcFile.canonicalPath)
+        args("-I" + srcDir)
+        args("-I" + externalDir)
+        args("-I" + project.ext.defoldHome + '/engine/gameobject/proto')
+        args("-I" + project.ext.defoldHome + '/engine/script/src')
+        args("-I" + project.ext.defoldHome + '/engine/ddf/src')
+        args(srcFile)
     }
 }
 
@@ -140,6 +151,32 @@ task EngineVersion(type: Exec) {
     args(new File(project.buildDir, 'com/dynamo/bob/archive/EngineVersion.java').canonicalPath)
 }
 
+//task ('copyAssets', type: Copy) {
+//    from(fileTree("/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/ext/bin/x86_64-macos")) {
+//        into "libexec/x86_64-macos"
+//    }
+//}
+
+//https://stackoverflow.com/questions/45093804/gradle-copy-task-ant-to-gradle-migration
+
+
+//task copyAssets(type: Copy) {
+//    from 'src'
+//    include 'foo.txt'
+//    into new File(project.buildDir, '/libexec/x86_64-macos').canonicalPath
+//}
+
+//
+//processResources {
+//    dependsOn copyAssets
+//}
+
+//task copyAssets(type: Copy) {
+//    from '"/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/ext/bin/x86_64-macos"'
+//    include 'glslc'
+//    into 'libexec/x86_64-macos'
+//}
+
 compileJava {
     dependsOn ddf_extensions
     dependsOn ddf_math
@@ -177,5 +214,6 @@ compileJava {
     dependsOn sys_ddf
 
     dependsOn EngineVersion
-}
 
+    //dependsOn copyAssets
+}
