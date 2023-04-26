@@ -3043,9 +3043,12 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_RG32F:
                 if (tex->m_Type == TEXTURE_TYPE_2D) {
                     const char* p = (const char*) params.m_Data;
-                    if (params.m_SubUpdate) {
+                    if (params.m_SubUpdate)
+                    {
                         glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
-                    } else {
+                    }
+                    else
+                    {
                         glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
                     }
                     CHECK_GL_ERROR;
@@ -3058,9 +3061,12 @@ static void LogFrameBufferError(GLenum status)
                         #define TEX_SUB_IMAGE_3D glTexSubImage3D
                         #define TEX_IMAGE_3D     glTexImage3D
                     #endif
-                        if (params.m_SubUpdate) {
+                        if (params.m_SubUpdate)
+                        {
                             TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
-                        } else {
+                        }
+                        else
+                        {
                             TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
                         }
                     #undef TEX_SUB_IMAGE_3D
@@ -3069,7 +3075,8 @@ static void LogFrameBufferError(GLenum status)
                 } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                     assert(tex->m_NumTextureIds == 1);
                     const char* p = (const char*) params.m_Data;
-                    if (params.m_SubUpdate) {
+                    if (params.m_SubUpdate)
+                    {
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
                         CHECK_GL_ERROR;
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
@@ -3078,11 +3085,13 @@ static void LogFrameBufferError(GLenum status)
                         CHECK_GL_ERROR;
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
                         CHECK_GL_ERROR;
-                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR;
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
                         CHECK_GL_ERROR;
-                    } else {
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
+                        CHECK_GL_ERROR;
+                    }
+                    else
+                    {
                         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
                         CHECK_GL_ERROR;
                         glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
@@ -3091,9 +3100,9 @@ static void LogFrameBufferError(GLenum status)
                         CHECK_GL_ERROR;
                         glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
                         CHECK_GL_ERROR;
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR;
                         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
                         CHECK_GL_ERROR;
                     }
                 } else {
