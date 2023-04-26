@@ -16,6 +16,7 @@
 #define DM_RESOURCE_PROVIDER_PRIVATE_H
 
 #include "provider.h"
+#include <dlib/uri.h>
 
 namespace dmResourceProvider
 {
@@ -23,23 +24,24 @@ namespace dmResourceProvider
     {
         const ArchiveLoader*    m_Loader;
         void*                   m_Internal; // Each provider may have its own type to handle the code efficiently
+        dmURI::Parts            m_Uri;
     };
 
     struct ArchiveLoader
     {
-        dmhash_t                m_NameHash;             // E.g. "http", "archive", "file", "zip"
+        dmhash_t                m_NameHash;             // E.g. "http", "archive", "archive_mutable", "file", "zip"
         FCanMount               m_CanMount;
         FMount                  m_Mount;
         FUnmount                m_Unmount;
-        FGetFileSize            m_GetFileSize;
-        FReadFile               m_ReadFile;
         FGetManifest            m_GetManifest;
 
-        // FManifestLoad           m_LoadManifest;
-        // FArchiveLoad            m_Load;
-        // FArchiveUnload          m_Unload;
-        // FArchiveFindEntry       m_FindEntry;
-        // FArchiveRead            m_Read;
+
+        FGetFileSize            m_GetFileSize;
+        FReadFile               m_ReadFile;
+
+        // For writeable archives
+        FWriteFile              m_WriteFile;
+        FWriteManifest          m_WriteManifest;
 
         void Verify();
 
@@ -47,6 +49,8 @@ namespace dmResourceProvider
         ArchiveLoader*          m_Next;
     };
 
+    // Create an archive manually (unit tests)
+    Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive);
 
 } // namespace
 

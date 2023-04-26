@@ -161,6 +161,11 @@ public class ArchiveBuilder {
                 }
                 result = true;
             }
+
+            if (excludedResources.contains(filepath))
+            {
+                return true;
+            }
         }
 
         return result;
@@ -357,15 +362,19 @@ public class ArchiveBuilder {
 
         ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
+        List<String> excludedResources = new ArrayList<String>();
+
         int archivedEntries = 0;
-        int excludedEntries = 0;
+        String dirpathRootString = dirpathRoot.toString();
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
         for (File currentInput : inputs) {
             String absolutePath = currentInput.getAbsolutePath();
             boolean encrypt = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
             if (currentInput.getName().startsWith("liveupdate.")){
-                excludedEntries++;
                 archiveBuilder.add(absolutePath, doCompress, encrypt, true);
+
+                String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
+                excludedResources.add(relativePath);
             } else {
                 archivedEntries++;
                 archiveBuilder.add(absolutePath, doCompress, encrypt, false);
@@ -373,7 +382,7 @@ public class ArchiveBuilder {
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), absolutePath);
             rootNode.addChild(currentNode);
         }
-        System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
+        System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
         manifestBuilder.setRoot(rootNode);
 
@@ -388,7 +397,6 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            List<String> excludedResources = new ArrayList<String>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 

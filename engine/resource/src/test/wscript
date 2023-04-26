@@ -34,6 +34,14 @@ def build(bld):
 
     bld.add_group()
 
+    archive_liveupdate = bld(features='barchive',
+                              source_root='src/test',
+                              resource_name='luresources',
+                              use_compression=False,
+                              source=' '.join(sources))
+
+    bld.add_group()
+
     archive_compressed = bld(features='barchive',
                              source_root='src/test',
                              resource_name='resources_compressed',
@@ -59,7 +67,7 @@ def build(bld):
     test_block_allocator.install_path = None
 
     # ******************************************************************************************************************************
-    # File Providers
+    # File resource providers
 
     test_provider_file = bld.program(features     = 'cxx embed test',
                                         includes     = '.. ../../proto',
@@ -81,6 +89,17 @@ def build(bld):
                                         embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
 
     test_provider_archive.install_path = None
+
+    test_provider_archive_mutable = bld.program(features = 'cxx embed test',
+                                        includes     = '.. ../../proto',
+                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                        proto_gen_py = True,
+                                        exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
+                                        target       = 'test_provider_archive_mutable',
+                                        source       = 'test_provider_archive_mutable.cpp',
+                                        embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+
+    test_provider_archive_mutable.install_path = None
 
     # ******************************************************************************************************************************
     # Integration tests

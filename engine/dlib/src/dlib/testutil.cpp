@@ -101,5 +101,12 @@ uint8_t* ReadFile(const char* path, uint32_t* file_size)
     return buffer;
 }
 
+uint8_t* ReadHostFile(const char* path, uint32_t* file_size)
+{
+    char path_buffer1[256];
+    const char* file_path = dmTestUtil::MakeHostPath(path_buffer1, sizeof(path_buffer1), path);
+    return dmTestUtil::ReadFile(file_path, file_size);
+}
+
 
 } // namespace

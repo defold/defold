@@ -114,7 +114,7 @@ protected:
         dmURI::Parts uri;
         dmURI::Parse("dmanif:build/src/test/resources", &uri);
 
-        dmResourceProvider::Result result = dmResourceProvider::Mount(&uri, &m_Archive);
+        dmResourceProvider::Result result = dmResourceProvider::Mount(&uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
@@ -132,16 +132,20 @@ TEST_F(ArchiveProviderArchive, GetSize)
 {
     dmResourceProvider::Result result;
     uint32_t file_size;
+    const char* path;
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "/archive_data/file1.adc", &file_size);
+    path = "/archive_data/file1.adc";
+    result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(30U, file_size);
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "/archive_data/file4.adc", &file_size);
+    path = "/archive_data/file4.adc";
+    result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(100U, file_size);
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "src/test/files/not_exist", &file_size);
+    path = "src/test/files/not_exist";
+    result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
 }
 
@@ -154,28 +158,28 @@ TEST_F(ArchiveProviderArchive, ReadFile)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(FILE_PATHS); ++i)
     {
         const char* path = FILE_PATHS[i];
+        dmhash_t path_hash = dmHashString64(path);
+
         uint32_t expected_file_size;
 
         char path_buffer1[256];
-        char path_buffer2[256];
-        dmSnPrintf(path_buffer2, sizeof(path_buffer2), "build/src/test%s", path);
-        const char* file_path = dmTestUtil::MakeHostPath(path_buffer1, sizeof(path_buffer1), path_buffer2);
-        const uint8_t* expected_file = dmTestUtil::ReadFile(file_path, &expected_file_size);
+        dmSnPrintf(path_buffer1, sizeof(path_buffer1), "build/src/test%s", path);
+        const uint8_t* expected_file = dmTestUtil::ReadHostFile(path_buffer1, &expected_file_size);
         ASSERT_NE((uint8_t*)0, expected_file);
 
         dmResourceProvider::Result result;
         uint32_t file_size;
 
-        result = dmResourceProvider::GetFileSize(m_Archive, path, &file_size);
+        result = dmResourceProvider::GetFileSize(m_Archive, path_hash, path, &file_size);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
         ASSERT_EQ(expected_file_size, file_size);
 
-        result = dmResourceProvider::ReadFile(m_Archive, path, short_buffer, sizeof(short_buffer));
+        result = dmResourceProvider::ReadFile(m_Archive, path_hash, path, short_buffer, sizeof(short_buffer));
         ASSERT_EQ(dmResourceProvider::RESULT_INVAL_ERROR, result);
 
         uint8_t* buffer = new uint8_t[file_size];
 
-        result = dmResourceProvider::ReadFile(m_Archive, path, buffer, file_size);
+        result = dmResourceProvider::ReadFile(m_Archive, path_hash, path, buffer, file_size);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
         ASSERT_ARRAY_EQ_LEN(expected_file, buffer, file_size);
@@ -232,16 +236,20 @@ TEST_P(ArchiveProviderArchiveInMemory, GetSize)
 {
     dmResourceProvider::Result result;
     uint32_t file_size;
+    const char* path;
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "/archive_data/file1.adc", &file_size);
+    path = "/archive_data/file1.adc";
+    result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(30U, file_size);
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "/archive_data/file4.adc", &file_size);
+    path = "/archive_data/file4.adc";
+    result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(100U, file_size);
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "src/test/files/not_exist", &file_size);
+    path = "src/test/files/not_exist";
+    result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
 }
 
@@ -252,6 +260,7 @@ TEST_P(ArchiveProviderArchiveInMemory, ReadFile)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(FILE_PATHS); ++i)
     {
         const char* path = FILE_PATHS[i];
+        dmhash_t path_hash = dmHashString64(path);
         uint32_t expected_file_size;
 
         char path_buffer1[256];
@@ -264,16 +273,16 @@ TEST_P(ArchiveProviderArchiveInMemory, ReadFile)
         dmResourceProvider::Result result;
         uint32_t file_size;
 
-        result = dmResourceProvider::GetFileSize(m_Archive, path, &file_size);
+        result = dmResourceProvider::GetFileSize(m_Archive, path_hash, path, &file_size);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
         ASSERT_EQ(expected_file_size, file_size);
 
-        result = dmResourceProvider::ReadFile(m_Archive, path, short_buffer, sizeof(short_buffer));
+        result = dmResourceProvider::ReadFile(m_Archive, path_hash, path, short_buffer, sizeof(short_buffer));
         ASSERT_EQ(dmResourceProvider::RESULT_INVAL_ERROR, result);
 
         uint8_t* buffer = new uint8_t[file_size];
 
-        result = dmResourceProvider::ReadFile(m_Archive, path, buffer, file_size);
+        result = dmResourceProvider::ReadFile(m_Archive, path_hash, path, buffer, file_size);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
         ASSERT_ARRAY_EQ_LEN(expected_file, buffer, file_size);

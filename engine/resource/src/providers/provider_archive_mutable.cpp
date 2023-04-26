@@ -1,0 +1,555 @@
+// Copyright 2020-2023 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include "provider.h"
+#include "provider_private.h"
+#include "provider_archive.h"
+#include "provider_archive_private.h"
+
+#include "../resource.h" // dmResource::Manifest
+#include "../resource_archive.h"
+#include "../resource_private.h"
+
+#include <dlib/crypt.h>
+#include <dlib/dstrings.h>
+#include <dlib/endian.h>
+#include <dlib/log.h>
+#include <dlib/lz4.h>
+#include <dlib/math.h>
+#include <dlib/memory.h>
+#include <dlib/sys.h>
+#include <dlib/uri.h>
+#include <ddf/ddf.h>
+
+namespace dmResourceProviderArchiveMutable
+{
+    struct EntryInfo
+    {
+        dmLiveUpdateDDF::ResourceEntry* m_ManifestEntry;
+        dmResourceArchive::EntryData*   m_ArchiveInfo;
+    };
+
+    struct GameArchiveFile
+    {
+        dmResource::Manifest*                       m_Manifest;
+        dmResource::Manifest*                       m_BaseManifest;
+        dmResourceArchive::HArchiveIndexContainer   m_ArchiveContainer;
+        dmHashTable64<EntryInfo>                    m_EntryMap; // url hash -> entry in the manifest
+        dmURI::Parts                                m_Uri;
+
+        GameArchiveFile()
+        : m_Manifest(0)
+        , m_BaseManifest(0)
+        , m_ArchiveContainer(0)
+        {
+        }
+    };
+
+    static bool MatchesUri(const dmURI::Parts* uri)
+    {
+        return strcmp(uri->m_Scheme, "dmanif") == 0;
+    }
+
+    static dmResourceProvider::Result MountArchive(const dmURI::Parts* uri, dmResourceArchive::HArchiveIndexContainer* out)
+    {
+        char archive_index_path[DMPATH_MAX_PATH];
+        char archive_data_path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetArchiveIndexPath(uri, archive_index_path, sizeof(archive_index_path));
+        dmResourceProviderArchivePrivate::GetArchiveDataPath(uri, archive_data_path, sizeof(archive_data_path));
+
+        void* mount_info = 0;
+        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
+        if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
+        {
+            (*out)->m_UserData = mount_info;
+            return dmResourceProvider::RESULT_OK;
+        }
+        return dmResourceProvider::RESULT_ERROR_UNKNOWN;
+    }
+
+    static void DeleteArchive(GameArchiveFile* archive)
+    {
+        if (archive->m_Manifest)
+            dmResource::DeleteManifest(archive->m_Manifest);
+
+        if (archive->m_ArchiveContainer)
+            dmResource::UnmountArchiveInternal(archive->m_ArchiveContainer, archive->m_ArchiveContainer->m_UserData);
+
+        delete archive;
+    }
+
+    static void CreateEntryMap(GameArchiveFile* archive)
+    {
+        uint32_t count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
+        archive->m_EntryMap.SetCapacity(dmMath::Max(1U, (count*2)/3), count);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmLiveUpdateDDF::ResourceEntry* entry = &archive->m_Manifest->m_DDFData->m_Resources.m_Data[i];
+
+            bool liveupdate = entry->m_Flags & dmLiveUpdateDDF::EXCLUDED;
+            if (!liveupdate)
+                continue;
+
+            EntryInfo info;
+            info.m_ManifestEntry = entry;
+            info.m_ArchiveInfo = 0;
+            if (archive->m_ArchiveContainer)
+            {
+                dmResourceArchive::Result result = dmResourceProviderArchive::FindEntry(archive->m_ArchiveContainer,
+                                                                                entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count, &info.m_ArchiveInfo);
+                if (result != dmResourceArchive::RESULT_OK)
+                {
+                    dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
+                    continue;
+                }
+            }
+            archive->m_EntryMap.Put(entry->m_UrlHash, info);
+        }
+
+    }
+
+    static void UpdateEntryMap(GameArchiveFile* archive, dmhash_t url_hash)
+    {
+        if (!archive->m_ArchiveContainer)
+            return;
+
+        EntryInfo* info = archive->m_EntryMap.Get(url_hash);
+
+        dmLiveUpdateDDF::ResourceEntry* entry = info->m_ManifestEntry;
+        dmResourceArchive::Result result = dmResourceProviderArchive::FindEntry(archive->m_ArchiveContainer, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count, &info->m_ArchiveInfo);
+        if (result != dmResourceArchive::RESULT_OK)
+        {
+            dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
+        }
+    }
+
+    static bool ArchiveFilesExist(const dmURI::Parts* uri)
+    {
+        char path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetArchiveIndexPath(uri, path, sizeof(path));
+        if (!dmSys::Exists(path))
+            return false;
+        dmResourceProviderArchivePrivate::GetArchiveDataPath(uri, path, sizeof(path));
+        if (!dmSys::Exists(path))
+            return false;
+        return true;
+    }
+
+    static void CreateFilesIfNotExists(const dmURI::Parts* uri)
+    {
+        char archive_index_path[DMPATH_MAX_PATH];
+        char archive_data_path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetArchiveIndexPath(uri, archive_index_path, sizeof(archive_index_path));
+        dmResourceProviderArchivePrivate::GetArchiveDataPath(uri, archive_data_path, sizeof(archive_data_path));
+
+        if (!dmSys::Exists(archive_index_path))
+        {
+            FILE* f = fopen(archive_index_path, "ab+");
+            if (!f) {
+                dmLogError("Failed to create liveupdate resource file");
+            } else {
+                fclose(f);
+            }
+        }
+
+        if (!dmSys::Exists(archive_data_path))
+        {
+            FILE* f = fopen(archive_data_path, "ab+");
+            if (!f) {
+                dmLogError("Failed to create liveupdate resource file");
+            } else {
+                fclose(f);
+            }
+        }
+    }
+
+    static dmResource::Manifest* CreateManifestCopy(const dmResource::Manifest* base_manifest)
+    {
+        // Create the actual copy
+        dmResource::Manifest* manifest = new dmResource::Manifest;
+        dmDDF::CopyMessage(base_manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&manifest->m_DDF);
+        dmDDF::CopyMessage(base_manifest->m_DDFData, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&manifest->m_DDFData);
+
+        // manifest->m_ArchiveIndex = new dmResourceArchive::ArchiveIndexContainer;
+        // manifest->m_ArchiveIndex->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
+        // manifest->m_ArchiveIndex->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
+        // // Even though it isn't technically true, it will allow us to use the correct ArchiveIndex struct
+        // manifest->m_ArchiveIndex->m_IsMemMapped = 1;
+
+        // manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
+        // manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
+        // memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
+
+        // char app_support_path[DMPATH_MAX_PATH];
+        // if (dmResource::RESULT_OK != dmResource::GetApplicationSupportPath(base_manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
+        // {
+        //     return 0;
+        // }
+
+        // // Data file has same path and filename as index file, but extension .arcd instead of .arci.
+        // char lu_data_path[DMPATH_MAX_PATH];
+        // dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
+
+        // FILE* f_lu_data = fopen(lu_data_path, "wb+");
+        // if (!f_lu_data)
+        // {
+        //     dmLogError("Failed to create/load liveupdate resource file");
+        // }
+
+        // dmStrlCpy(manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path, lu_data_path, DMPATH_MAX_PATH);
+        // dmLogInfo("Live Update archive: %s", manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path);
+
+        // manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_FileResourceData = f_lu_data;
+
+        // manifest->m_ArchiveIndex->m_Loader.m_Unload = LUUnloadArchive_Regular;
+        // manifest->m_ArchiveIndex->m_Loader.m_FindEntry = LUFindEntryInArchive_Regular;
+        // manifest->m_ArchiveIndex->m_Loader.m_Read = LUReadEntryFromArchive_Regular;
+
+        return manifest;
+    }
+
+    static void CreateDynamicManifestArchiveIndex(dmResource::Manifest* manifest, const dmResource::Manifest* base_manifest)
+    {
+        if (manifest->m_ArchiveIndex)
+            return;
+
+        manifest->m_ArchiveIndex = new dmResourceArchive::ArchiveIndexContainer;
+        manifest->m_ArchiveIndex->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
+        manifest->m_ArchiveIndex->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
+        // Even though it isn't technically true, it will allow us to use the correct ArchiveIndex struct
+        manifest->m_ArchiveIndex->m_IsMemMapped = 1;
+
+        manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
+        manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
+        memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
+
+        // manifest->m_ArchiveIndex->m_Loader.m_Unload = LUUnloadArchive_Regular;
+        // manifest->m_ArchiveIndex->m_Loader.m_FindEntry = LUFindEntryInArchive_Regular;
+        // manifest->m_ArchiveIndex->m_Loader.m_Read = LUReadEntryFromArchive_Regular;
+    }
+
+    static void OpenDynamicArchiveFile(dmURI::Parts* uri, dmResource::Manifest* manifest)
+    {
+        dmResourceArchive::ArchiveFileIndex* afi = manifest->m_ArchiveIndex->m_ArchiveFileIndex;
+
+        if (afi->m_FileResourceData)
+            return;
+
+        char path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetArchiveDataPath(uri, path, sizeof(path));
+
+        FILE* f = fopen(path, "ab+");
+        if (!f)
+        {
+            dmLogError("Failed to create/load liveupdate resource file");
+        }
+
+        dmStrlCpy(afi->m_Path, path, DMPATH_MAX_PATH);
+        dmLogInfo("Live Update archive: %s", afi->m_Path);
+
+        afi->m_FileResourceData = f;
+        afi->m_ResourceData = 0x0;
+        afi->m_ResourceSize = 0;
+        afi->m_IsMemMapped = false;
+    }
+
+    static dmResourceProvider::Result RenameTempFiles(const dmURI::Parts* uri)
+    {
+        char archive_index_path[DMPATH_MAX_PATH];
+        char archive_index_tmp_path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetArchiveIndexPath(uri, archive_index_path, sizeof(archive_index_path));
+        dmResourceProviderArchivePrivate::GetArchiveIndexPath(uri, archive_index_tmp_path, sizeof(archive_index_tmp_path));
+        dmStrlCat(archive_index_tmp_path, ".tmp", sizeof(archive_index_tmp_path));
+
+        bool luTempIndexExists = dmSys::Exists(archive_index_tmp_path);
+        if (luTempIndexExists)
+        {
+            dmSys::Result sys_result = dmSys::RenameFile(archive_index_path, archive_index_tmp_path);
+            if (sys_result != dmSys::RESULT_OK)
+            {
+                // The recently added resources will not be available if we proceed after this point
+                dmLogError("Failed to rename '%s' to '%s' (%i).", archive_index_tmp_path, archive_index_path, sys_result);
+                return dmResourceProvider::RESULT_IO_ERROR;
+            }
+
+            dmLogInfo("Renamed '%s' to '%s'", archive_index_tmp_path, archive_index_path);
+            if (dmSys::Exists(archive_index_tmp_path))
+                dmSys::Unlink(archive_index_tmp_path);
+        }
+
+        return dmResourceProvider::RESULT_OK;
+    }
+
+    static dmResourceProvider::Result LoadArchive(const dmURI::Parts* uri, dmResource::Manifest* base_manifest, dmResourceProvider::HArchiveInternal* out_archive)
+    {
+        dmResourceProvider::Result result;
+
+        // If we have pending temp files, then we rename them and we can start using them
+        result = RenameTempFiles(uri);
+        if (result != dmResourceProvider::RESULT_OK)
+        {
+            return result;
+        }
+
+        GameArchiveFile* archive = new GameArchiveFile;
+        *out_archive = (dmResourceProvider::HArchive)archive;
+        archive->m_Manifest = 0;
+        memcpy(&archive->m_Uri, uri, sizeof(dmURI::Parts));
+
+        char manifest_path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetManifestPath(&archive->m_Uri, manifest_path, sizeof(manifest_path));
+
+        if (dmSys::Exists(manifest_path))
+        {
+            result = dmResourceProviderArchivePrivate::LoadManifest(uri, &archive->m_Manifest);
+            if (dmResourceProvider::RESULT_OK != result)
+            {
+                dmLogError("Failed to load manifest '%s'. Cannot mount archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
+                DeleteArchive(archive);
+                return result;
+            }
+        }
+
+        if (!archive->m_Manifest)
+        {
+            archive->m_Manifest = CreateManifestCopy(base_manifest);
+
+            dmResourceProviderArchivePrivate::WriteManifest(manifest_path, archive->m_Manifest);
+            dmLogInfo("Stored manifest copy '%s' for archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
+        }
+
+        archive->m_BaseManifest = base_manifest;
+        CreateEntryMap(archive);
+
+        if (!ArchiveFilesExist(uri))
+        {
+            return dmResourceProvider::RESULT_OK;
+        }
+
+        result = MountArchive(uri, &archive->m_ArchiveContainer);
+        if (dmResourceProvider::RESULT_OK != result)
+        {
+            DeleteArchive(archive);
+            return result;
+        }
+        CreateEntryMap(archive);
+
+        dmResourceProviderArchivePrivate::DebugPrintArchiveIndex(archive->m_ArchiveContainer);
+
+        archive->m_Manifest->m_ArchiveIndex = archive->m_ArchiveContainer;
+
+        return dmResourceProvider::RESULT_OK;
+    }
+
+    static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
+    {
+        if (!MatchesUri(uri))
+            return dmResourceProvider::RESULT_NOT_SUPPORTED;
+
+        dmResource::Manifest* manifest = 0;
+        if (dmResourceProvider::RESULT_OK != dmResourceProvider::GetManifest(base_archive, &manifest))
+        {
+            dmLogError("Failed to get manifest from base archive");
+        }
+        return LoadArchive(uri, manifest, out_archive);
+    }
+
+    static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal archive)
+    {
+        delete (GameArchiveFile*)archive;
+        return dmResourceProvider::RESULT_OK;
+    }
+
+    dmResourceProvider::Result CreateArchive(uint8_t* manifest_data, uint32_t manifest_data_len,
+                                             uint8_t* index_data, uint32_t index_data_len,
+                                             uint8_t* archive_data, uint32_t archive_data_len,
+                                             dmResourceProvider::HArchiveInternal* out_archive)
+    {
+        dmResourceProvider::Result result;
+        GameArchiveFile* archive = new GameArchiveFile;
+
+        result = dmResourceProviderArchivePrivate::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
+        if (dmResourceProvider::RESULT_OK != result)
+        {
+            dmLogError("Failed to load manifest in-memory, result: %u", result);
+            DeleteArchive(archive);
+            return result;
+        }
+
+        dmResourceArchive::Result ar_result = dmResourceArchive::WrapArchiveBuffer( index_data, index_data_len, true,
+                                                                                    archive_data, archive_data_len, true,
+                                                                                    &archive->m_Manifest->m_ArchiveIndex);
+        if (dmResourceArchive::RESULT_OK != ar_result)
+        {
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+
+        archive->m_ArchiveContainer = archive->m_Manifest->m_ArchiveIndex;
+
+        CreateEntryMap(archive);
+
+        *out_archive = archive;
+        return dmResourceProvider::RESULT_OK;
+    }
+
+    static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint32_t* file_size)
+    {
+        GameArchiveFile* archive = (GameArchiveFile*)internal;
+        if (!archive->m_ArchiveContainer)
+            return dmResourceProvider::RESULT_NOT_FOUND;
+
+        EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+        if (entry && entry->m_ArchiveInfo)
+        {
+            *file_size = dmEndian::ToNetwork(entry->m_ArchiveInfo->m_ResourceSize);
+            return dmResourceProvider::RESULT_OK;
+        }
+
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
+
+    static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
+    {
+        GameArchiveFile* archive = (GameArchiveFile*)internal;
+        if (!archive->m_ArchiveContainer)
+            return dmResourceProvider::RESULT_NOT_FOUND;
+        if (archive->m_EntryMap.Empty())
+            return dmResourceProvider::RESULT_NOT_FOUND;
+
+        EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+        if (!entry)
+            return dmResourceProvider::RESULT_NOT_FOUND;
+
+        if (buffer_len < dmEndian::ToNetwork(entry->m_ArchiveInfo->m_ResourceSize))
+            return dmResourceProvider::RESULT_INVAL_ERROR;
+
+        dmResourceArchive::Result result = dmResourceProviderArchive::ReadEntry(archive->m_ArchiveContainer, entry->m_ArchiveInfo, buffer);
+        if (dmResourceArchive::RESULT_OK != result)
+        {
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+        return dmResourceProvider::RESULT_OK;
+    }
+
+    static dmResourceProvider::Result VerifyResource(const dmResource::Manifest* manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length)
+    {
+        if (manifest == 0x0 || data == 0x0)
+        {
+            return dmResourceProvider::RESULT_INVAL_ERROR;
+        }
+        bool comp = dmResource::HashCompare(data, data_length, expected, expected_length) == dmResource::RESULT_OK;
+        return comp ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_SIGNATURE_MISMATCH;
+    }
+
+    static dmResourceProvider::Result NewArchiveIndexWithResource(GameArchiveFile* archive,
+                                                                    const uint8_t* digest, const uint32_t digest_length, const dmResourceArchive::LiveUpdateResource* resource,
+                                                                    dmResourceArchive::HArchiveIndex& out_new_index)
+    {
+        char index_tmp_path[DMPATH_MAX_PATH];
+        dmResourceProviderArchivePrivate::GetArchiveIndexPath(&archive->m_Uri, index_tmp_path, sizeof(index_tmp_path));
+        dmStrlCat(index_tmp_path, ".tmp", sizeof(index_tmp_path));
+
+        // Calls ShiftAndInsert, which in turn calls WriteResourceToArchive which writes to the file handle currently stored in m_FileResourceData
+        // Calls WriteArchiveIndex (i.e. stores the index to index_tmp_path)
+        dmResourceArchive::Result res = dmResourceArchive::NewArchiveIndexWithResource(archive->m_Manifest->m_ArchiveIndex, index_tmp_path, digest, digest_length, resource, out_new_index);
+
+        return (res == dmResourceArchive::RESULT_OK) ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_IO_ERROR;
+    }
+
+    static void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
+    {
+        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
+        {
+            dmCrypt::HashMd5(buf, buflen, digest);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        {
+            dmCrypt::HashSha1(buf, buflen, digest);
+        }
+        else
+        {
+            dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
+        }
+    }
+
+    static dmResourceProvider::Result WriteFile(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_length)
+    {
+        GameArchiveFile* archive = (GameArchiveFile*)internal;
+
+        // If we don't have a manifest at this point, we might need to create one
+        dmLiveUpdateDDF::HashAlgorithm algorithm = archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+
+        uint32_t expected_digest_length;
+        const uint8_t*    expected_digest;
+
+        EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+        if (entry)
+        {
+            expected_digest_length  = entry->m_ManifestEntry->m_Hash.m_Data.m_Count;
+            expected_digest         = (const uint8_t*)entry->m_ManifestEntry->m_Hash.m_Data.m_Data;
+        }
+        else
+        {
+            dmLogError("Couldn't find path '%s' in manifest!", path);
+            return dmResourceProvider::RESULT_NOT_FOUND;
+        }
+
+        uint32_t algorithm_length = dmResource::HashLength(algorithm);
+
+        uint8_t hex_expected_digest[512];
+        dmResource::BytesToHexString(expected_digest, expected_digest_length, (char*)hex_expected_digest, expected_digest_length*2 + 1);
+
+        dmResourceArchive::LiveUpdateResource resource(buffer, buffer_length);
+
+        // Hash the incoming data...
+        uint8_t digest[512]; // max length
+        CreateResourceHash(algorithm, resource.m_Data, resource.m_Count, digest);
+
+        // ...and compare it to the signature in the manifest
+        dmResourceProvider::Result result = VerifyResource(archive->m_Manifest, expected_digest, expected_digest_length,
+                                                                                digest, algorithm_length);
+        if(dmResourceProvider::RESULT_OK != result)
+        {
+            dmLogError("Verification failure for Liveupdate archive for resource: %s - %d", expected_digest, result);
+            return result;
+        }
+
+        dmResourceArchive::HArchiveIndex new_archive_index;
+
+        CreateFilesIfNotExists(&archive->m_Uri);
+        CreateDynamicManifestArchiveIndex(archive->m_Manifest, archive->m_BaseManifest);
+        OpenDynamicArchiveFile(&archive->m_Uri, archive->m_Manifest);
+
+        result = NewArchiveIndexWithResource(archive, digest, algorithm_length*2, &resource, new_archive_index);
+        if (dmResourceProvider::RESULT_OK == result)
+        {
+            dmResourceArchive::SetNewArchiveIndex(archive->m_Manifest->m_ArchiveIndex, new_archive_index, true);
+        }
+
+        return result;
+    }
+
+    static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
+    {
+        loader->m_CanMount      = MatchesUri;
+        loader->m_Mount         = Mount;
+        loader->m_Unmount       = Unmount;
+        loader->m_GetFileSize   = GetFileSize;
+        loader->m_ReadFile      = ReadFile;
+        loader->m_WriteFile     = WriteFile;
+    }
+
+    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "archive_mutable", SetupArchiveLoader);
+}

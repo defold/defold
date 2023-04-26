@@ -65,7 +65,7 @@ protected:
         dmURI::Parts uri;
         dmURI::Parse(".", &uri);
 
-        dmResourceProvider::Result result = dmResourceProvider::Mount(&uri, &m_Archive);
+        dmResourceProvider::Result result = dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
@@ -87,33 +87,33 @@ TEST_F(FileProviderArchive, GetSize)
 {
     dmResourceProvider::Result result;
     uint32_t file_size;
+    const char* path;
 
     // src/test/files/empty     da39a3ee5e6b4b0d3255bfef95601890afd80709    0 bytes
     // src/test/files/somedata  a0b65939670bc2c010f4d5d6a0b3e4e4590fb92b    13 bytes
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "src/test/files/empty", &file_size);
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "src/test/files/empty", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(0U, file_size);
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "src/test/files/somedata", &file_size);
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "src/test/files/somedata", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(13U, file_size);
 
-    result = dmResourceProvider::GetFileSize(m_Archive, "src/test/files/not_exist", &file_size);
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "src/test/files/not_exist", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
 }
 
 TEST_F(FileProviderArchive, ReadFile)
 {
     dmResourceProvider::Result result;
-    uint32_t file_size;
     uint8_t short_buffer[4];
     uint8_t long_buffer[64];
 
-    result = dmResourceProvider::ReadFile(m_Archive, "src/test/files/somedata", short_buffer, sizeof(short_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "src/test/files/somedata", short_buffer, sizeof(short_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, result);
 
-    result = dmResourceProvider::ReadFile(m_Archive, "src/test/files/somedata", long_buffer, sizeof(long_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "src/test/files/somedata", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_ARRAY_EQ_LEN("Hello World!\n", (char*)long_buffer, 13);
 }

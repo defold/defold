@@ -69,8 +69,8 @@ namespace dmResourceArchive
 
         uint32_t m_ResourceDataOffset;
         uint32_t m_ResourceSize;
-        uint32_t m_ResourceCompressedSize; // 0xFFFFFFFF if uncompressed
-        uint32_t m_Flags;
+        uint32_t m_ResourceCompressedSize;  // 0xFFFFFFFF if uncompressed
+        uint32_t m_Flags;                   // A combination of dmResourceArchive::EntryFlag
     };
 
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
@@ -131,11 +131,12 @@ namespace dmResourceArchive
 
     typedef struct ArchiveIndex* HArchiveIndex;
 
-
+    // This header is a little bit hidden.
+    // It is written byu the ArchiveBUilder.java in writeResourcePack()
     struct DM_ALIGNED(16) LiveUpdateResourceHeader {
-        uint32_t m_Size;
-        uint8_t m_Flags;
-        uint8_t m_Padding[11];
+        uint32_t    m_Size;
+        uint8_t     m_Flags;        // See dmResourceArchive::EntryData / EntryFlag
+        uint8_t     m_Padding[11];
     };
 
     struct LiveUpdateResource {
@@ -176,8 +177,8 @@ namespace dmResourceArchive
 
     Result UnmountArchives(HContext ctx);
 
-    Result GetResourceSize(HContext ctx, const char* path, uint32_t* resource_size);
-    Result ReadResource(HContext ctx, const char* path, uint8_t* buffer, uint32_t buffer_size);
+    Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
+    Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size);
     Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmResource::LoadBufferType* buffer);
 
 
@@ -255,6 +256,7 @@ namespace dmResourceArchive
     /**
      * Make a deep-copy of the existing archive index within archive container and return copy on successful insertion of LiveUpdate resource in the archive
      * @param archive archive container
+     * @param path file to save to
      * @param hash_digest hash_digest data
      * @param hash_digest_len size in bytes of hash_digest data
      * @param resource LiveUpdate resource to insert
@@ -262,7 +264,8 @@ namespace dmResourceArchive
      * @param out_new_index reference to HArchiveIndex that will cointain the new archive index (on success)
      * @return RESULT_OK on success
      */
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const char* tmp_index_path, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index);
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const char* path, const uint8_t* hash_digest, uint32_t hash_digest_len,
+                                            const dmResourceArchive::LiveUpdateResource* resource, HArchiveIndex& out_new_index);
 
     /**
      * Set new archive index in archive container. Replace existing archive index if set

@@ -1,5 +1,20 @@
+// Copyright 2020-2023 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include "provider.h"
 #include "provider_private.h"
+#include "provider_archive_private.h"
 
 #include "../resource.h" // dmResource::Manifest
 #include "../resource_archive.h"
@@ -27,56 +42,6 @@ namespace dmResourceProviderArchive
         dmHashTable64<EntryInfo>                    m_EntryMap; // url hash -> entry in the manifest
     };
 
-    static dmResourceProvider::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out)
-    {
-        dmResource::Manifest* manifest = new dmResource::Manifest();
-        dmResource::Result result = dmResource::ManifestLoadMessage(buffer, buffer_len, manifest);
-
-        if (dmResource::RESULT_OK == result)
-        {
-            *out = manifest;
-        }
-        else
-        {
-            dmResource::DeleteManifest(manifest);
-        }
-
-        return dmResource::RESULT_OK == result ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_IO_ERROR;
-    }
-
-    dmResourceProvider::Result LoadManifest(const char* path, dmResource::Manifest** out)
-    {
-        uint32_t manifest_length = 0;
-        uint8_t* manifest_buffer = 0x0;
-
-        uint32_t dummy_file_size = 0;
-        dmSys::ResourceSize(path, &manifest_length);
-        dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
-        assert(manifest_buffer);
-        dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
-
-        if (sys_result != dmSys::RESULT_OK)
-        {
-            dmLogError("Failed to read manifest %s (%i)", path, sys_result);
-            dmMemory::AlignedFree(manifest_buffer);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
-
-        dmResourceProvider::Result result = LoadManifestFromBuffer(manifest_buffer, manifest_length, out);
-        dmMemory::AlignedFree(manifest_buffer);
-
-        if (result == dmResourceProvider::RESULT_OK)
-            printf("Loaded manifest %s\n", path);
-        return result;
-    }
-
-    static dmResourceProvider::Result LoadManifest(const dmURI::Parts* uri, dmResource::Manifest** out)
-    {
-        char manifest_path[DMPATH_MAX_PATH];
-        dmSnPrintf(manifest_path, sizeof(manifest_path), "%s%s.dmanifest", uri->m_Location, uri->m_Path);
-        return LoadManifest(manifest_path, out);
-    }
-
     static dmResourceProvider::Result MountArchive(const dmURI::Parts* uri, dmResourceArchive::HArchiveIndexContainer* out)
     {
         char archive_index_path[DMPATH_MAX_PATH];
@@ -92,62 +57,6 @@ namespace dmResourceProviderArchive
             return dmResourceProvider::RESULT_OK;
         }
         return dmResourceProvider::RESULT_ERROR_UNKNOWN;
-    }
-
-    static void PrintHash(const uint8_t* hash, uint32_t len)
-    {
-        for (uint32_t i = 0; i < len; ++i)
-        {
-            printf("%02X", hash[i]);
-        }
-    }
-
-    static void DebugPrintArchiveIndex(dmResourceArchive::HArchiveIndexContainer archive)
-    {
-        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-        uint8_t* hashes = 0;
-        dmResourceArchive::EntryData* entries = 0;
-
-        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (!archive->m_IsMemMapped)
-        {
-            hashes = archive->m_ArchiveFileIndex->m_Hashes;
-            entries = archive->m_ArchiveFileIndex->m_Entries;
-        }
-        else
-        {
-            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        }
-
-        for (uint32_t i = 0; i < entry_count; ++i)
-        {
-            uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
-            dmResourceArchive::EntryData* e = &entries[i];
-
-            printf("entry: off: %4u  sz: %4u  csz: %4u flags: %2u hash: ", dmEndian::ToNetwork(e->m_ResourceDataOffset), dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize), dmEndian::ToNetwork(e->m_Flags));
-            PrintHash(h, 20);
-            printf("\n");
-        }
-    }
-
-    // required string             url = 1;
-    // required uint64             url_hash = 2;
-    // required HashDigest         hash = 3;
-    // repeated uint32             dependants = 4;
-    // required uint32             flags = 5 [default = 0]; // ResourceEntryFlag
-    static void DebugPrintManifest(dmResource::Manifest* manifest)
-    {
-        for (uint32_t i = 0; i < manifest->m_DDFData->m_Resources.m_Count; ++i)
-        {
-            dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
-            printf("entry: hash: ");
-            uint8_t* h = entry->m_Hash.m_Data.m_Data;
-            PrintHash(h, entry->m_Hash.m_Data.m_Count);
-            printf("  flags: %u url: %llx  %s\n", entry->m_Flags, entry->m_UrlHash, entry->m_Url);
-        }
     }
 
     static dmResourceArchive::Result FindEntryInArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData** entry)
@@ -200,6 +109,11 @@ namespace dmResourceProviderArchive
         return dmResourceArchive::RESULT_NOT_FOUND;
     }
 
+    dmResourceArchive::Result FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData** entry)
+    {
+        return FindEntryInArchiveInternal(archive, hash, hash_len, entry);
+    }
+
     // Legacy api
     dmResourceArchive::Result FindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry)
     {
@@ -222,8 +136,6 @@ namespace dmResourceProviderArchive
         const uint32_t size             = dmEndian::ToNetwork(entry->m_ResourceSize);
         const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
               uint32_t compressed_size  = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
-
-        printf("Read entry: sz: %u  %u\n", size, compressed_size);
 
         bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
         bool compressed = compressed_size != 0xFFFFFFFF;
@@ -276,7 +188,6 @@ namespace dmResourceProviderArchive
             }
         } else {
             void* r = (void*) (((uintptr_t)afi->m_ResourceData + resource_offset));
-
             if (compressed && !encrypted)
             {
                 compressed_buf = r;
@@ -329,6 +240,11 @@ namespace dmResourceProviderArchive
         return dmResourceArchive::RESULT_OK;
     }
 
+    dmResourceArchive::Result ReadEntry(dmResourceArchive::HArchiveIndexContainer archive, const dmResourceArchive::EntryData* entry, void* buffer)
+    {
+        return ReadEntryInternal(archive, entry, buffer);
+    }
+
     // Legacy api
     dmResourceArchive::Result ReadEntryFromArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len,
                                                     const dmResourceArchive::EntryData* entry, void* buffer)
@@ -343,7 +259,7 @@ namespace dmResourceProviderArchive
         e.m_ResourceCompressedSize = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
         e.m_Flags = dmEndian::ToNetwork(entry->m_Flags);
 
-        return ReadEntryInternal(archive, &e, buffer);
+        return ReadEntry(archive, &e, buffer);
     }
 
     static bool MatchesUri(const dmURI::Parts* uri)
@@ -351,7 +267,7 @@ namespace dmResourceProviderArchive
         return strcmp(uri->m_Scheme, "dmanif") == 0;
     }
 
-
+// TODO: Move to provider.h or resource_archive
     // static Result GetApplicationSupportPath(dmResourceProvider::HArchive archive, char* buffer, uint32_t buffer_len)
     // {
     //     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
@@ -393,6 +309,7 @@ namespace dmResourceProviderArchive
             dmResourceArchive::Result result = FindEntryInArchiveInternal(archive->m_ArchiveIndex, entry->m_Hash.m_Data.m_Data, hash_len, &info.m_ArchiveInfo);
             if (result != dmResourceArchive::RESULT_OK)
             {
+// TODO: Don't complain about live update resources
                 dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
                 continue;
             }
@@ -405,7 +322,7 @@ namespace dmResourceProviderArchive
         dmResourceProvider::Result result;
         GameArchiveFile* archive = new GameArchiveFile;
 
-        result = LoadManifest(uri, &archive->m_Manifest);
+        result = dmResourceProviderArchivePrivate::LoadManifest(uri, &archive->m_Manifest);
         if (dmResourceProvider::RESULT_OK != result)
         {
             DeleteArchive(archive);
@@ -413,7 +330,7 @@ namespace dmResourceProviderArchive
         }
 
         printf("Manifest:\n");
-        DebugPrintManifest(archive->m_Manifest);
+        dmResourceProviderArchivePrivate::DebugPrintManifest(archive->m_Manifest);
 
         result = MountArchive(uri, &archive->m_ArchiveIndex);
         if (dmResourceProvider::RESULT_OK != result)
@@ -423,7 +340,7 @@ namespace dmResourceProviderArchive
         }
 
         printf("Archive:\n");
-        DebugPrintArchiveIndex(archive->m_ArchiveIndex);
+        dmResourceProviderArchivePrivate::DebugPrintArchiveIndex(archive->m_ArchiveIndex);
 
         CreateEntryMap(archive);
 
@@ -433,7 +350,7 @@ namespace dmResourceProviderArchive
         return dmResourceProvider::RESULT_OK;
     }
 
-    static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchiveInternal* out_archive)
+    static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
     {
         if (!MatchesUri(uri))
             return dmResourceProvider::RESULT_NOT_SUPPORTED;
@@ -457,7 +374,7 @@ namespace dmResourceProviderArchive
         dmResourceProvider::Result result;
         GameArchiveFile* archive = new GameArchiveFile;
 
-        result = LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
+        result = dmResourceProviderArchivePrivate::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
         if (dmResourceProvider::RESULT_OK != result)
         {
             dmLogError("Failed to load manifest in-memory, result: %u", result);
@@ -481,11 +398,9 @@ namespace dmResourceProviderArchive
         return dmResourceProvider::RESULT_OK;
     }
 
-    static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveInternal internal, const char* path, uint32_t* file_size)
+    static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint32_t* file_size)
     {
         GameArchiveFile* archive = (GameArchiveFile*)internal;
-// TODO: Pass in the hash directly here!
-        dmhash_t path_hash = dmHashString64(path);
         EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
         if (entry)
         {
@@ -496,14 +411,10 @@ namespace dmResourceProviderArchive
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
-    static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal internal, const char* path, uint8_t* buffer, uint32_t buffer_len)
+    static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
     {
         (void)buffer_len;
         GameArchiveFile* archive = (GameArchiveFile*)internal;
-// TODO: Pass in the hash directly here!
-        printf("ReadFile: %s\n", path);
-
-        dmhash_t path_hash = dmHashString64(path);
         EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
         if (entry)
         {
@@ -532,9 +443,9 @@ namespace dmResourceProviderArchive
         loader->m_CanMount      = MatchesUri;
         loader->m_Mount         = Mount;
         loader->m_Unmount       = Unmount;
+        loader->m_GetManifest   = GetManifest;
         loader->m_GetFileSize   = GetFileSize;
         loader->m_ReadFile      = ReadFile;
-        loader->m_GetManifest   = GetManifest;
     }
 
     DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchive, "archive", SetupArchiveLoader);

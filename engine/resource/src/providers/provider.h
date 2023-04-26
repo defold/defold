@@ -15,8 +15,9 @@
 #ifndef DM_RESOURCE_PROVIDER_H
 #define DM_RESOURCE_PROVIDER_H
 
+#define DM_RESOURCE_DEBUG_LOG
+
 #include <stdint.h>
-//#include "resource_private.h"
 #include <dlib/hash.h>
 #include <dlib/uri.h>
 
@@ -29,41 +30,36 @@ namespace dmResourceProvider
 {
     enum Result
     {
-        RESULT_OK               = 0,
-        RESULT_NOT_SUPPORTED    = -1,
-        RESULT_NOT_FOUND        = -2,
-        RESULT_IO_ERROR         = -3,
-        RESULT_INVAL_ERROR      = -4,       // invalid argument
-        RESULT_ERROR_UNKNOWN    = -1000,
+        RESULT_OK                   = 0,
+        RESULT_NOT_SUPPORTED        = -1,
+        RESULT_NOT_FOUND            = -2,
+        RESULT_IO_ERROR             = -3,
+        RESULT_INVAL_ERROR          = -4,       // invalid argument
+        RESULT_SIGNATURE_MISMATCH   = -5,
+        RESULT_ERROR_UNKNOWN        = -1000,
     };
 
-    typedef struct Archive* HArchive;
-    typedef void*           HArchiveInternal;
     struct ArchiveLoader;
+    typedef struct Archive*         HArchive;
+    typedef void*                   HArchiveInternal;
+    typedef struct ArchiveLoader*   HArchiveLoader;
 
     typedef bool   (*FCanMount)(const dmURI::Parts* uri);
-    typedef Result (*FMount)(const dmURI::Parts* uri, HArchiveInternal* out_archive);
+    typedef Result (*FMount)(const dmURI::Parts* uri, HArchive base_archive, HArchiveInternal* out_archive);
     typedef Result (*FUnmount)(HArchiveInternal archive);
-    // Gets the project identifier from the manifest (Should this be here?)
-    //typedef Result (*FGetProjectIdentifier)(HArchive archive, char* buffer, uint32_t buffer_len);
+
     /*
      * @param archive
+     * @param path_hash The hashed path (must not be 0)
      * @param path The path is relative to the initial uri domain
      * @param file_size The uncompressed file size
      */
-    typedef Result (*FGetFileSize)(HArchiveInternal archive, const char* path, uint32_t* file_size);
+    typedef Result (*FGetFileSize)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
+    typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
+    typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
+    typedef Result (*FWriteManifest)(HArchiveInternal archive, dmResource::Manifest* manifest);
 
-    typedef Result (*FReadFile)(HArchiveInternal, const char* path, uint8_t* buffer, uint32_t buffer_len);
-
-//TODO: Do we really want this manifest outside of the archives?
-    typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**);
-
-    // typedef Result (*FManifestLoad)(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* previous, dmResource::Manifest** manifest);
-    // typedef Result (*FArchiveLoad)(const dmResource::Manifest* manifest, const char* archive_name, const char* application_path, const char* application_support_path, HArchiveIndexContainer previous, HArchiveIndexContainer* out);
-    // typedef Result (*FArchiveUnload)(HArchiveIndexContainer);
-    // typedef Result (*FArchiveFindEntry)(HArchiveIndexContainer, const uint8_t*, uint32_t, EntryData*);
-    // typedef Result (*FArchiveRead)(HArchiveIndexContainer, const uint8_t*, uint32_t, const EntryData*, void*);
-
+    typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**); // In order for other providers to get the base manifest
 
     // The resource loader types
     void            RegisterArchiveLoader(ArchiveLoader* loader);
@@ -72,14 +68,17 @@ namespace dmResourceProvider
     ArchiveLoader*  FindLoaderByUri(const dmURI::Parts* uri);
 
     // The archive operations
-    Result Mount(const dmURI::Parts* uri, HArchive* out_archive);
+    Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive); // TODO: Is this needed/usable?
+    Result CreateMount(HArchiveLoader loader, const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive);
     Result Unmount(HArchive archive);
-    Result GetFileSize(HArchive archive, const char* path, uint32_t* file_size);
-    Result ReadFile(HArchive archive, const char* path, uint8_t* buffer, uint32_t buffer_len);
+    Result GetUri(HArchive archive, dmURI::Parts* out_uri);
     Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest);
+    //Result WriteManifest(HArchive archive, dmResource::Manifest* out_manifest);
 
-    // Create an archive manually
-    Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive);
+    Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
+    Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
+    Result WriteFile(HArchive archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
+
 
     // Plugin API
 
@@ -118,7 +117,6 @@ namespace dmResourceProvider
     #define DM_DECLARE_ARCHIVE_LOADER(symbol, name, setup_fn) \
         uint8_t DM_ALIGNED(16) DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)[dmResourceProvider::g_ExtensionDescBufferSize]; \
         DM_REGISTER_ARCHIVE_LOADER(symbol, DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)), name, setup_fn);
-
 }
 
 #endif // DM_RESOURCE_PROVIDER_H

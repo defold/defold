@@ -349,13 +349,9 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
         dmLogError("Length mismatch in hash comparison. Expected %u, got %u", expected_len, len);
         return RESULT_FORMAT_ERROR;
     }
-    for (uint32_t i = 0; i < expected_len; ++i)
+    if (memcmp(digest, expected_digest, len) != 0)
     {
-        if (expected_digest[i] != digest[i])
-        {
-            dmLogError("Byte mismatch in decrypted manifest signature. Different keys used for signing?");
-            return RESULT_FORMAT_ERROR;
-        }
+        return RESULT_FORMAT_ERROR;
     }
     return RESULT_OK;
 }
@@ -828,41 +824,6 @@ static int FindEntryIndex(const Manifest* manifest, dmhash_t path_hash)
     return -1;
 }
 
-Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
-{
-    printf("VerifyResourcesBundled: %d\n", num_entries);
-    for(uint32_t i = 0; i < num_entries; ++i)
-    {
-        if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
-        {
-            uint8_t* hash = entries[i].m_Hash.m_Data.m_Data;
-            dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive, hash, hash_len, 0x0, 0x0);
-            if (res == dmResourceArchive::RESULT_NOT_FOUND)
-            {
-                char hash_buffer[64*2+1]; // String repr. of project id SHA1 hash
-                BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
-
-                // Manifest expect the resource to be bundled, but it is not in the archive index.
-                dmLogError("Resource '%s' (%s) is expected to be in the bundle was not found.\nResource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url, hash_buffer);
-                return RESULT_INVALID_DATA;
-            }
-        }
-    }
-
-    return RESULT_OK;
-}
-
-Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest)
-{
-    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
-
-    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
-    uint32_t hash_len = dmResource::HashLength(algorithm);
-
-    return VerifyResourcesBundled(entries, entry_count, hash_len, base_archive);
-}
-
 static Result LoadFromArchive(dmResourceArchive::HContext archive_ctx, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
 {
     dmhash_t path_hash = dmHashString64(path);
@@ -1031,8 +992,9 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
 
     // Let's find the resource in the current mounts
 
+    dmhash_t factory_path_hash = dmHashString64(factory_path);
     uint32_t file_size;
-    dmResourceArchive::Result r = dmResourceArchive::GetResourceSize(factory->m_ResourceArchive, factory_path, &file_size);
+    dmResourceArchive::Result r = dmResourceArchive::GetResourceSize(factory->m_ResourceArchive, factory_path_hash, factory_path, &file_size);
     if (r == dmResourceArchive::RESULT_OK)
     {
         if (buffer->Capacity() < file_size) {
@@ -1040,7 +1002,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         }
         buffer->SetSize(0);
 
-        r = dmResourceArchive::ReadResource(factory->m_ResourceArchive, factory_path, (uint8_t*)buffer->Begin(), file_size);
+        r = dmResourceArchive::ReadResource(factory->m_ResourceArchive, factory_path_hash, factory_path, (uint8_t*)buffer->Begin(), file_size);
         if (r == dmResourceArchive::RESULT_OK)
         {
             buffer->SetSize(file_size);

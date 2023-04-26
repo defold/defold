@@ -18,6 +18,8 @@
 #include <stdlib.h>
 
 #include "resource.h"
+#include "resource_archive.h"
+#include "resource_private.h"
 #include "resource_archive_private.h"
 #include "providers/provider.h"
 #include "providers/provider_private.h"
@@ -105,9 +107,9 @@ namespace dmResourceArchive
         }
     }
 
-    static dmResourceProvider::Result Mount(HContext ctx, const dmURI::Parts* base_uri, dmResourceProvider::HArchive* archive)
+    static dmResourceProvider::Result Mount(HContext ctx, dmResourceProvider::HArchive base_archive, const dmURI::Parts* base_uri, dmResourceProvider::HArchive* archive)
     {
-        dmResourceProvider::Result result = dmResourceProvider::Mount(base_uri, archive);
+        dmResourceProvider::Result result = dmResourceProvider::Mount(base_uri, base_archive, archive);
         if (result == dmResourceProvider::RESULT_OK)
         {
             LOG("Mounted archive with uri '%s:%s/%s'", base_uri->m_Scheme, base_uri->m_Location, base_uri->m_Path);
@@ -156,14 +158,20 @@ namespace dmResourceArchive
 
     // TODO: Get mount info (iterator?)
 
-    Result MountArchive(HContext ctx, const dmURI::Parts* base_uri, int priority)
+    Result MountArchive(HContext ctx, const dmURI::Parts* uri, int priority)
     {
+        dmResourceProvider::HArchive base_archive = 0;
+        if (!ctx->m_Mounts.Empty())
+        {
+            base_archive = ctx->m_Mounts[0].m_Archive;
+        }
+
         ArchiveMount mount;
         mount.m_Priority = priority;
-        dmResourceProvider::Result result = Mount(ctx, base_uri, &mount.m_Archive);
+        dmResourceProvider::Result result = Mount(ctx, base_archive, uri, &mount.m_Archive);
         if (result != dmResourceProvider::RESULT_OK)
         {
-            dmLogError("Failed to mount base archive: '%s:%s/%s'", base_uri->m_Scheme, base_uri->m_Location, base_uri->m_Path);
+            dmLogError("Failed to mount base archive: '%s:%s/%s'", uri->m_Scheme, uri->m_Location, uri->m_Path);
             return RESULT_IO_ERROR;
         }
         assert(mount.m_Archive);
@@ -183,28 +191,26 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    Result GetResourceSize(HContext ctx, const char* path, uint32_t* resource_size)
+    Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size)
     {
-        // TODO: Build a hash table with path-to-archive mapping
         uint32_t size = ctx->m_Mounts.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
             ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path, resource_size);
+            dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, resource_size);
             if (result == dmResourceProvider::RESULT_OK)
                 return RESULT_OK;
         }
         return RESULT_NOT_FOUND;
     }
 
-    Result ReadResource(HContext ctx, const char* path, uint8_t* buffer, uint32_t buffer_size)
+    Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size)
     {
-        // TODO: Build a hash table with path:archive mapping
         uint32_t size = ctx->m_Mounts.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
             ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Result result = dmResourceProvider::ReadFile(mount.m_Archive, path, buffer, buffer_size);
+            dmResourceProvider::Result result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, buffer, buffer_size);
             if (result == dmResourceProvider::RESULT_OK)
                 return RESULT_OK;
         }
@@ -218,14 +224,14 @@ namespace dmResourceArchive
         for (uint32_t i = 0; i < size; ++i)
         {
             ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path, &resource_size);
+            dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, &resource_size);
             if (result == dmResourceProvider::RESULT_OK)
             {
                 if (buffer->Capacity() < resource_size)
                     buffer->SetCapacity(resource_size);
                 buffer->SetSize(resource_size);
 
-                result = dmResourceProvider::ReadFile(mount.m_Archive, path, (uint8_t*)buffer->Begin(), resource_size);
+                result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, (uint8_t*)buffer->Begin(), resource_size);
                 return ProviderResultToResult(result);
             }
         }
@@ -661,6 +667,41 @@ namespace dmResourceArchive
         }
     }
 
+    dmResource::Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
+    {
+        for(uint32_t i = 0; i < num_entries; ++i)
+        {
+            if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
+            {
+                uint8_t* hash = entries[i].m_Hash.m_Data.m_Data;
+                dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive, hash, hash_len, 0x0, 0x0);
+                if (res == dmResourceArchive::RESULT_NOT_FOUND)
+                {
+                    char hash_buffer[64*2+1]; // String repr. of project id SHA1 hash
+                    dmResource::BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
+
+                    // Manifest expect the resource to be bundled, but it is not in the archive index.
+                    dmLogError("Resource '%s' (%s) is expected to be in the bundle was not found.\nResource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url, hash_buffer);
+                    return dmResource::RESULT_INVALID_DATA;
+                }
+            }
+        }
+
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const dmResource::Manifest* manifest)
+    {
+        uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+        dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+        uint32_t hash_len = dmResource::HashLength(algorithm);
+
+        return VerifyResourcesBundled(entries, entry_count, hash_len, base_archive);
+    }
+
+
     int VerifyArchiveIndex(HArchiveIndexContainer archive)
     {
         dmLogInfo("VerifyArchiveIndex: %p", archive);
@@ -758,6 +799,7 @@ namespace dmResourceArchive
     {
         ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
         FILE* res_file = afi->m_FileResourceData;
+        assert(afi->m_FileResourceData != 0);
 
         fseek(res_file, 0, SEEK_END);
         uint32_t offs = (uint32_t)ftell(res_file);
@@ -860,10 +902,33 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const char* tmp_index_path, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* app_support_path, HArchiveIndex& out_new_index)
+    Result WriteArchiveIndex(const char* path, ArchiveIndex* ai)
     {
-        out_new_index = 0x0;
+        // Write to temporary index file, filename liveupdate.arci.tmp
+        FILE* f = fopen(path, "wb");
+        if (!f)
+        {
+            dmLogError("Failed to create liveupdate index file: %s", path);
+            return RESULT_IO_ERROR;
+        }
+        uint32_t entry_count = dmEndian::ToNetwork(ai->m_EntryDataCount);
+        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * dmResourceArchive::MAX_HASH + entry_count * sizeof(EntryData);
+        if (fwrite((void*)ai, 1, total_size, f) != total_size)
+        {
+            fclose(f);
+            dmLogError("Failed to write %u bytes to liveupdate index file: %s", (uint32_t)total_size, path);
+            return RESULT_IO_ERROR;
+        }
+        fflush(f);
+        fclose(f);
 
+        return RESULT_OK;
+    }
+
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const char* path,
+                                        const uint8_t* hash_digest, uint32_t hash_digest_len,
+                                        const dmResourceArchive::LiveUpdateResource* resource, HArchiveIndex& out_new_index)
+    {
         int idx = -1;
         Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
         if (index_result != RESULT_OK)
@@ -872,38 +937,26 @@ namespace dmResourceArchive
             return index_result;
         }
 
-
         // Make deep-copy. Operate on this and only overwrite when done inserting
         ArchiveIndex* ai_temp = 0x0;
         NewArchiveIndexFromCopy(ai_temp, archive_container, 1);
 
         // Shift buffers and insert index- and resource data
-        Result insert_result = ShiftAndInsert(archive_container, ai_temp, hash_digest, hash_digest_len, idx, resource, 0x0);
+        Result result = ShiftAndInsert(archive_container, ai_temp, hash_digest, hash_digest_len, idx, resource, 0x0);
 
-        if (insert_result != RESULT_OK)
+        if (result != RESULT_OK)
         {
             delete ai_temp;
-            dmLogError("Failed to insert resource, result = %i", insert_result);
-            return insert_result;
+            dmLogError("Failed to insert resource, result = %i", result);
+            return result;
         }
 
-        // Write to temporary index file, filename liveupdate.arci.tmp
-        FILE* f_lu_index = fopen(tmp_index_path, "wb");
-        if (!f_lu_index)
+        result = WriteArchiveIndex(path, ai_temp);
+        if (RESULT_OK != result)
         {
-            dmLogError("Failed to create liveupdate index file: %s", tmp_index_path);
-            return RESULT_IO_ERROR;
+            Delete(ai_temp);
+            return result;
         }
-        uint32_t entry_count = dmEndian::ToNetwork(ai_temp->m_EntryDataCount);
-        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * dmResourceArchive::MAX_HASH + entry_count * sizeof(EntryData);
-        if (fwrite((void*)ai_temp, 1, total_size, f_lu_index) != total_size)
-        {
-            fclose(f_lu_index);
-            dmLogError("Failed to write %u bytes to liveupdate index file: %s", (uint32_t)total_size, tmp_index_path);
-            return RESULT_IO_ERROR;
-        }
-        fflush(f_lu_index);
-        fclose(f_lu_index);
 
         // set result
         out_new_index = ai_temp;
@@ -916,7 +969,7 @@ namespace dmResourceArchive
         {
             delete archive_container->m_ArchiveIndex;
         }
-        // Use this runtime archive index for the remainder of this engine instance
+        // Use this runtime archive index until the next reboot
         archive_container->m_ArchiveIndex = new_index;
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = mem_mapped;

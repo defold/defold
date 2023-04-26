@@ -40,7 +40,6 @@ namespace dmResource
      */
     extern const char* MAX_RESOURCES_KEY;
 
-    extern const char* BUNDLE_MANIFEST_FILENAME;
     extern const char* BUNDLE_INDEX_FILENAME;
     extern const char* BUNDLE_DATA_FILENAME;
 
@@ -372,15 +371,6 @@ namespace dmResource
      * Returns the length in bytes of the supplied hash algorithm
      */
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
-
-    /**
-     * Converts the supplied byte buffer to hexadecimal string representation
-     * @param byte_buf The byte buffer
-     * @param byte_buf_len The byte buffer length
-     * @param out_buf The output string buffer
-     * @param out_len The output buffer length
-     */
-    void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len);
 
     /**
      * Byte-wise comparison of two hash buffers

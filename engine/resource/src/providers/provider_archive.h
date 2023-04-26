@@ -17,11 +17,6 @@
 
 #include "../resource_archive.h"
 
-namespace dmResource
-{
-    struct Manifest;
-}
-
 namespace dmResourceProvider
 {
     struct ArchiveLoader;
@@ -36,17 +31,16 @@ namespace dmResourceProviderArchive
                 uint8_t* archive_data, uint32_t archive_data_len,
                 dmResourceProvider::HArchiveInternal* out_internal);
 
-    // try to remove this dependency!
-    dmResourceArchive::Result LoadManifest(const char* path, dmResource::Manifest** out);
-
     // Should really be private!
 
     // Finds an entry in a single archive
     dmResourceArchive::Result FindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry);
 
-    // Reads an entry from a single archive
+    // Reads an entry from a single archive (deprecated)
     dmResourceArchive::Result ReadEntryFromArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const dmResourceArchive::EntryData* entry, void* buffer);
 
+    dmResourceArchive::Result FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData** entry);
+    dmResourceArchive::Result ReadEntry(dmResourceArchive::HArchiveIndexContainer archive, const dmResourceArchive::EntryData* entry, void* buffer);
 }
 
 #endif // DM_RESOURCE_PROVIDER_ARCHIVE_H
