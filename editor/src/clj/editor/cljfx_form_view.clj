@@ -1410,7 +1410,7 @@
         filter-term (:filter-term ui-state)
         sections-with-visibility (mapv #(set-section-visibility % values filter-term) sections)
         navigation (:navigation form-data true)]
-    {:fx/type with-anchor-pane-props
+    {:fx/type fxui/ext-with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
      :props {:children [(if navigation

@@ -17,7 +17,8 @@
   (:require [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.types :as types]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [internal.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -82,15 +83,14 @@
    (owner-node-id (g/now) node-id))
   ([basis node-id]
    {:pre [(g/node-id? node-id)]}
-   (let [outgoing-arcs (g/explicit-arcs-by-source basis node-id)
-         outgoing-arcs-by-target-id (group-by gt/target-id outgoing-arcs)]
-     (some (fn [[target-id outgoing-arcs-to-target]]
+   (let [targets (g/targets basis node-id)
+         target-id->labels (util/group-into {} [] #(% 0) #(% 1) targets)]
+     (some (fn [[target-id labels]]
              (let [target-node-type (g/node-type* basis target-id)
-                   cascade-delete-input-label? (g/cascade-deletes target-node-type)
-                   arc-connects-to-cascade-delete-input? (comp cascade-delete-input-label? gt/target-label)]
-               (when (some arc-connects-to-cascade-delete-input? outgoing-arcs-to-target)
+                   cascade-delete-input-label? (g/cascade-deletes target-node-type)]
+               (when (some cascade-delete-input-label? labels)
                  target-id)))
-           outgoing-arcs-by-target-id))))
+           target-id->labels))))
 
 (g/defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.

@@ -88,6 +88,8 @@
     :command :referencing-files}
    {:label "Dependencies..."
     :command :dependencies}
+   {:label "Show Overrides"
+    :command :show-overrides}
    {:label :separator}
    {:label "View Diff"
     :icon "icons/32/Icons_S_06_arrowup.png"

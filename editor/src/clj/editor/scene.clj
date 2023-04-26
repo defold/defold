@@ -1411,67 +1411,64 @@
                                (:grid opts) (:grid opts)
                                :else grid/Grid)
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
-    (concat
-      (g/make-nodes view-graph
-                    [background      background/Background
-                     selection       [selection/SelectionController :select-fn (fn [selection op-seq]
-                                                                                 (g/transact
-                                                                                   (concat
-                                                                                     (g/operation-sequence op-seq)
-                                                                                     (g/operation-label "Select")
-                                                                                     (select-fn selection))))]
-                     camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
-                     grid            grid-type
-                     tool-controller [tool-controller-type :prefs prefs]
-                     rulers          [rulers/Rulers]]
+    (g/make-nodes view-graph
+                  [background      background/Background
+                   selection       [selection/SelectionController :select-fn (fn [selection op-seq]
+                                                                               (g/transact
+                                                                                 (concat
+                                                                                   (g/operation-sequence op-seq)
+                                                                                   (g/operation-label "Select")
+                                                                                   (select-fn selection))))]
+                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
+                   grid            grid-type
+                   tool-controller [tool-controller-type :prefs prefs]
+                   rulers          [rulers/Rulers]]
 
-                    (g/connect resource-node   :scene                         view-id         :scene)
+                  (g/connect resource-node   :scene                         view-id         :scene)
 
-                    (g/connect background      :renderable                    view-id         :aux-renderables)
+                  (g/connect background      :renderable                    view-id         :aux-renderables)
 
-                    (g/connect camera          :camera                        view-id         :camera)
-                    (g/connect camera          :input-handler                 view-id         :input-handlers)
-                    (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
-                    (g/connect view-id         :viewport                      camera          :viewport)
+                  (g/connect camera          :camera                        view-id         :camera)
+                  (g/connect camera          :input-handler                 view-id         :input-handlers)
+                  (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
+                  (g/connect view-id         :viewport                      camera          :viewport)
 
-                    (g/connect app-view-id     :selected-node-ids             view-id         :selection)
-                    (g/connect app-view-id     :active-view                   view-id         :active-view)
-                    (g/connect app-view-id     :active-tool                   view-id         :active-tool)
-                    (g/connect app-view-id     :manip-space                   view-id         :manip-space)
-                    (g/connect app-view-id     :hidden-renderable-tags        view-id         :hidden-renderable-tags)
-                    (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
+                  (g/connect app-view-id     :selected-node-ids             view-id         :selection)
+                  (g/connect app-view-id     :active-view                   view-id         :active-view)
+                  (g/connect app-view-id     :active-tool                   view-id         :active-tool)
+                  (g/connect app-view-id     :manip-space                   view-id         :manip-space)
+                  (g/connect app-view-id     :hidden-renderable-tags        view-id         :hidden-renderable-tags)
+                  (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
 
-                    (g/connect tool-controller :input-handler                 view-id         :input-handlers)
-                    (g/connect tool-controller :info-text                     view-id         :tool-info-text)
-                    (g/connect tool-controller :renderables                   view-id         :tool-renderables)
-                    (g/connect view-id         :active-tool                   tool-controller :active-tool)
-                    (g/connect view-id         :manip-space                   tool-controller :manip-space)
-                    (g/connect view-id         :viewport                      tool-controller :viewport)
-                    (g/connect camera          :camera                        tool-controller :camera)
-                    (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
+                  (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                  (g/connect tool-controller :info-text                     view-id         :tool-info-text)
+                  (g/connect tool-controller :renderables                   view-id         :tool-renderables)
+                  (g/connect view-id         :active-tool                   tool-controller :active-tool)
+                  (g/connect view-id         :manip-space                   tool-controller :manip-space)
+                  (g/connect view-id         :viewport                      tool-controller :viewport)
+                  (g/connect camera          :camera                        tool-controller :camera)
+                  (g/connect view-id         :selected-renderables          tool-controller :selected-renderables)
 
-                    (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
+                  (attach-tool-controller tool-controller-type tool-controller view-id resource-node)
 
-                    (if (:grid opts)
-                      (attach-grid grid-type grid view-id resource-node camera)
-                      (g/delete-node grid))
+                  (if (:grid opts)
+                    (attach-grid grid-type grid view-id resource-node camera)
+                    (g/delete-node grid))
 
-                    (g/connect resource-node   :_node-id                      selection       :root-id)
-                    (g/connect selection       :renderable                    view-id         :tool-renderables)
-                    (g/connect selection       :input-handler                 view-id         :input-handlers)
-                    (g/connect selection       :picking-rect                  view-id         :picking-rect)
-                    (g/connect view-id         :picking-selection             selection       :picking-selection)
-                    (g/connect view-id         :selection                     selection       :selection)
+                  (g/connect resource-node   :_node-id                      selection       :root-id)
+                  (g/connect selection       :renderable                    view-id         :tool-renderables)
+                  (g/connect selection       :input-handler                 view-id         :input-handlers)
+                  (g/connect selection       :picking-rect                  view-id         :picking-rect)
+                  (g/connect view-id         :picking-selection             selection       :picking-selection)
+                  (g/connect view-id         :selection                     selection       :selection)
 
-                    (g/connect camera :camera rulers :camera)
-                    (g/connect rulers :renderables view-id :aux-renderables)
-                    (g/connect view-id :viewport rulers :viewport)
-                    (g/connect view-id :cursor-pos rulers :cursor-pos)
+                  (g/connect camera :camera rulers :camera)
+                  (g/connect rulers :renderables view-id :aux-renderables)
+                  (g/connect view-id :viewport rulers :viewport)
+                  (g/connect view-id :cursor-pos rulers :cursor-pos)
 
-                    (when-not (:manual-refresh? opts)
-                      (g/connect view-id :_node-id app-view-id :scene-view-ids)))
-      (when-let [node-id (:select-node opts)]
-        (select-fn [node-id])))))
+                  (when-not (:manual-refresh? opts)
+                    (g/connect view-id :_node-id app-view-id :scene-view-ids)))))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
