@@ -1097,29 +1097,21 @@ namespace dmRender
         return 1;
     }
 
-    static inline const char* AssetHandleToString(dmGraphics::HAssetHandle asset_handle, char* buf, uint32_t buf_size)
-    {
-        dmSnPrintf(buf, buf_size, "(asset %d type=%s)",
-            dmGraphics::GetOpaqueHandle(asset_handle),
-            dmGraphics::GetAssetTypeLiteral(dmGraphics::GetAssetType(asset_handle)));
-        return buf;
-    }
-
     static dmGraphics::HAssetHandle CheckAssetHandle(lua_State* L, int index, dmGraphics::HContext graphics_context, dmGraphics::AssetType expected_type)
     {
         assert(lua_isnumber(L, index));
 
-        dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 1);
+        dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, index);
         if (!dmGraphics::IsAssetHandleValid(graphics_context, asset_handle))
         {
             char buf[128];
-            luaL_error(L, "Asset handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            luaL_error(L, "Asset handle '%s' is not valid.", dmGraphics::AssetHandleToString(asset_handle, buf, sizeof(buf)));
             return (dmGraphics::HAssetHandle) -1;
         }
         else if (dmGraphics::GetAssetType(asset_handle) != expected_type)
         {
             char buf[128];
-            luaL_error(L, "Asset handle '%s' does not have the correct type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            luaL_error(L, "Asset handle '%s' does not have the correct type.", dmGraphics::AssetHandleToString(asset_handle, buf, sizeof(buf)));
             return (dmGraphics::HAssetHandle) -1;
         }
         return asset_handle;
@@ -1420,7 +1412,7 @@ namespace dmRender
             if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
             {
                 char buf[128];
-                return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                return luaL_error(L, "Texture handle '%s' is not valid.", dmGraphics::AssetHandleToString(asset_handle, buf, sizeof(buf)));
             }
 
             if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
@@ -1436,7 +1428,7 @@ namespace dmRender
                 if (texture == 0)
                 {
                     char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", dmGraphics::AssetHandleToString(asset_handle, buf, sizeof(buf)));
                 }
             }
             else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
@@ -1458,7 +1450,7 @@ namespace dmRender
             }
 
             char buf[128];
-            return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            return luaL_error(L, "Texture handle '%s' is not valid.", dmGraphics::AssetHandleToString(asset_handle, buf, sizeof(buf)));
         }
         else
         {
@@ -2817,6 +2809,39 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    static int RenderScript_EnableStorageBuffer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+
+        uint32_t unit                             = luaL_checkinteger(L, 1);
+        dmGraphics::HStorageBuffer storage_buffer = CheckAssetHandle(L, 2, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_STORAGE_BUFFER);
+
+        if (!InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STORAGE_BUFFER, unit, storage_buffer)))
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static int RenderScript_DisableStorageBuffer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+
+        uint32_t unit = luaL_checkinteger(L, 1);
+
+        if (!InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STORAGE_BUFFER, unit)))
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -2855,6 +2880,8 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
+        {"enable_storage_buffer",           RenderScript_EnableStorageBuffer},
+        {"disable_storage_buffer",          RenderScript_DisableStorageBuffer},
         {0, 0}
     };
 

@@ -21,6 +21,7 @@
 
 #include <dlib/hash.h>
 #include <dlib/opaque_handle_container.h>
+#include <dlib/dstrings.h>
 
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
@@ -65,9 +66,11 @@ namespace dmGraphics
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
-    typedef uint64_t HAssetHandle;
+    typedef uint64_t     HAssetHandle;
+    typedef HAssetHandle HStorageBuffer;
 
-    const static uint64_t MAX_ASSET_HANDLE_VALUE = 0x20000000000000-1; // 2^53 - 1
+    static const uint8_t MAX_STORAGE_BUFFERS     = 8;
+    static const uint64_t MAX_ASSET_HANDLE_VALUE = 0x20000000000000-1; // 2^53 - 1
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
@@ -81,9 +84,10 @@ namespace dmGraphics
 
     enum AssetType
     {
-        ASSET_TYPE_NONE          = 0,
-        ASSET_TYPE_TEXTURE       = 1,
-        ASSET_TYPE_RENDER_TARGET = 2,
+        ASSET_TYPE_NONE           = 0,
+        ASSET_TYPE_TEXTURE        = 1,
+        ASSET_TYPE_RENDER_TARGET  = 2,
+        ASSET_TYPE_STORAGE_BUFFER = 3,
     };
 
     // buffer clear types, each value is guaranteed to be separate bits
@@ -636,6 +640,21 @@ namespace dmGraphics
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);
 
+    // Storage buffers
+    struct StorageBufferElement
+    {
+        dmhash_t m_NameHash;
+        Type     m_Type;
+        uint32_t m_Size;
+        uint32_t m_Offset;
+    };
+
+    HStorageBuffer NewStorageBuffer(HContext context, const StorageBufferElement* elements, uint32_t element_count);
+    void           SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, void* data, uint32_t data_size);
+    void           EnableStorageBuffer(HContext context, uint32_t unit, HStorageBuffer storage_buffer);
+    void           DisableStorageBuffer(HContext context, uint32_t unit);
+    void           GetStorageBufferInfo(HContext context, HStorageBuffer storage_buffer, uint32_t* data_size, StorageBufferElement** elements, uint32_t* element_count);
+
 
     // Asset handle helpers
     const char* GetAssetTypeLiteral(AssetType type);
@@ -657,6 +676,14 @@ namespace dmGraphics
     static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
     {
         return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
+
+    static inline const char* AssetHandleToString(dmGraphics::HAssetHandle asset_handle, char* buf, uint32_t buf_size)
+    {
+        dmSnPrintf(buf, buf_size, "(asset %d type=%s)",
+            dmGraphics::GetOpaqueHandle(asset_handle),
+            dmGraphics::GetAssetTypeLiteral(dmGraphics::GetAssetType(asset_handle)));
+        return buf;
     }
 
     /**

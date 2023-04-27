@@ -127,16 +127,19 @@ namespace dmGameSystem
 
     dmBuffer::HBuffer UnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
     {
-        if (lua_buffer->m_Owner == dmScript::OWNER_RES) {
-            BufferResource* res = (BufferResource*)lua_buffer->m_BufferRes;
+        if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+        {
+            BufferResource* res = (BufferResource*) lua_buffer->m_BufferRes;
             return res->m_Buffer;
-        } else {
+        }
+        else
+        {
             return lua_buffer->m_Buffer;
         }
     }
 
-    // Unless we check that a buffer resource actually exists, the engine will crash
-    // when unpacking. This can happen if a user destroys a resource but a LuaHBuffer still holds a reference to the resource
+    // Unless we check that a buffer resource actually exists, the engine will crash when unpacking.
+    // This can happen if a user destroys a resource but a LuaHBuffer still holds a reference to the resource
     static bool CanUnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
     {
         if (lua_buffer->m_Owner == dmScript::OWNER_RES)

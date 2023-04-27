@@ -1007,6 +1007,31 @@ namespace dmGraphics
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
+    HStorageBuffer NewStorageBuffer(HContext context, const StorageBufferElement* elements, uint32_t element_count)
+    {
+        return g_functions.m_NewStorageBuffer(context, elements, element_count);
+    }
+
+    void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, void* data, uint32_t data_size)
+    {
+        return g_functions.m_SetStorageBufferData(context, storage_buffer, data, data_size);
+    }
+
+    void EnableStorageBuffer(HContext context, uint32_t unit, HStorageBuffer storage_buffer)
+    {
+        return g_functions.m_EnableStorageBuffer(context, unit, storage_buffer);
+    }
+
+    void DisableStorageBuffer(HContext context, uint32_t unit)
+    {
+        return g_functions.m_DisableStorageBuffer(context, unit);
+    }
+
+    void GetStorageBufferInfo(HContext context, HStorageBuffer storage_buffer, uint32_t* data_size, StorageBufferElement** elements, uint32_t* element_count)
+    {
+        return g_functions.m_GetStorageBufferInfo(context, storage_buffer, data_size, elements, element_count);
+    }
+
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {

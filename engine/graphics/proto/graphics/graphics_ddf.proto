@@ -178,19 +178,35 @@ message ShaderDesc
         SHADER_TYPE_MAT2            = 7;
         SHADER_TYPE_MAT3            = 8;
         SHADER_TYPE_MAT4            = 9;
+        // TODO: Move samplers to binding type instead
         SHADER_TYPE_SAMPLER2D       = 10;
         SHADER_TYPE_SAMPLER3D       = 11;
         SHADER_TYPE_SAMPLER_CUBE    = 12;
         SHADER_TYPE_SAMPLER2D_ARRAY = 13;
     }
 
+    enum ResourceBindingType
+    {
+        BINDING_TYPE_UNIFORM_BLOCK  = 0;
+        BINDING_TYPE_STORAGE_BUFFER = 1;
+        BINDING_TYPE_TEXTURE        = 2;
+    }
+
+    message ResourceBindingMember
+    {
+        required string         name = 1;
+        required ShaderDataType type = 2;
+    }
+
     message ResourceBinding
     {
-        required string         name          = 1;
-        required ShaderDataType type          = 2;
-        optional uint32         element_count = 3 [default=1];
-        optional uint32         set           = 4 [default=0];
-        optional uint32         binding       = 5 [default=0];
+        required string                name          = 1;
+        required ShaderDataType        type          = 2;
+        optional uint32                element_count = 3 [default=1];
+        optional uint32                set           = 4 [default=0];
+        optional uint32                binding       = 5 [default=0];
+        optional ResourceBindingType   binding_type  = 6 [default=BINDING_TYPE_UNIFORM_BLOCK];
+        repeated ResourceBindingMember members       = 7;
     }
 
     message Shader

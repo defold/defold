@@ -219,6 +219,7 @@ namespace dmRender
     struct RenderContext
     {
         dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
+        dmGraphics::HStorageBuffer  m_StorageBuffers[dmGraphics::MAX_STORAGE_BUFFERS];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;

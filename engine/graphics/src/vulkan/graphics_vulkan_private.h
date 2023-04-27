@@ -181,6 +181,13 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct StorageBuffer
+    {
+        DeviceBuffer                  m_DeviceBuffer;
+        dmArray<StorageBufferElement> m_Members;
+        uint32_t                      m_DataSize;
+    };
+
     struct Viewport
     {
         uint16_t m_X;
@@ -239,16 +246,18 @@ namespace dmGraphics
 
     struct ShaderResourceBinding
     {
-        char*                      m_Name;
-        uint64_t                   m_NameHash;
-        ShaderDesc::ShaderDataType m_Type;
-        uint16_t                   m_ElementCount;
-        uint16_t                   m_Set;
-        uint16_t                   m_Binding;
+        char*                           m_Name;
+        uint64_t                        m_NameHash;
+        ShaderDesc::ShaderDataType      m_Type;
+        ShaderDesc::ResourceBindingType m_BindingType;
+        uint16_t                        m_ElementCount;
+        uint16_t                        m_Set;
+        uint16_t                        m_Binding;
         union
         {
             uint16_t               m_UniformDataIndex;
             uint16_t               m_TextureUnit;
+            uint16_t               m_StorageBufferUnit;
         };
     };
 
@@ -262,6 +271,7 @@ namespace dmGraphics
         uint16_t               m_UniformCount;
         uint16_t               m_AttributeCount;
         uint16_t               m_UniformBufferCount;
+        uint16_t               m_StorageBufferCount;
     };
 
     struct Program
@@ -350,6 +360,7 @@ namespace dmGraphics
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
         HTexture                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        HStorageBuffer                  m_StorageBuffers[MAX_STORAGE_BUFFERS];
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         PipelineCache                   m_PipelineCache;
         PipelineState                   m_PipelineState;
@@ -425,7 +436,7 @@ namespace dmGraphics
     // Implemented in graphics_vulkan.cpp
     VkResult CreateMainFrameBuffers(VulkanContext* context);
     VkResult DestroyMainFrameBuffers(VulkanContext* context);
-    void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+    void     SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions

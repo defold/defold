@@ -171,28 +171,6 @@ public class ShaderCompilerHelpers {
         }
     }
 
-    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
-    {
-        switch(typeAsString)
-        {
-            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
-            default: break;
-        }
-
-        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-    }
-
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
@@ -216,6 +194,8 @@ public class ShaderCompilerHelpers {
         File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
         file_in_glsl.deleteOnExit();
         FileUtils.writeByteArrayToFile(file_in_glsl, es3Result.output.getBytes());
+
+        // System.out.println("GLSL OUT: " + file_in_glsl.getAbsolutePath());
 
         File file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         file_out_spv.deleteOnExit();
@@ -280,6 +260,8 @@ public class ShaderCompilerHelpers {
         // Put all shader resources on a separate list that will be sorted by binding number later
         ArrayList<SPIRVReflector.Resource> resource_list = new ArrayList();
 
+        // HashMap<String, SPIRVReflector.ResourceType> resource_types = reflector.getTypes();
+
         // Generate a mapping of Uniform Set -> List of Bindings for that set
         // so that we can check for duplicate bindings.
         //
@@ -291,13 +273,13 @@ public class ShaderCompilerHelpers {
         //                       |_ U5
         //
         HashMap<Integer,SetEntry> setBindingMap = new HashMap<Integer,SetEntry>();
-        for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
+        for (SPIRVReflector.ResourceBlock ubo : reflector.getUniformBlocks()) {
 
             // We only support a 1-1 mapping between uniform blocks and uniforms.
             // I.e uniform blocks can't have more (or less) than one uniform in them.
-            if (ubo.uniforms.size() > 1) {
+            if (ubo.resources.size() > 1) {
                 shaderIssues.add("More than one uniforms in uniform block '" + ubo.name + "'");
-            } else if (ubo.uniforms.size() == 0) {
+            } else if (ubo.resources.size() == 0) {
                 shaderIssues.add("No uniforms found in uniform block '" + ubo.name + "'");
             } else {
                 SetEntry setEntry = setBindingMap.get(ubo.set);
@@ -312,13 +294,14 @@ public class ShaderCompilerHelpers {
                     setEntry.put(ubo.binding, bindingEntry);
                 }
 
-                SPIRVReflector.Resource firstUniform = ubo.uniforms.get(0);
+                SPIRVReflector.Resource firstUniform = ubo.resources.get(0);
                 SPIRVReflector.Resource uniform = new SPIRVReflector.Resource();
                 uniform.name         = firstUniform.name;
                 uniform.type         = firstUniform.type;
                 uniform.elementCount = firstUniform.elementCount;
                 uniform.binding      = ubo.binding;
                 uniform.set          = ubo.set;
+                uniform.bindingType  = ShaderDesc.ResourceBindingType.BINDING_TYPE_UNIFORM_BLOCK;
                 bindingEntry.add(uniform);
 
                 ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(uniform.type);
@@ -335,6 +318,55 @@ public class ShaderCompilerHelpers {
                 if (issue_count == shaderIssues.size()) {
                     resource_list.add(uniform);
                 }
+            }
+        }
+
+        for (SPIRVReflector.ResourceBlock ssbo : reflector.getSsbos()) {
+            SetEntry setEntry = setBindingMap.get(ssbo.set);
+            if (setEntry == null) {
+                setEntry = new SetEntry();
+                setBindingMap.put(ssbo.set, setEntry);
+            }
+
+            BindingEntry bindingEntry = setEntry.get(ssbo.binding);
+            if (bindingEntry == null) {
+                bindingEntry = new BindingEntry();
+                setEntry.put(ssbo.binding, bindingEntry);
+            }
+
+            SPIRVReflector.Resource ssboRes   = new SPIRVReflector.Resource();
+            ssboRes.name         = ssbo.name;
+            ssboRes.type         = ssbo.type;
+            ssboRes.elementCount = ssbo.elementCount;
+            ssboRes.binding      = ssbo.binding;
+            ssboRes.set          = ssbo.set;
+            ssboRes.bindingType  = ShaderDesc.ResourceBindingType.BINDING_TYPE_STORAGE_BUFFER;
+            ssboRes.members      = new ArrayList<SPIRVReflector.ResourceMember>();
+
+            for (SPIRVReflector.Resource ssboMember : ssbo.resources) {
+                SPIRVReflector.ResourceMember member = new SPIRVReflector.ResourceMember();
+                member.name = ssboMember.name;
+                member.type = ssboMember.type;
+                ssboRes.members.add(member);
+            }
+
+            bindingEntry.add(ssboRes);
+
+            /*
+            ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(ssboRes.type);
+            if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
+                shaderIssues.add("Unsupported type for ssbo '" + ssboRes.name + "'");
+            }
+            */
+
+            int issue_count = shaderIssues.size();
+
+            if (ssboRes.set > 1) {
+                shaderIssues.add("Unsupported set value for ssbo '" + ssboRes.name + "', expected <= 1 but found " + ssboRes.set);
+            }
+
+            if (issue_count == shaderIssues.size()) {
+                resource_list.add(ssboRes);
             }
         }
 
@@ -453,6 +485,17 @@ public class ShaderCompilerHelpers {
             resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);
+            resourceBindingBuilder.setBindingType(res.bindingType);
+
+            if (res.members != null) {
+                for (SPIRVReflector.ResourceMember member : res.members) {
+                    ShaderDesc.ResourceBindingMember.Builder memberBuilder = ShaderDesc.ResourceBindingMember.newBuilder();
+                    memberBuilder.setName(member.name);
+                    memberBuilder.setType(Common.stringTypeToShaderType(member.type));
+                    resourceBindingBuilder.addMembers(memberBuilder);
+                }
+            }
+
             builder.addUniforms(resourceBindingBuilder);
         }
 

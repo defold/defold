@@ -197,6 +197,16 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_ENABLE_STORAGE_BUFFER:
+                {
+                    render_context->m_StorageBuffers[c->m_Operands[0]] = c->m_Operands[1];
+                    break;
+                }
+                case COMMAND_TYPE_DISABLE_STORAGE_BUFFER:
+                {
+                    render_context->m_StorageBuffers[c->m_Operands[0]] = 0;
+                    break;
+                }
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

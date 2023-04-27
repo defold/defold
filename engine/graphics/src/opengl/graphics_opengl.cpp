@@ -3575,6 +3575,37 @@ static void LogFrameBufferError(GLenum status)
         return false;
     }
 
+    static HStorageBuffer OpenGLNewStorageBuffer(HContext context, const StorageBufferElement* elements, uint32_t element_count)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+        return 0;
+    }
+
+    static void OpenGLDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void OpenGLEnableStorageBuffer(HContext _context, uint32_t unit, HStorageBuffer storage_buffer)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void OpenGLDisableStorageBuffer(HContext _context, uint32_t unit)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, void* data, uint32_t data_size)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void OpenGLGetStorageBufferInfo(HContext context, HStorageBuffer storage_buffer, uint32_t* data_size, StorageBufferElement** elements, uint32_t* element_count)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
     BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR0_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
 
     GLenum TEXTURE_UNIT_NAMES[32] =

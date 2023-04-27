@@ -166,6 +166,14 @@ namespace dmGraphics
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
 
+    // Storage Buffers
+    typedef HStorageBuffer (*NewStorageBufferFn)(HContext context, const StorageBufferElement* elements, uint32_t element_count);
+    typedef void           (*DeleteStorageBufferFn)(HContext context, HStorageBuffer storage_buffer);
+    typedef void           (*EnableStorageBufferFn)(HContext context, uint32_t unit, HStorageBuffer storage_buffer);
+    typedef void           (*DisableStorageBufferFn)(HContext context, uint32_t unit);
+    typedef void           (*SetStorageBufferDataFn)(HContext context, HStorageBuffer storage_buffer, void* data, uint32_t data_size);
+    typedef void           (*GetStorageBufferInfoFn)(HContext context, HStorageBuffer storage_buffer, uint32_t* data_size, StorageBufferElement** elements, uint32_t* element_count);
+
     struct GraphicsAdapterFunctionTable
     {
         NewContextFn m_NewContext;
@@ -279,6 +287,12 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+        NewStorageBufferFn m_NewStorageBuffer;
+        DeleteStorageBufferFn m_DeleteStorageBuffer;
+        EnableStorageBufferFn m_EnableStorageBuffer;
+        DisableStorageBufferFn m_DisableStorageBuffer;
+        SetStorageBufferDataFn m_SetStorageBufferData;
+        GetStorageBufferInfoFn m_GetStorageBufferInfo;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -394,7 +408,13 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBufferData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetStorageBufferInfo); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableStorageBuffer);
 }
 
 #endif

@@ -95,7 +95,8 @@ namespace dmRender
             // that wasn't used, but after the upgrade these unused uniforms will return -1
             // as location instead. The fix here is to avoid asserting on such values, but
             // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == -1) {
+            if (location == -1)
+            {
                 continue;
             }
 
@@ -155,7 +156,9 @@ namespace dmRender
                     dmStrlCat(buffer, ".w", sizeof(buffer));
                     constant.m_ElementIds[3] = dmHashString64(buffer);
                     buffer[original_size] = 0;
-                } else {
+                }
+                else
+                {
                     // Clear element ids, otherwise we will compare against
                     // uninitialized values in GetMaterialProgramConstantInfo.
                     constant.m_ElementIds[0] = 0;

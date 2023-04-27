@@ -1770,6 +1770,11 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
     }
 
+    static inline bool IsUniformStorageBuffer(ShaderResourceBinding binding)
+    {
+        return binding.m_BindingType == ShaderDesc::BINDING_TYPE_STORAGE_BUFFER;
+    }
+
     static inline Texture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
     {
         switch(type)
@@ -1855,6 +1860,18 @@ bail:
                 vk_image_info.sampler             = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
                 vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 vk_write_desc_info.pImageInfo     = &vk_image_info;
+            }
+            else if (IsUniformStorageBuffer(res))
+            {
+                StorageBuffer* buffer = GetAssetFromContainer<StorageBuffer>(g_VulkanContext->m_AssetHandleContainer, g_VulkanContext->m_StorageBuffers[res.m_StorageBufferUnit]);
+            
+                VkDescriptorBufferInfo& vk_buffer_info = vk_write_buffer_descriptors[buffer_to_write_index++];
+                vk_buffer_info.buffer                  = buffer->m_DeviceBuffer.m_Handle.m_Buffer;
+                vk_buffer_info.offset                  = 0;
+                vk_buffer_info.range                   = VK_WHOLE_SIZE;
+
+                vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
             }
             else
             {
@@ -2132,7 +2149,7 @@ bail:
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
 
-    static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
+    static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t uniformBufferAlignment, uint32_t storageBufferAlignment)
     {
         if (ddf->m_Uniforms.m_Count > 0)
         {
@@ -2141,16 +2158,20 @@ bail:
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
             uint32_t uniform_buffer_count      = 0;
+            uint32_t storage_buffer_count      = 0;
             int32_t  last_binding              = -1;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
+                const ShaderDesc::ResourceBinding& binding = ddf->m_Uniforms[i];
+
                 ShaderResourceBinding& res = shader->m_Uniforms[i];
-                res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
-                res.m_Set                  = ddf->m_Uniforms[i].m_Set;
-                res.m_Type                 = ddf->m_Uniforms[i].m_Type;
-                res.m_ElementCount         = ddf->m_Uniforms[i].m_ElementCount;
-                res.m_Name                 = strdup(ddf->m_Uniforms[i].m_Name);
+                res.m_Binding              = binding.m_Binding;
+                res.m_BindingType          = binding.m_BindingType;
+                res.m_Set                  = binding.m_Set;
+                res.m_Type                 = binding.m_Type;
+                res.m_ElementCount         = binding.m_ElementCount;
+                res.m_Name                 = strdup(binding.m_Name);
                 res.m_NameHash             = 0;
 
                 assert(res.m_Set <= 1);
@@ -2162,16 +2183,22 @@ bail:
                     res.m_TextureUnit = texture_sampler_count;
                     texture_sampler_count++;
                 }
+                else if (IsUniformStorageBuffer(res))
+                {
+                    res.m_StorageBufferUnit = storage_buffer_count;
+                    storage_buffer_count++;
+                }
                 else
                 {
                     res.m_UniformDataIndex     = uniform_buffer_count;
-                    uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type) * res.m_ElementCount, dynamicAlignment);
+                    uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type) * res.m_ElementCount, uniformBufferAlignment);
                     uniform_buffer_count++;
                 }
             }
 
             shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
+            shader->m_StorageBufferCount     = storage_buffer_count;
         }
 
         if (ddf->m_Attributes.m_Count > 0)
@@ -2203,7 +2230,9 @@ bail:
 
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+        CreateShaderResourceBindings(shader, ddf,
+            (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment,
+            (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment);
         return (HVertexProgram) shader;
     }
 
@@ -2214,7 +2243,9 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+        CreateShaderResourceBindings(shader, ddf,
+            (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment,
+            (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment);
         return (HFragmentProgram) shader;
     }
 
@@ -2228,7 +2259,7 @@ bail:
         {
             // Process uniform data size
             ShaderResourceBinding& res = module->m_Uniforms[i];
-            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
+            // assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
 
             // Process samplers
             VkDescriptorType vk_descriptor_type;
@@ -2237,6 +2268,10 @@ bail:
             if (IsUniformTextureSampler(res))
             {
                 vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            }
+            else if (IsUniformStorageBuffer(res))
+            {
+                vk_descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             }
             else
             {
@@ -2305,7 +2340,9 @@ bail:
         if (num_uniforms > 0)
         {
             VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
-            const uint32_t num_buffers  = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
+            const uint32_t num_uniform_buffers = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
+            const uint32_t num_storage_buffers = vertex_module->m_StorageBufferCount + fragment_module->m_StorageBufferCount;
+            const uint32_t num_buffers         = num_uniform_buffers + num_storage_buffers;
 
             if (num_buffers > 0)
             {
@@ -2416,7 +2453,9 @@ bail:
             // Transfer created module to old pointer and recreate resource bindings
             shader->m_Hash    = tmp_shader.m_Hash;
             shader->m_Module  = tmp_shader.m_Module;
-            CreateShaderResourceBindings(shader, ddf, (uint32_t) g_VulkanContext->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+            CreateShaderResourceBindings(shader, ddf,
+                (uint32_t) g_VulkanContext->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment,
+                (uint32_t) g_VulkanContext->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment);
             return true;
         }
 
@@ -3638,6 +3677,74 @@ bail:
         }
     }
 
+    static HStorageBuffer VulkanNewStorageBuffer(HContext _context, const StorageBufferElement* elements, uint32_t element_count)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+
+        StorageBuffer* storage_buffer = new StorageBuffer();
+        storage_buffer->m_DeviceBuffer = DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        storage_buffer->m_Members.SetCapacity(element_count);
+        storage_buffer->m_Members.SetSize(element_count);
+
+        uint32_t data_size = 0;
+        for (int i = 0; i < element_count; ++i)
+        {
+            storage_buffer->m_Members[i].m_NameHash = elements[i].m_NameHash;
+            storage_buffer->m_Members[i].m_Type     = elements[i].m_Type;
+            storage_buffer->m_Members[i].m_Size     = elements[i].m_Size;
+            storage_buffer->m_Members[i].m_Offset   = data_size;
+            data_size += GetGraphicsTypeSize(elements[i].m_Type) * elements[i].m_Size;
+        }
+
+        storage_buffer->m_DataSize = data_size;
+
+        DeviceBufferUploadHelper(context, 0, storage_buffer->m_DataSize, 0, &storage_buffer->m_DeviceBuffer);
+        return StoreAssetInContainer(context->m_AssetHandleContainer, storage_buffer, ASSET_TYPE_STORAGE_BUFFER);
+    }
+
+    static void VulkanDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        StorageBuffer* buffer = GetAssetFromContainer<StorageBuffer>(context->m_AssetHandleContainer, storage_buffer);
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], &buffer->m_DeviceBuffer);
+        context->m_AssetHandleContainer.Release(storage_buffer);
+        delete buffer;
+    }
+
+    static void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, void* data, uint32_t data_size)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        StorageBuffer* buffer  = GetAssetFromContainer<StorageBuffer>(context->m_AssetHandleContainer, storage_buffer);
+        if (buffer->m_DeviceBuffer.m_MemorySize != data_size)
+        {
+            DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], &buffer->m_DeviceBuffer);
+        }
+        DeviceBufferUploadHelper(context, data, data_size, 0, &buffer->m_DeviceBuffer);
+    }
+
+    static void VulkanGetStorageBufferInfo(HContext _context, HStorageBuffer storage_buffer, uint32_t* data_size, StorageBufferElement** elements, uint32_t* element_count)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        StorageBuffer* buffer  = GetAssetFromContainer<StorageBuffer>(context->m_AssetHandleContainer, storage_buffer);
+
+        // This should be const!
+        *elements      = buffer->m_Members.Begin();
+        *element_count = buffer->m_Members.Size();
+        *data_size     = buffer->m_DataSize;
+    }
+
+    static void VulkanEnableStorageBuffer(HContext _context, uint32_t unit, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context          = (VulkanContext*) _context;
+        context->m_StorageBuffers[unit] = storage_buffer;
+    }
+
+    static void VulkanDisableStorageBuffer(HContext _context, uint32_t unit)
+    {
+        VulkanContext* context          = (VulkanContext*) _context;
+        context->m_StorageBuffers[unit] = 0;
+    }
+
     void DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value)
     {
         DestroyPipeline(g_VulkanContext->m_LogicalDevice.m_Device, value);
@@ -3658,13 +3765,12 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
-        if (type == ASSET_TYPE_TEXTURE)
+        switch(type)
         {
-            return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_TEXTURE:        return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_RENDER_TARGET:  return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_STORAGE_BUFFER: return GetAssetFromContainer<StorageBuffer>(context->m_AssetHandleContainer, asset_handle) != 0;
+            default:break;
         }
         return false;
     }

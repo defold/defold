@@ -1412,6 +1412,37 @@ namespace dmGraphics
         return false;
     }
 
+    static HStorageBuffer NullNewStorageBuffer(HContext context, const StorageBufferElement* elements, uint32_t element_count)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+        return 0;
+    }
+
+    static void NullDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void NullEnableStorageBuffer(HContext _context, uint32_t unit, HStorageBuffer storage_buffer)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void NullDisableStorageBuffer(HContext _context, uint32_t unit)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void NullSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, void* data, uint32_t data_size)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
+    static void NullGetStorageBufferInfo(HContext context, HStorageBuffer storage_buffer, uint32_t* data_size, StorageBufferElement** elements, uint32_t* element_count)
+    {
+        assert(0 && "Not implemented for this adapter yet!");
+    }
+
     ////////////////////////////////
     // UNIT TEST FUNCTIONS
     ////////////////////////////////

@@ -17,6 +17,8 @@ package com.dynamo.bob.pipeline;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -185,23 +187,31 @@ public class ShaderUtil {
             this.root = (new ObjectMapper()).readTree(json);
         }
 
-        public static class Resource
+        public static class ResourceMember
         {
             public String name;
             public String type;
-            public int    elementCount;
-            public int    binding;
-            public int    set;
         }
 
-        public static class UniformBlock extends Resource
+        public static class Resource
         {
-            public ArrayList<Resource> uniforms;
+            public String                         name;
+            public String                         type;
+            public int                            elementCount;
+            public int                            binding;
+            public int                            set;
+            public ShaderDesc.ResourceBindingType bindingType;
+            public ArrayList<ResourceMember>      members;
         }
 
-        public static ArrayList<UniformBlock> getUniformBlocks()
+        public static class ResourceBlock extends Resource
         {
-            ArrayList<UniformBlock> uniformBlocks = new ArrayList<UniformBlock>();
+            public ArrayList<Resource> resources;
+        }
+
+        public static ArrayList<ResourceBlock> getUniformBlocks()
+        {
+            ArrayList<ResourceBlock> uniformBlocks = new ArrayList<ResourceBlock>();
 
             JsonNode uboNode   = root.get("ubos");
             JsonNode typesNode = root.get("types");
@@ -214,11 +224,12 @@ public class ShaderUtil {
             while (uniformBlockNodeIt.hasNext()) {
                 JsonNode uniformBlockNode = uniformBlockNodeIt.next();
 
-                UniformBlock ubo = new UniformBlock();
-                ubo.name         = uniformBlockNode.get("name").asText();
-                ubo.set          = uniformBlockNode.get("set").asInt();
-                ubo.binding      = uniformBlockNode.get("binding").asInt();
-                ubo.uniforms     = new ArrayList<Resource>();
+                ResourceBlock ubo = new ResourceBlock();
+                ubo.name          = uniformBlockNode.get("name").asText();
+                ubo.set           = uniformBlockNode.get("set").asInt();
+                ubo.binding       = uniformBlockNode.get("binding").asInt();
+                ubo.bindingType   = ShaderDesc.ResourceBindingType.BINDING_TYPE_UNIFORM_BLOCK;
+                ubo.resources     = new ArrayList<Resource>();
 
                 JsonNode typeNode    = typesNode.get(uniformBlockNode.get("type").asText());
                 JsonNode membersNode = typeNode.get("members");
@@ -239,13 +250,70 @@ public class ShaderUtil {
                         res.elementCount = arrayNode.get(0).asInt();
                     }
 
-                    ubo.uniforms.add(res);
+                    ubo.resources.add(res);
                 }
 
                 uniformBlocks.add(ubo);
             }
 
             return uniformBlocks;
+        }
+
+        public static ArrayList<ResourceBlock> getSsbos() {
+            ArrayList<ResourceBlock> ssbos = new ArrayList<ResourceBlock>();
+
+            JsonNode ssboNode  = root.get("ssbos");
+            JsonNode typesNode = root.get("types");
+
+            if (ssboNode == null || typesNode == null) {
+                return ssbos;
+            }
+
+            Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
+            while (ssboBlockIt.hasNext()) {
+                JsonNode ssboBlockNode = ssboBlockIt.next();
+
+                ResourceBlock ssbo = new ResourceBlock();
+                ssbo.name          = ssboBlockNode.get("name").asText();
+                ssbo.set           = ssboBlockNode.get("set").asInt();
+                ssbo.binding       = ssboBlockNode.get("binding").asInt();
+                ssbo.bindingType   = ShaderDesc.ResourceBindingType.BINDING_TYPE_STORAGE_BUFFER;
+                ssbo.resources     = new ArrayList<Resource>();
+
+                JsonNode typeNode    = typesNode.get(ssboBlockNode.get("type").asText());
+                JsonNode membersNode = typeNode.get("members");
+
+                System.out.println("SSBO:");
+                System.out.println("name: " + ssboBlockNode.get("name"));
+                System.out.println("type: " + ssboBlockNode.get("type"));
+
+                for (Iterator<JsonNode> membersNodeIt = membersNode.getElements(); membersNodeIt.hasNext();) {
+                    JsonNode uniformNode = membersNodeIt.next();
+                    Resource res         = new Resource();
+                    res.name             = uniformNode.get("name").asText();
+                    res.type             = uniformNode.get("type").asText();
+                    res.elementCount     = 1;
+                    res.binding          = 0;
+                    res.set              = 0;
+
+                    JsonNode arrayNode = uniformNode.get("array");
+                    if (arrayNode != null && arrayNode.isArray())
+                    {
+                        ArrayNode array = (ArrayNode) arrayNode;
+                        res.elementCount = arrayNode.get(0).asInt();
+                    }
+
+                    System.out.println("  member");
+                    System.out.println("  name: " + res.name);
+                    System.out.println("  type: " + res.type);
+
+                    ssbo.resources.add(res);
+                }
+
+                ssbos.add(ssbo);
+            }
+
+            return ssbos;
         }
 
         public static ArrayList<Resource> getTextures() {
@@ -265,6 +333,7 @@ public class ShaderUtil {
                 res.binding      = textureNode.get("binding").asInt();
                 res.set          = textureNode.get("set").asInt();
                 res.elementCount = 1;
+                res.bindingType  = ShaderDesc.ResourceBindingType.BINDING_TYPE_TEXTURE;
                 textures.add(res);
             }
 
@@ -462,6 +531,7 @@ public class ShaderUtil {
                                 }
                             }
 
+                            // TODO: We need to adjust the layout if it exists, to add set=%d OR automatically inject the layout!
                             if (layout == null) {
                                 layout = "layout(set=" + layoutSet + ")";
                             }

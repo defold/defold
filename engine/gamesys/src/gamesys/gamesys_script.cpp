@@ -34,6 +34,7 @@
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
+#include "scripts/script_graphics.h"
 #include "components/comp_gui.h"
 #include <liveupdate/liveupdate.h>
 
@@ -141,6 +142,7 @@ namespace dmGameSystem
         ScriptModelRegister(context);
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
+        ScriptGraphicsRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -153,6 +155,7 @@ namespace dmGameSystem
         ScriptPhysicsFinalize(context);
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
+        ScriptGraphicsFinalize(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {

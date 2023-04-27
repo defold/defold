@@ -125,6 +125,7 @@ namespace dmRender
         }
 
         memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
+        memset(context->m_StorageBuffers, 0, sizeof(dmGraphics::HStorageBuffer) * dmGraphics::MAX_STORAGE_BUFFERS);
 
         InitializeTextContext(context, params.m_MaxCharacters);
 
@@ -852,6 +853,14 @@ namespace dmRender
                 }
             }
 
+            for (int i = 0; i < dmGraphics::MAX_STORAGE_BUFFERS; ++i)
+            {
+                if (render_context->m_StorageBuffers[i])
+                {
+                    dmGraphics::EnableStorageBuffer(context, i, render_context->m_StorageBuffers[i]);
+                }
+            }
+
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
 
             if (ro->m_IndexBuffer)
@@ -874,6 +883,14 @@ namespace dmRender
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
                         next_texture_unit++;
                     }
+                }
+            }
+
+            for (int i = 0; i < dmGraphics::MAX_STORAGE_BUFFERS; ++i)
+            {
+                if (render_context->m_StorageBuffers[i])
+                {
+                    dmGraphics::DisableStorageBuffer(context, i);
                 }
             }
         }
