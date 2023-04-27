@@ -96,6 +96,7 @@
             <fileset dir="${env.DYNAMO_HOME}/share">
                 <include name="java/dlib.jar"/>
                 <include name="java/modelimporter.jar"/>
+                <include name="java/texturecompiler.jar"/>
             </fileset>
         </copy>
         <fail message="dlib.jar is missing">
@@ -109,6 +110,13 @@
             <condition>
                 <resourcecount count="0">
                     <fileset dir="${bob.dir}/lib" includes="modelimporter.jar" />
+                </resourcecount>
+            </condition>
+        </fail>
+        <fail message="texturecompiler.jar is missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="${bob.dir}/lib" includes="texturecompiler.jar" />
                 </resourcecount>
             </condition>
         </fail>
@@ -271,6 +279,7 @@
             <zipgroupfileset dir="${bob.dir}/lib">
               <include name="dlib.jar"/>
               <include name="modelimporter.jar"/>
+              <include name="texturecompiler.jar"/>
               <include name="lz4-1.3.0.jar"/>
               <include name="commons-cli-1.2.jar"/>
               <include name="jna-5.10.0.jar"/>
