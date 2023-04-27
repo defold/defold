@@ -1148,6 +1148,7 @@
             :always
             (conj (cond->
                     {:fx/type fx.label/lifecycle
+                     :fx/key [:label path]
                      :grid-pane/row row
                      :grid-pane/column 0
                      :grid-pane/valignment :top
@@ -1163,6 +1164,7 @@
             (and (form/optional-field? field)
                  (not= value ::no-value))
             (conj {:fx/type icon-button
+                   :fx/key [:clear path]
                    :grid-pane/row row
                    :grid-pane/column 1
                    :grid-pane/valignment :top
@@ -1175,6 +1177,7 @@
 
             :always
             (conj {:fx/type fx.v-box/lifecycle
+                   :fx/key [:control path]
                    :style-class (case (:severity error)
                                   :fatal ["cljfx-form-error"]
                                   :warning ["cljfx-form-warning"]
