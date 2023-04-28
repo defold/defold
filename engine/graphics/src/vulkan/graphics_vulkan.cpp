@@ -100,46 +100,6 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STR_CASE
 
-    #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
-    static const char* TextureFormatToString(TextureFormat format)
-    {
-        switch(format)
-        {
-            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE_ALPHA);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_4BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG_BC5);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC7);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG32F);
-            default:break;
-        }
-        return "UNKNOWN_FORMAT";
-    }
-    #undef DM_TEXTURE_FORMAT_TO_STR_CASE
-
-
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
     {
         memset(this, 0, sizeof(*this));
@@ -3361,7 +3321,7 @@ bail:
         {
             case TEXTURE_FORMAT_DEPTH:
             case TEXTURE_FORMAT_STENCIL:
-                dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
+                dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(params.m_Format));
                 return;
             default:break;
         }
@@ -3383,7 +3343,7 @@ bail:
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
-            dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(format_orig));
+            dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(format_orig));
             return;
         }
 
