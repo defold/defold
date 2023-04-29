@@ -307,9 +307,10 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 TEST_F(ResourceTest, TestResourceScriptBuffer)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -325,9 +326,10 @@ TEST_F(ResourceTest, TestResourceScriptBuffer)
 TEST_F(ResourceTest, TestResourceScriptAtlas)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -343,9 +345,10 @@ TEST_F(ResourceTest, TestResourceScriptAtlas)
 TEST_F(ResourceTest, TestSetTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -678,9 +681,11 @@ TEST_F(BufferMetadataTest, MetadataLuaApi)
 {
     // import 'resource' lua api among others
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* go_path = "/buffer/metadata.goc";
@@ -698,9 +703,11 @@ TEST_F(SoundTest, UpdateSoundResource)
 {
     // import 'resource' lua api among others
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // Since the script uses "io.open()" we want to override the path
@@ -745,9 +752,11 @@ TEST_F(SoundTest, LuaCallback)
 {
     // import 'resource' lua api among others
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* go_path = "/sound/luacallback.goc";
@@ -908,9 +917,11 @@ TEST_F(SpriteAnimTest, GoDeletion)
 TEST_F(SpriteAnimTest, FlipbookAnim)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // Spawn one go with a script that will initiate animations on the above sprites
@@ -949,9 +960,11 @@ TEST_F(SpriteAnimTest, FlipbookAnim)
 TEST_F(ParticleFxTest, PlayAnim)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // Spawn one go with a script that will initiate animations on the above sprites
@@ -1130,10 +1143,11 @@ TEST_F(WindowTest, MouseLock)
     dmHID::Init(hid_context);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_HidContext = hid_context;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_HidContext      = hid_context;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1160,9 +1174,11 @@ TEST_F(WindowTest, MouseLock)
 TEST_F(WindowTest, Events)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -1244,9 +1260,11 @@ TEST_P(FactoryTest, Test)
     dmHashEnableReverseHash(true);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const FactoryTestParams& param = GetParam();
 
@@ -1429,9 +1447,11 @@ TEST_P(CollectionFactoryTest, Test)
     dmHashEnableReverseHash(true);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const CollectionFactoryTestParams& param = GetParam();
 
@@ -1811,9 +1831,11 @@ TEST_P(BoxRenderTest, BoxRender)
 TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -1875,9 +1897,10 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
@@ -1924,9 +1947,10 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
@@ -1960,9 +1984,10 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
@@ -2019,9 +2044,10 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
@@ -2089,9 +2115,10 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // two dynamic 'body' objects will get spawned and placed apart
@@ -2142,9 +2169,10 @@ TEST_F(ComponentTest, JointTest)
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = L;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
