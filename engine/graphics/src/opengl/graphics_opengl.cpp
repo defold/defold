@@ -1293,6 +1293,8 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
+        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
         return WINDOW_RESULT_OK;
     }
 
