@@ -5,9 +5,9 @@
 
 namespace dmJNI
 {
-    void EnableDefaultSignalHanders(JavaVM* vm);
-    void EnableSignalHanders(void* ctx, void (*callback)(int signal, void* ctx));
-    void DisableSignalHanders();
+    void EnableDefaultSignalHandlers(JavaVM* vm);
+    void EnableSignalHandlers(void* ctx, void (*callback)(int signal, void* ctx));
+    void DisableSignalHandlers();
 
     // Caller has to free() the memory
     char* GenerateCallstack();

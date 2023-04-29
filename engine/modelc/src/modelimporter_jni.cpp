@@ -1031,7 +1031,7 @@ JNIEXPORT void JNICALL Java_ModelImporter_TestException(JNIEnv* env, jclass cls,
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad ->\n");
-    dmJNI::EnableDefaultSignalHanders(vm);
+    dmJNI::EnableDefaultSignalHandlers(vm);
 
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -1046,7 +1046,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
       return JNI_ERR;
 
     // Register your class' native methods.
-    // Don't forget to add them ot the corresponding java file (e.g. ModelImporter.java)
+    // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
         {"LoadFromBufferInternal", "(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
         {"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporter_AddressOf)},
@@ -1059,6 +1059,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad return.\n");
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
+{
+    dmLogDebug("JNI_OnUnload ->\n");
 }
 
 namespace dmModelImporter

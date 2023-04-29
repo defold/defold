@@ -473,15 +473,13 @@ public class ModelImporter {
         }
 
         // TODO: Setup a java test suite for the model importer
-        int i = 0;
-        for (String arg : args)
+        for (int i = 0; i < args.length; ++i)
         {
-            if (arg.equalsIgnoreCase("--test-exception"))
+            if (args[i].equalsIgnoreCase("--test-exception"))
             {
                 ModelImporter.TestException("Testing exception: " + args[i+1]);
                 return; // exit code 0
             }
-            ++i;
         }
 
         String path = args[0];       // name.glb/.gltf

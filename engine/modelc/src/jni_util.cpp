@@ -30,9 +30,9 @@ static void (*g_UserCallback)(int, void*) = 0;
 
 #if defined(_WIN32) || defined(__CYGWIN__)
     typedef void (*FSignalHandler)(int);
-    static FSignalHandler g_signal_handlers[4];
+    static FSignalHandler g_SignalHandlers[4];
 #else
-    static struct sigaction g_signal_handlers[6];
+    static struct sigaction g_SignalHandlers[6];
 #endif
 
 static void DefaultSignalHandler(int sig) {
@@ -52,20 +52,20 @@ LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS* ptr)
 
 static void SetHandlers()
 {
-    g_signal_handlers[0] = signal(SIGILL, DefaultSignalHandler);
-    g_signal_handlers[1] = signal(SIGABRT, DefaultSignalHandler);
-    g_signal_handlers[2] = signal(SIGFPE, DefaultSignalHandler);
-    g_signal_handlers[3] = signal(SIGSEGV, DefaultSignalHandler);
+    g_SignalHandlers[0] = signal(SIGILL, DefaultSignalHandler);
+    g_SignalHandlers[1] = signal(SIGABRT, DefaultSignalHandler);
+    g_SignalHandlers[2] = signal(SIGFPE, DefaultSignalHandler);
+    g_SignalHandlers[3] = signal(SIGSEGV, DefaultSignalHandler);
 
     ::SetUnhandledExceptionFilter(ExceptionHandler);
 }
 
 static void UnsetHandlers()
 {
-    signal(SIGILL, g_signal_handlers[0]);
-    signal(SIGABRT, g_signal_handlers[1]);
-    signal(SIGFPE, g_signal_handlers[2]);
-    signal(SIGSEGV, g_signal_handlers[3]);
+    signal(SIGILL, g_SignalHandlers[0]);
+    signal(SIGABRT, g_SignalHandlers[1]);
+    signal(SIGFPE, g_SignalHandlers[2]);
+    signal(SIGSEGV, g_SignalHandlers[3]);
 }
 #else
 
@@ -78,24 +78,25 @@ static void SetHandlers()
     struct sigaction handler;
     memset(&handler, 0, sizeof(struct sigaction));
     handler.sa_handler = DefaultSignalHandler;
-    sigaction(SIGILL, &handler, &g_signal_handlers[0]);
-    sigaction(SIGABRT, &handler, &g_signal_handlers[1]);
-    sigaction(SIGBUS, &handler, &g_signal_handlers[2]);
-    sigaction(SIGFPE, &handler, &g_signal_handlers[3]);
-    sigaction(SIGSEGV, &handler, &g_signal_handlers[4]);
-    sigaction(SIGPIPE, &handler, &g_signal_handlers[5]);
+    sigaction(SIGILL, &handler, &g_SignalHandlers[0]);
+    sigaction(SIGABRT, &handler, &g_SignalHandlers[1]);
+    sigaction(SIGFPE, &handler, &g_SignalHandlers[2]);
+    sigaction(SIGSEGV, &handler, &g_SignalHandlers[3]);
+    sigaction(SIGPIPE, &handler, &g_SignalHandlers[4]);
+    // I disabled this, since it seems we get this a lot when doing the shader compilation (likely using Exec)
+    //sigaction(SIGBUS, &handler, &g_SignalHandlers[5]);
     #if !defined(_MSC_VER) && defined(__clang__)
         #pragma GCC diagnostic pop
     #endif
 }
 static void UnsetHandlers()
 {
-    sigaction(SIGILL, &g_signal_handlers[0], 0);
-    sigaction(SIGABRT, &g_signal_handlers[1], 0);
-    sigaction(SIGBUS, &g_signal_handlers[2], 0);
-    sigaction(SIGFPE, &g_signal_handlers[3], 0);
-    sigaction(SIGSEGV, &g_signal_handlers[4], 0);
-    sigaction(SIGPIPE, &g_signal_handlers[5], 0);
+    sigaction(SIGILL, &g_SignalHandlers[0], 0);
+    sigaction(SIGABRT, &g_SignalHandlers[1], 0);
+    sigaction(SIGFPE, &g_SignalHandlers[2], 0);
+    sigaction(SIGSEGV, &g_SignalHandlers[3], 0);
+    sigaction(SIGPIPE, &g_SignalHandlers[4], 0);
+    //sigaction(SIGBUS, &g_SignalHandlers[5], 0);
 }
 #endif
 
@@ -109,32 +110,36 @@ static void DefaultJniSignalHandler(int sig, void* ctx)
 
     char* callstack = GenerateCallstack();
 
-    uint32_t size = 128 + strlen(callstack)+1;
+    uint32_t size = 128 + (callstack ? strlen(callstack)+1 : 0);
     char* message = (char*)malloc(size);
 
     uint32_t written = 0;
-    written += dmSnPrintf(message+written, size, "Exception in Defold JNI code. Signal %d\n", sig);
-    written += dmSnPrintf(message+written, size, "%s", callstack);
-    env->ThrowNew(env->FindClass("java/lang/RuntimeException"), message);
+    written += dmSnPrintf(message+written, size-written, "Exception in Defold JNI code. Signal %d\n", sig);
+    if (callstack)
+    {
+        written += dmSnPrintf(message+written, size-written, "%s", callstack);
+    }
 
     free((void*)callstack);
+
+    env->ThrowNew(env->FindClass("java/lang/RuntimeException"), message);
 }
 
-void EnableSignalHanders(void* ctx, void (*callback)(int signal, void* ctx))
+void EnableSignalHandlers(void* ctx, void (*callback)(int signal, void* ctx))
 {
     g_UserCallback = callback;
     g_UserContext = ctx;
 
-    memset(&g_signal_handlers[0], 0, sizeof(g_signal_handlers));
+    memset(&g_SignalHandlers[0], 0, sizeof(g_SignalHandlers));
     SetHandlers();
 }
 
-void EnableDefaultSignalHanders(JavaVM* vm)
+void EnableDefaultSignalHandlers(JavaVM* vm)
 {
-    EnableSignalHanders((void*)vm, DefaultJniSignalHandler);
+    EnableSignalHandlers((void*)vm, DefaultJniSignalHandler);
 }
 
-void DisableSignalHanders()
+void DisableSignalHandlers()
 {
     UnsetHandlers();
     g_UserCallback = 0;
