@@ -931,6 +931,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
 
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
@@ -1022,6 +1023,7 @@ JNIEXPORT jint JNICALL Java_ModelImporter_AddressOf(JNIEnv* env, jclass cls, job
 
 JNIEXPORT void JNICALL Java_ModelImporter_TestException(JNIEnv* env, jclass cls, jstring j_message)
 {
+    dmJNI::SignalContextScope env_scope(env);
     ScopedString s_message(env, j_message);
     const char* message = s_message.m_String;
     printf("Received message: %s\n", message);

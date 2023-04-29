@@ -1,4 +1,5 @@
 #include "jni_util.h"
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
 
 #include <memory.h>
@@ -25,19 +26,46 @@
 namespace dmJNI
 {
 
+static dmArray<JNIEnv*> g_AllowedContexts;
+
 static void* g_UserContext = 0;
-static void (*g_UserCallback)(int, void*) = 0;
+static int (*g_UserCallback)(int, void*) = 0;
+
+// ************************************************************************************
 
 #if defined(_WIN32) || defined(__CYGWIN__)
-    typedef void (*FSignalHandler)(int);
-    static FSignalHandler g_SignalHandlers[4];
-#else
-    static struct sigaction g_SignalHandlers[6];
-#endif
+
+typedef void (*FSignalHandler)(int);
+static FSignalHandler   g_SignalHandlers[64];
 
 static void DefaultSignalHandler(int sig) {
-    g_UserCallback(sig, g_UserContext);
+    int handled = g_UserCallback(sig, g_UserContext);
+    if (!handled)
+    {
+        g_SignalHandlers[sig](sig);
+    }
 }
+
+#else
+
+typedef void ( *sigaction_handler_t )( int, siginfo_t *, void * );
+static struct sigaction g_SignalHandlers[64];
+
+static void DefaultSignalHandler(int sig, siginfo_t* info, void* arg) {
+    int handled = g_UserCallback(sig, g_UserContext);
+    if (!handled)
+    {
+        if ( ( g_SignalHandlers[sig].sa_sigaction != (sigaction_handler_t)SIG_IGN ) &&
+             ( g_SignalHandlers[sig].sa_sigaction != (sigaction_handler_t)SIG_DFL ) )
+        {
+            g_SignalHandlers[sig].sa_sigaction(sig, info, arg);
+        }
+    }
+}
+
+#endif
+
+// ************************************************************************************
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 
@@ -52,83 +80,128 @@ LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS* ptr)
 
 static void SetHandlers()
 {
-    g_SignalHandlers[0] = signal(SIGILL, DefaultSignalHandler);
-    g_SignalHandlers[1] = signal(SIGABRT, DefaultSignalHandler);
-    g_SignalHandlers[2] = signal(SIGFPE, DefaultSignalHandler);
-    g_SignalHandlers[3] = signal(SIGSEGV, DefaultSignalHandler);
+    g_SignalHandlers[SIGILL] = signal(SIGILL, DefaultSignalHandler);
+    g_SignalHandlers[SIGABRT] = signal(SIGABRT, DefaultSignalHandler);
+    g_SignalHandlers[SIGFPE] = signal(SIGFPE, DefaultSignalHandler);
+    g_SignalHandlers[SIGSEGV] = signal(SIGSEGV, DefaultSignalHandler);
 
     ::SetUnhandledExceptionFilter(ExceptionHandler);
 }
 
 static void UnsetHandlers()
 {
-    signal(SIGILL, g_SignalHandlers[0]);
-    signal(SIGABRT, g_SignalHandlers[1]);
-    signal(SIGFPE, g_SignalHandlers[2]);
-    signal(SIGSEGV, g_SignalHandlers[3]);
+    signal(SIGILL, g_SignalHandlers[SIGILL]);
+    signal(SIGABRT, g_SignalHandlers[SIGABRT]);
+    signal(SIGFPE, g_SignalHandlers[SIGFPE]);
+    signal(SIGSEGV, g_SignalHandlers[SIGSEGV]);
 }
 #else
 
-static void SetHandlers()
+static void SetHandler(int sig, struct sigaction* old)
 {
     #if !defined(_MSC_VER) && defined(__clang__)
         #pragma GCC diagnostic push
         #pragma GCC diagnostic ignored "-Wdisabled-macro-expansion"
     #endif
+
     struct sigaction handler;
     memset(&handler, 0, sizeof(struct sigaction));
-    handler.sa_handler = DefaultSignalHandler;
-    sigaction(SIGILL, &handler, &g_SignalHandlers[0]);
-    sigaction(SIGABRT, &handler, &g_SignalHandlers[1]);
-    sigaction(SIGFPE, &handler, &g_SignalHandlers[2]);
-    sigaction(SIGSEGV, &handler, &g_SignalHandlers[3]);
-    sigaction(SIGPIPE, &handler, &g_SignalHandlers[4]);
-    // I disabled this, since it seems we get this a lot when doing the shader compilation (likely using Exec)
-    //sigaction(SIGBUS, &handler, &g_SignalHandlers[5]);
+    sigemptyset(&handler.sa_mask);
+    handler.sa_sigaction = DefaultSignalHandler;
+    handler.sa_flags = SA_SIGINFO;
+
+    if (old)
+    {
+        memset(old, 0, sizeof(struct sigaction));
+        sigemptyset(&old->sa_mask);
+    }
+
+    sigaction(sig, &handler, old);
+
     #if !defined(_MSC_VER) && defined(__clang__)
         #pragma GCC diagnostic pop
     #endif
 }
+
+static void SetHandlers()
+{
+    SetHandler(SIGILL, &g_SignalHandlers[SIGILL]);
+    SetHandler(SIGABRT, &g_SignalHandlers[SIGABRT]);
+    SetHandler(SIGFPE, &g_SignalHandlers[SIGFPE]);
+    SetHandler(SIGSEGV, &g_SignalHandlers[SIGSEGV]);
+    SetHandler(SIGPIPE, &g_SignalHandlers[SIGPIPE]);
+}
 static void UnsetHandlers()
 {
-    sigaction(SIGILL, &g_SignalHandlers[0], 0);
-    sigaction(SIGABRT, &g_SignalHandlers[1], 0);
-    sigaction(SIGFPE, &g_SignalHandlers[2], 0);
-    sigaction(SIGSEGV, &g_SignalHandlers[3], 0);
-    sigaction(SIGPIPE, &g_SignalHandlers[4], 0);
-    //sigaction(SIGBUS, &g_SignalHandlers[5], 0);
+    SetHandler(SIGILL, 0);
+    SetHandler(SIGABRT, 0);
+    SetHandler(SIGFPE, 0);
+    SetHandler(SIGSEGV, 0);
+    SetHandler(SIGPIPE, 0);
 }
 #endif
 
-static void DefaultJniSignalHandler(int sig, void* ctx)
+bool IsContextAdded(JNIEnv* env)
+{
+    for (uint32_t i = 0; i < g_AllowedContexts.Size(); ++i)
+    {
+        if (g_AllowedContexts[i] == env)
+            return true;
+    }
+    return false;
+}
+
+void AddContext(JNIEnv* env)
+{
+    if (IsContextAdded(env))
+        return;
+    if (g_AllowedContexts.Full())
+        g_AllowedContexts.OffsetCapacity(4);
+    g_AllowedContexts.Push(env);
+    printf("Added scope: %p\n", env);
+}
+
+void RemoveContext(JNIEnv* env)
+{
+    for (uint32_t i = 0; i < g_AllowedContexts.Size(); ++i)
+    {
+        if (g_AllowedContexts[i] == env)
+        {
+            g_AllowedContexts.EraseSwap(i);
+            printf("Removed scope: %p\n", env);
+            return;
+        }
+    }
+}
+
+static int DefaultJniSignalHandler(int sig, void* ctx)
 {
     JavaVM* vm = (JavaVM*)ctx;
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-        return;
+        return 0;
     }
 
-    char* callstack = GenerateCallstack();
-
-    uint32_t size = 128 + (callstack ? strlen(callstack)+1 : 0);
-    char* message = (char*)malloc(size);
-
-    uint32_t written = 0;
-    written += dmSnPrintf(message+written, size-written, "Exception in Defold JNI code. Signal %d\n", sig);
-    if (callstack)
+    if (!IsContextAdded(env))
     {
-        written += dmSnPrintf(message+written, size-written, "%s", callstack);
+        return 0;
     }
 
-    free((void*)callstack);
+    char message[1024];
+    uint32_t written = 0;
+    written += dmSnPrintf(message+written, sizeof(message), "Exception in Defold JNI code. Signal %d\n", sig);
+
+    GenerateCallstack(message+written, sizeof(message)-written);
 
     env->ThrowNew(env->FindClass("java/lang/RuntimeException"), message);
+    return 1;
 }
 
-void EnableSignalHandlers(void* ctx, void (*callback)(int signal, void* ctx))
+void EnableSignalHandlers(void* ctx, int (*callback)(int signal, void* ctx))
 {
     g_UserCallback = callback;
     g_UserContext = ctx;
+    g_AllowedContexts.SetCapacity(4);
 
     memset(&g_SignalHandlers[0], 0, sizeof(g_SignalHandlers));
     SetHandlers();
@@ -146,7 +219,7 @@ void DisableSignalHandlers()
     g_UserContext = 0;
 }
 
-
+// For unit tests to make sure it still works
 void TestSignalFromString(const char* message)
 {
     if (strstr(message, "SIGILL"))    raise(SIGILL);
@@ -163,24 +236,20 @@ void TestSignalFromString(const char* message)
 
 
 #define APPEND_STRING(...) \
+    if (output_cursor < output_size) \
     { \
-        int result; \
-        do { \
-            result = dmSnPrintf(output + output_cursor, output_size - output_cursor, __VA_ARGS__); \
-            if (result == -1) \
-            { \
-                output_size += 64; \
-                output = (char*)realloc(output, output_size); \
-            } else { \
-                output_cursor += result; \
-            } \
-        } while(result == -1); \
+        int result = dmSnPrintf(output + output_cursor, output_size - output_cursor, __VA_ARGS__); \
+        if (result == -1) { \
+            output_cursor = output_size; \
+        } else { \
+            output_cursor += result; \
+        } \
     }
 
 
 #ifdef __APPLE__
 
-char* GenerateCallstack()
+char* GenerateCallstack(char* output, uint32_t output_size)
 {
     // Call this function to get a backtrace.
     unw_cursor_t cursor;
@@ -190,9 +259,7 @@ char* GenerateCallstack()
     unw_getcontext(&context);
     unw_init_local(&cursor, &context);
 
-    int output_size = 0;
     int output_cursor = 0;
-    char* output = 0;
 
     // Unwind frames one by one, going up the frame stack.
     while (unw_step(&cursor) > 0) {
@@ -275,11 +342,9 @@ HMODULE GetCurrentModule()
     return hModule;
 }
 
-char* GenerateCallstack()
+char* GenerateCallstack(char* output, uint32_t output_size)
 {
-    int output_size = 0;
     int output_cursor = 0;
-    char* output = 0;
 
     HANDLE process = ::GetCurrentProcess();
 
@@ -340,11 +405,9 @@ char* GenerateCallstack()
 
 #else
 
-char* GenerateCallstack()
+char* GenerateCallstack(char* output, uint32_t output_size)
 {
-    int output_size = 0;
     int output_cursor = 0;
-    char* output = 0;
 
     void* buffer[64];
     int num_pointers = backtrace(buffer, sizeof(buffer)/sizeof(buffer[0]));
