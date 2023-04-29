@@ -29,12 +29,6 @@ namespace dmResource
     // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
     const uint32_t RESOURCE_PATH_MAX = 1024;
 
-    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
-
-    const static uint32_t MANIFEST_VERSION = 0x04;
-
-    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
-
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -317,22 +311,6 @@ namespace dmResource
      */
     void DeletePreloader(HPreloader preloader);
 
-    Manifest* GetManifest(HFactory factory);
-
-    /**
-     * Set a new manifest to the factory
-     */
-    void SetManifest(HFactory factory, Manifest* manifest);
-
-    /**
-     * Delete the manifest and all its resources
-     */
-    void DeleteManifest(Manifest* manifest);
-
-
-// Uses LiveUpdateDDF
-    Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
-
 // Called from liveupdate after storing a manifest
     /**
      * Verify that all resources the manifest expects to be bundled actually are bundled.
@@ -349,12 +327,6 @@ namespace dmResource
     Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
-     * Determines if the resource could be unique
-     * @param name Resource name
-    */
-    bool IsPathTagged(const char* name);
-
-    /**
      * Returns the mutex held when loading asynchronous
      * @param factory Factory handle
      * @return Mutex pointer
@@ -365,22 +337,7 @@ namespace dmResource
      * Releases the builtins manifest
      * Use when it's no longer needed, e.g. the user project loaded properly
      */
-    void ReleaseBuiltinsManifest(HFactory factory);
-
-    /**
-     * Returns the length in bytes of the supplied hash algorithm
-     */
-    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
-
-    /**
-     * Byte-wise comparison of two hash buffers
-     * @param digest The hash digest to compare
-     * @param len The hash digest length
-     * @param buf The expected hash digest
-     * @param buflen The expected hash digest length
-     * @return RESULT_OK if the hashes are equal in length and content
-     */
-    Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
+    void ReleaseBuiltinsArchive(HFactory factory);
 
     // Platform specific implementation of archive and manifest loading. Data written into mount_info must
     // be provided for unloading and may contain information about memory mapping etc.

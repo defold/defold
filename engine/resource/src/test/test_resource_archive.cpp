@@ -15,6 +15,8 @@
 #include <stdint.h>
 #include "../resource.h"
 #include "../resource_archive_private.h"
+#include "../resource_util.h"
+#include "../providers/provider_archive_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
 #include <dlib/testutil.h>
@@ -234,7 +236,7 @@ printf("\nMAWE: TEMPORARILY DISABLED!\n");
 
     // archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
 
-    // dmResourceArchive::SetDefaultReader(archive);
+    //// dmResourceArchive::SetDefaultReader(archive);
 
     // uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
     // ASSERT_EQ(7U, entry_count_before);
@@ -293,7 +295,7 @@ printf("\nMAWE: TEMPORARILY DISABLED!\n");
     // archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
     // archive->m_ArchiveFileIndex->m_IsMemMapped = false;
 
-    // dmResourceArchive::SetDefaultReader(archive);
+    //// dmResourceArchive::SetDefaultReader(archive);
 
     // dmResourceArchive::ArchiveIndex* ai_temp = 0;
     // dmResourceArchive::NewArchiveIndexFromCopy(ai_temp, archive, 3);
@@ -418,22 +420,20 @@ TEST(dmResourceArchive, ManifestHeader)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
-    ASSERT_EQ(dmResource::RESULT_OK, result);
+    dmResourceProvider::Result result = dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
 
-    ASSERT_EQ(dmResource::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
-    ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
+    ASSERT_EQ(dmResourceProviderArchivePrivate::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
+    ASSERT_EQ(dmResourceProviderArchivePrivate::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);
 
     ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, manifest_data->m_Header.m_SignatureSignAlgorithm);
 
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResourceProviderArchivePrivate::DeleteManifest(manifest);
 }
 
 static void PrintHash(const uint8_t* hash, uint32_t len)
@@ -501,7 +501,7 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
@@ -538,19 +538,17 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     }
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
     // debug prints to determine cause of intermittent test fail on both Linux/macOS
     printf("Actual digest (%u bytes):\n", hex_digest_len);
     PrintHash((const uint8_t*)hex_digest, hex_digest_len);
     // end debug
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::MemCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
 
     free(hex_digest);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResourceProviderArchivePrivate::DeleteManifest(manifest);
 }
 #endif
 
@@ -566,16 +564,16 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
@@ -595,16 +593,16 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
@@ -616,14 +614,14 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
     resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResourceArchive::RESULT_INVALID_DATA, dmResourceArchive::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
     free(hex_digest);
     free(resources_public_wrong);
@@ -636,8 +634,7 @@ TEST(dmResourceArchive, ResourceEntries)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
-    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     manifest_data = manifest->m_DDFData;
 
@@ -666,8 +663,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
-    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, &manifest));
 
     manifest_data = manifest->m_DDFData;
 
@@ -699,7 +695,7 @@ TEST(dmResourceArchive, Wrap)
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    dmResourceArchive::SetDefaultReader(archive);
+    //dmResourceArchive::SetDefaultReader(archive);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
     dmResourceArchive::HArchiveIndexContainer entryarchive;
@@ -732,7 +728,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, true, (void*) RESOURCES_COMPRESSED_ARCD, RESOURCES_COMPRESSED_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    dmResourceArchive::SetDefaultReader(archive);
+    //dmResourceArchive::SetDefaultReader(archive);
 
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
@@ -769,7 +765,7 @@ TEST(dmResourceArchive, LoadFromDisk)
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
-    dmResourceArchive::SetDefaultReader(archive);
+    //dmResourceArchive::SetDefaultReader(archive);
 
     dmResourceArchive::HArchiveIndexContainer entryarchive;
     dmResourceArchive::EntryData entry;
@@ -813,7 +809,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
-    dmResourceArchive::SetDefaultReader(archive);
+    //dmResourceArchive::SetDefaultReader(archive);
 
     dmResourceArchive::HArchiveIndexContainer entryarchive;
     dmResourceArchive::EntryData entry;
@@ -840,14 +836,14 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 }
 
 
-static dmResourceArchive::Result TestDecryption(void* buffer, uint32_t buffer_len)
+static dmResource::Result TestDecryption(void* buffer, uint32_t buffer_len)
 {
     uint8_t* b = (uint8_t*)buffer;
     for (int i=0; i<buffer_len; i++)
     {
         b[i] = i;
     }
-    return dmResourceArchive::RESULT_OK;
+    return dmResource::RESULT_OK;
 }
 
 TEST(dmResourceArchive, ResourceDecryption)
@@ -855,19 +851,27 @@ TEST(dmResourceArchive, ResourceDecryption)
     uint8_t buffer[] = { 0x00, 0x00, 0x00 };
     uint32_t buffer_len = 3;
     // test the default decryption (using Xtea)
-    dmResourceArchive::Result result = dmResourceArchive::DecryptBuffer(buffer, buffer_len);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    dmResource::Result result = dmResource::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(0xE7, buffer[0]);
     ASSERT_EQ(0xF0, buffer[1]);
     ASSERT_EQ(0x00, buffer[2]);
 
     // set a custom decryption function and test that it works
-    dmResourceArchive::RegisterResourceDecryption(TestDecryption);
-    result = dmResourceArchive::DecryptBuffer(buffer, buffer_len);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    dmResource::RegisterResourceDecryptionFunction(TestDecryption);
+    result = dmResource::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(0x00, buffer[0]);
     ASSERT_EQ(0x01, buffer[1]);
     ASSERT_EQ(0x02, buffer[2]);
+
+    // set a custom decryption function and test that it works
+    dmResource::RegisterResourceDecryptionFunction(0);
+    result = dmResource::DecryptBuffer(buffer, buffer_len);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(0xE7, buffer[0]);
+    ASSERT_EQ(0xF0, buffer[1]);
+    ASSERT_EQ(0x00, buffer[2]);
 }
 
 int main(int argc, char **argv)

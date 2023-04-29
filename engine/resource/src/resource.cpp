@@ -49,6 +49,7 @@
 
 #include "resource.h"
 #include "resource_private.h"
+#include "resource_mounts.h"
 #include <resource/resource_ddf.h>
 
 #include "providers/provider.h"         // dmResourceProviderArchive::Result
@@ -128,12 +129,9 @@ struct SResourceFactory
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
 
-    // Manifest for builtin resources
-    Manifest*                                    m_BuiltinsManifest;
-
     // Resource manifest
-    Manifest*                                    m_Manifest;
-    dmResourceArchive::HContext                  m_ResourceArchive;
+    dmResourceMounts::HContext                   m_Mounts;
+    dmResourceProvider::HArchive                 m_BuiltinMount;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -248,197 +246,188 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
 
 Manifest* GetManifest(HFactory factory)
 {
-    return factory->m_Manifest;
+    assert(false && "Not implemented anymore!");
+    return 0;//factory->m_Manifest;
 }
 
 void SetManifest(HFactory factory, Manifest* manifest)
 {
-    assert(factory->m_Manifest);
+    assert(false && "Not implemented anymore!");
+    // assert(factory->m_Manifest);
 
-    // Unlink the old archive container
-    dmResourceArchive::HArchiveIndexContainer old_archive = factory->m_Manifest->m_ArchiveIndex;
-    dmResourceArchive::HArchiveIndexContainer new_archive = manifest->m_ArchiveIndex;
-    if (new_archive != old_archive)
-    {
-        new_archive->m_Next = old_archive;
-        factory->m_Manifest->m_ArchiveIndex = 0;
-    }
+    // // Unlink the old archive container
+    // dmResourceArchive::HArchiveIndexContainer old_archive = factory->m_Manifest->m_ArchiveIndex;
+    // dmResourceArchive::HArchiveIndexContainer new_archive = manifest->m_ArchiveIndex;
+    // if (new_archive != old_archive)
+    // {
+    //     new_archive->m_Next = old_archive;
+    //     factory->m_Manifest->m_ArchiveIndex = 0;
+    // }
 
-    if (manifest != factory->m_Manifest)
-        DeleteManifest(factory->m_Manifest);
+    // if (manifest != factory->m_Manifest)
+    //     DeleteManifest(factory->m_Manifest);
 
-    factory->m_Manifest = manifest;
-    factory->m_Manifest->m_ArchiveIndex = new_archive;
+    // factory->m_Manifest = manifest;
+    // factory->m_Manifest->m_ArchiveIndex = new_archive;
 }
 
-uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
+
+// // TODO: Move elsewhere
+// // TODO: Remove the dmLiveUpdateDDF dependency here!
+// Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
+// {
+//     // Read from manifest resource
+//     dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
+//     if (result != dmDDF::RESULT_OK)
+//     {
+//         dmLogError("Failed to parse Manifest (%i)", result);
+//         return RESULT_DDF_ERROR;
+//     }
+
+//     // Read data blob from ManifestFile into ManifestData message
+//     result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
+//     if (result != dmDDF::RESULT_OK)
+//     {
+//         dmLogError("Failed to parse Manifest data (%i)", result);
+//         dmDDF::FreeMessage(out_manifest->m_DDF);
+//         out_manifest->m_DDF = 0x0;
+//         return RESULT_DDF_ERROR;
+//     }
+//     if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
+//     {
+//         dmLogError("Manifest format mismatch (expected '%x', actual '%x')", MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
+//         dmDDF::FreeMessage(out_manifest->m_DDFData);
+//         dmDDF::FreeMessage(out_manifest->m_DDF);
+//         out_manifest->m_DDFData = 0x0;
+//         out_manifest->m_DDF = 0x0;
+//         return RESULT_FORMAT_ERROR;
+//     }
+
+//     if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
+//     {
+//         dmLogError("Manifest version mismatch (expected '%i', actual '%i')", dmResourceArchive::VERSION, out_manifest->m_DDFData->m_Header.m_Version);
+//         dmDDF::FreeMessage(out_manifest->m_DDFData);
+//         dmDDF::FreeMessage(out_manifest->m_DDF);
+//         out_manifest->m_DDFData = 0x0;
+//         out_manifest->m_DDF = 0x0;
+//         return RESULT_VERSION_MISMATCH;
+//     }
+
+//     return RESULT_OK;
+// }
+
+// Result DecryptSignatureHash(const Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
+// {
+//     const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+//     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+//     dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
+//     if (r != dmCrypt::RESULT_OK) {
+//         return RESULT_INVALID_DATA;
+//     }
+//     return RESULT_OK;
+// }
+
+// Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+// {
+//     Result res = RESULT_OK;
+//     char public_key_path[DMPATH_MAX_PATH];
+//     uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
+//     uint8_t* pub_key_buf = 0x0;
+//     uint8_t* hash_decrypted = 0x0;
+
+//     // Load public key
+//     dmPath::Concat(app_path, "game.public.der", public_key_path, DMPATH_MAX_PATH);
+//     dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
+//     if (sys_res != dmSys::RESULT_OK)
+//     {
+//         dmLogError("Failed to get size of public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
+//         free(pub_key_buf);
+//         return RESULT_IO_ERROR;
+//     }
+//     pub_key_buf = (uint8_t*)malloc(pub_key_size);
+//     assert(pub_key_buf);
+//     sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
+
+//     if (sys_res != dmSys::RESULT_OK)
+//     {
+//         dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
+//         free(pub_key_buf);
+//         return RESULT_IO_ERROR;
+//     }
+
+//     if (out_resource_size != pub_key_size)
+//     {
+//         dmLogError("Failed to load public key for manifest verification at path: %s, tried reading %d bytes, got %d bytes", public_key_path, pub_key_size, out_resource_size);
+//         free(pub_key_buf);
+//         return RESULT_IO_ERROR;
+//     }
+
+//     res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, &hash_decrypted, &hash_decrypted_len);
+//     if (res != RESULT_OK)
+//     {
+//         return res;
+//     }
+//     res = HashCompare((const uint8_t*)hash_decrypted, hash_decrypted_len, expected_digest, expected_len);
+
+//     free(hash_decrypted);
+//     free(pub_key_buf);
+//     return res;
+// }
+
+// // TODO: Move elsewhere. Used by Live update only
+// Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len)
+// {
+//     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
+//     BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
+//     dmSys::Result result = dmSys::GetApplicationSupportPath(id_buf, buffer, buffer_len);
+//     if (result != dmSys::RESULT_OK)
+//     {
+//         dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, result);
+//         return RESULT_IO_ERROR;
+//     }
+//     return RESULT_OK;
+// }
+
+// void DeleteManifest(Manifest* manifest)
+// {
+//     if (!manifest)
+//         return;
+//     if (manifest->m_DDF)
+//         dmDDF::FreeMessage(manifest->m_DDF);
+//     if (manifest->m_DDFData)
+//         dmDDF::FreeMessage(manifest->m_DDFData);
+//     manifest->m_DDF = 0x0;
+//     manifest->m_DDFData = 0x0;
+//     delete manifest;
+// }
+
+static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
 {
-    const uint32_t bitlen[5] = { 0U, 128U, 160U, 256U, 512U };
-    return bitlen[(int) algorithm] / 8U;
-}
-
-void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len)
-{
-    if (out_buf != NULL && out_len > 0)
+    dmResourceProvider::HArchiveInternal internal = 0;
+    dmResourceProvider::Result result;
+    result = dmResourceProviderArchive::CreateArchive( (uint8_t*)params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size,
+                                                       (uint8_t*)params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size,
+                                                       (uint8_t*)params->m_ArchiveData.m_Data, params->m_ArchiveData.m_Size,
+                                                       &internal);
+    if (dmResourceProvider::RESULT_OK != result)
     {
-        uint32_t out_len_cond = (out_len + 1) / 2;
-        out_buf[0] = 0x0;
-        for (uint32_t i = 0; i < byte_buf_len; ++i)
-        {
-            char current[3];
-            dmSnPrintf(current, 3, "%02x", byte_buf[i]);
-
-            if (i < out_len_cond)
-                strncat(out_buf, current, 1);
-            if (i+1 < out_len_cond)
-                strncat(out_buf, current+1, 1);
-            else
-                break;
-        }
-    }
-}
-
-// TODO: Move elsewhere
-// TODO: Remove the dmLiveUpdateDDF dependency here!
-Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
-{
-    // Read from manifest resource
-    dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
-    if (result != dmDDF::RESULT_OK)
-    {
-        dmLogError("Failed to parse Manifest (%i)", result);
-        return RESULT_DDF_ERROR;
+        internal = 0;
+        dmLogError("Failed to create in-memory archive from buitin project: %d", result);
+        return RESULT_INVAL;
     }
 
-    // Read data blob from ManifestFile into ManifestData message
-    result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
-    if (result != dmDDF::RESULT_OK)
+    dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
+    result = dmResourceProvider::CreateMount(loader, internal, &factory->m_BuiltinMount);
+
+    if (dmResourceProvider::RESULT_OK != result)
     {
-        dmLogError("Failed to parse Manifest data (%i)", result);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDF = 0x0;
-        return RESULT_DDF_ERROR;
-    }
-    if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
-    {
-        dmLogError("Manifest format mismatch (expected '%x', actual '%x')", MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
-        dmDDF::FreeMessage(out_manifest->m_DDFData);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDFData = 0x0;
-        out_manifest->m_DDF = 0x0;
-        return RESULT_FORMAT_ERROR;
+        factory->m_BuiltinMount = 0;
+        dmLogError("Failed to mount builtin archive: %d", result);
+        return RESULT_NOT_LOADED;
     }
 
-    if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
-    {
-        dmLogError("Manifest version mismatch (expected '%i', actual '%i')", dmResourceArchive::VERSION, out_manifest->m_DDFData->m_Header.m_Version);
-        dmDDF::FreeMessage(out_manifest->m_DDFData);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDFData = 0x0;
-        out_manifest->m_DDF = 0x0;
-        return RESULT_VERSION_MISMATCH;
-    }
-
+    dmResourceMounts::AddMount(factory->m_Mounts, factory->m_BuiltinMount, 1);
     return RESULT_OK;
-}
-
-Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len)
-{
-    if (expected_len != len)
-    {
-        dmLogError("Length mismatch in hash comparison. Expected %u, got %u", expected_len, len);
-        return RESULT_FORMAT_ERROR;
-    }
-    if (memcmp(digest, expected_digest, len) != 0)
-    {
-        return RESULT_FORMAT_ERROR;
-    }
-    return RESULT_OK;
-}
-
-Result DecryptSignatureHash(const Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
-{
-    const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
-    if (r != dmCrypt::RESULT_OK) {
-        return RESULT_INVALID_DATA;
-    }
-    return RESULT_OK;
-}
-
-Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
-{
-    Result res = RESULT_OK;
-    char public_key_path[DMPATH_MAX_PATH];
-    uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
-    uint8_t* pub_key_buf = 0x0;
-    uint8_t* hash_decrypted = 0x0;
-
-    // Load public key
-    dmPath::Concat(app_path, "game.public.der", public_key_path, DMPATH_MAX_PATH);
-    dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
-    if (sys_res != dmSys::RESULT_OK)
-    {
-        dmLogError("Failed to get size of public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-        free(pub_key_buf);
-        return RESULT_IO_ERROR;
-    }
-    pub_key_buf = (uint8_t*)malloc(pub_key_size);
-    assert(pub_key_buf);
-    sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
-
-    if (sys_res != dmSys::RESULT_OK)
-    {
-        dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-        free(pub_key_buf);
-        return RESULT_IO_ERROR;
-    }
-
-    if (out_resource_size != pub_key_size)
-    {
-        dmLogError("Failed to load public key for manifest verification at path: %s, tried reading %d bytes, got %d bytes", public_key_path, pub_key_size, out_resource_size);
-        free(pub_key_buf);
-        return RESULT_IO_ERROR;
-    }
-
-    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, &hash_decrypted, &hash_decrypted_len);
-    if (res != RESULT_OK)
-    {
-        return res;
-    }
-    res = HashCompare((const uint8_t*)hash_decrypted, hash_decrypted_len, expected_digest, expected_len);
-
-    free(hash_decrypted);
-    free(pub_key_buf);
-    return res;
-}
-
-// TODO: Move elsewhere. Used by Live update only
-Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len)
-{
-    char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-    BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
-    dmSys::Result result = dmSys::GetApplicationSupportPath(id_buf, buffer, buffer_len);
-    if (result != dmSys::RESULT_OK)
-    {
-        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, result);
-        return RESULT_IO_ERROR;
-    }
-    return RESULT_OK;
-}
-
-void DeleteManifest(Manifest* manifest)
-{
-    if (!manifest)
-        return;
-    if (manifest->m_DDF)
-        dmDDF::FreeMessage(manifest->m_DDF);
-    if (manifest->m_DDFData)
-        dmDDF::FreeMessage(manifest->m_DDFData);
-    manifest->m_DDF = 0x0;
-    manifest->m_DDFData = 0x0;
-    delete manifest;
 }
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
@@ -465,14 +454,41 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
-    factory->m_ResourceArchive = dmResourceArchive::Create();
-    dmResourceArchive::RegisterArchiveLoaders(factory->m_ResourceArchive);
+    factory->m_Mounts = dmResourceMounts::Create();
 
-    // Mount the base archive
-    dmResourceArchive::Result ar_result = dmResourceArchive::MountArchive(factory->m_ResourceArchive, &factory->m_UriParts, 1);
-    if (ar_result != dmResourceArchive::RESULT_OK)
+    // Mount the base archive, regardless of the _resource_mounts.txt
+    struct SchemeMountTypePair
     {
-        dmLogError("Failed to mount base archive properly: %d", ar_result);
+        const char* m_Scheme;
+        const char* m_ProviderType;
+    } type_pairs[] = {
+        {"http", "http"},
+        {"https", "http"},
+        {"dmanif", "archive"},
+        {"file", "file"},
+#if defined(__NX__)
+        {"data", "file"},
+        {"host", "file"},
+#endif
+    };
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
+    {
+        if (strcmp(factory->m_UriParts.m_Scheme, type_pairs[i].m_Scheme) != 0)
+            continue;
+
+        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64(type_pairs[i].m_ProviderType));
+        if (dmResourceProvider::CanMountUri(loader, &factory->m_UriParts))
+        {
+            dmResourceProvider::HArchive archive;
+            dmResourceProvider::Result provider_result = dmResourceProvider::CreateMount(loader, &factory->m_UriParts, 0, &archive);
+            if (dmResourceProvider::RESULT_OK != provider_result)
+            {
+                dmLogError("Failed to mount base archive properly: %d", provider_result);
+            }
+            dmResourceMounts::AddMount(factory->m_Mounts, archive, 0);
+            break;
+        }
     }
 
     factory->m_HttpBuffer = 0;
@@ -480,55 +496,55 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_HttpCache = 0;
     if (strcmp(factory->m_UriParts.m_Scheme, "http") == 0 || strcmp(factory->m_UriParts.m_Scheme, "https") == 0)
     {
-        factory->m_HttpCache = 0;
-        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_HTTP_CACHE)
-        {
-            dmHttpCache::NewParams cache_params;
-            char path[1024];
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
-            if (sys_result == dmSys::RESULT_OK)
-            {
-                // NOTE: The other http-service cache is called /http-cache
-                dmStrlCat(path, "/cache", sizeof(path));
-                cache_params.m_Path = path;
-                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &factory->m_HttpCache);
-                if (cache_r != dmHttpCache::RESULT_OK)
-                {
-                    dmLogWarning("Unable to open http cache (%d)", cache_r);
-                }
-                else
-                {
-                    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, 60 * 60 * 24 * 5); // 5 days
-                    // Http-cache batch verification might be unsupported
-                    // We currently does not have support for batch validation in the editor http-server
-                    // Batch validation was introduced when we had remote branch and latency problems
-                    if (verify_r != dmHttpCacheVerify::RESULT_OK && verify_r != dmHttpCacheVerify::RESULT_UNSUPPORTED)
-                    {
-                        dmLogWarning("Cache validation failed (%d)", verify_r);
-                    }
+        // factory->m_HttpCache = 0;
+        // if (params->m_Flags & RESOURCE_FACTORY_FLAGS_HTTP_CACHE)
+        // {
+        //     dmHttpCache::NewParams cache_params;
+        //     char path[1024];
+        //     dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+        //     if (sys_result == dmSys::RESULT_OK)
+        //     {
+        //         // NOTE: The other http-service cache is called /http-cache
+        //         dmStrlCat(path, "/cache", sizeof(path));
+        //         cache_params.m_Path = path;
+        //         dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &factory->m_HttpCache);
+        //         if (cache_r != dmHttpCache::RESULT_OK)
+        //         {
+        //             dmLogWarning("Unable to open http cache (%d)", cache_r);
+        //         }
+        //         else
+        //         {
+        //             dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, 60 * 60 * 24 * 5); // 5 days
+        //             // Http-cache batch verification might be unsupported
+        //             // We currently does not have support for batch validation in the editor http-server
+        //             // Batch validation was introduced when we had remote branch and latency problems
+        //             if (verify_r != dmHttpCacheVerify::RESULT_OK && verify_r != dmHttpCacheVerify::RESULT_UNSUPPORTED)
+        //             {
+        //                 dmLogWarning("Cache validation failed (%d)", verify_r);
+        //             }
 
-                    dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
-                }
-            }
-            else
-            {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
-            }
-        }
+        //             dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+        //         }
+        //     }
+        //     else
+        //     {
+        //         dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+        //     }
+        // }
 
-        dmHttpClient::NewParams http_params;
-        http_params.m_HttpHeader = &HttpHeader;
-        http_params.m_HttpContent = &HttpContent;
-        http_params.m_Userdata = factory;
-        http_params.m_HttpCache = factory->m_HttpCache;
-        factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port, strcmp(factory->m_UriParts.m_Scheme, "https") == 0, 0);
-        if (!factory->m_HttpClient)
-        {
-            dmLogError("Invalid URI: %s", uri);
-            dmMessage::DeleteSocket(socket);
-            delete factory;
-            return 0;
-        }
+        // dmHttpClient::NewParams http_params;
+        // http_params.m_HttpHeader = &HttpHeader;
+        // http_params.m_HttpContent = &HttpContent;
+        // http_params.m_Userdata = factory;
+        // http_params.m_HttpCache = factory->m_HttpCache;
+        // factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port, strcmp(factory->m_UriParts.m_Scheme, "https") == 0, 0);
+        // if (!factory->m_HttpClient)
+        // {
+        //     dmLogError("Invalid URI: %s", uri);
+        //     dmMessage::DeleteSocket(socket);
+        //     delete factory;
+        //     return 0;
+        // }
     }
     else if (strcmp(factory->m_UriParts.m_Scheme, "file") == 0
 #if defined(__NX__)
@@ -640,24 +656,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         factory->m_ResourceReloadedCallbacks = 0;
     }
 
-    if (params->m_ArchiveManifest.m_Size)
+    factory->m_BuiltinMount = 0;
+    if (params->m_ArchiveManifest.m_Size && params->m_ArchiveIndex.m_Size && params->m_ArchiveData.m_Size)
     {
-        factory->m_BuiltinsManifest = new Manifest();
-        dmDDF::Result res = dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDF);
-
-        if (res != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to load builtins manifest, result: %u", res);
-        }
-        else
-        {
-            res = dmDDF::LoadMessage(factory->m_BuiltinsManifest->m_DDF->m_Data.m_Data, factory->m_BuiltinsManifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDFData);
-            dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, true,
-                                                 params->m_ArchiveData.m_Data, params->m_ArchiveData.m_Size, true,
-                                                 &factory->m_BuiltinsManifest->m_ArchiveIndex);
-
-            dmResourceArchive::SetDefaultReader(factory->m_BuiltinsManifest->m_ArchiveIndex);
-        }
+        AddBuiltinMount(factory, params);
     }
 
     factory->m_LoadMutex = dmMutex::New();
@@ -688,20 +690,9 @@ void DeleteFactory(HFactory factory)
         dmMutex::Delete(factory->m_LoadMutex);
     }
 
-    if (factory->m_Manifest)
-    {
-        if (factory->m_Manifest->m_ArchiveIndex)
-        {
-            dmResourceArchive::UnloadArchives(factory->m_Manifest->m_ArchiveIndex);
-        }
+    ReleaseBuiltinsArchive(factory);
 
-        DeleteManifest(factory->m_Manifest);
-        factory->m_Manifest = 0;
-    }
-
-    ReleaseBuiltinsManifest(factory);
-
-    dmResourceArchive::Destroy(factory->m_ResourceArchive);
+    dmResourceMounts::Destroy(factory->m_Mounts);
 
     if (!factory->m_Resources->Empty())
     {
@@ -794,109 +785,102 @@ Result RegisterType(HFactory factory,
     return RESULT_OK;
 }
 
-// Finds the specific entry in a sorted list of entries
-static int FindEntryIndex(const Manifest* manifest, dmhash_t path_hash)
-{
-    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+// // Finds the specific entry in a sorted list of entries
+// static int FindEntryIndex(const Manifest* manifest, dmhash_t path_hash)
+// {
+//     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+//     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
 
-    // Use divide and conquer
-    int first = 0;
-    int last = entry_count-1;
-    while (first <= last)
-    {
-        int mid = first + (last - first) / 2;
-        uint64_t h = entries[mid].m_UrlHash;
+//     // Use divide and conquer
+//     int first = 0;
+//     int last = entry_count-1;
+//     while (first <= last)
+//     {
+//         int mid = first + (last - first) / 2;
+//         uint64_t h = entries[mid].m_UrlHash;
 
-        if (h == path_hash)
-        {
-            return mid;
-        }
-        else if (h > path_hash)
-        {
-            last = mid - 1;
-        }
-        else if (h < path_hash)
-        {
-            first = mid + 1;
-        }
-    }
-    return -1;
-}
+//         if (h == path_hash)
+//         {
+//             return mid;
+//         }
+//         else if (h > path_hash)
+//         {
+//             last = mid - 1;
+//         }
+//         else if (h < path_hash)
+//         {
+//             first = mid + 1;
+//         }
+//     }
+//     return -1;
+// }
 
-static Result LoadFromArchive(dmResourceArchive::HContext archive_ctx, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
-{
-    dmhash_t path_hash = dmHashString64(path);
-    buffer->SetSize(0);
-    dmResourceArchive::Result result = dmResourceArchive::ReadResource(archive_ctx, path, path_hash, buffer);
-    if (result == dmResourceArchive::RESULT_OK)
-    {
-        *resource_size = buffer->Size();
-        return RESULT_OK;
-    }
-    if (result == dmResourceArchive::RESULT_NOT_FOUND)
-        return RESULT_RESOURCE_NOT_FOUND;
-    if (result == dmResourceArchive::RESULT_IO_ERROR)
-        return RESULT_IO_ERROR;
-    return RESULT_UNKNOWN_ERROR;
-}
+// static Result LoadFromArchive(dmResourceArchive::HContext archive_ctx, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
+// {
+//     dmhash_t path_hash = dmHashString64(path);
+//     buffer->SetSize(0);
+//     dmResourceArchive::Result result = dmResourceArchive::ReadResource(archive_ctx, path, path_hash, buffer);
+//     if (result == dmResourceArchive::RESULT_OK)
+//     {
+//         *resource_size = buffer->Size();
+//         return RESULT_OK;
+//     }
+//     if (result == dmResourceArchive::RESULT_NOT_FOUND)
+//         return RESULT_RESOURCE_NOT_FOUND;
+//     if (result == dmResourceArchive::RESULT_IO_ERROR)
+//         return RESULT_IO_ERROR;
+//     return RESULT_UNKNOWN_ERROR;
+// }
 
-static Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
-{
-    dmhash_t path_hash = dmHashString64(path);
+// static Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
+// {
+//     dmhash_t path_hash = dmHashString64(path);
 
-    int index = FindEntryIndex(manifest, path_hash);
-    if (index < 0) {
-        return RESULT_RESOURCE_NOT_FOUND; // Path not in manifest
-    }
+//     int index = FindEntryIndex(manifest, path_hash);
+//     if (index < 0) {
+//         return RESULT_RESOURCE_NOT_FOUND; // Path not in manifest
+//     }
 
-    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
-    dmResourceArchive::EntryData ed;
-    dmResourceArchive::HArchiveIndexContainer archive;
-    uint8_t* hash = entries[index].m_Hash.m_Data.m_Data;
-    uint32_t hash_len = dmResource::HashLength(algorithm);
-    dmResourceArchive::Result res = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, hash, hash_len, &archive, &ed);
-    if (res == dmResourceArchive::RESULT_OK)
-    {
-        uint32_t file_size = ed.m_ResourceSize;
-        if (buffer->Capacity() < file_size)
-        {
-            buffer->SetCapacity(file_size);
-        }
+//     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+//     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+//     dmResourceArchive::EntryData ed;
+//     dmResourceArchive::HArchiveIndexContainer archive;
+//     uint8_t* hash = entries[index].m_Hash.m_Data.m_Data;
+//     uint32_t hash_len = dmResource::HashLength(algorithm);
+//     dmResourceArchive::Result res = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, hash, hash_len, &archive, &ed);
+//     if (res == dmResourceArchive::RESULT_OK)
+//     {
+//         uint32_t file_size = ed.m_ResourceSize;
+//         if (buffer->Capacity() < file_size)
+//         {
+//             buffer->SetCapacity(file_size);
+//         }
 
-        buffer->SetSize(0);
-        dmResourceArchive::Result read_result = dmResourceArchive::Read(archive, hash, hash_len, &ed, buffer->Begin());
-        if (read_result != dmResourceArchive::RESULT_OK)
-        {
-            return RESULT_IO_ERROR;
-        }
+//         buffer->SetSize(0);
+//         dmResourceArchive::Result read_result = dmResourceArchive::Read(archive, hash, hash_len, &ed, buffer->Begin());
+//         if (read_result != dmResourceArchive::RESULT_OK)
+//         {
+//             return RESULT_IO_ERROR;
+//         }
 
-        buffer->SetSize(file_size);
-        *resource_size = file_size;
+//         buffer->SetSize(file_size);
+//         *resource_size = file_size;
 
-        return RESULT_OK;
-    }
-    else if (res == dmResourceArchive::RESULT_NOT_FOUND)
-    {
-        // Resource was found in manifest, but not in archive
-        return RESULT_RESOURCE_NOT_FOUND;
-    }
+//         return RESULT_OK;
+//     }
+//     else if (res == dmResourceArchive::RESULT_NOT_FOUND)
+//     {
+//         // Resource was found in manifest, but not in archive
+//         return RESULT_RESOURCE_NOT_FOUND;
+//     }
 
-    return RESULT_IO_ERROR;
-}
+//     return RESULT_IO_ERROR;
+// }
 
 // Assumes m_LoadMutex is already held
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     DM_PROFILE(__FUNCTION__);
-    if (factory->m_BuiltinsManifest)
-    {
-        if (LoadFromManifest(factory->m_BuiltinsManifest, original_name, resource_size, buffer) == RESULT_OK)
-        {
-            return RESULT_OK;
-        }
-    }
 
     char factory_path[RESOURCE_PATH_MAX];
     GetCanonicalPathFromBase(factory->m_UriParts.m_Path, path, factory_path);
@@ -945,11 +929,11 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         *resource_size = factory->m_HttpTotalBytesStreamed;
         return RESULT_OK;
     }
-    else if (factory->m_Manifest)
-    {
-        Result r = LoadFromManifest(factory->m_Manifest, original_name, resource_size, buffer);
-        return r;
-    }
+    // else if (factory->m_Manifest)
+    // {
+    //     Result r = LoadFromManifest(factory->m_Manifest, original_name, resource_size, buffer);
+    //     return r;
+    // }
     else
     {
         // const char* fs_path = factory_path;
@@ -994,26 +978,22 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
 
     dmhash_t factory_path_hash = dmHashString64(factory_path);
     uint32_t file_size;
-    dmResourceArchive::Result r = dmResourceArchive::GetResourceSize(factory->m_ResourceArchive, factory_path_hash, factory_path, &file_size);
-    if (r == dmResourceArchive::RESULT_OK)
+    dmResource::Result r = dmResourceMounts::GetResourceSize(factory->m_Mounts, factory_path_hash, factory_path, &file_size);
+    if (r == dmResource::RESULT_OK)
     {
         if (buffer->Capacity() < file_size) {
             buffer->SetCapacity(file_size);
         }
         buffer->SetSize(0);
 
-        r = dmResourceArchive::ReadResource(factory->m_ResourceArchive, factory_path_hash, factory_path, (uint8_t*)buffer->Begin(), file_size);
-        if (r == dmResourceArchive::RESULT_OK)
+        r = dmResourceMounts::ReadResource(factory->m_Mounts, factory_path_hash, factory_path, (uint8_t*)buffer->Begin(), file_size);
+        if (r == dmResource::RESULT_OK)
         {
             buffer->SetSize(file_size);
             *resource_size = file_size;
             return RESULT_OK;
-        } else {
-            if (r == dmResourceArchive::RESULT_NOT_FOUND)
-                return RESULT_RESOURCE_NOT_FOUND;
-            else
-                return RESULT_IO_ERROR;
         }
+        return r;
     }
     return RESULT_RESOURCE_NOT_FOUND;
 }
@@ -1803,14 +1783,13 @@ dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
     return factory->m_LoadMutex;
 }
 
-void ReleaseBuiltinsManifest(HFactory factory)
+void ReleaseBuiltinsArchive(HFactory factory)
 {
-    if (factory->m_BuiltinsManifest)
+    if (factory->m_BuiltinMount)
     {
-        dmResourceArchive::Delete(factory->m_BuiltinsManifest->m_ArchiveIndex);
-
-        DeleteManifest(factory->m_BuiltinsManifest);
-        factory->m_BuiltinsManifest = 0;
+        dmResourceMounts::RemoveMount(factory->m_Mounts, factory->m_BuiltinMount);
+        dmResourceProvider::Unmount(factory->m_BuiltinMount);
+        factory->m_BuiltinMount = 0;
     }
 }
 

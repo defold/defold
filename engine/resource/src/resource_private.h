@@ -69,15 +69,6 @@ namespace dmResource
     Result DecryptSignatureHash(const Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
 
     /**
-     * Converts the supplied byte buffer to hexadecimal string representation
-     * @param byte_buf The byte buffer
-     * @param byte_buf_len The byte buffer length
-     * @param out_buf The output string buffer
-     * @param out_len The output buffer length
-     */
-    void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len);
-
-    /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
      * We check this by persisting the bundled manifest signature to file the first time a liveupdate.manifest
      * is stored. At app start we check the current bundled manifest signature against the signature written to file.

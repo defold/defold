@@ -51,7 +51,6 @@ namespace dmResourceProvider
 
     // Create an archive manually (unit tests)
     Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive);
-
 } // namespace
 
 #endif

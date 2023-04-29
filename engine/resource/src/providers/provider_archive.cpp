@@ -17,6 +17,7 @@
 #include "provider_archive_private.h"
 
 #include "../resource.h" // dmResource::Manifest
+#include "../resource_util.h"
 #include "../resource_archive.h"
 
 #include <dlib/dstrings.h>
@@ -129,120 +130,9 @@ namespace dmResourceProviderArchive
         return result;
     }
 
-    static dmResourceArchive::Result ReadEntryInternal(dmResourceArchive::HArchiveIndexContainer archive,
-                                                        const dmResourceArchive::EntryData* entry, void* buffer)
-    {
-        const uint32_t flags            = dmEndian::ToNetwork(entry->m_Flags);
-        const uint32_t size             = dmEndian::ToNetwork(entry->m_ResourceSize);
-        const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
-              uint32_t compressed_size  = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
-
-        bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
-        bool compressed = compressed_size != 0xFFFFFFFF;
-
-        const dmResourceArchive::ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
-        bool resource_memmapped = afi->m_IsMemMapped;
-
-        // We have multiple combinations for regular archives:
-        // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
-        // Decryption can be done into a buffer of the same size, although not into a read only array
-        // We do this is to avoid unnecessary memory allocations
-
-        //  compressed +  encrypted +  memmapped = need malloc (encrypt cannot modify memmapped file, decompress cannot use same src/dst)
-        //  compressed +  encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-        //  compressed + !encrypted +  memmapped = doesn't need malloc (can decompress because src != dst)
-        //  compressed + !encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-        // !compressed +  encrypted +  memmapped = doesn't need malloc
-        // !compressed +  encrypted + !memmapped = doesn't need malloc
-        // !compressed + !encrypted +  memmapped = doesn't need malloc
-        // !compressed + !encrypted + !memmapped = doesn't need malloc
-
-        void* compressed_buf = 0;
-        bool temp_buffer = false;
-
-        if (compressed && !( !encrypted && resource_memmapped))
-        {
-            compressed_buf = malloc(compressed_size);
-            temp_buffer = true;
-        } else {
-            // For uncompressed data, use the destination buffer
-            compressed_buf = buffer;
-            memset(buffer, 0, size);
-            compressed_size = compressed ? compressed_size : size;
-        }
-
-        assert(compressed_buf);
-
-        if (!resource_memmapped)
-        {
-            FILE* resource_file = afi->m_FileResourceData;
-
-            assert(temp_buffer || compressed_buf == buffer);
-
-            fseek(resource_file, resource_offset, SEEK_SET);
-            if (fread(compressed_buf, 1, compressed_size, resource_file) != compressed_size)
-            {
-                if (temp_buffer)
-                    free(compressed_buf);
-                return dmResourceArchive::RESULT_IO_ERROR;
-            }
-        } else {
-            void* r = (void*) (((uintptr_t)afi->m_ResourceData + resource_offset));
-            if (compressed && !encrypted)
-            {
-                compressed_buf = r;
-            } else {
-                memcpy(compressed_buf, r, compressed_size);
-            }
-        }
-
-        // Design wish: If we switch the order of operations (and thus the file format)
-        // we can simplify the code and save a temporary allocation
-        //
-        // Currently, we need to decrypt into a new buffer (since the input is read only):
-        // input:[LZ4 then Encrypted] -> Decrypt ->   temp:[  LZ4      ] -> Deflate -> output:[   data   ]
-        //
-        // We could instead have:
-        // input:[Encrypted then LZ4] -> Deflate -> output:[ Encrypted ] -> Decrypt -> output:[   data   ]
-
-        if(encrypted)
-        {
-            assert(temp_buffer || compressed_buf == buffer);
-
-            dmResourceArchive::Result r = dmResourceArchive::DecryptBuffer(compressed_buf, compressed_size);
-            if (r != dmResourceArchive::RESULT_OK)
-            {
-                if (temp_buffer)
-                    free(compressed_buf);
-                return r;
-            }
-        }
-
-        if (compressed)
-        {
-            assert(compressed_buf != buffer);
-            int decompressed_size;
-            dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
-            if (dmLZ4::RESULT_OK != r)
-            {
-                if (temp_buffer)
-                    free(compressed_buf);
-                return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
-            }
-        } else {
-            if (buffer != compressed_buf)
-                memcpy(buffer, compressed_buf, size);
-        }
-
-        if (temp_buffer)
-            free(compressed_buf);
-
-        return dmResourceArchive::RESULT_OK;
-    }
-
     dmResourceArchive::Result ReadEntry(dmResourceArchive::HArchiveIndexContainer archive, const dmResourceArchive::EntryData* entry, void* buffer)
     {
-        return ReadEntryInternal(archive, entry, buffer);
+        return dmResourceArchive::ReadEntry(archive, entry, buffer);
     }
 
     // Legacy api
@@ -259,7 +149,7 @@ namespace dmResourceProviderArchive
         e.m_ResourceCompressedSize = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
         e.m_Flags = dmEndian::ToNetwork(entry->m_Flags);
 
-        return ReadEntry(archive, &e, buffer);
+        return dmResourceArchive::ReadEntry(archive, &e, buffer);
     }
 
     static bool MatchesUri(const dmURI::Parts* uri)
@@ -284,7 +174,7 @@ namespace dmResourceProviderArchive
     static void DeleteArchive(GameArchiveFile* archive)
     {
         if (archive->m_Manifest)
-            dmResource::DeleteManifest(archive->m_Manifest);
+            dmResourceProviderArchivePrivate::DeleteManifest(archive->m_Manifest);
 
         if (archive->m_ArchiveIndex)
             dmResource::UnmountArchiveInternal(archive->m_ArchiveIndex, archive->m_ArchiveIndex->m_UserData);
@@ -420,7 +310,7 @@ namespace dmResourceProviderArchive
         {
             if (buffer_len < dmEndian::ToNetwork(entry->m_ArchiveInfo->m_ResourceSize))
                 return dmResourceProvider::RESULT_INVAL_ERROR;
-            ReadEntryInternal(archive->m_ArchiveIndex, entry->m_ArchiveInfo, buffer);
+            dmResourceArchive::ReadEntry(archive->m_ArchiveIndex, entry->m_ArchiveInfo, buffer);
             return dmResourceProvider::RESULT_OK;
         }
 

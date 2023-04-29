@@ -19,6 +19,7 @@
 
 #include "../resource.h" // dmResource::Manifest
 #include "../resource_archive.h"
+#include "../resource_util.h"
 #include "../resource_private.h"
 
 #include <dlib/crypt.h>
@@ -81,7 +82,7 @@ namespace dmResourceProviderArchiveMutable
     static void DeleteArchive(GameArchiveFile* archive)
     {
         if (archive->m_Manifest)
-            dmResource::DeleteManifest(archive->m_Manifest);
+            dmResourceProviderArchivePrivate::DeleteManifest(archive->m_Manifest);
 
         if (archive->m_ArchiveContainer)
             dmResource::UnmountArchiveInternal(archive->m_ArchiveContainer, archive->m_ArchiveContainer->m_UserData);
@@ -120,20 +121,20 @@ namespace dmResourceProviderArchiveMutable
 
     }
 
-    static void UpdateEntryMap(GameArchiveFile* archive, dmhash_t url_hash)
-    {
-        if (!archive->m_ArchiveContainer)
-            return;
+    // static void UpdateEntryMap(GameArchiveFile* archive, dmhash_t url_hash)
+    // {
+    //     if (!archive->m_ArchiveContainer)
+    //         return;
 
-        EntryInfo* info = archive->m_EntryMap.Get(url_hash);
+    //     EntryInfo* info = archive->m_EntryMap.Get(url_hash);
 
-        dmLiveUpdateDDF::ResourceEntry* entry = info->m_ManifestEntry;
-        dmResourceArchive::Result result = dmResourceProviderArchive::FindEntry(archive->m_ArchiveContainer, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count, &info->m_ArchiveInfo);
-        if (result != dmResourceArchive::RESULT_OK)
-        {
-            dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
-        }
-    }
+    //     dmLiveUpdateDDF::ResourceEntry* entry = info->m_ManifestEntry;
+    //     dmResourceArchive::Result result = dmResourceProviderArchive::FindEntry(archive->m_ArchiveContainer, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count, &info->m_ArchiveInfo);
+    //     if (result != dmResourceArchive::RESULT_OK)
+    //     {
+    //         dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
+    //     }
+    // }
 
     static bool ArchiveFilesExist(const dmURI::Parts* uri)
     {
@@ -449,7 +450,7 @@ namespace dmResourceProviderArchiveMutable
         {
             return dmResourceProvider::RESULT_INVAL_ERROR;
         }
-        bool comp = dmResource::HashCompare(data, data_length, expected, expected_length) == dmResource::RESULT_OK;
+        bool comp = dmResource::MemCompare(data, data_length, expected, expected_length) == dmResource::RESULT_OK;
         return comp ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_SIGNATURE_MISMATCH;
     }
 

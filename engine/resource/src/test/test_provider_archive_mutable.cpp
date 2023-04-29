@@ -24,6 +24,8 @@
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
 
+
+#include "../resource_util.h"
 #include "../providers/provider.h"
 #include "../providers/provider_private.h"
 #include "../providers/provider_archive.h"
@@ -194,7 +196,6 @@ TEST_F(ArchiveProviderMutable, GetSize)
 {
     dmResourceProvider::Result result;
     uint32_t file_size;
-    dmhash_t path_hash;
     const char* path;
 
     path = "/archive_data/file1.adc";
@@ -274,7 +275,7 @@ static void PrintfBuffer(const uint8_t* buf, uint32_t buf_len)
 static void EncryptBuffer(uint8_t* buffer, uint32_t buffer_len)
 {
     // The current algorithm is inplace and reversible ()
-    dmResourceArchive::DecryptBuffer(buffer, buffer_len);
+    dmResource::DecryptBuffer(buffer, buffer_len);
 }
 
 TEST_F(ArchiveProviderMutable, DownloadFiles)

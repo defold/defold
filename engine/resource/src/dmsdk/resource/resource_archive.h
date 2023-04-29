@@ -29,21 +29,6 @@
 namespace dmResourceArchive
 {
 
-    enum Result
-    {
-        RESULT_OK = 0,
-        RESULT_NOT_FOUND = 1,
-        RESULT_VERSION_MISMATCH = -1,
-        RESULT_IO_ERROR = -2,
-        RESULT_MEM_ERROR = -3,
-        RESULT_OUTBUFFER_TOO_SMALL = -4,
-        RESULT_ALREADY_STORED = -5,
-        RESULT_UNKNOWN = -1000,
-    };
-
-    typedef Result (*FDecryptResource)(void* buffer, uint32_t buffer_len);
-
-    void RegisterResourceDecryption(FDecryptResource decrypt_resource);
 }
 
 #endif // DMSDK_RESOURCE_ARCHIVE_H

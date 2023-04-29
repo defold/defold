@@ -114,7 +114,8 @@ protected:
         dmURI::Parts uri;
         dmURI::Parse("dmanif:build/src/test/resources", &uri);
 
-        dmResourceProvider::Result result = dmResourceProvider::Mount(&uri, 0, &m_Archive);
+
+        dmResourceProvider::Result result = dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 

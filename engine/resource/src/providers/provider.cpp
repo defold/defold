@@ -66,16 +66,21 @@ ArchiveLoader* FindLoaderByName(dmhash_t name_hash)
     return 0;
 }
 
-ArchiveLoader* FindLoaderByUri(const dmURI::Parts* uri)
+// ArchiveLoader* FindLoaderByUri(const dmURI::Parts* uri)
+// {
+//     ArchiveLoader* loader = g_ArchiveLoaders;
+//     while (loader)
+//     {
+//         if (loader->m_CanMount(uri))
+//             return loader;
+//         loader = loader->m_Next;
+//     }
+//     return 0;
+// }
+
+bool CanMountUri(HArchiveLoader loader, const dmURI::Parts* uri)
 {
-    ArchiveLoader* loader = g_ArchiveLoaders;
-    while (loader)
-    {
-        if (loader->m_CanMount(uri))
-            return loader;
-        loader = loader->m_Next;
-    }
-    return 0;
+    return loader->m_CanMount(uri);
 }
 
 // ****************************************
@@ -96,29 +101,22 @@ static Result DoMount(ArchiveLoader* loader, const dmURI::Parts* uri, HArchive b
     return result;
 }
 
-Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive)
-{
-    ArchiveLoader* loader = FindLoaderByUri(uri);
-    if (!loader)
-    {
-        dmLogError("Found no matching loader for '%s:/%s%s'", uri->m_Scheme, uri->m_Location, uri->m_Path);
-        return RESULT_NOT_FOUND;
-    }
-    return DoMount(loader, uri, base_archive, out_archive);
-}
+// Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive)
+// {
+//     ArchiveLoader* loader = FindLoaderByUri(uri);
+//     if (!loader)
+//     {
+//         dmLogError("Found no matching loader for '%s:/%s%s'", uri->m_Scheme, uri->m_Location, uri->m_Path);
+//         return RESULT_NOT_FOUND;
+//     }
+//     return DoMount(loader, uri, base_archive, out_archive);
+// }
 
 Result CreateMount(HArchiveLoader loader, const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive)
 {
     if (!loader->m_CanMount(uri))
         return RESULT_NOT_SUPPORTED;
     return DoMount(loader, uri, base_archive, out_archive);
-}
-
-Result Unmount(HArchive archive)
-{
-    Result result = archive->m_Loader->m_Unmount(archive->m_Internal);
-    delete archive;
-    return result;
 }
 
 Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive)
@@ -128,6 +126,13 @@ Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive)
     archive->m_Internal = internal;
     *out_archive = archive;
     return RESULT_OK;
+}
+
+Result Unmount(HArchive archive)
+{
+    Result result = archive->m_Loader->m_Unmount(archive->m_Internal);
+    delete archive;
+    return result;
 }
 
 Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size)

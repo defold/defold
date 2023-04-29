@@ -62,14 +62,16 @@ namespace dmResourceProvider
     typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**); // In order for other providers to get the base manifest
 
     // The resource loader types
-    void            RegisterArchiveLoader(ArchiveLoader* loader);
-    void            ClearArchiveLoaders(ArchiveLoader* loader);
-    ArchiveLoader*  FindLoaderByName(dmhash_t name_hash);
-    ArchiveLoader*  FindLoaderByUri(const dmURI::Parts* uri);
+    void            RegisterArchiveLoader(HArchiveLoader loader);
+    void            ClearArchiveLoaders(HArchiveLoader loader);
+    HArchiveLoader  FindLoaderByName(dmhash_t name_hash);
+    bool            CanMountUri(HArchiveLoader loader, const dmURI::Parts* uri);
+    // HArchiveLoader  FindLoaderByUri(const dmURI::Parts* uri);
 
     // The archive operations
-    Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive); // TODO: Is this needed/usable?
+    //Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive); // TODO: Is this needed/usable?
     Result CreateMount(HArchiveLoader loader, const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive);
+    Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive);
     Result Unmount(HArchive archive);
     Result GetUri(HArchive archive, dmURI::Parts* out_uri);
     Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest);
@@ -82,12 +84,10 @@ namespace dmResourceProvider
 
     // Plugin API
 
-    // private
+    // Internal
     void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*setup_fn)(ArchiveLoader*));
 
-    /**
-     * Extension declaration helper. Internal
-     */
+    // Extension declaration helper. Internal
     #ifdef __GNUC__
         // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
         // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
@@ -104,16 +104,12 @@ namespace dmResourceProvider
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
-    /**
-    * Archive loader desc bytesize declaration. Internal
-    */
+    // Archive loader desc bytesize declaration
     const uint32_t g_ExtensionDescBufferSize = 128;
-
-    // internal
     #define DM_RESOURCE_PROVIDER_PASTE_SYMREG(x, y) x ## y
-    // internal
     #define DM_RESOURCE_PROVIDER_PASTE_SYMREG2(x, y) DM_RESOURCE_PROVIDER_PASTE_SYMREG(x, y)
 
+    // public
     #define DM_DECLARE_ARCHIVE_LOADER(symbol, name, setup_fn) \
         uint8_t DM_ALIGNED(16) DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)[dmResourceProvider::g_ExtensionDescBufferSize]; \
         DM_REGISTER_ARCHIVE_LOADER(symbol, DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PROVIDER_PASTE_SYMREG2(symbol, __LINE__)), name, setup_fn);

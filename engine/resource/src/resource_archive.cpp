@@ -20,6 +20,7 @@
 #include "resource.h"
 #include "resource_archive.h"
 #include "resource_private.h"
+#include "resource_util.h"
 #include "resource_archive_private.h"
 #include "providers/provider.h"
 #include "providers/provider_private.h"
@@ -29,7 +30,6 @@
 #include "providers/provider_zip.h"
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
 #include <dlib/endian.h>
 #include <dlib/log.h>
 #include <dlib/lz4.h>
@@ -47,38 +47,7 @@
 
 namespace dmResourceArchive
 {
-
-    static Result DecryptWithXtea(void* buffer, uint32_t buffer_len);
-
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
-    const char* KEY = "aQj8CScgNP4VsfXK";
-
-    FDecryptResource g_ResourceDecryption = DecryptWithXtea; // Currently global since we didn't use the resource factory as the context!
-
-    struct ArchiveMount
-    {
-        dmResourceProvider::HArchive    m_Archive;
-        int                             m_Priority;
-    };
-
-    struct ResourceArchiveContext
-    {
-        // The currently mounted archives, in sorted order
-        dmArray<ArchiveMount>                       m_Mounts;
-    } g_ResourceArchiveContext;
-
-    HContext Create()
-    {
-        ResourceArchiveContext* ctx = new ResourceArchiveContext;
-        ctx->m_Mounts.SetCapacity(2);
-        return ctx;
-    }
-
-    void Destroy(HContext ctx)
-    {
-        UnmountArchives(ctx);
-        delete ctx;
-    }
 
     ArchiveIndex::ArchiveIndex()
     {
@@ -87,278 +56,30 @@ namespace dmResourceArchive
         m_HashOffset = dmEndian::ToHost((uint32_t)sizeof(ArchiveIndex));
     }
 
-    void RegisterResourceDecryption(FDecryptResource decrypt_resource)
-    {
-        g_ResourceDecryption = decrypt_resource;
-    }
-
-    void RegisterArchiveLoaders(HContext ctx)
-    {
-    }
-
-    static Result ProviderResultToResult(dmResourceProvider::Result result)
-    {
-        switch(result)
-        {
-        case dmResourceProvider::RESULT_OK:         return RESULT_OK;
-        case dmResourceProvider::RESULT_IO_ERROR:   return RESULT_IO_ERROR;
-        case dmResourceProvider::RESULT_NOT_FOUND:  return RESULT_NOT_FOUND;
-        default:                                    return RESULT_UNKNOWN;
-        }
-    }
-
-    static dmResourceProvider::Result Mount(HContext ctx, dmResourceProvider::HArchive base_archive, const dmURI::Parts* base_uri, dmResourceProvider::HArchive* archive)
-    {
-        dmResourceProvider::Result result = dmResourceProvider::Mount(base_uri, base_archive, archive);
-        if (result == dmResourceProvider::RESULT_OK)
-        {
-            LOG("Mounted archive with uri '%s:%s/%s'", base_uri->m_Scheme, base_uri->m_Location, base_uri->m_Path);
-            return result;
-        }
-        return dmResourceProvider::RESULT_ERROR_UNKNOWN;
-    }
-
-    static void AddMountInternal(HContext ctx, const ArchiveMount& mount)
-    {
-        if (ctx->m_Mounts.Full())
-            ctx->m_Mounts.OffsetCapacity(2);
-        ctx->m_Mounts.Push(mount);
-    }
-
-    Result AddMount(HContext ctx, dmResourceProvider::HArchive archive, int priority)
-    {
-        ArchiveMount mount;
-        mount.m_Priority = priority;
-        mount.m_Archive = archive;
-        AddMountInternal(ctx, mount);
-        LOG("Mounted archive %p", archive);
-        return RESULT_OK;
-    }
-
-    Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive)
-    {
-        uint32_t size = ctx->m_Mounts.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            ArchiveMount& mount = ctx->m_Mounts[i];
-            if (mount.m_Archive == archive)
-            {
-                dmResourceProvider::Unmount(mount.m_Archive);
-
-                // shift all remaining items left one step
-                uint32_t num_to_move = size - i - 1;
-                ArchiveMount* array = ctx->m_Mounts.Begin();
-                memmove(array+i, array+i+1, sizeof(ArchiveMount) * num_to_move);
-                ctx->m_Mounts.SetSize(size-1);
-                return RESULT_OK;
-            }
-        }
-        return RESULT_NOT_FOUND;
-    }
-
-    // TODO: Get mount info (iterator?)
-
-    Result MountArchive(HContext ctx, const dmURI::Parts* uri, int priority)
-    {
-        dmResourceProvider::HArchive base_archive = 0;
-        if (!ctx->m_Mounts.Empty())
-        {
-            base_archive = ctx->m_Mounts[0].m_Archive;
-        }
-
-        ArchiveMount mount;
-        mount.m_Priority = priority;
-        dmResourceProvider::Result result = Mount(ctx, base_archive, uri, &mount.m_Archive);
-        if (result != dmResourceProvider::RESULT_OK)
-        {
-            dmLogError("Failed to mount base archive: '%s:%s/%s'", uri->m_Scheme, uri->m_Location, uri->m_Path);
-            return RESULT_IO_ERROR;
-        }
-        assert(mount.m_Archive);
-        AddMountInternal(ctx, mount);
-        return RESULT_OK;
-    }
-
-    Result UnmountArchives(HContext ctx)
-    {
-        uint32_t size = ctx->m_Mounts.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Unmount(mount.m_Archive);
-        }
-        ctx->m_Mounts.SetSize(0);
-        return RESULT_OK;
-    }
-
-    Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size)
-    {
-        uint32_t size = ctx->m_Mounts.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, resource_size);
-            if (result == dmResourceProvider::RESULT_OK)
-                return RESULT_OK;
-        }
-        return RESULT_NOT_FOUND;
-    }
-
-    Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size)
-    {
-        uint32_t size = ctx->m_Mounts.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Result result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, buffer, buffer_size);
-            if (result == dmResourceProvider::RESULT_OK)
-                return RESULT_OK;
-        }
-        return RESULT_NOT_FOUND;
-    }
-
-    Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmResource::LoadBufferType* buffer)
-    {
-        uint32_t resource_size;
-        uint32_t size = ctx->m_Mounts.Size();
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            ArchiveMount& mount = ctx->m_Mounts[i];
-            dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, &resource_size);
-            if (result == dmResourceProvider::RESULT_OK)
-            {
-                if (buffer->Capacity() < resource_size)
-                    buffer->SetCapacity(resource_size);
-                buffer->SetSize(resource_size);
-
-                result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, (uint8_t*)buffer->Begin(), resource_size);
-                return ProviderResultToResult(result);
-            }
-        }
-        return RESULT_NOT_FOUND;
-    }
-
     // *********************************************************************************
 
     Result LoadArchives(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** out_manifest, HArchiveIndexContainer* out_archive)
     {
         dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
         return RESULT_VERSION_MISMATCH;
-        // dmResource::Manifest* head_manifest = 0;
-        // HArchiveIndexContainer head_archive = 0;
-        // for (int i = 0; i < g_NumArchiveLoaders; ++i)
-        // {
-        //     ArchiveLoader* loader = &g_ArchiveLoader[i];
-
-        //     dmResource::Manifest* manifest = 0;
-        //     Result result = loader->m_LoadManifest(archive_name, app_path, app_support_path, head_manifest, &manifest);
-        //     if (RESULT_NOT_FOUND == result || RESULT_VERSION_MISMATCH == result)
-        //         continue;
-        //     if (RESULT_OK != result) {
-        //         return result;
-        //     }
-
-        //     // The loader could opt for not loading a manifest
-        //     if (!manifest)
-        //     {
-        //         manifest = head_manifest;
-        //     }
-
-        //     HArchiveIndexContainer archive = 0;
-        //     result = loader->m_Load(manifest, archive_name, app_path, app_support_path, head_archive, &archive);
-        //     if (RESULT_NOT_FOUND == result || RESULT_VERSION_MISMATCH == result)
-        //     {
-        //         if (manifest != head_manifest)
-        //             dmResource::DeleteManifest(manifest);
-        //         continue;
-        //     }
-        //     if (RESULT_OK != result)
-        //     {
-        //         if (manifest != head_manifest)
-        //             dmResource::DeleteManifest(manifest);
-        //         return result;
-        //     }
-
-        //     if (archive)
-        //     {
-        //         if (manifest != head_manifest)
-        //         {
-        //             if (head_manifest)
-        //                 dmResource::DeleteManifest(head_manifest);
-        //             head_manifest = manifest;
-        //         }
-
-        //         archive->m_Loader = *loader;
-        //         if (head_archive != archive)
-        //         {
-        //             archive->m_Next = head_archive;
-        //             head_archive = archive;
-        //         }
-        //     } else {
-        //         // The loader could opt for not loading an archive
-        //         if (manifest != head_manifest)
-        //             dmResource::DeleteManifest(manifest);
-        //     }
-        // }
-
-        // if (!head_manifest) {
-        //     dmLogError("No manifest found");
-        //     return RESULT_NOT_FOUND;
-        // }
-
-        // if (!head_archive) {
-        //     dmLogError("No archives found");
-        //     return RESULT_NOT_FOUND;
-        // }
-
-        // *out_manifest = head_manifest;
-        // *out_archive = head_archive;
-        // return RESULT_OK;
     }
 
     Result UnloadArchives(HArchiveIndexContainer archive)
     {
         dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
         return RESULT_VERSION_MISMATCH;
-        // while (archive)
-        // {
-        //     HArchiveIndexContainer next = archive->m_Next;
-        //     Result result = archive->m_Loader.m_Unload(archive);
-        //     if (RESULT_OK != result) {
-        //         return result;
-        //     }
-
-        //     archive = next;
-        // }
-        // return RESULT_OK;
     }
 
     Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, HArchiveIndexContainer* out_archive, EntryData* entry)
     {
         dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
         return RESULT_VERSION_MISMATCH;
-        // assert(archive != 0);
-        // while (archive)
-        // {
-        //     ArchiveLoader* loader = &archive->m_Loader;
-        //     Result result = loader->m_FindEntry(archive, hash, hash_len, entry);
-        //     if (RESULT_OK == result) {
-        //         if (out_archive)
-        //             *out_archive = archive;
-        //         return result;
-        //     }
-
-        //     archive = archive->m_Next;
-        // }
-
-        // return RESULT_NOT_FOUND;
     }
 
     Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer)
     {
         dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
         return RESULT_VERSION_MISMATCH;
-        //return archive->m_Loader.m_Read(archive, hash, hash_len, entry_data, buffer);
     }
 
     static void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
@@ -456,40 +177,9 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-
-    static Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
-    {
-        dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
-        if (cr != dmCrypt::RESULT_OK)
-        {
-            return RESULT_UNKNOWN;
-        }
-        return RESULT_OK;
-    }
-
-    Result DecryptBuffer(void* buffer, uint32_t buffer_len)
-    {
-        return g_ResourceDecryption(buffer, buffer_len);
-    }
-
-    Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len)
-    {
-        assert(compressed_buf != buffer);
-        int decompressed_size;
-        dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, buffer_len, &decompressed_size);
-        if (dmLZ4::RESULT_OK != r)
-        {
-            return RESULT_OUTBUFFER_TOO_SMALL;
-        }
-        return RESULT_OK;
-    }
-
     void SetDefaultReader(HArchiveIndexContainer archive)
     {
         dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
-        // memset(&archive->m_Loader, 0, sizeof(archive->m_Loader));
-        // archive->m_Loader.m_FindEntry = dmResourceProviderArchive::FindEntryInArchive;
-        // archive->m_Loader.m_Read = dmResourceProviderArchive::ReadEntryFromArchive;
     }
 
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
@@ -665,6 +355,17 @@ namespace dmResourceArchive
             dmLogInfo("\n->m_Next\n");
             DebugArchiveIndex(archive->m_Next);
         }
+    }
+
+    Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
+    {
+        const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+        dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
+        if (r != dmCrypt::RESULT_OK) {
+            return RESULT_INVALID_DATA;
+        }
+        return RESULT_OK;
     }
 
     dmResource::Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
@@ -900,6 +601,116 @@ namespace dmResourceArchive
         memcpy((void*)entries_shift_src, (void*)&entry, sizeof(EntryData));
         archive->m_EntryDataCount = dmEndian::ToHost(dmEndian::ToNetwork(archive->m_EntryDataCount) + 1);
         return RESULT_OK;
+    }
+
+    Result ReadEntry(HArchiveIndexContainer archive, const EntryData* entry, void* buffer)
+    {
+        const uint32_t flags            = dmEndian::ToNetwork(entry->m_Flags);
+        const uint32_t size             = dmEndian::ToNetwork(entry->m_ResourceSize);
+        const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
+              uint32_t compressed_size  = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
+
+        bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
+        bool compressed = compressed_size != 0xFFFFFFFF;
+
+        const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
+        bool resource_memmapped = afi->m_IsMemMapped;
+
+        // We have multiple combinations for regular archives:
+        // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
+        // Decryption can be done into a buffer of the same size, although not into a read only array
+        // We do this is to avoid unnecessary memory allocations
+
+        //  compressed +  encrypted +  memmapped = need malloc (encrypt cannot modify memmapped file, decompress cannot use same src/dst)
+        //  compressed +  encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
+        //  compressed + !encrypted +  memmapped = doesn't need malloc (can decompress because src != dst)
+        //  compressed + !encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
+        // !compressed +  encrypted +  memmapped = doesn't need malloc
+        // !compressed +  encrypted + !memmapped = doesn't need malloc
+        // !compressed + !encrypted +  memmapped = doesn't need malloc
+        // !compressed + !encrypted + !memmapped = doesn't need malloc
+
+        void* compressed_buf = 0;
+        bool temp_buffer = false;
+
+        if (compressed && !( !encrypted && resource_memmapped))
+        {
+            compressed_buf = malloc(compressed_size);
+            temp_buffer = true;
+        } else {
+            // For uncompressed data, use the destination buffer
+            compressed_buf = buffer;
+            memset(buffer, 0, size);
+            compressed_size = compressed ? compressed_size : size;
+        }
+
+        assert(compressed_buf);
+
+        if (!resource_memmapped)
+        {
+            FILE* resource_file = afi->m_FileResourceData;
+
+            assert(temp_buffer || compressed_buf == buffer);
+
+            fseek(resource_file, resource_offset, SEEK_SET);
+            if (fread(compressed_buf, 1, compressed_size, resource_file) != compressed_size)
+            {
+                if (temp_buffer)
+                    free(compressed_buf);
+                return dmResourceArchive::RESULT_IO_ERROR;
+            }
+        } else {
+            void* r = (void*) (((uintptr_t)afi->m_ResourceData + resource_offset));
+            if (compressed && !encrypted)
+            {
+                compressed_buf = r;
+            } else {
+                memcpy(compressed_buf, r, compressed_size);
+            }
+        }
+
+        // Design wish: If we switch the order of operations (and thus the file format)
+        // we can simplify the code and save a temporary allocation
+        //
+        // Currently, we need to decrypt into a new buffer (since the input is read only):
+        // input:[LZ4 then Encrypted] -> Decrypt ->   temp:[  LZ4      ] -> Deflate -> output:[   data   ]
+        //
+        // We could instead have:
+        // input:[Encrypted then LZ4] -> Deflate -> output:[ Encrypted ] -> Decrypt -> output:[   data   ]
+
+        if(encrypted)
+        {
+            assert(temp_buffer || compressed_buf == buffer);
+
+            dmResource::Result r = dmResource::DecryptBuffer(compressed_buf, compressed_size);
+            if (dmResource::RESULT_OK != r)
+            {
+                if (temp_buffer)
+                    free(compressed_buf);
+                return dmResourceArchive::RESULT_UNKNOWN;
+            }
+        }
+
+        if (compressed)
+        {
+            assert(compressed_buf != buffer);
+            int decompressed_size;
+            dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
+            if (dmLZ4::RESULT_OK != r)
+            {
+                if (temp_buffer)
+                    free(compressed_buf);
+                return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
+            }
+        } else {
+            if (buffer != compressed_buf)
+                memcpy(buffer, compressed_buf, size);
+        }
+
+        if (temp_buffer)
+            free(compressed_buf);
+
+        return dmResourceArchive::RESULT_OK;
     }
 
     Result WriteArchiveIndex(const char* path, ArchiveIndex* ai)

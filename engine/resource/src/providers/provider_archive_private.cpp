@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "provider_private.h"
+#include "provider_archive_private.h"
 #include "../resource.h"
 
 #include <dlib/dstrings.h>
@@ -41,10 +42,65 @@ namespace dmResourceProviderArchivePrivate
         return buffer;
     }
 
+    void DeleteManifest(dmResource::Manifest* manifest)
+    {
+        if (!manifest)
+            return;
+        if (manifest->m_DDF)
+            dmDDF::FreeMessage(manifest->m_DDF);
+        if (manifest->m_DDFData)
+            dmDDF::FreeMessage(manifest->m_DDFData);
+        manifest->m_DDF = 0x0;
+        manifest->m_DDFData = 0x0;
+        delete manifest;
+    }
+
+    static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
+    {
+        // Read from manifest resource
+        dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
+        if (result != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to parse Manifest (%i)", result);
+            return dmResource::RESULT_DDF_ERROR;
+        }
+
+        // Read data blob from ManifestFile into ManifestData message
+        result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
+        if (result != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to parse Manifest data (%i)", result);
+            dmDDF::FreeMessage(out_manifest->m_DDF);
+            out_manifest->m_DDF = 0x0;
+            return dmResource::RESULT_DDF_ERROR;
+        }
+        if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
+        {
+            dmLogError("Manifest format mismatch (expected '%x', actual '%x')", MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
+            dmDDF::FreeMessage(out_manifest->m_DDFData);
+            dmDDF::FreeMessage(out_manifest->m_DDF);
+            out_manifest->m_DDFData = 0x0;
+            out_manifest->m_DDF = 0x0;
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
+        {
+            dmLogError("Manifest version mismatch (expected '%i', actual '%i')", dmResourceArchive::VERSION, out_manifest->m_DDFData->m_Header.m_Version);
+            dmDDF::FreeMessage(out_manifest->m_DDFData);
+            dmDDF::FreeMessage(out_manifest->m_DDF);
+            out_manifest->m_DDFData = 0x0;
+            out_manifest->m_DDF = 0x0;
+            return dmResource::RESULT_VERSION_MISMATCH;
+        }
+
+        return dmResource::RESULT_OK;
+    }
+
     dmResourceProvider::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out)
     {
         dmResource::Manifest* manifest = new dmResource::Manifest();
-        dmResource::Result result = dmResource::ManifestLoadMessage(buffer, buffer_len, manifest);
+        dmResource::Result result = ManifestLoadMessage(buffer, buffer_len, manifest);
 
         if (dmResource::RESULT_OK == result)
         {
@@ -52,7 +108,7 @@ namespace dmResourceProviderArchivePrivate
         }
         else
         {
-            dmResource::DeleteManifest(manifest);
+            DeleteManifest(manifest);
         }
 
         return dmResource::RESULT_OK == result ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_IO_ERROR;
