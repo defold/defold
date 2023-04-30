@@ -176,6 +176,7 @@
     #define glUnmapBufferARB glUnmapBufferOES
     #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
     #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
+    #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -760,7 +761,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         dmLogInfo("Context features:");
-
     #define PRINT_FEATURE_IF_SUPPORTED(feature) \
         if (IsContextFeatureSupported(context, feature)) \
             dmLogInfo("  %s", #feature);
@@ -1266,8 +1266,15 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
         }
+
+        if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_ARB_seamless_cube_map"))
+        {
+            glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+        }
 #else
         context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+
+        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 #endif
 
         if (params->m_PrintDeviceInfo)
@@ -1292,8 +1299,6 @@ static void LogFrameBufferError(GLenum status)
             glBindVertexArray(vao);
         }
 #endif
-
-        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
         return WINDOW_RESULT_OK;
     }
