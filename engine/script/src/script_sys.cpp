@@ -15,20 +15,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/stat.h>
 
-#if defined(__linux__) || defined(__MACH__)
-#  include <sys/errno.h>
-#elif defined(_WIN32)
-#  include <errno.h>
-#elif defined(__EMSCRIPTEN__)
-#  include <unistd.h>
-#endif
-
-#ifdef _WIN32
-#include <direct.h>
-#include <malloc.h>
-#endif
+#include <errno.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
@@ -54,6 +42,8 @@ namespace dmScript
 {
 
 const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
+
+static int g_DebuggerLightweightHook = 0;
 
 union SaveLoadBuffer
 {
@@ -1309,6 +1299,49 @@ union SaveLoadBuffer
         return 1;
     }
 
+    //undocummented function for debugger
+
+    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
+    {
+        int top = lua_gettop(L);
+        lua_getinfo(L, "S", ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+        lua_pushstring(L, ar->source);
+        lua_pushnumber(L, ar->lastlinedefined);
+        if (lua_pushthread(L))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L); //main thread is not a coroutine
+        }
+        //[-1] - thread or nil
+        //[-2] - lastlinedefined (number)
+        //[-3] - source (string)
+        //[-4] - callback
+        lua_call(L, 3, 0);
+        assert(top == lua_gettop(L));
+    }
+
+    static int Sys_SetDebuggerLightweightHook(lua_State* L)
+    {
+        int index = 1;
+        lua_State* L1 = L;
+        if (lua_isthread(L, 1)) {
+            L1 = lua_tothread(L, 1);
+            index++;
+        }
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        if (g_DebuggerLightweightHook)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+            g_DebuggerLightweightHook = 0;
+        }
+        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        
+        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
+        return 0;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -1334,6 +1367,9 @@ union SaveLoadBuffer
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {"serialize", Sys_Serialize},
         {"deserialize", Sys_Deserialize},
+
+        // undocummented functions for debugger
+        {"set_debugger_lightweight_hook", Sys_SetDebuggerLightweightHook},
         {0, 0}
     };
 

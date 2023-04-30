@@ -21,8 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -33,6 +31,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -88,6 +87,15 @@ public class MacOSBundler implements IBundler {
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
+        String bundleIdentifier = project.getProjectProperties().getStringValue("osx", "bundle_identifier");
+        if (bundleIdentifier == null) {
+            throw new CompileExceptionError("No value for 'osx.bundle_identifier' set in game.project");
+        }
+
+        if (!BundleHelper.isValidAppleBundleIdentifier(bundleIdentifier)) {
+            throw new CompileExceptionError("macOS bundle identifier '" + bundleIdentifier + "' is not valid.");
+        }
+
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -113,11 +121,11 @@ public class MacOSBundler implements IBundler {
             if (bins == null) {
                 bins = Bob.getDefaultDmengineFiles(architecture, variant);
             } else {
-                logger.log(Level.INFO, "Using extender binary for " + architecture.getPair());
+                logger.info("Using extender binary for " + architecture.getPair());
             }
 
             File binary = bins.get(0);
-            logger.log(Level.INFO, architecture.getPair() + " exe: " + IOSBundler.getFileDescription(binary));
+            logger.info(architecture.getPair() + " exe: " + IOSBundler.getFileDescription(binary));
             binaries.add(binary);
 
             BundleHelper.throwIfCanceled(canceled);
@@ -180,7 +188,7 @@ public class MacOSBundler implements IBundler {
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
-        logger.log(Level.INFO, "Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
+        logger.info("Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
 
         // Copy debug symbols
         // Create list of dSYM binaries

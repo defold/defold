@@ -19,19 +19,19 @@ call the appropriate methods. Since this is very expensive (specifically
 fetching the Method from the Class), it uses memoization wherever possible.
 It should be possible to use macros instead and retain the same API.
 Macros currently mean no foreseeable performance gain however."
-  (:require [camel-snake-kebab :refer [->kebab-case ->CamelCase]]
+  (:require [camel-snake-kebab :refer [->CamelCase ->kebab-case]]
             [clojure.java.io :as io]
             [clojure.string :as s]
-            [internal.java :as j]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.java :as j]
             [util.digest :as digest])
-  (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor DescriptorProtos$FieldOptions
-            Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
-           [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
-           [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
-           [java.lang.reflect Method]
+  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
+           [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor GeneratedMessage$Builder Message ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
+           [java.lang.reflect Method]
+           [java.nio.charset StandardCharsets]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -48,6 +48,12 @@ Macros currently mean no foreseeable performance gain however."
   (msg->clj [^Message pb v]))
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
+
+(defn escape-string
+  ^String [^String string]
+  (-> string
+      (.getBytes StandardCharsets/UTF_8)
+      (TextFormat/escapeBytes)))
 
 (defn- new-builder ^GeneratedMessage$Builder
   [class]

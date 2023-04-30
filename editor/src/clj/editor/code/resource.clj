@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.util :as util]
-            [editor.graph-util :as gu]
             [editor.lsp :as lsp]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -47,6 +46,13 @@
 (g/deftype RegionGrouping {s/Any [TRegion]})
 
 (def ^:private default-indent-type :tabs)
+
+(defn make-code-error-user-data [^String path line-number]
+  (let [cursor-range (some-> line-number data/line-number->CursorRange)]
+    (cond-> {:filename path}
+
+            (some? cursor-range)
+            (assoc :cursor-range cursor-range))))
 
 (defn guess-indent-type [lines]
   ;; TODO: Use default from preferences if indeterminate.

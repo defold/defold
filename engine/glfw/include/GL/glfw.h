@@ -462,6 +462,7 @@ typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
+typedef void (GLFWCALL * GLFWdevicechangedfun)(int);
 typedef void (GLFWCALL * GLFWtouchfun)(int,int,int,int);
 
 
@@ -607,6 +608,7 @@ typedef void (GLFWCALL * GLFWwindowiconifyfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowIconifyCallback( GLFWwindowiconifyfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetGamepadCallback( GLFWgamepadfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetDeviceChangedCallback( GLFWdevicechangedfun cbfun );
 
 #ifdef __cplusplus
 }

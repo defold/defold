@@ -19,19 +19,21 @@
 
 (set! *warn-on-reflection* true)
 
-(def epsilon 0.000001)
-(def epsilon-sq (* epsilon epsilon))
+(def ^:const epsilon 0.000001)
+(def ^:const epsilon-sq (* epsilon epsilon))
 
-(def pi Math/PI)
-(def half-pi (* 0.5 pi))
-(def two-pi (* 2.0 pi))
-(def recip-180 (/ 1.0 180.0))
-(def recip-pi (/ 1.0 Math/PI))
+(def ^:const pi Math/PI)
+(def ^:const half-pi (* 0.5 pi))
+(def ^:const two-pi (* 2.0 pi))
+(def ^:const recip-180 (/ 1.0 180.0))
+(def ^:const recip-pi (/ 1.0 Math/PI))
 
-(defn deg->rad [deg]
+(defn deg->rad
+  ^double [^double deg]
   (* deg Math/PI recip-180))
 
-(defn rad->deg [rad]
+(defn rad->deg
+  ^double [^double rad]
   (* rad 180.0 recip-pi))
 
 (defn round-with-precision
@@ -145,6 +147,9 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
+(defn clj-quat->euler [[^double x ^double y ^double z ^double w]]
+  (quat-components->euler x y z w))
+
 (defn offset-scaled
   ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
   (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
@@ -166,6 +171,12 @@
 (defn transform-vector
   ^Vector3d [^Matrix4d mat ^Vector3d v]
   (let [v' (Vector3d. v)]
+    (.transform mat v')
+    v'))
+
+(defn transform-vector-v4
+  ^Vector4d [^Matrix4d mat ^Vector4d v]
+  (let [v' (Vector4d. v)]
     (.transform mat v')
     v'))
 

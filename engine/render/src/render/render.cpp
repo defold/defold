@@ -721,12 +721,17 @@ namespace dmRender
         params.m_Operation = RENDER_LIST_OPERATION_BEGIN;
         params.m_Context = context;
 
-        // All get begin operation first
-        for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
         {
-            const RenderListDispatch& d = context->m_RenderListDispatch[i];
-            params.m_UserData = d.m_UserData;
-            d.m_DispatchFn(params);
+            DM_PROFILE("Dispatch_Begin");
+
+            // All get begin operation first
+            for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
+            {
+                const RenderListDispatch& d = context->m_RenderListDispatch[i];
+                params.m_UserData = d.m_UserData;
+                d.m_DispatchFn(params);
+            }
+
         }
 
         params.m_Operation = RENDER_LIST_OPERATION_BATCH;
@@ -737,27 +742,32 @@ namespace dmRender
         uint32_t *last = context->m_RenderListSortBuffer.Begin();
         uint32_t count = context->m_RenderListSortBuffer.Size();
 
-        for (uint32_t i=1;i<=count;i++)
         {
-            uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
-            const RenderListEntry *last_entry = &base[*last];
-            const RenderListEntry *current_entry = &base[*idx];
+            DM_PROFILE("Dispatch_Batch");
 
-            // continue batch on match, or dispatch
-            if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
-                continue;
-
-            if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
+            for (uint32_t i=1;i<=count;i++)
             {
-                assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
-                const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
-                params.m_UserData = d->m_UserData;
-                params.m_Begin = last;
-                params.m_End = idx;
-                d->m_DispatchFn(params);
+                uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
+                const RenderListEntry *last_entry = &base[*last];
+                const RenderListEntry *current_entry = &base[*idx];
+
+                // continue batch on match, or dispatch
+                if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
+                    continue;
+
+                if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
+                {
+                    assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
+                    const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
+                    params.m_UserData = d->m_UserData;
+                    params.m_Begin = last;
+                    params.m_End = idx;
+                    d->m_DispatchFn(params);
+                }
+
+                last = idx;
             }
 
-            last = idx;
         }
 
         params.m_Operation = RENDER_LIST_OPERATION_END;
@@ -765,11 +775,15 @@ namespace dmRender
         params.m_End = 0;
         params.m_Buf = 0;
 
-        for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
         {
-            const RenderListDispatch& d = context->m_RenderListDispatch[i];
-            params.m_UserData = d.m_UserData;
-            d.m_DispatchFn(params);
+            DM_PROFILE("Dispatch_End");
+
+            for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
+            {
+                const RenderListDispatch& d = context->m_RenderListDispatch[i];
+                params.m_UserData = d.m_UserData;
+                d.m_DispatchFn(params);
+            }
         }
 
         return Draw(context, predicate, constant_buffer);
@@ -828,17 +842,28 @@ namespace dmRender
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
+            uint8_t next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context->m_Textures[i])
-                    texture = render_context->m_Textures[i];
-                if (texture)
                 {
-                    dmGraphics::EnableTexture(context, i, texture);
-                    ApplyMaterialSampler(render_context, material, i, texture);
+                    texture = render_context->m_Textures[i];
                 }
 
+                if (texture)
+                {
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    {
+                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
+                        HSampler sampler = GetMaterialSampler(material, next_texture_unit);
+
+                        dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+
+                        next_texture_unit++;
+                    }
+                }
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
@@ -850,13 +875,20 @@ namespace dmRender
 
             dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
 
+            next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context->m_Textures[i])
                     texture = render_context->m_Textures[i];
                 if (texture)
-                    dmGraphics::DisableTexture(context, i, texture);
+                {
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    {
+                        dmGraphics::DisableTexture(context, next_texture_unit, texture);
+                        next_texture_unit++;
+                    }
+                }
             }
         }
 

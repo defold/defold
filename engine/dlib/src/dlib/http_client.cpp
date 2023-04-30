@@ -18,8 +18,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include "math.h"
 #include "http_client.h"
 #include "log.h"
@@ -1175,6 +1173,16 @@ bail:
     {
         dmConnectionPool::HPool pool = g_PoolCreator.GetPool();
         dmConnectionPool::Reopen(pool);
+    }
+
+    uint32_t GetNumPoolConnections()
+    {
+        dmConnectionPool::HPool pool = g_PoolCreator.GetPool();
+
+        dmConnectionPool::Stats stats;
+        dmConnectionPool::GetStats(pool, &stats);
+        return stats.m_InUseAndValid; // For the unit test to be able to wait for a connection in flight
+
     }
 
 #undef HTTP_CLIENT_SENDALL_AND_BAIL

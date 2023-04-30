@@ -580,6 +580,27 @@
 
 namespace dmProfile
 {
+    /*# Profile snapshot handle
+     * @typedef
+     * @name HProfile
+     */
+    typedef void* HProfile;
+
+    /*#
+     * Begin profiling, eg start of frame
+     * @note NULL is returned if profiling is disabled
+     * @name BeginFrame
+     * @return context [type:dmProfile::HProfile] The current profiling context. Must be released by #EndFrame
+     */
+    HProfile BeginFrame();
+
+    /*#
+     * Release profile returned by #Begin
+     * @name EndFrame
+     * @param profile [type:dmProfile::HProfile] Profile to release
+     */
+    void EndFrame(HProfile profile);
+
     /// Internal, do not use.
     struct ProfileScope
     {

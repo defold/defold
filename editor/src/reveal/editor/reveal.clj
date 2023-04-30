@@ -24,12 +24,14 @@
             editor.code.data
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            editor.workspace
             [vlaaad.reveal :as r]
             [internal.system :as is])
   (:import [clojure.core.async.impl.channels ManyToManyChannel]
            [clojure.lang IRef]
            [editor.resource FileResource ZipResource]
            [editor.code.data Cursor CursorRange]
+           [editor.workspace BuildResource]
            [internal.graph.types Endpoint]
            [javafx.scene Parent]))
 
@@ -190,6 +192,12 @@
 (r/defstream ZipResource [resource]
   (r/horizontal
     (r/raw-string "#resource/zip" {:fill :object})
+    r/separator
+    (r/stream (resource/proj-path resource))))
+
+(r/defstream BuildResource [resource]
+  (r/horizontal
+    (r/raw-string "#resource/build" {:fill :object})
     r/separator
     (r/stream (resource/proj-path resource))))
 

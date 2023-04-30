@@ -90,7 +90,7 @@ namespace dmEngineVersion
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan and architecture == 'arm64':
-            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal'])
+            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal', '-framework', 'IOSurface'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
@@ -100,7 +100,7 @@ namespace dmEngineVersion
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
         # For Vulkan
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])

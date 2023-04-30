@@ -318,6 +318,7 @@ struct _GLFWwin_struct {
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
     GLFWgamepadfun       gamepadCallback;
+    GLFWdevicechangedfun deviceChangeCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag
@@ -386,6 +387,8 @@ struct _GLFWwin_struct {
     GLboolean                      has_WGL_ARB_create_context_profile;
 
     // Various platform specific internal variables
+    HDEVNOTIFY deviceNotificationHandle; // Device connect/disconnect handle
+
     int       oldMouseLock;    // Old mouse-lock flag (used for remembering
                                // mouse-lock state when iconifying)
     int       oldMouseLockValid;

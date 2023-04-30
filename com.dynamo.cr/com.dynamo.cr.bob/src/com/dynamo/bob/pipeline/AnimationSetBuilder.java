@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -90,7 +91,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task<Void> task, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
+    private void buildAnimations(Task<Void> task, ModelImporter.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
                                             String parentId, ArrayList<ModelImporter.Bone> bones, ArrayList<String> animFiles) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
@@ -102,7 +103,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
                 InputStreamReader subAnimSetDescBuilderISR = new InputStreamReader(animFileIS);
                 AnimationSetDesc.Builder subAnimSetDescBuilder = AnimationSetDesc.newBuilder();
                 TextFormat.merge(subAnimSetDescBuilderISR, subAnimSetDescBuilder);
-                buildAnimations(task, subAnimSetDescBuilder, animationSetBuilder, FilenameUtils.getBaseName(animFile.getPath()), bones, animFiles);
+                buildAnimations(task, dataResolver, subAnimSetDescBuilder, animationSetBuilder, FilenameUtils.getBaseName(animFile.getPath()), bones, animFiles);
                 continue;
             }
             IResource animFile = BuilderUtil.checkResource(this.project, task.input(0), "animation", instance.getAnimation());
@@ -125,7 +126,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
                 if (isCollada)
                     loadColladaAnimations(animBuilder, animFileIS, animId, parentId);
                 else
-                    loadModelAnimations(bones, animBuilder, animFileIS, animId, parentId, animFile.getPath(), animationIds);
+                    loadModelAnimations(bones, animBuilder, animFileIS, dataResolver, animId, parentId, animFile.getPath(), animationIds);
 
             } catch (XMLStreamException e) {
                 throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
@@ -168,10 +169,11 @@ public class AnimationSetBuilder extends Builder<Void>  {
         animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
     }
 
-    static void loadModelAnimations(ArrayList<ModelImporter.Bone> bones, AnimationSet.Builder animationSetBuilder, InputStream is, String animId, String parentId,
-                                                            String path, ArrayList<String> animationIds) throws IOException {
+    static void loadModelAnimations(ArrayList<ModelImporter.Bone> bones, AnimationSet.Builder animationSetBuilder,
+                                    InputStream is, ModelImporter.DataResolver dataResolver, String animId, String parentId,
+                                    String path, ArrayList<String> animationIds) throws IOException {
 
-        ModelImporter.Scene scene = ModelUtil.loadScene(is, path, new ModelImporter.Options());
+        ModelImporter.Scene scene = ModelUtil.loadScene(is, path, new ModelImporter.Options(), dataResolver);
 
         ArrayList<String> localAnimationIds = new ArrayList<String>();
         AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
@@ -185,8 +187,35 @@ public class AnimationSetBuilder extends Builder<Void>  {
         ModelUtil.unloadScene(scene);
     }
 
-    static public void buildAnimations(List<String> paths, ArrayList<ModelImporter.Bone> bones, List<InputStream> streams, List<String> parentIds,
+    public static class ResourceDataResolver implements ModelImporter.DataResolver
+    {
+        Project project;
+
+        public ResourceDataResolver(Project project) {
+            this.project = project;
+        }
+
+        public byte[] getData(String path, String uri) {
+            File file = new File(path);
+            File bufferFile = new File(file.getParentFile(), uri);
+            IResource resource = project.getResource(bufferFile.getPath());
+            if (resource == null)
+            {
+                System.out.printf("Failed to find data for %s\n", bufferFile.getPath());
+                return null;
+            }
+            try {
+                return resource.getContent();
+            } catch (IOException e) {
+                return null; // Actual errors are reported by ModelUtil.loadScene
+            }
+        }
+    };
+
+    // For the editor
+    static public void buildAnimations(List<String> paths, ArrayList<ModelImporter.Bone> bones, List<InputStream> streams, ModelImporter.DataResolver dataResolver, List<String> parentIds,
                              AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, CompileExceptionError {
+
 
         int count = paths.size();
         for (int i = 0; i < count; ++i) {
@@ -212,7 +241,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
                 if (isCollada)
                     loadColladaAnimations(animationSetBuilder, stream, animId, parentId);
                 else
-                    loadModelAnimations(bones, animationSetBuilder, stream, animId, parentId, path, animationIds);
+                    loadModelAnimations(bones, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
 
             } catch (XMLStreamException e) {
                 throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, e.getLocation().getLineNumber(), e.getLocalizedMessage()), e);
@@ -225,13 +254,13 @@ public class AnimationSetBuilder extends Builder<Void>  {
     }
 // END EDITOR SPECIFIC FUNCTIONS
 
-    public ArrayList<ModelImporter.Bone> buildSkeleton(IResource skeletonFile) throws IOException {
+    public ArrayList<ModelImporter.Bone> buildSkeleton(IResource skeletonFile, ModelImporter.DataResolver dataResolver) throws IOException {
         String suffix = BuilderUtil.getSuffix(skeletonFile.getPath());
         if (suffix.equals("dae")) {
             return ColladaUtil.loadSkeleton(skeletonFile.getContent()); // Until our model importer supports collada
         }
 
-        ModelImporter.Scene skeletonScene = ModelUtil.loadScene(skeletonFile.getContent(), skeletonFile.getPath(), new ModelImporter.Options());
+        ModelImporter.Scene skeletonScene = ModelUtil.loadScene(skeletonFile.getContent(), skeletonFile.getPath(), new ModelImporter.Options(), dataResolver);
         ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(skeletonScene);
 
         return bones;
@@ -247,7 +276,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
 
         IResource skeletonFile = BuilderUtil.checkResource(this.project, task.input(0), "skeleton", animSetDescBuilder.getSkeleton());
 
-        ArrayList<ModelImporter.Bone> bones = buildSkeleton(skeletonFile);
+        ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
+        ArrayList<ModelImporter.Bone> bones = buildSkeleton(skeletonFile, dataResolver);
 
         if (bones.size() == 0) {
             throw new CompileExceptionError(skeletonFile, -1, "No skeleton found in file!");
@@ -260,7 +290,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         animFiles = new ArrayList<String>();
         animFiles.add(task.input(0).getAbsPath());
 
-        buildAnimations(task, animSetDescBuilder, animationSetBuilder, "", bones, animFiles);
+        buildAnimations(task, dataResolver, animSetDescBuilder, animationSetBuilder, "", bones, animFiles);
 
         ModelUtil.setBoneList(animationSetBuilder, bones);
 
@@ -271,4 +301,3 @@ public class AnimationSetBuilder extends Builder<Void>  {
         task.output(0).setContent(out.toByteArray());
     }
 }
-

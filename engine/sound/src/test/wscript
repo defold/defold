@@ -152,7 +152,12 @@ def build(bld):
                     target = 'test_sound_perf',
                     source = 'test_sound_perf.cpp')
 
-    foo = bld.program(features = 'cxx embed test',
+    extra_features = []
+    if waflib.Options.options.with_asan and bld.env.PLATFORM in ['win32', 'x86_64-win32']:
+        extra_features = ['skip_test']
+        print("Skipping sound test since current version throws an error with ASan")
+
+    foo = bld.program(features = 'cxx embed test'.split() + extra_features,
                 includes = '../../src .',
                 use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
                 web_libs = ['library_sound.js'],

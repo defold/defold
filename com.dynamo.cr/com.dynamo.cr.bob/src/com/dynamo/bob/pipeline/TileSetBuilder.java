@@ -35,6 +35,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -43,6 +44,8 @@ import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc")
 public class TileSetBuilder extends Builder<Void>  {
+
+    private static Logger logger = Logger.getLogger(TileSetBuilder.class.getName());
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -95,7 +98,7 @@ public class TileSetBuilder extends Builder<Void>  {
             IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TileSet.Builder builder = TileSet.newBuilder();
         ProtoUtil.merge(task.input(0), builder);
@@ -146,7 +149,7 @@ public class TileSetBuilder extends Builder<Void>  {
         TextureImage texture;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(result.image, texProfile, compress);
+            texture = TextureGenerator.generate(result.images.get(0), texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

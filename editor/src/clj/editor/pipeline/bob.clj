@@ -27,13 +27,15 @@
     [editor.system :as system]
     [editor.ui :as ui]
     [editor.prefs :as prefs]
-    [editor.workspace :as workspace])
+    [editor.workspace :as workspace]
+    [util.http-util :as http-util])
   (:import
     [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob.logging LogHelper]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
-    [java.net URI]
+    [java.net URI URL]
     [java.nio.charset StandardCharsets]
     [org.apache.commons.io FilenameUtils]
     [org.apache.commons.io.output WriterOutputStream]))
@@ -41,17 +43,7 @@
 (set! *warn-on-reflection* true)
 
 (defn set-verbose-logging! [enable]
-  (doto (.getDeclaredField Bob "verbose")
-    (.setAccessible true)
-    (.setBoolean nil enable)))
-
-;; Disable verbose logging in Bob by default. Doing this here will let us know
-;; if the verbose field is no longer in Bob. We enable verbose logging while a
-;; Bob build is in progress, but disable it otherwise because it can be a lot.
-(try
-  (set-verbose-logging! false)
-  (catch Exception e
-    (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
+  (LogHelper/setVerboseLogging enable))
 
 (def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
@@ -200,8 +192,7 @@
                 log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
                 build-out (PrintStream-on
                             #(doseq [line (util/split-lines %)]
-                               (when (string/starts-with? line "Bob: ")
-                                 (.println log-stream-writer (subs line 5)))))
+                               (.println log-stream-writer line)))
                 build-err (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))]
@@ -236,9 +227,9 @@
         (catch Throwable error
           {:exception error})
         (finally
-          (reset! build-in-progress-atom false)
           (System/setOut prev-out)
-          (System/setErr prev-err))))))
+          (System/setErr prev-err)
+          (reset! build-in-progress-atom false))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
@@ -379,7 +370,7 @@
       {:code 302
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
-      (let [url-without-query-params  (.getPath (java.net.URL. (str "http://" url)))
+      (let [url-without-query-params  (.getPath (URL. (str "http://" url)))
             served-file   (try-resolve-html5-file project url-without-query-params)
             extra-headers {"Content-Type" (html5-mime-types
                                             (FilenameUtils/getExtension (clojure.string/lower-case url-without-query-params))
@@ -387,8 +378,7 @@
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
           (or (nil? served-file) (.isDirectory served-file))
-          {:code 403
-           :body "Forbidden"}
+          http-util/forbidden-response
 
           (.exists served-file)
           {:code 200
@@ -396,8 +386,7 @@
            :body served-file}
 
           :else
-          {:code 404
-           :body "Not found"})))))
+          http-util/not-found-response)))))
 
 (defn html5-handler [project req-headers]
   (handler project req-headers))

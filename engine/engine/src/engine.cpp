@@ -17,6 +17,7 @@
 #include "engine_private.h"
 
 #include <dmsdk/dlib/vmath.h>
+
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -714,7 +715,6 @@ namespace dmEngine
 
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
 
         // Accelerometer
         int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
@@ -951,8 +951,6 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        dmHID::Init(engine->m_HidContext);
-
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
 #if defined(__EMSCRIPTEN__)
@@ -1003,6 +1001,11 @@ namespace dmEngine
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
+
+        dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
+
+        // Any connected devices are registered here.
+        dmHID::Init(engine->m_HidContext);
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
@@ -1205,7 +1208,7 @@ namespace dmEngine
                         free(tmp);
                         free(data);
                         dmLogWarning("Failed to load LuaModule message from: %s (%d)", filename, r);
-                        return dmResource::RESULT_FORMAT_ERROR;
+                        return false;
                     }
 
                     // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
@@ -1252,9 +1255,10 @@ namespace dmEngine
             }
         }
 
-        script_lib_context.m_Factory    = engine->m_Factory;
-        script_lib_context.m_Register   = engine->m_Register;
-        script_lib_context.m_HidContext = engine->m_HidContext;
+        script_lib_context.m_Factory         = engine->m_Factory;
+        script_lib_context.m_Register        = engine->m_Register;
+        script_lib_context.m_HidContext      = engine->m_HidContext;
+        script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
 
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
@@ -1541,6 +1545,7 @@ bail:
                     return;
                 }
 
+                dmInput::Update(engine->m_InputContext);
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
                 engine->m_InputBuffer.SetSize(0);

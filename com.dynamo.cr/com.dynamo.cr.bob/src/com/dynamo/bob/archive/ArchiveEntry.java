@@ -25,14 +25,14 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public static final int FLAG_LIVEUPDATE = 1 << 2;
     public static final int FLAG_UNCOMPRESSED = 0xFFFFFFFF;
 
-    // Member vars, TODO make these private and add getters/setters
-    public int size;
-    public int compressedSize;
-    public int resourceOffset;
-    public int flags = 0;
-    public String relName;
-    public String fileName;
-    public byte[] hash = null;
+    private int size;
+    private int compressedSize;
+    private int resourceOffset;
+    private int flags = 0;
+    private String relName;
+    private String fileName;
+    private String hexDigest;
+    private byte[] hash = null;
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
@@ -42,7 +42,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     public ArchiveEntry(String root, String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         File file = new File(fileName);
         if (!file.exists()) {
-            throw new IOException(String.format("File %s doens't exists",
+            throw new IOException(String.format("File %s does not exists",
                     fileName));
         }
 
@@ -77,6 +77,86 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this(root, fileName, compress, encrypt, false);
     }
 
+    public ArchiveEntry(String root, String fileName) throws IOException {
+        this(root, fileName, false, false, false);
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public void setSize(int size) {
+        this.size = size;
+    }
+
+    public int getCompressedSize() {
+        return compressedSize;
+    }
+
+    public void setCompressedSize(int compressedSize) {
+        this.compressedSize = compressedSize;
+    }
+
+    public byte[] getHash() {
+        return hash;
+    }
+
+    public void setHash(byte[] hash) {
+        this.hash = hash;
+    }
+
+    public String getHexDigest() {
+        return hexDigest;
+    }
+
+    public void setHexDigest(String hexDigest) {
+        this.hexDigest = hexDigest;
+    }
+
+    public int getResourceOffset() {
+        return resourceOffset;
+    }
+
+    public void setResourceOffset(int resourceOffset) {
+        this.resourceOffset = resourceOffset;
+    }
+
+    public String getFilename() {
+        return fileName;
+    }
+
+    public void setFilename(String fileName) {
+        this.fileName = fileName;
+    }
+    
+    public String getRelativeFilename() {
+        return relName;
+    }
+
+    public void setRelativeFilename(String relName) {
+        this.relName = relName;
+    }
+
+    public boolean isCompressed() {
+        return compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED;
+    }
+
+    public boolean isEncrypted() {
+        return (flags & FLAG_ENCRYPTED) != 0;
+    }
+
+    public int getFlags() {
+        return flags;
+    }
+
+    public void setFlags(int flags) {
+        this.flags = flags;
+    }
+
+    public void setFlag(int flag) {
+        this.flags = this.flags | flag;
+    }
+
     // For checking duplicate when constructing archive
     @Override
     public boolean equals(Object other){
@@ -90,8 +170,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         return result;
     }
 
-    public int hashCode()
-    {
+    public int hashCode() {
         return 17 * this.fileName.hashCode() + 31 * this.relName.hashCode();
     }
 

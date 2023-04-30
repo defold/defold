@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns dev
-  (:require [clojure.string :as string]
+  (:require [clojure.pprint :as pprint]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
@@ -162,6 +163,14 @@
 
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
+
+(defn node-values [node-id & labels]
+  (g/with-auto-evaluation-context evaluation-context
+    (into {}
+          (map (fn [label]
+                 (let [value (g/node-value node-id label evaluation-context)]
+                   (pair label value))))
+          labels)))
 
 (def node-type-key (comp :k g/node-type*))
 
@@ -557,3 +566,44 @@
                                           " -> "
                                           (name target-type)
                                           target-label))))))))))
+
+(defn print-dangling-outputs-stats
+  "Collect all dangling outputs (outputs that are not connected to anything) and
+  print the stats about them. Takes a while to run (e.g. a minute). Note: even
+  if an output is shown as dangling, it still might be eventually connected to
+  other nodes, e.g. on view open, so the output might contain false positives."
+  []
+  (let [basis (g/now)
+        node-type-freqs (->> (get-in basis [:graphs 1 :nodes])
+                             (keys)
+                             (map #(g/node-type* basis %))
+                             frequencies)]
+    (->> (get-in basis [:graphs 1 :nodes])
+         keys
+         ;; for project node ids, collect external connections and union by node type
+         (->Eduction
+           (mapcat
+             (fn [node-id]
+               (let [connected-outputs (-> #{:_properties :_overridden-properties}
+                                           (into (map second) (g/outputs basis node-id))
+                                           (into (map peek) (g/inputs basis node-id)))]
+                 (->Eduction
+                   (map (partial pair (g/node-type* basis node-id)))
+                   connected-outputs)))))
+         (util/group-into {} #{} key val)
+         ;; union with internal connection and finally diff from all defined outputs
+         (into {}
+               (map (juxt key (fn [[node-type connected-outputs]]
+                                (let [with-internal-connections (into connected-outputs
+                                                                      (mapcat :dependencies)
+                                                                      (vals (g/declared-outputs node-type)))]
+                                  (reduce disj (g/output-labels node-type) with-internal-connections))))))
+         ;; sort by node count and print as a table
+         (sort-by (comp - node-type-freqs key))
+         (mapcat (fn [[node-type dangling-outputs]]
+                   (map (fn [output]
+                          {:type (name (:k node-type))
+                           :output (name output)
+                           :node-count (node-type-freqs node-type)})
+                        dangling-outputs)))
+         pprint/print-table)))
