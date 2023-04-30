@@ -1267,10 +1267,14 @@ static void LogFrameBufferError(GLenum status)
             context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
         }
 
+    #if !defined(__EMSCRIPTEN__)
+        // Note: This is enabled automatically for WebGL2, and the defined value is not available **at all** on WebGL1,
+        //       so if we don't want to do crazy workarounds for WebGL let's just ignore it and move on.
         if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_ARB_seamless_cube_map"))
         {
             glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
         }
+    #endif
 #else
         context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
 
