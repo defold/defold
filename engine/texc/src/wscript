@@ -31,8 +31,8 @@ def build(bld):
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
 
-    classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/bin/lib/jna-5.10.0.jar'),
-                 os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/bin/lib/jna-platform-5.10.0.jar')]
+    classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.10.0.jar'),
+                 os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.10.0.jar')]
 
     bld(features='javac seq',
         classpath=classpath,
