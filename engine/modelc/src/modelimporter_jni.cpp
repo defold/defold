@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include "jni_util.h"
 
 #include <jni.h>
 
@@ -20,7 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
-#define CLASS_SCENE  "com/dynamo/bob/pipeline/ModelImporter$Scene"
+#define CLASS_SCENE     "com/dynamo/bob/pipeline/ModelImporter$Scene"
 
 struct ScopedString
 {
@@ -930,6 +931,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
 
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
@@ -1019,9 +1021,19 @@ JNIEXPORT jint JNICALL Java_ModelImporter_AddressOf(JNIEnv* env, jclass cls, job
     return dmModelImporter::AddressOf(object);
 }
 
+JNIEXPORT void JNICALL Java_ModelImporter_TestException(JNIEnv* env, jclass cls, jstring j_message)
+{
+    dmJNI::SignalContextScope env_scope(env);
+    ScopedString s_message(env, j_message);
+    const char* message = s_message.m_String;
+    printf("Received message: %s\n", message);
+    dmJNI::TestSignalFromString(message);
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad ->\n");
+    dmJNI::EnableDefaultSignalHandlers(vm);
 
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -1036,9 +1048,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
       return JNI_ERR;
 
     // Register your class' native methods.
+    // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
         {"LoadFromBufferInternal", "(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
         {"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporter_AddressOf)},
+        {"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_ModelImporter_TestException)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     env->DeleteLocalRef(c);
@@ -1047,6 +1061,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad return.\n");
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
+{
+    dmLogDebug("JNI_OnUnload ->\n");
 }
 
 namespace dmModelImporter
