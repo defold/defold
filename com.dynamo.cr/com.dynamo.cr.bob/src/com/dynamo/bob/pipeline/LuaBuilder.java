@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -308,9 +308,19 @@ public abstract class LuaBuilder extends Builder<Void> {
         // If a script error occurs in runtime we want Lua to report the end of the filepath
         // associated with the chunk, since this is where the filename is visible.
         //
+        String exe;
+        if (Platform.getHostPlatform().equals(Platform.Arm64MacOS) && luajitExe.equals("luajit-32"))
+        {
+            exe = Bob.getExe(Platform.X86_64MacOS, luajitExe);
+        }
+        else
+        {
+            exe = Bob.getExe(Platform.getHostPlatform(), luajitExe);
+        }
+
         final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
-        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
+        options.add(exe);
         options.add("-b");
         options.add("-g"); // Keep debug info
         options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
@@ -336,9 +346,9 @@ public abstract class LuaBuilder extends Builder<Void> {
          * The delta is stored together with the 64-bit bytecode and when
          * the 32-bit bytecode is needed the delta is applied to the 64-bit
          * bytecode to transform it to the equivalent 32-bit version.
-         * 
+         *
          * The delta is stored in the following format:
-         * 
+         *
          * * index - The index where to apply the next change. 1-4 bytes.
          *           The size depends on the size of the entire bytecode:
          *           1 byte - Size less than 2^8

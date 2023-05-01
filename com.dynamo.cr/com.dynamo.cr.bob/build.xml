@@ -251,7 +251,7 @@
         <copy todir="${bob.dir}/lib/arm64-macos" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="arm64-macos/*texc_shared*"/>
-                <include name="x86_64-macos/*modelc_shared*"/>
+                <include name="arm64-macos/*modelc_shared*"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
