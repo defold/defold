@@ -63,6 +63,7 @@ cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/modelimporter.jar lib/modelimporter.jar
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/texturecompiler.jar
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
