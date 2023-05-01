@@ -1004,12 +1004,17 @@ class Configuration(object):
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
 
-    def _get_build_flags(self):
+    def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos']
+        supported_tests['x86_64-macos'] = ['x86_64-macos']
 
-        supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+
+    def _get_build_flags(self):
+        supports_tests = self._can_run_tests()
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
@@ -1087,8 +1092,7 @@ class Configuration(object):
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
-            skip_tests = host != self.target_platform
-            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+            self._build_engine_lib(args, lib, host)
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
@@ -1473,13 +1477,7 @@ class Configuration(object):
 
         self.find_and_set_java_home()
 
-        if "macos" in self.host and "arm" in platform.processor():
-            print ('Detected Apple M1 CPU - running shell with x86 architecture')
-            # Submit as string because on POSIX subsequent tokens are passed to the shell - not the arch command.
-            # See: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
-            args = 'arch -arch x86_64 %s -l' % SHELL
-        else:
-            args = [SHELL, '-l']
+        args = [SHELL, '-l']
 
         process = subprocess.Popen(args, env=self._form_env(), shell=True)
         output = process.communicate()[0]
