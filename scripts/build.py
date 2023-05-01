@@ -501,7 +501,7 @@ class Configuration(object):
                 installed_packages.update(package_paths)
 
         # For easier usage with the extender server, we want the linux protoc tool available
-        if target_platform in ('x86_64-macos', 'x86_64-win32', 'x86_64-linux'):
+        if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
             protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
             package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
             print("Installing %s packages " % 'x86_64-linux')

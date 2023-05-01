@@ -9,9 +9,10 @@ def configure(conf):
 
 def build(bld):
     # We only need this library in the editor and bob
-    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
+    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
     if not is_host:
+        print("Skipping build of modelc for non host platform")
         return
 
     modelc_sources = bld.path.ant_glob("*.cpp")

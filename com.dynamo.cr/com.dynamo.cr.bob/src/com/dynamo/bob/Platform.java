@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -211,15 +211,20 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64MacOS;
+            // Intel java reports: os_name: mac os x  arch: x86_64
+            // Arm java reports: os_name: mac os x  arch: aarch64
+            if (arch.equals("x86_64"))
+                return Platform.X86_64MacOS;
+            else if (arch.equals("aarch64"))
+                return Platform.Arm64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
             } else {
                 return Platform.X86Linux;
             }
-        } else {
-            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }
+
+        throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
     }
 }
