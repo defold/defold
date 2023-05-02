@@ -188,11 +188,42 @@
              0
              renderables))
 
-(defn render-sprites [^GL2 gl render-args renderables count]
+(defn- get-attribute-values-from-node [attribute-key material-attribute vertex-attribute-overrides]
+  (if (contains? vertex-attribute-overrides attribute-key)
+    (attribute-key vertex-attribute-overrides)
+    (get-attribute-values material-attribute)))
+
+(defn- attributes+material-shader->vertex-description [material-attributes active-attributes]
+  (let [filtered-attributes (filterv #(contains? active-attributes (:name %)) material-attributes)]
+    filtered-attributes))
+
+(defn- material-attributes->material-attributes+keyword [material-attributes]
+  (reduce (fn [attribute attr]
+            (assoc attribute (keyword (:name attr)) attr))
+          {}
+          material-attributes))
+
+(defn render-sprites [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         gpu-texture (:gpu-texture user-data)
         pass (:pass render-args)
-        num-quads (count-quads renderables)]
+        num-quads (count-quads renderables)
+        shader (:shader user-data)
+        material-attributes (:material-attributes user-data)
+        material-attributes->map (material-attributes->material-attributes+keyword material-attributes)
+        vertex-attribute-overrides (:vertex-attribute-overrides user-data)
+        active-attributes (shader/get-attribute-infos shader gl)
+        active-attributes-filtered (attributes+material-shader->vertex-description material-attributes active-attributes)
+        vertex-attribute-values (mapv (fn [attribute]
+                                        (let [attribute-key (keyword (:name attribute))
+                                              attribute-value (get-attribute-values-from-node
+                                                                attribute-key
+                                                                (get material-attributes->map attribute-key)
+                                                                vertex-attribute-overrides)
+                                              attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))]
+                                          (assoc attribute attribute-value-keyword {:v attribute-value})))
+                                      active-attributes-filtered)]
+    ;; Maybe do something with the vertex values here?
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
@@ -254,7 +285,7 @@
                   (assoc :size (v3->v4 manual-size)))))
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]
+  [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9 material-attributes vertex-attribute-overrides]
   (cond-> {:node-id _node-id
            :aabb aabb
            :renderable {:passes [pass/selection]}}
@@ -265,6 +296,8 @@
                         :tags #{:sprite}
                         :user-data {:gpu-texture gpu-texture
                                     :shader material-shader
+                                    :material-attributes material-attributes
+                                    :vertex-attribute-overrides vertex-attribute-overrides
                                     :animation animation
                                     :blend-mode blend-mode
                                     :size-mode size-mode
@@ -379,18 +412,13 @@
           {}
           attributes))
 
-(defn- get-attribute-values-from-node [attribute-key material-attribute vertex-attribute-overrides]
-  (if (contains? vertex-attribute-overrides attribute-key)
-    (attribute-key vertex-attribute-overrides)
-    (get-attribute-values material-attribute)))
-
 (g/defnk produce-properties [_node-id _declared-properties material-attributes vertex-attribute-overrides]
   (let [attribute-property-names (map :name material-attributes)
         attribute-property-keys (map keyword attribute-property-names)
         attribute-properties (map (fn [attribute]
                                     (let [attribute-name (:name attribute)
                                           attribute-key (keyword attribute-name)
-                                          attribute-values (get-attribute-values-from-node attribute-key attribute vertex-attribute-overrides) #_(get-attribute-values attribute)
+                                          attribute-values (get-attribute-values-from-node attribute-key attribute vertex-attribute-overrides)
                                           attribute-type (get-attribute-property-type attribute)
                                           attribute-expected-value-count (get-attribute-expected-element-count attribute)
                                           attribute-edit-type (get-attribute-edit-type attribute attribute-type)
@@ -572,4 +600,4 @@
                            :element-count 1}]
                          (g/node-value sprite :material-attributes))
         vertex-description (graphics/make-vertex-description attributes)]
-    vertex-description))
+    testing))

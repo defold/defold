@@ -296,6 +296,7 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defprotocol ShaderVariables
   (get-attrib-location [this gl name])
+  (get-attribute-infos [this gl])
   (set-uniform [this gl name val])
   (set-uniform-array [this gl name count val]))
 
@@ -459,6 +460,10 @@ This must be submitted to the driver for compilation before you can use it. See
         -1
         (gl/gl-get-attrib-location ^GL2 gl program name))))
 
+  (get-attribute-infos [_this gl]
+    (when-let [{:keys [attribute-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+      attribute-infos))
+
   (set-uniform [_this gl name val]
     (assert (string? (not-empty name)))
     (when-let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
@@ -536,12 +541,12 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
     (:sampler-2d :sampler-cube) true
     false))
 
-(def ^:private uniform-count
-  (let [out-uniform-count (int-array 1)]
-    (fn uniform-count
-      ^long [^GL2 gl ^long program]
-      (.glGetProgramiv gl program GL2/GL_ACTIVE_UNIFORMS out-uniform-count 0)
-      (aget out-uniform-count 0))))
+(def ^:private get-shader-parameter
+  (let [out-param-value (int-array 1)]
+    (fn param-value
+      ^long [^GL2 gl ^long program param]
+      (.glGetProgramiv gl program param out-param-value 0)
+      (aget out-param-value 0))))
 
 (def ^:private uniform-info
   (let [name-array-suffix-pattern #"\[\d+\]$"
@@ -563,19 +568,45 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
          :type type
          :count count}))))
 
-(defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names max-page-count]]
+(def ^:private attribute-info
+  (let [
+        name-buffer-size 128
+        out-name-length (int-array 1)
+        out-size (int-array 1) ; element count
+        out-type (int-array 1)
+        out-name (byte-array name-buffer-size)]
+    (fn attribute-info [^GL2 gl program attribute-index]
+      (.glGetActiveAttrib gl program attribute-index name-buffer-size out-name-length 0 out-size 0 out-type 0 out-name 0)
+      (let [name-length (aget out-name-length 0)
+            name (String. out-name 0 name-length StandardCharsets/UTF_8)
+            location (.glGetAttribLocation gl program name)
+            type (gl-uniform-type->uniform-type (aget out-type 0))
+            count (aget out-size 0)]
+        {:name name
+         :index location
+         :type type
+         :count count}))))
+
+(defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names _max-page-count]]
   (let [vertex-shader (make-vertex-shader gl vertex-shader-source)]
     (try
       (let [fragment-shader (make-fragment-shader gl fragment-shader-source)]
         (try
           (let [program (make-program gl vertex-shader fragment-shader)
 
+                attribute-infos
+                (into {}
+                      (map (fn [^long attribute-index]
+                             (let [attribute-info (attribute-info gl program attribute-index)]
+                               [(:name attribute-info) attribute-info])))
+                      (range (get-shader-parameter gl program GL2/GL_ACTIVE_ATTRIBUTES)))
+
                 uniform-infos
                 (into {}
                       (map (fn [^long uniform-index]
                              (let [uniform-info (uniform-info gl program uniform-index)]
                                [(:name uniform-info) uniform-info])))
-                      (range (uniform-count gl program)))
+                      (range (get-shader-parameter gl program GL2/GL_ACTIVE_UNIFORMS)))
 
                 array-sampler-uniform-name?
                 (into #{}
@@ -599,6 +630,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
                      (mapv first))]
             {:program program
              :uniform-infos uniform-infos
+             :attribute-infos attribute-infos
              :sampler-name->uniform-names sampler-name->uniform-names
              :sampler-index->sampler-name #(get sampler-index->sampler-name %)})
           (finally
@@ -613,6 +645,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
     (catch Exception _
       {:program 0
        :uniform-infos {}
+       :attribute-infos {}
        :sampler-name->uniform-names {}
        :sampler-index->sampler-name {}})))
 
