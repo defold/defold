@@ -162,7 +162,7 @@
 
 #if defined(GL_RGBA32F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA32F_EXT)
-#elif defined(GL_RGBA32F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_RGBA32F)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA32F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA)

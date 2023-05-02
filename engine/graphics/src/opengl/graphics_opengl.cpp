@@ -2905,7 +2905,8 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        if (unpackAlignment != 4) {
+        if (unpackAlignment != 4)
+        {
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR;
         }
@@ -2916,34 +2917,34 @@ static void LogFrameBufferError(GLenum status)
 
         GLenum type = GetOpenGLTextureType(tex->m_Type);
         GLenum gl_format;
-        GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
+        GLenum gl_type        = GL_UNSIGNED_BYTE; // only used of uncompressed formats
         GLint internal_format = -1; // // Only used for uncompressed formats
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             break;
         case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
             break;
         case TEXTURE_FORMAT_RGB:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             break;
         case TEXTURE_FORMAT_RGBA:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
         case TEXTURE_FORMAT_RGB_16BPP:
-            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_type         = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             break;
         case TEXTURE_FORMAT_RGBA_16BPP:
-            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_type         = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
 
@@ -2979,9 +2980,15 @@ static void LogFrameBufferError(GLenum status)
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_type         = GL_FLOAT;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
+        #ifdef __EMSCRIPTEN__
+            if (!g_Context->m_IsGles3Version)
+            {
+                internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            }
+        #endif
             break;
         case TEXTURE_FORMAT_R16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
@@ -2989,18 +2996,18 @@ static void LogFrameBufferError(GLenum status)
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_R32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_type         = GL_FLOAT;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
         case TEXTURE_FORMAT_RG16F:
-            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_type         = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_RG32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_type         = GL_FLOAT;
+            gl_format       = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
 
@@ -3032,9 +3039,15 @@ static void LogFrameBufferError(GLenum status)
             glBindTexture(type, tex->m_TextureIds[i]);
             CHECK_GL_ERROR;
 
-            if (!params.m_SubUpdate) {
+            if (!params.m_SubUpdate)
+            {
                 SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
             }
+
+            dmLogInfo("SetTexture:");
+            dmLogInfo("gl_type: %d", (int) gl_type);
+            dmLogInfo("gl_format: %d", (int) gl_format);
+            dmLogInfo("internal_format: %d", (int) internal_format);
 
             switch (params.m_Format)
             {
