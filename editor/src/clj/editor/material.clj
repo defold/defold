@@ -74,7 +74,8 @@
       (update :vertex-program resource/resource->proj-path)
       (update :fragment-program resource/resource->proj-path)
       (update :vertex-constants hack-upgrade-constants)
-      (update :fragment-constants hack-upgrade-constants)))
+      (update :fragment-constants hack-upgrade-constants)
+      (update :attributes (partial mapv #(dissoc % :name-hash)))))
 
 (defn- build-material [resource build-resource->fused-build-resource user-data]
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
