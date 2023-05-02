@@ -154,7 +154,7 @@
 
 #if defined(GL_RGB32F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB32F_EXT)
-#elif defined(GL_RGB32F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_RGB32F)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB32F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB)
@@ -170,7 +170,7 @@
 
 #if defined(GL_RGB16F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB16F_EXT)
-#elif defined(GL_RGB16F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_RGB16F)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB16F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB)
@@ -178,7 +178,7 @@
 
 #if defined(GL_RGBA16F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA16F_EXT)
-#elif defined(GL_RGBA16F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_RGBA16F)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA16F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA)
@@ -186,7 +186,7 @@
 
 #if defined(GL_R16F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (GL_R16F_EXT)
-#elif defined(GL_R16F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_R16F)
 #define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (GL_R16F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (0x822D)
@@ -194,7 +194,7 @@
 
 #if defined(GL_R32F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_R32F_EXT)
-#elif defined(GL_R32F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_R32F)
 #define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_R32F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (0x822E)
@@ -202,7 +202,7 @@
 
 #if defined(GL_RG16F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (GL_RG16F_EXT)
-#elif defined(GL_RG16F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_RG16F)
 #define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (GL_RG16F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (0x822F)
@@ -210,7 +210,7 @@
 
 #if defined(GL_RG32F_EXT)
 #define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (GL_RG32F_EXT)
-#elif defined(GL_RG32F) && !defined (__EMSCRIPTEN__)
+#elif defined(GL_RG32F)
 #define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (GL_RG32F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (0x8230)
