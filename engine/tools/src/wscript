@@ -5,9 +5,12 @@ def configure(conf):
     pass
 
 def build(bld):
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
-        if not waflib.Options.options.with_vulkan:
-            bld.recurse('gdc')
+    # if not desktop
+    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux'):
+        return
 
-        bld.recurse('launcher')
-        bld.recurse('texconvert')
+    if not waflib.Options.options.with_vulkan:
+        bld.recurse('gdc')
+
+    bld.recurse('launcher')
+    bld.recurse('texconvert')
