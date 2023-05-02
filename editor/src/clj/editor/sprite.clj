@@ -387,20 +387,20 @@
 (g/defnk produce-properties [_node-id _declared-properties material-attributes vertex-attribute-overrides]
   (let [attribute-property-names (map :name material-attributes)
         attribute-property-keys (map keyword attribute-property-names)
-        attribute-properties (map (fn [attribute-name]
-                                    (let [attribute-desc (first (filter #(= (:name %) attribute-name) material-attributes))
+        attribute-properties (map (fn [attribute]
+                                    (let [attribute-name (:name attribute)
                                           attribute-key (keyword attribute-name)
-                                          attribute-values (get-attribute-values-from-node attribute-key attribute-desc vertex-attribute-overrides) #_(get-attribute-values attribute-desc)
-                                          attribute-type (get-attribute-property-type attribute-desc)
-                                          attribute-expected-value-count (get-attribute-expected-element-count attribute-desc)
-                                          attribute-edit-type (get-attribute-edit-type attribute-desc attribute-type)
+                                          attribute-values (get-attribute-values-from-node attribute-key attribute vertex-attribute-overrides) #_(get-attribute-values attribute)
+                                          attribute-type (get-attribute-property-type attribute)
+                                          attribute-expected-value-count (get-attribute-expected-element-count attribute)
+                                          attribute-edit-type (get-attribute-edit-type attribute attribute-type)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
                                                           :value (fill-with-zeros attribute-values attribute-expected-value-count)
-                                                          :label attribute-name}]
+                                                          :label (properties/keyword->name attribute-key)}]
                                       {attribute-key attribute-prop}))
-                                  attribute-property-names)]
+                                  material-attributes)]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into attribute-property-keys))))
@@ -545,3 +545,8 @@
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
     :label "Sprite"))
+
+;; TODO(vertex-attr):
+;; * Fix scene view rendering of vertex attributes.
+;; * Edit the values in the material view
+;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
