@@ -247,8 +247,8 @@ case $1 in
 			export XCFLAGS="${COMMON_XCFLAGS}"
 			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
 			set -e
-			arch -arm64 make -j8
-			arch -arm64 make install
+			make -j8
+			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			set +e
 		}

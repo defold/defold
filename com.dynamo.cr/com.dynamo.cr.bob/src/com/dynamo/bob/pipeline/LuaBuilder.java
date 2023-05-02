@@ -488,13 +488,28 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
         else {
             boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
-            byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
-            byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
 
+            // We may have multiple archs with same bitness
+            boolean needs32bit = false;
+            boolean needs64bit = false;
             List<Platform> architectures = project.getArchitectures();
-            if (architectures.size() == 1) {
-                Platform p = architectures.get(0);
-                if (p.is64bit()) {
+            for (Platform platform : architectures)
+            {
+                if (platform.is64bit())
+                    needs64bit = true;
+                else
+                    needs32bit = true;
+            }
+
+            byte[] bytecode32 = new byte[0];
+            byte[] bytecode64 = new byte[0];
+            if (needs32bit)
+                bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
+            if (needs64bit)
+                bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
+
+            if ( needs32bit || needs64bit) {
+                if (needs64bit) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
                     logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }

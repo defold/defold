@@ -1660,10 +1660,6 @@ def detect(conf):
     if build_util.get_target_os() == 'web' or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
         use_vanilla = True
 
-    # Until we've built luajit for arm64-macos
-    if build_util.get_target_platform() == 'arm64-macos':
-        use_vanilla = True
-
     if use_vanilla:
         conf.env['STLIB_LUA'] = 'lua'
     else:
