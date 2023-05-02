@@ -71,6 +71,8 @@
                    selected-nodes))))
        first))
 
+(def sel (comp first selection))
+
 (defn prefs []
   (prefs/make-prefs "defold"))
 

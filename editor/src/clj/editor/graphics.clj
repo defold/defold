@@ -13,41 +13,70 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics
-  (:require
-    [dynamo.graph :as g]
-    [editor.buffers :as buffers]
-    [util.murmur :as murmur])
+  (:require [editor.buffers :as buffers]
+            [editor.gl.vertex2 :as vtx]
+            [util.murmur :as murmur])
   (:import [java.nio ByteBuffer]))
 
-(defn attribute-data-type->attribute-value-keyword [data-type]
-  (case data-type
-    :type-byte           :byte-values
-    :type-unsigned-byte  :uint-values
-    :type-short          :int-values
-    :type-unsigned-short :uint-values
-    :type-int            :int-values
-    :type-unsigned-int   :uint-values
-    :type-float          :float-values))
+(def ^:private attribute-data-type-infos
+  [{:data-type :type-byte
+    :value-keyword :int-values
+    :byte-size 1
+    :vtx-type :byte}
+   {:data-type :type-unsigned-byte
+    :value-keyword :uint-values
+    :byte-size 1
+    :vtx-type :ubyte}
+   {:data-type :type-short
+    :value-keyword :int-values
+    :byte-size 2
+    :vtx-type :short}
+   {:data-type :type-unsigned-short
+    :value-keyword :uint-values
+    :byte-size 2
+    :vtx-type :ushort}
+   {:data-type :type-int
+    :value-keyword :int-values
+    :byte-size 4
+    :vtx-type :int}
+   {:data-type :type-unsigned-int
+    :value-keyword :uint-values
+    :byte-size 4
+    :vtx-type :uint}
+   {:data-type :type-float
+    :value-keyword :float-values
+    :byte-size 4
+    :vtx-type :float}])
+
+(def attribute-data-type->attribute-value-keyword
+  (into {}
+        (map (juxt :data-type :value-keyword))
+        attribute-data-type-infos))
 
 (defn attribute->values [attribute]
-  (case (:data-type attribute)
-    :type-byte           (:int-values attribute) ; TODO: This probably needs some extra work for raw byte values (i.e :byte-values)
-    :type-unsigned-byte  (:uint-values attribute)
-    :type-short          (:int-values attribute)
-    :type-unsigned-short (:uint-values attribute)
-    :type-int            (:int-values attribute)
-    :type-unsigned-int   (:int-values attribute)
-    :type-float          (:float-values attribute)))
+  (let [attribute-value-keyword (attribute-data-type->attribute-value-keyword (:data-type attribute))]
+    (get attribute attribute-value-keyword)))
 
-(defn attribute-data-type->byte-size [data-type-key]
-  (case data-type-key
-    :type-byte 1
-    :type-unsigned-byte 1
-    :type-short 2
-    :type-unsigned-short 2
-    :type-int 4
-    :type-unsigned-int 4
-    :type-float 4))
+(def attribute-data-type->byte-size
+  (into {}
+        (map (juxt :data-type :byte-size))
+        attribute-data-type-infos))
+
+(def attribute-data-type->vtx-attribute-type
+  (into {}
+        (map (juxt :data-type :vtx-type))
+        attribute-data-type-infos))
+
+(defn attribute->vtx-attribute [attribute]
+  {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
+  {:name (:name attribute)
+   :type (attribute-data-type->vtx-attribute-type (:data-type attribute))
+   :components (:element-count attribute)
+   :normalized? (:normalize attribute false)})
+
+(defn make-vertex-description [attributes]
+  (let [vtx-attributes (mapv attribute->vtx-attribute attributes)]
+    (vtx/make-vertex-description nil vtx-attributes)))
 
 (defmulti put-attribute-values!
   (fn [^ByteBuffer bb attribute-values attribute-data-type] attribute-data-type))
@@ -75,4 +104,3 @@
             :int-values nil
             :byte-values (attribute->byte-data attr)))
         attributes))
-

@@ -55,7 +55,7 @@
 ; Render assets
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0 true)
+  (vec2 texcoord0)
   (vec1 page_index))
 
 (vtx/defvertex color-vtx
@@ -218,15 +218,15 @@
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
 (defn- produce-attributes [material-attributes vertex-attribute-overrides]
-  (let [overriden-material-attributes (filter #(contains? vertex-attribute-overrides (keyword (:name %))) material-attributes)
-        overriden-material-attributes+values (map (fn [attr]
-                                                    (let [overriden-value ((keyword (:name attr)) vertex-attribute-overrides)
-                                                          value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attr))]
-                                                      (-> attr
-                                                          (assoc value-keyword {:v overriden-value})
-                                                          (dissoc :name-hash))))
-                                                  overriden-material-attributes)]
-    overriden-material-attributes+values))
+  (let [overridden-material-attributes (filter #(contains? vertex-attribute-overrides (keyword (:name %))) material-attributes)
+        overridden-material-attributes+values (map (fn [attr]
+                                                     (let [overridden-value ((keyword (:name attr)) vertex-attribute-overrides)
+                                                           value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attr))]
+                                                       (-> attr
+                                                           (assoc value-keyword {:v overridden-value})
+                                                           (dissoc :name-hash))))
+                                                   overridden-material-attributes)]
+    overridden-material-attributes+values))
 
 ; Node defs
 
@@ -548,5 +548,28 @@
 
 ;; TODO(vertex-attr):
 ;; * Fix scene view rendering of vertex attributes.
+;;   * Reflect over attributes in the shader to find position, uv, etc.
+;;   * Combine these attributes with the ones from the material into a vertex-description.
+;;   * Make a VertexBuffer from the vertex-description.
+;;   * Populate it somehow.
 ;; * Edit the values in the material view
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
+;; * Rename `VertexAttribute.byte_values` to `binary_values` to reflect that it is a write-only field for the engine runtime.
+;; * local vs world-space as flag rather than embedded in semantic type?
+;; * Make everything optional except name `VertexAttribute`.
+;; * Strip everything but name & values from attributes in .sprite files.
+
+(comment
+  (let [sprite (dev/sel)
+        attributes (into [{:name "position"
+                           :data-type :type-float
+                           :element-count 4}
+                          {:name "texcoord0"
+                           :data-type :type-float
+                           :element-count 2}
+                          {:name "page_index"
+                           :data-type :type-float
+                           :element-count 1}]
+                         (g/node-value sprite :material-attributes))
+        vertex-description (graphics/make-vertex-description attributes)]
+    vertex-description))
