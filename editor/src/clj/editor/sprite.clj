@@ -188,6 +188,8 @@
              0
              renderables))
 
+(declare ^:private get-attribute-values)
+
 (defn- get-attribute-values-from-node [attribute-key material-attribute vertex-attribute-overrides]
   (if (contains? vertex-attribute-overrides attribute-key)
     (attribute-key vertex-attribute-overrides)
