@@ -70,6 +70,7 @@
 (defn attribute->vtx-attribute [attribute]
   {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
   {:name (:name attribute)
+   :semantic-type (:semantic-type attribute)
    :type (attribute-data-type->vtx-attribute-type (:data-type attribute))
    :components (:element-count attribute)
    :normalized? (:normalize attribute false)})

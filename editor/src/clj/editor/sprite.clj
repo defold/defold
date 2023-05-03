@@ -21,7 +21,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.material :as material]
@@ -40,6 +40,8 @@
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
+           [editor.gl.vertex2 VertexBuffer]
+           [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -78,35 +80,43 @@
 ; TODO - macro of this
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
-(defn- conj-animation-data!
-  [vbuf animation frame-index world-transform size-mode size slice9]
-  (let [animation-frame (get-in animation [:frames frame-index])]
-    (reduce conj! vbuf (if (= :size-mode-auto size-mode)
-                         (texture-set/vertex-data animation-frame world-transform)
-                         (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
-                               positions (geom/transf-p4 world-transform (:position-data slice9-data))
-                               uvs (:uv-data slice9-data)]
-                           (mapv (fn [vertex-position vertex-uv]
-                                   (conj (into vertex-position vertex-uv)
-                                         (float frame-index)))
-                                 positions
-                                 uvs))))))
+(defn- conj-animation-frame!
+  [^ByteBuffer buf animation frame-index world-transform size-mode size slice9]
+  (let [animation-frame (get-in animation [:frames frame-index])
+        vertex-data (if (= :size-mode-auto size-mode)
+                      (texture-set/vertex-data animation-frame world-transform)
+                      (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
+                            positions (geom/transf-p4 world-transform (:position-data slice9-data))
+                            uvs (:uv-data slice9-data)]
+                        (mapv (fn [vertex-position vertex-uv]
+                                (conj (into vertex-position vertex-uv)
+                                      (float frame-index)))
+                              positions
+                              uvs)))]
+    (doseq [vertex vertex-data]
+      (conj-floats! buf vertex))))
 
-(defn- gen-vertex-buffer
-  [renderables count]
-  (persistent! (reduce (fn [vbuf {:keys [world-transform updatable user-data]}]
-                         (let [{:keys [animation size-mode size slice9]} user-data
-                               frame (get-in updatable [:state :frame] 0)]
-                           (conj-animation-data! vbuf animation frame world-transform size-mode size slice9)))
-                       (->texture-vtx (* count 6))
-                       renderables)))
+(defn- into-vertex-buffer
+  [^VertexBuffer vbuf renderables]
+  (let [vertex-description (.vertex-description vbuf)
+        buf (.buf vbuf)]
+    (doseq [{:keys [world-transform updatable user-data]} renderables]
+      (let [{:keys [animation size-mode size slice9]} user-data
+            frame (get-in updatable [:state :frame] 0)]
+        (conj-animation-frame! buf animation frame world-transform size-mode size slice9)))
+    (vtx/flip! vbuf)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
   (.transform wt pt)
   [(.x pt) (.y pt) (.z pt) cr cg cb 1])
 
-(defn- conj-outline-quad! [vbuf ^Matrix4d wt ^Point3d pt width height cr cg cb]
+(defn- conj-floats! [^ByteBuffer buf floats]
+  (doseq [n floats]
+    (.putFloat buf n))
+  buf)
+
+(defn- conj-outline-quad! [^ByteBuffer buf ^Matrix4d wt ^Point3d pt width height cr cg cb]
   (let [x1 (* 0.5 width)
         y1 (* 0.5 height)
         x0 (- x1)
@@ -115,12 +125,20 @@
         v1 (gen-outline-vertex wt pt x1 y0 cr cg cb)
         v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
-    (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
+    (doto buf
+      (conj-floats! v0)
+      (conj-floats! v1)
+      (conj-floats! v1)
+      (conj-floats! v2)
+      (conj-floats! v2)
+      (conj-floats! v3)
+      (conj-floats! v3)
+      (conj-floats! v0))))
 
 (defn- conj-outline-slice9-quad! [vbuf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (transduce (map (fn [[x y]]
                     (gen-outline-vertex world-transform tmp-point x y cr cg cb)))
-             conj!
+             conj-floats!
              vbuf
              line-data))
 
@@ -138,11 +156,11 @@
               animation-frame (get-in animation [:frames animation-frame-index])]
           (recur (rest renderables)
                  (if (= :size-mode-auto size-mode)
-                   (conj-outline-quad! vbuf world-transform tmp-point quad-width quad-height cr cg cb)
+                   (conj-outline-quad! (.buf vbuf) world-transform tmp-point quad-width quad-height cr cg cb)
                    (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
                          line-data (:line-data slice9-data)]
                      (conj-outline-slice9-quad! vbuf line-data world-transform tmp-point cr cg cb)))))
-        (persistent! vbuf)))))
+        (vtx/flip! vbuf)))))
 
 ; Rendering
 
@@ -229,7 +247,34 @@
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
+            shader-bound-attribute? (comp boolean (shader/get-attribute-infos shader gl) :name)
+            declared-material-attribute-keyword? (into #{}
+                                                       (map (comp keyword :name))
+                                                       material-attributes)
+            manufactured-attributes (cond-> []
+
+                                            (not (declared-material-attribute-keyword? :position))
+                                            (conj {:name "position"
+                                                   :semantic-type :semantic-type-position-world
+                                                   :data-type :type-float
+                                                   :element-count 4})
+
+                                            (not (declared-material-attribute-keyword? :texcoord0))
+                                            (conj {:name "texcoord0"
+                                                   :semantic-type :semantic-type-texcoord
+                                                   :data-type :type-float
+                                                   :element-count 2})
+
+                                            (not (declared-material-attribute-keyword? :page_index))
+                                            (conj {:name "page_index"
+                                                   :semantic-type :semantic-type-page-index
+                                                   :data-type :type-float
+                                                   :element-count 1}))
+            all-attributes (into manufactured-attributes material-attributes)
+            shader-bound-attributes (filterv shader-bound-attribute? all-attributes)
+            vertex-description (graphics/make-vertex-description shader-bound-attributes)
+            vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
+            vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
@@ -238,7 +283,8 @@
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
       pass/selection
-      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables num-quads) id-shader)]
+      (let [vbuf (into-vertex-buffer (->texture-vtx (* num-quads 6)) renderables)
+            vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)]
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
@@ -590,16 +636,21 @@
 ;; * Strip everything but name & values from attributes in .sprite files.
 
 (comment
+  (require 'dev)
   (let [sprite (dev/sel)
-        attributes (into [{:name "position"
-                           :data-type :type-float
-                           :element-count 4}
-                          {:name "texcoord0"
-                           :data-type :type-float
-                           :element-count 2}
-                          {:name "page_index"
-                           :data-type :type-float
-                           :element-count 1}]
-                         (g/node-value sprite :material-attributes))
-        vertex-description (graphics/make-vertex-description attributes)]
-    testing))
+        material-attributes (g/node-value sprite :material-attributes)
+        all-attributes (into [{:name "position"
+                               :semantic-type :semantic-type-position-world
+                               :data-type :type-float
+                               :element-count 4}
+                              {:name "texcoord0"
+                               :semantic-type :semantic-type-texcoord
+                               :data-type :type-float
+                               :element-count 2}
+                              {:name "page_index"
+                               :semantic-type :semantic-type-page-index
+                               :data-type :type-float
+                               :element-count 1}]
+                             material-attributes)
+        vertex-description (graphics/make-vertex-description all-attributes)]
+    material-attributes))
