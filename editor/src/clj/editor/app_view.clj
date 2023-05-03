@@ -2139,22 +2139,22 @@ If you do not specifically require different script states, consider changing th
       (show-search-results! scene tool-tab-pane)
       (search-results-view/show-override-inspector! search-results-view node-id properties))))
 
-(defn- selection->single-node [selection project evaluation-context]
+(defn- select-possibly-overridable-resource-node [selection project evaluation-context]
   (or (handler/selection->node-id selection)
       (when-let [resource (handler/adapt-single selection resource/Resource)]
-        (project/get-resource-node project resource evaluation-context))))
+        (when (contains? (:tags (resource/resource-type resource)) :overridable-properties)
+          (project/get-resource-node project resource evaluation-context)))))
 
 (handler/defhandler :show-overrides :global
   (enabled? [selection project evaluation-context]
-    (let [node-id (selection->single-node selection project evaluation-context)]
-      (and node-id
-           (pos? (count (g/overrides (:basis evaluation-context) node-id))))))
+    (let [node-id (select-possibly-overridable-resource-node selection project evaluation-context)]
+      (and node-id (pos? (count (g/overrides (:basis evaluation-context) node-id))))))
   (run [selection search-results-view project app-view]
     (show-override-inspector!
       app-view
       search-results-view
       (g/with-auto-evaluation-context evaluation-context
-        (selection->single-node selection project evaluation-context))
+        (select-possibly-overridable-resource-node selection project evaluation-context))
       :all)))
 
 (handler/defhandler :toggle-pane-left :global
