@@ -6,7 +6,7 @@ def configure(conf):
 
 def build(bld):
     # if not desktop
-    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux'):
+    if bld.env.PLATFORM != bld.env.BUILD_PLATFORM:
         return
 
     if not waflib.Options.options.with_vulkan:
