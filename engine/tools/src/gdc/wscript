@@ -18,5 +18,5 @@ def build(bld):
                     source           = 'main.cpp',
                     target           = 'gdc')
 
-    if bld.env.PLATFORM in ('x86_64-macos',):
+    if bld.env.PLATFORM in ('x86_64-macos','arm64-macos',):
         b.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])

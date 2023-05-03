@@ -5,8 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    # if not desktop
-    if bld.env.PLATFORM != bld.env.BUILD_PLATFORM:
+    if not bld.env.IS_TARGET_DESKTOP:
         return
 
     if not waflib.Options.options.with_vulkan:

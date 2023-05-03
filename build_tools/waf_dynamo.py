@@ -1294,6 +1294,10 @@ def run_tests(ctx, valgrind = False, configfile = None):
             if 'TEST_LAUNCH_PATTERN' in t.env:
                 launch_pattern = t.env.TEST_LAUNCH_PATTERN
 
+            if not t.tasks:
+                print("No runnable task found in generator %s" % t.name)
+                continue
+
             for task in t.tasks:
                 if task in ['link_task']:
                     break
@@ -1414,6 +1418,9 @@ def detect(conf):
     conf.env['BOB_BUILD_PLATFORM'] = host_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
+
+    if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+        conf.env['IS_TARGET_DESKTOP'] = 'true'
 
     if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
@@ -1667,7 +1674,7 @@ def detect(conf):
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
-    if platform not in ('x86_64-macos',):
+    if platform not in ('x86_64-macos','arm64-macos',):
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     if platform in ('x86_64-macos','arm64-macos'):
@@ -1744,8 +1751,6 @@ def detect(conf):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
-
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_DINPUT']   = ['dinput8.lib', 'dxguid.lib']
