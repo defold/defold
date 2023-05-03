@@ -868,7 +868,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
-                dmLogError("Device selection failed for device %s: Could not get a valid queue family.", device->m_Properties.deviceName);
+                dmLogError("Device selection failed for device %s (%d/%d): Could not get a valid queue family.", device->m_Properties.deviceName, i, device_count);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -878,6 +878,7 @@ namespace dmGraphics
             {
                 if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
                 {
+                    dmLogError("Required device extension '%s' is missing for device %s (%d/%d).", device_extensions[ext_i], device->m_Properties.deviceName, i, device_count);
                     all_extensions_found = false;
                     break;
                 }
@@ -903,7 +904,7 @@ namespace dmGraphics
 
             selected_device = device;
             selected_queue_family = queue_family;
-            break;
+            break; // Why do we break here? x_x
 
             #undef DESTROY_AND_CONTINUE
         }
