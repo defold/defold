@@ -42,7 +42,8 @@
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :refer [flipped-pair]])
   (:import [java.util Collection]
            [javafx.animation AnimationTimer]
            [javafx.event Event]
@@ -446,12 +447,10 @@
     (let [^MouseEvent e e]
       (when (even? (.getClickCount e))
         (.consume e)
-        (when-let [tree (-> e
-                            ^TreeTableView .getSource
-                            .getSelectionModel
-                            ^TreeItem .getSelectedItem
-                            (some-> .getValue))]
-          (open-resource-fn (:resource tree) {:select-node (:node-id tree)}))))))
+        (let [^TreeTableView tree-view (.getSource e)]
+          (when-let [^TreeItem tree-item (.getSelectedItem (.getSelectionModel tree-view))]
+            (when-let [tree (.getValue tree-item)]
+              (open-resource-fn (:resource tree) {:select-node (:node-id tree)}))))))))
 
 (defn- override-inspector-view [state parent open-resource-fn]
   (letfn [(->tree-item [tree]
@@ -483,7 +482,6 @@
             :anchor-pane/left 0
             :anchor-pane/right 0
             :fixed-cell-size 24
-            :show-root false
             :event-filter (fxui/partial #'tree-table-view-event-filter open-resource-fn)
             :columns (into [{:fx/type fx.tree-table-column/lifecycle
                              :text "Resource"
@@ -567,7 +565,7 @@
   (let [evaluation-context (g/make-evaluation-context)
         parent (g/node-value search-results-view :search-results-container evaluation-context)
         display-order (into {}
-                            (map-indexed (fn [i k] [k i]))
+                            (map-indexed flipped-pair)
                             (:display-order (g/node-value node-id :_properties evaluation-context)))
         open-resource-fn (partial open-resource! search-results-view)
         renderer (fx/create-renderer

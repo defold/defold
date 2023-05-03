@@ -1638,7 +1638,9 @@ If you do not specifically require different script states, consider changing th
    {:label "Referencing Files..."
     :command :referencing-files}
    {:label "Dependencies..."
-    :command :dependencies}])
+    :command :dependencies}
+   {:label "Show Overrides"
+    :command :show-overrides}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -2137,13 +2139,23 @@ If you do not specifically require different script states, consider changing th
       (show-search-results! scene tool-tab-pane)
       (search-results-view/show-override-inspector! search-results-view node-id properties))))
 
+(defn- selection->single-node [selection project evaluation-context]
+  (or (handler/selection->node-id selection)
+      (when-let [resource (handler/adapt-single selection resource/Resource)]
+        (project/get-resource-node project resource evaluation-context))))
+
 (handler/defhandler :show-overrides :global
-  (enabled? [selection evaluation-context]
-    (let [node-id (handler/selection->node-id selection)]
+  (enabled? [selection project evaluation-context]
+    (let [node-id (selection->single-node selection project evaluation-context)]
       (and node-id
            (pos? (count (g/overrides (:basis evaluation-context) node-id))))))
-  (run [selection search-results-view app-view]
-    (show-override-inspector! app-view search-results-view (handler/selection->node-id selection) :all)))
+  (run [selection search-results-view project app-view]
+    (show-override-inspector!
+      app-view
+      search-results-view
+      (g/with-auto-evaluation-context evaluation-context
+        (selection->single-node selection project evaluation-context))
+      :all)))
 
 (handler/defhandler :toggle-pane-left :global
   (run [^Stage main-stage]

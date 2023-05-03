@@ -650,11 +650,11 @@
 
 (g/defnode PropertiesView
   (property parent-view Parent)
-  (property workspace g/Any)
-  (property project g/Any)
-  (property app-view g/NodeID)
-  (property search-results-view g/NodeID)
 
+  (input workspace g/Any)
+  (input project g/Any)
+  (input app-view g/NodeID)
+  (input search-results-view g/NodeID)
   (input selected-node-properties g/Any)
 
   (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties]
@@ -668,12 +668,12 @@
                                        (update-pane! parent-view context selected-node-properties))))))
 
 (defn make-properties-view [workspace project app-view search-results-view view-graph ^Node parent]
-  (let [view-id       (g/make-node! view-graph PropertiesView
-                                    :parent-view parent
-                                    :workspace workspace
-                                    :project project
-                                    :app-view app-view
-                                    :search-results-view search-results-view)
-        stage         (.. parent getScene getWindow)]
-    (g/connect! app-view :selected-node-properties view-id :selected-node-properties)
-    view-id))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes view-graph [view [PropertiesView :parent-view parent]]
+          (g/connect workspace :_node-id view :workspace)
+          (g/connect project :_node-id view :project)
+          (g/connect app-view :_node-id view :app-view)
+          (g/connect app-view :selected-node-properties view :selected-node-properties)
+          (g/connect search-results-view :_node-id view :search-results-view))))))

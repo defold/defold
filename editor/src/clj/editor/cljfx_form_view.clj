@@ -93,9 +93,6 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(def with-anchor-pane-props
-  (fx/make-ext-with-props fx.anchor-pane/props))
-
 (def uri-string-converter
   (proxy [StringConverter] []
     (toString
