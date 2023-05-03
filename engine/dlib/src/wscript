@@ -257,7 +257,7 @@ def build(bld):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
 
     # for desktop only
-    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos','x86_64-linux'):
+    if bld.env.IS_TARGET_DESKTOP:
         basis_encoder = bld.stlib(features = 'c cxx skip_asan',
                                     includes = ['basis'],
                                     source = bld.path.ant_glob("basis/encoder/**/*.c") +
