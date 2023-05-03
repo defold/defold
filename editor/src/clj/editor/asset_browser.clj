@@ -100,6 +100,8 @@
     :command :referencing-files}
    {:label "Dependencies..."
     :command :dependencies}
+   {:label "Show Overrides"
+    :command :show-overrides}
    {:label :separator}
    {:label "New"
     :command :new-file
