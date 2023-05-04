@@ -147,9 +147,9 @@
 
 (g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced or embedded component. Also tag on
-  ;; :instance-data with the overrides for this instance. This will later be
-  ;; extracted and compiled into the GameObject - the overrides do not end up in
-  ;; the resulting component binary.
+  ;; :component-instance-data with the overrides for this instance. This will
+  ;; later be extracted and compiled into the GameObject - the overrides do not
+  ;; end up in the resulting component binary.
   ;;
   ;; TODO: We can avoid some of this processing & input dependencies for embedded components. Separate into individual production functions?
   ;; For example, embedded components do not have resource-property-build-targets, and cannot refer to raw sounds.
@@ -161,11 +161,11 @@
                              (assoc :resource build-resource)
                              (wrap-if-raw-sound _node-id))
             build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
-            instance-data (if is-embedded
-                            (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
-                            (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-                              (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
-            build-target (assoc build-target :instance-data instance-data)]
+            component-instance-data (if is-embedded
+                                      (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
+                                      (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
+                                        (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
+            build-target (assoc build-target :component-instance-data component-instance-data)]
         [(bt/with-content-hash build-target)]))))
 
 (g/defnode ComponentNode
@@ -363,9 +363,9 @@
         (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
       (let [build-resource (workspace/make-build-resource resource)
             component-instance-build-targets (flatten dep-build-targets)
-            component-instance-datas (mapv :instance-data component-instance-build-targets)
+            component-instance-datas (mapv :component-instance-data component-instance-build-targets)
             component-build-targets (into []
-                                          (comp (map #(dissoc % :instance-data))
+                                          (comp (map #(dissoc % :component-instance-data))
                                                 (util/distinct-by (comp resource/proj-path :resource)))
                                           component-instance-build-targets)]
         [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
@@ -588,7 +588,7 @@
       (for [{:keys [id type data] :as embedded-component-desc} (:embedded-components prototype-desc)]
         (let [resource-type (ext->embedded-component-resource-type type)
               transform-properties (select-transform-properties resource-type embedded-component-desc)]
-          (collection-string-data/ensure-string-decoded-embedded-component-desc embedded-component-desc resource)
+          (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource)
           (add-embedded-component self project type data id transform-properties false))))))
 
 (defn- sanitize-game-object [workspace prototype-desc]

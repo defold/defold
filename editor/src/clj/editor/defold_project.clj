@@ -68,7 +68,8 @@
       (if (nil? read-fn)
         (load-fn project node-id resource)
         (let [source-value (if node-id->source-value
-                             (node-id->source-value node-id)
+                             (resource-io/with-translated-error-thrown!
+                               (node-id->source-value node-id))
                              (read-fn resource))]
           (load-fn project node-id resource source-value)))
       (when (and (resource/file-resource? resource)
@@ -96,7 +97,7 @@
                 (load-registered-resource-node resource-type project node-id resource node-id->source-value)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
+              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource e)))))))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
@@ -165,7 +166,7 @@
                                 (map (fn [node-id]
                                        [node-id (g/node-value node-id :resource evaluation-context)]))
                                 node-ids)
-        node-id->source-value #(g/node-value % :source-value evaluation-context)
+        node-id->source-value (memoize #(g/node-value % :source-value evaluation-context))
         old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
         loaded-nodes-by-resource-path (into {}
                                             (map (fn [[node-id resource]]

@@ -172,9 +172,9 @@
          (pose/pose? pose)]}
   {:resource build-resource
    :pose pose
-   :instance-msg (-> embedded-component-desc
-                     (dissoc :type :data)
-                     (add-default-scale-to-component-desc))})
+   :component-msg (-> embedded-component-desc
+                      (dissoc :type :data)
+                      (add-default-scale-to-component-desc))})
 
 (defn referenced-component-instance-data [build-resource component-desc pose proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
@@ -186,9 +186,9 @@
     {:resource build-resource
      :pose pose
      :property-deps go-prop-dep-build-targets
-     :instance-msg (-> component-desc
-                       (add-default-scale-to-component-desc)
-                       (protobuf/assign-repeated :properties go-props))}))
+     :component-msg (-> component-desc
+                        (add-default-scale-to-component-desc)
+                        (protobuf/assign-repeated :properties go-props))}))
 
 (defn- build-game-object [build-resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
@@ -201,14 +201,14 @@
   ;; ReferencedComponent. However, embedded components from different sources
   ;; might have been fused into one BuildResource if they had the same contents.
   ;; We must update any references to these BuildResources to instead point to
-  ;; the resulting fused BuildResource. We also extract :instance-data from the
-  ;; component build targets and embed these as ComponentDesc instances in the
-  ;; PrototypeDesc that represents the game object.
+  ;; the resulting fused BuildResource. We also extract :component-instance-data
+  ;; from the component build targets and embed these as ComponentDesc instances
+  ;; in the PrototypeDesc that represents the game object.
   (let [build-go-props (partial properties/build-go-props dep-resources)
-        instance-data (:instance-data user-data)
-        component-msgs (map :instance-msg instance-data)
+        component-instance-datas (:component-instance-datas user-data)
+        component-msgs (map :component-msg component-instance-datas)
         component-go-props (map (comp build-go-props :properties) component-msgs)
-        component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
+        component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) component-instance-datas)
         component-descs (map (fn [component-msg fused-build-resource-path go-props]
                                (-> component-msg
                                    (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
@@ -231,15 +231,16 @@
          (g/node-id? host-resource-node-id)
          (vector? component-instance-datas)
          (vector? component-build-targets)]}
-  ;; Extract the :instance-data from the component build targets so that
-  ;; overrides can be embedded in the resulting game object binary. We also
-  ;; establish dependencies to build-targets from any resources referenced
-  ;; by script property overrides.
+  ;; Extract the :component-instance-datas from the component build targets so
+  ;; that overrides can be embedded in the resulting game object binary. We also
+  ;; establish dependencies to build-targets from any resources referenced by
+  ;; script property overrides.
   (bt/with-content-hash
     {:node-id host-resource-node-id
      :resource build-resource
      :build-fn build-game-object
-     :user-data {:instance-data component-instance-datas}
+     :user-data {:component-instance-datas (mapv #(dissoc % :property-deps)
+                                                 component-instance-datas)}
      :deps (into component-build-targets
                  (comp (mapcat :property-deps)
                        (util/distinct-by (comp resource/proj-path :resource)))

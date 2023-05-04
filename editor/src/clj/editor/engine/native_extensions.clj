@@ -34,7 +34,7 @@
            [com.sun.jersey.multipart FormDataMultiPart]
            [com.sun.jersey.multipart.file StreamDataBodyPart]
            [com.sun.jersey.multipart.impl MultiPartWriter]
-           [java.io File]
+           [java.io File InputStream]
            [java.net URI]
            [java.security MessageDigest]
            [java.util Base64]
@@ -193,8 +193,8 @@
   [extender-platform sdk-version]
   (format "/build/%s/%s" extender-platform (or sdk-version "")))
 
-(defn- resource-node-content-stream ^java.io.InputStream
-  [resource-node evaluation-context]
+(defn- resource-node-content-stream
+  ^InputStream [resource-node evaluation-context]
   ;; TODO(save-value): Handle ErrorValue here.
   (if-some [content (some-> (g/node-value resource-node :save-data evaluation-context)
                             (resource-node/save-data-content))]

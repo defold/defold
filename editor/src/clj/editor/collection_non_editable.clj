@@ -423,10 +423,10 @@
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
   (doseq [embedded-instance-desc (:embedded-instances collection-desc)]
-    (collection-string-data/ensure-string-decoded-embedded-instance-desc embedded-instance-desc resource)
+    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc resource)
     (let [prototype-desc (:data embedded-instance-desc)]
       (doseq [embedded-component-desc (:embedded-components prototype-desc)]
-        (collection-string-data/ensure-string-decoded-embedded-component-desc embedded-component-desc resource))))
+        (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))))
 
   (g/set-property self :collection-desc collection-desc))
 

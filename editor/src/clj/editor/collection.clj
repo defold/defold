@@ -178,9 +178,9 @@
 
 (g/defnk produce-go-build-targets [_node-id build-error build-resource ddf-message resource-property-build-targets source-build-targets pose]
   ;; Create a build-target for the referenced or embedded game object. Also tag
-  ;; on :instance-data with the overrides for this instance. This will later be
-  ;; extracted and compiled into the Collection - the overrides do not end up in
-  ;; the resulting game object binary.
+  ;; on :game-object-instance-data with the overrides for this instance. This
+  ;; will later be extracted and compiled into the Collection - the overrides do
+  ;; not end up in the resulting game object binary.
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
   ;; when reading this. It describes how the ddf-message map is structured.
   ;; You might also want to familiarize yourself with how this process works in
@@ -768,7 +768,7 @@
                                  ;; EmbeddedInstanceDesc has been string-decoded
                                  ;; here. Any EmbeddedComponentDescs inside will
                                  ;; be validated by the game-object :load-fn.
-                                 (collection-string-data/ensure-string-decoded-embedded-instance-desc embedded resource)
+                                 (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
                                  (make-embedded-go self project (:data embedded) (:id embedded)
                                                    (:position embedded)
                                                    (:rotation embedded)

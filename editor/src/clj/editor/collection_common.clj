@@ -139,9 +139,9 @@
          (map? game-object-build-target)
          (ifn? proj-path->resource-property-build-target)]}
   ;; Create a build-target for the referenced or embedded game object. Also tag
-  ;; on :instance-data with the overrides for this instance. This will later be
-  ;; extracted and compiled into the Collection - the overrides do not end up in
-  ;; the resulting game object binary.
+  ;; on :game-object-instance-data with the overrides for this instance. This
+  ;; will later be extracted and compiled into the Collection - the overrides
+  ;; do not end up in the resulting game object binary.
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
   ;; when reading this. It describes how the ddf-message map is structured.
   ;; You might also want to familiarize yourself with how this process works in
@@ -169,7 +169,7 @@
                                                    :component-properties component-property-descs)}
         build-target (assoc game-object-build-target
                        :resource build-resource
-                       :instance-data game-object-instance-data)]
+                       :game-object-instance-data game-object-instance-data)]
     (bt/with-content-hash build-target)))
 
 (defn- source-resource-component-property-desc [component-property-desc]
@@ -217,7 +217,7 @@
          (seqable? instance-property-descs) ; GameObject$InstancePropertyDescs in map format.
          (map? collection-build-target)
          (ifn? proj-path->resource-property-build-target)]}
-  (let [game-object-instance-datas (-> collection-build-target :user-data :instance-data)
+  (let [game-object-instance-datas (-> collection-build-target :game-object-instance-datas)
 
         child-game-object-instance-id?
         (into #{}
@@ -227,12 +227,19 @@
         game-object-instance-id->component-property-descs
         (into {}
               (map (juxt :id :properties))
-              instance-property-descs)]
+              instance-property-descs)
+
+        flattened-game-object-instance-datas
+        (mapv (fn [game-object-instance-data]
+                (flatten-game-object-instance-data game-object-instance-data collection-instance-id pose child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target))
+              game-object-instance-datas)]
     (bt/with-content-hash
-      (assoc-in collection-build-target [:user-data :instance-data]
-                (mapv (fn [game-object-instance-data]
-                        (flatten-game-object-instance-data game-object-instance-data collection-instance-id pose child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target))
-                      game-object-instance-datas)))))
+      (-> collection-build-target
+          (assoc :game-object-instance-datas
+                 flattened-game-object-instance-datas)
+          (assoc-in [:user-data :game-object-instance-datas]
+                    (mapv #(dissoc % :property-deps)
+                          flattened-game-object-instance-datas))))))
 
 (defn- pose->transform-properties [pose]
   {:position (pose/translation-v3 pose)
@@ -254,11 +261,11 @@
   ;; equivalent. We must update any references to these BuildResources
   ;; to instead point to the resulting fused BuildResource. The same goes for
   ;; resource property overrides inside the InstanceDescs.
-  (let [{:keys [name instance-data scale-along-z]} user-data
+  (let [{:keys [name game-object-instance-datas scale-along-z]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
-        go-instance-msgs (map :instance-msg instance-data)
-        go-instance-transform-properties (map (comp pose->transform-properties :pose) instance-data)
-        go-instance-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
+        go-instance-msgs (map :instance-msg game-object-instance-datas)
+        go-instance-transform-properties (map (comp pose->transform-properties :pose) game-object-instance-datas)
+        go-instance-build-resource-paths (map (comp resource/proj-path dep-resources :resource) game-object-instance-datas)
         go-instance-component-go-props (map (fn [instance-desc] ; GameObject$InstanceDesc in map form
                                               (map (fn [component-property-desc] ; GameObject$ComponentPropertyDesc in map form
                                                      (build-go-props (:properties component-property-desc)))
@@ -297,29 +304,31 @@
          (boolean? scale-along-z)
          (seqable? game-object-instance-build-targets)
          (seqable? collection-instance-build-targets)]}
-  ;; Extract the :instance-data from the game object instance build targets
-  ;; so that overrides can be embedded in the resulting collection binary.
-  ;; We also establish dependencies to build-targets from any resources
+  ;; Extract the :game-object-instance-datas from the game object instance build
+  ;; targets so that overrides can be embedded in the resulting collection
+  ;; binary. We also establish dependencies to build-targets from any resources
   ;; referenced by script property overrides.
   (let [collection-instance-build-targets (flatten collection-instance-build-targets)
         game-object-instance-build-targets (flatten game-object-instance-build-targets)
-        instance-data (into (mapv :instance-data game-object-instance-build-targets)
-                            (comp (keep :user-data)
-                                  (mapcat :instance-data))
-                            collection-instance-build-targets)
+        game-object-instance-datas (into (mapv :game-object-instance-data
+                                               game-object-instance-build-targets)
+                                         (mapcat :game-object-instance-datas)
+                                         collection-instance-build-targets)
         property-deps (sequence (comp (mapcat :property-deps)
                                       (util/distinct-by (comp resource/proj-path :resource)))
-                                instance-data)]
+                                game-object-instance-datas)]
     (bt/with-content-hash
       {:node-id node-id
        :resource build-resource
        :build-fn build-collection
        :user-data {:name name
-                   :instance-data instance-data
-                   :scale-along-z scale-along-z}
+                   :scale-along-z scale-along-z
+                   :game-object-instance-datas (mapv #(dissoc % :property-deps)
+                                                     game-object-instance-datas)}
        :deps (into (vec (concat game-object-instance-build-targets property-deps))
                    (mapcat :deps)
-                   collection-instance-build-targets)})))
+                   collection-instance-build-targets)
+       :game-object-instance-datas game-object-instance-datas})))
 
 (defn any-instance-scene [node-id node-outline-key ^Matrix4d transform-matrix source-scene]
   {:pre [(g/node-id? node-id)

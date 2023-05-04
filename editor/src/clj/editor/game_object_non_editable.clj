@@ -376,7 +376,7 @@
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
   (doseq [embedded-component-desc (:embedded-components prototype-desc)]
-    (collection-string-data/ensure-string-decoded-embedded-component-desc embedded-component-desc resource))
+    (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))
 
   (g/set-property self :prototype-desc prototype-desc))
 

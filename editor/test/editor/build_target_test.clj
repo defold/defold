@@ -106,8 +106,8 @@
         (are [result value]
           (= result (digest-string value))
 
-          "#dg/Bytes [0, 32, 64]" (byte-array [0 32 64])
-          "#dg/ByteString [65, 66, 67]" (ByteString/copyFrom "ABC" "UTF-8")
+          "#dg/Bytes 0x002040" (byte-array [0 32 64])
+          "#dg/ByteString 0x414243" (ByteString/copyFrom "ABC" "UTF-8")
           "#dg/Class java.io.StringWriter" StringWriter
           "#dg/Function editor.build-target-test/mock-module-level-function" mock-module-level-function
           "#dg/Matrix4d [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]" (doto (Matrix4d.) .setIdentity)
@@ -178,11 +178,25 @@
             "{:any-key-that-ends-in-node-id #dg/Node \"/builtins/graphics/particle_blob.png\"}"
             {:any-key-that-ends-in-node-id zip-resource-node})))
 
-      (testing "ByteString UTF-8 code points"
-        (is (= "#dg/ByteString [-30, -122, -110]"
-               (digest-string (ByteString/copyFrom "\u2192" "UTF-8"))))
-        (is (= "\u2192"
-               (.toString (ByteString/copyFrom (byte-array [-30 -122 -110])) "UTF-8")))))))
+      (testing "Byte array details"
+        (is (= "#dg/Bytes 0x0" (digest-string (byte-array []))))
+        (is (= "#dg/Bytes 0x00" (digest-string (byte-array [0]))))
+        (is (= "#dg/Bytes 0x1122334455"
+               (digest-string (byte-array [0x11 0x22 0x33 0x44 0x55]))))
+        (is (= "#dg/Bytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+               (digest-string (byte-array (range 0 256)))))
+        (is (= "#dg/Bytes 0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+               (digest-string (byte-array (range -128 128))))))
+
+      (testing "ByteString details"
+        (is (= "#dg/ByteString 0x0"
+               (digest-string (ByteString/copyFrom "" "UTF-8"))))
+        (is (= "#dg/ByteString 0x00"
+               (digest-string (ByteString/copyFrom "\0" "UTF-8"))))
+        (is (= "#dg/ByteString 0x1122334455"
+               (digest-string (ByteString/copyFrom (byte-array [0x11 0x22 0x33 0x44 0x55])))))
+        (is (= "#dg/ByteString 0xe28692"
+               (digest-string (ByteString/copyFrom "\u2192" "UTF-8")))))))) ; Rightwards arrow.
 
 (defn- built-resource-node? [resource-node]
   (not (g/node-instance? PlaceholderResourceNode resource-node)))

@@ -107,7 +107,7 @@
 
   (output save-data g/Any (g/constantly nil))
   (output save-value g/Any (g/constantly nil))
-  (output source-value g/Any :unjammable (g/constantly nil)))
+  (output source-value g/Any :unjammable produce-source-value)) ; No need to cache, but used during load.
 
 (definline ^:private resource-node-resource [basis resource-node]
   ;; This is faster than g/node-value, and doesn't require creating an
@@ -189,10 +189,13 @@
             (resource basis))))
 
 (defn save-data-content
-  ^String [{:keys [resource save-value] :as _save-data}]
-  (let [resource-type (resource/resource-type resource)
-        write-fn (:write-fn resource-type)]
-    (write-fn save-value)))
+  ^String [save-data]
+  (when-some [save-value (:save-value save-data)]
+    (let [resource (:resource save-data)
+          resource-type (resource/resource-type resource)
+          write-fn (:write-fn resource-type)]
+      (when write-fn
+        (write-fn save-value)))))
 
 (defn sha256-or-throw
   ^String [resource-node-id evaluation-context]

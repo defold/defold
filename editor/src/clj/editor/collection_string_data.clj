@@ -24,7 +24,7 @@
 ;; Validation
 ;; -----------------------------------------------------------------------------
 
-(defn ensure-string-decoded-embedded-component-desc
+(defn verify-string-decoded-embedded-component-desc!
   "Throws an informative exception if the supplied value is not a
   GameObject$EmbeddedComponentDesc in map format with the :data field converted
   to a map."
@@ -43,12 +43,12 @@
                          :type component-type
                          :data component-data}))))))
 
-(defn ensure-string-decoded-embedded-instance-desc
+(defn verify-string-decoded-embedded-instance-desc!
   "Throws an informative exception if the supplied value is not a
   GameObject$EmbeddedInstanceDesc in map format with the :data field converted
   to a map. Does not ensure GameObject$EmbeddedComponentDescs inside the
-  embedded game object have been string decoded. You'll need to call the
-  ensure-string-decoded-embedded-component-desc separately on the embedded
+  embedded game object have been string decoded. You'll need to call
+  verify-string-decoded-embedded-component-desc! separately on the embedded
   components."
   [embedded-instance-desc owning-resource]
   (let [prototype-desc (:data embedded-instance-desc)]

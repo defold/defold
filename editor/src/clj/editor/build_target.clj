@@ -24,18 +24,16 @@
 (defn content-hash-components [build-target]
   (let [build-resource (:resource build-target)
         source-resource (:resource build-resource)]
-    [(system/defold-engine-sha1)
-
-     ;; The source resource is included since external resources may rely on it
-     ;; (for example, image reads). However, we don't want to include memory
-     ;; resources since they typically represent embedded resources that can be
-     ;; edited, and their :data may be out of sync with the edited state that
-     ;; will be passed as :user-data anyway.
-     (when-not (resource/memory-resource? source-resource)
-       source-resource)
-
-     (:build-fn build-target)
-     (:user-data build-target)]))
+    ;; The source resource is included since external resources may rely on it
+    ;; (for example, image reads). However, we don't want to include memory
+    ;; resources since they typically represent embedded resources that can be
+    ;; edited, and their :data may be out of sync with the edited state that
+    ;; will be passed as :user-data anyway.
+    {:engine-sha1 (system/defold-engine-sha1)
+     :source-resource (when-not (resource/memory-resource? source-resource)
+                        source-resource)
+     :build-fn (:build-fn build-target)
+     :user-data (:user-data build-target)}))
 
 (defn content-hash
   ^String [build-target opts]

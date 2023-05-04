@@ -27,7 +27,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
-            [support.test-support :refer [with-clean-system graph-dependencies]])
+            [support.test-support :refer [graph-dependencies with-clean-system]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.proto DdfMath$Vector3]))
 
