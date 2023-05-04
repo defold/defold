@@ -508,7 +508,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             if (needs64bit)
                 bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
 
-            if ( needs32bit || needs64bit) {
+            if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
                     logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());

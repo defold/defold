@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -143,6 +143,25 @@ public class BundlerTest {
         return "";
     }
 
+    private void listDir(File dir)
+    {
+        for (File file : FileUtils.listFiles(dir, new RegexFileFilter(".*"), DirectoryFileFilter.DIRECTORY)) {
+            String relative = dir.toURI().relativize(file.toURI()).getPath();
+            System.out.printf("%s\n", file);
+        }
+    }
+
+    private void checkFileExist(File bundleDir, File file)
+    {
+        if (!file.exists())
+        {
+            System.out.printf("A missing file %s\n", file);
+            System.out.printf("Directory contents:\n");
+            listDir(bundleDir);
+        }
+        assertTrue(file.exists());
+    }
+
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
     private void verifyEngineBinaries() throws IOException
     {
@@ -156,13 +175,13 @@ public class BundlerTest {
             case X86_64Win32:
             {
                 File outputBinary = new File(outputDirFile, projectName + ".exe");
-                assertTrue(outputBinary.exists());
+                checkFileExist(outputDirFile, outputBinary);
             }
             break;
             case Armv7Android:
             {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
+                checkFileExist(outputDirFile, outputApk);
                 FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
                 Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArmv7));
@@ -173,7 +192,7 @@ public class BundlerTest {
             case Arm64Android:
             {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
+                checkFileExist(outputDirFile, outputApk);
                 FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
                 Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArm64));
@@ -184,11 +203,11 @@ public class BundlerTest {
             case JsWeb:
             {
                 File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-                assertTrue(asmjsFile.exists());
+                checkFileExist(outputDirFile, asmjsFile);
                 File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
-                assertTrue(wasmjsFile.exists());
+                checkFileExist(outputDirFile, wasmjsFile);
                 File wasmFile = new File(outputDirFile, exeName + ".wasm");
-                assertTrue(wasmFile.exists());
+                checkFileExist(outputDirFile, wasmFile);
             }
             break;
             case Arm64Ios:
@@ -209,7 +228,7 @@ public class BundlerTest {
                 );
                 for (String name : names) {
                     File file = new File(outputDirFile, name);
-                    assertTrue(file.exists());
+                    checkFileExist(outputDirFile, file);
                 }
             }
             break;
@@ -220,7 +239,7 @@ public class BundlerTest {
                 );
                 for (String name : names) {
                     File file = new File(outputDirFile, name);
-                    assertTrue(file.exists());
+                    checkFileExist(outputDirFile, file);
                 }
                 break;
             case X86_64Linux:
@@ -230,7 +249,7 @@ public class BundlerTest {
         }
     }
 
-    
+
     private void verifyArchive() throws IOException
     {
         String projectName = "unnamed";

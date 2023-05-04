@@ -185,7 +185,7 @@ public class MacOSBundler implements IBundler {
         }
 
         // Copy Executable
-        File destExecutable = new File(appDir, exeName);
+        File destExecutable = new File(macosDir, exeName);
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
         logger.info("Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
