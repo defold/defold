@@ -1283,7 +1283,7 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-        if (params->m_PrintDeviceInfo)
+        // if (params->m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(context);
         }
@@ -2871,14 +2871,17 @@ static void LogFrameBufferError(GLenum status)
 
     static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
     {
+        #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
+
     #ifdef __EMSCRIPTEN__
-        #define WEBGL1_WORKAROUND(fmt) \
-            if (!context->m_IsGles3Version) \
-            { \
-                gl_internal_format = fmt; \
-            }
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
     #else
-        #define WEBGL1_WORKAROUND(fmt)
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+    #ifdef __ANDROID__
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value)
     #endif
 
         switch (format)
@@ -2930,29 +2933,32 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
-            WEBGL1_WORKAROUND(DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RGB32F:
             gl_type            = GL_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
-            WEBGL1_WORKAROUND(DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
             break;
         case TEXTURE_FORMAT_RGBA16F:
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RGBA32F:
             gl_type            = GL_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
-            WEBGL1_WORKAROUND(DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
             break;
         case TEXTURE_FORMAT_R16F:
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_R32F:
             gl_type            = GL_FLOAT;
@@ -2963,6 +2969,7 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RG32F:
             gl_type            = GL_FLOAT;
@@ -2975,7 +2982,10 @@ static void LogFrameBufferError(GLenum status)
             dmLogError("Texture format %s is not a valid format.", GetTextureFormatLiteral(format));
             break;
         }
-    #undef WEBGL1_WORKAROUND
+
+    #undef ES2_ENUM_WORKAROUND
+    #undef EMSCRIPTEN_ES2_BACKWARDS_COMPAT
+    #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)

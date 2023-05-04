@@ -58,10 +58,11 @@
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444                 (GL_UNSIGNED_SHORT_4_4_4_4)
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_565                  (GL_UNSIGNED_SHORT_5_6_5)
 
-#ifdef GL_HALF_FLOAT_OES
-#define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT_OES)
-#else
+
+#ifdef GL_HALF_FLOAT
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT)
+#else
+#define DMGRAPHICS_TYPE_HALF_FLOAT                          (0x140B)
 #endif
 
 // Texture arrays
