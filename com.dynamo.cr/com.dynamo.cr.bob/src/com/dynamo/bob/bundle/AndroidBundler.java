@@ -169,8 +169,10 @@ public class AndroidBundler implements IBundler {
                 }
 
                 File aapt2 = new File(bundletool.getParent(), "aapt2");
-                extractFile(bundletool, platformName + "/aapt2" + suffix, aapt2);
-                System.out.printf("Extracted aapt2: %s %d\n", aapt2, aapt2.exists());
+                if (!aapt2.exists())
+                {
+                    extractFile(bundletool, platformName + "/aapt2" + suffix, aapt2);
+                }
             }
 
         } catch (Exception e) {
