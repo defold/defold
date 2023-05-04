@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -237,6 +237,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return chunkName;
     }
 
+    /* We currently prefer source code over plain lua byte code due to the smaller size
     public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
@@ -290,6 +291,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         baos.close();
         return bytecode;
     }
+    */
 
     public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 
@@ -336,9 +338,9 @@ public abstract class LuaBuilder extends Builder<Void> {
          * The delta is stored together with the 64-bit bytecode and when
          * the 32-bit bytecode is needed the delta is applied to the 64-bit
          * bytecode to transform it to the equivalent 32-bit version.
-         * 
+         *
          * The delta is stored in the following format:
-         * 
+         *
          * * index - The index where to apply the next change. 1-4 bytes.
          *           The size depends on the size of the entire bytecode:
          *           1 byte - Size less than 2^8
