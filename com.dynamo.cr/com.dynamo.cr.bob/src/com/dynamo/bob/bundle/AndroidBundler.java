@@ -123,6 +123,13 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    private static String getAapt2Name()
+    {
+        if (Platform.getHostPlatform() == Platform.X86_64Win32)
+            return "aapt2.exe";
+        return "aapt2";
+    }
+
     private static void initAndroid() {
         Bob.init();
         File rootFolder = Bob.getRootFolder();
@@ -168,10 +175,11 @@ public class AndroidBundler implements IBundler {
                     platformName = "linux";
                 }
 
-                File aapt2 = new File(bundletool.getParent(), "aapt2");
+                File aapt2 = new File(bundletool.getParent(), getAapt2Name());
                 if (!aapt2.exists())
                 {
-                    extractFile(bundletool, platformName + "/aapt2" + suffix, aapt2);
+                    extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2);
+                    aapt2.setExecutable(true);
                 }
             }
 
@@ -455,12 +463,14 @@ public class AndroidBundler implements IBundler {
             File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
             compiledResourcesDir.deleteOnExit();
 
+            String aapt2 = Bob.getLibExecPath(getAapt2Name());
+
             // compile the resources for each package
             for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
                 File compiledResourceDir = createDir(compiledResourcesDir, packageDir.getName());
 
                 List<String> args = new ArrayList<String>();
-                args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
+                args.add(aapt2);
                 args.add("compile");
                 args.add("-o"); args.add(compiledResourceDir.getAbsolutePath());
                 args.add("--dir"); args.add(packageDir.getAbsolutePath());
@@ -494,7 +504,7 @@ public class AndroidBundler implements IBundler {
             File outApk = new File(apkDir, "output.apk");
 
             List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
+            args.add(Bob.getLibExecPath(getAapt2Name()));
             args.add("link");
             args.add("--proto-format");
             args.add("-o"); args.add(outApk.getAbsolutePath());
