@@ -293,7 +293,7 @@
   {:components (:count stream)
    :type (vtx/stream-type->type (:type stream))
    :name (:name stream)
-   :normalized? false}) ; todo figure out if this should be configurable
+   :normalize false}) ; todo figure out if this should be configurable
 
 (defn- max-stream-length [streams]
   (transduce (map (fn [stream]

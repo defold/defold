@@ -21,32 +21,25 @@
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
     :value-keyword :int-values
-    :byte-size 1
-    :vtx-type :byte}
+    :byte-size 1}
    {:data-type :type-unsigned-byte
     :value-keyword :uint-values
-    :byte-size 1
-    :vtx-type :ubyte}
+    :byte-size 1}
    {:data-type :type-short
     :value-keyword :int-values
-    :byte-size 2
-    :vtx-type :short}
+    :byte-size 2}
    {:data-type :type-unsigned-short
     :value-keyword :uint-values
-    :byte-size 2
-    :vtx-type :ushort}
+    :byte-size 2}
    {:data-type :type-int
     :value-keyword :int-values
-    :byte-size 4
-    :vtx-type :int}
+    :byte-size 4}
    {:data-type :type-unsigned-int
     :value-keyword :uint-values
-    :byte-size 4
-    :vtx-type :uint}
+    :byte-size 4}
    {:data-type :type-float
     :value-keyword :float-values
-    :byte-size 4
-    :vtx-type :float}])
+    :byte-size 4}])
 
 (def attribute-data-type->attribute-value-keyword
   (into {}
@@ -62,18 +55,13 @@
         (map (juxt :data-type :byte-size))
         attribute-data-type-infos))
 
-(def attribute-data-type->vtx-attribute-type
-  (into {}
-        (map (juxt :data-type :vtx-type))
-        attribute-data-type-infos))
-
 (defn attribute->vtx-attribute [attribute]
   {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
   {:name (:name attribute)
    :semantic-type (:semantic-type attribute)
-   :type (attribute-data-type->vtx-attribute-type (:data-type attribute))
+   :type (vtx/attribute-data-type->type (:data-type attribute))
    :components (:element-count attribute)
-   :normalized? (:normalize attribute false)})
+   :normalize (:normalize attribute false)})
 
 (defn make-vertex-description [attributes]
   (let [vtx-attributes (mapv attribute->vtx-attribute attributes)]
@@ -98,10 +86,8 @@
 
 (defn attributes->build-target [attributes]
   (mapv (fn [attr]
-          (assoc attr
-            :name-hash (murmur/hash64 (:name attr))
-            :float-values nil
-            :uint-values nil
-            :int-values nil
-            :byte-values (attribute->byte-data attr)))
+          (-> attr
+              (dissoc :float-values :uint-values :int-values)
+              (assoc :name-hash (murmur/hash64 (:name attr))
+                     :byte-values (attribute->byte-data attr))))
         attributes))

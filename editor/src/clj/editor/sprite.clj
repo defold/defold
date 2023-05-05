@@ -35,12 +35,12 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
-           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
+  (:import [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
+           [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [editor.types AABB]
            [editor.gl.vertex2 VertexBuffer]
+           [editor.types AABB]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d]))
 
@@ -80,41 +80,85 @@
 ; TODO - macro of this
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
-(defn- conj-animation-frame!
-  [^ByteBuffer buf animation frame-index world-transform size-mode size slice9]
-  (let [animation-frame (get-in animation [:frames frame-index])
+(defn- renderable-data [renderable]
+  (let [{:keys [world-transform updatable user-data]} renderable
+        {:keys [animation size-mode size slice9]} user-data
+        frame-index (get-in updatable [:state :frame] 0)
+        animation-frame (get-in animation [:frames frame-index])
+        page-index (:page-index animation-frame)
         vertex-data (if (= :size-mode-auto size-mode)
-                      (texture-set/vertex-data animation-frame world-transform)
-                      (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
-                            positions (geom/transf-p4 world-transform (:position-data slice9-data))
-                            uvs (:uv-data slice9-data)]
-                        (mapv (fn [vertex-position vertex-uv]
-                                (conj (into vertex-position vertex-uv)
-                                      (float frame-index)))
-                              positions
-                              uvs)))]
-    (doseq [vertex vertex-data]
-      (conj-floats! buf vertex))))
+                      (texture-set/vertex-data animation-frame)
+                      (slice9/vertex-data animation-frame size slice9 :pivot-center))]
+    (assoc vertex-data
+      :page-index page-index
+      :world-transform world-transform)))
 
-(defn- into-vertex-buffer
-  [^VertexBuffer vbuf renderables]
-  (let [vertex-description (.vertex-description vbuf)
-        buf (.buf vbuf)]
-    (doseq [{:keys [world-transform updatable user-data]} renderables]
-      (let [{:keys [animation size-mode size slice9]} user-data
-            frame (get-in updatable [:state :frame] 0)]
-        (conj-animation-frame! buf animation frame world-transform size-mode size slice9)))
+(defn- into-vertex-buffer [^VertexBuffer vbuf renderables]
+  (let [renderable-datas (mapv renderable-data renderables)
+        vertex-description (.vertex-description vbuf)
+        vertex-byte-stride (:size vertex-description)
+        buf (.buf vbuf)
+
+        put-float-vectors!
+        (fn put-float-vectors!
+          ^long [^long vertex-byte-offset attribute-type normalize float-vectors]
+          (reduce (fn [^long vertex-byte-offset float-vector]
+                    (vtx/buf-put-floats! buf vertex-byte-offset attribute-type normalize float-vector)
+                    (+ vertex-byte-offset vertex-byte-stride))
+                  vertex-byte-offset
+                  float-vectors))
+
+        put-renderables!
+        (fn put-renderables!
+          ^long [^long attribute-byte-offset attribute-type normalize renderable-data->float-vectors]
+          (reduce (fn [^long vertex-byte-offset renderable-data]
+                    (let [float-vectors (renderable-data->float-vectors renderable-data)]
+                      (put-float-vectors! vertex-byte-offset attribute-type normalize float-vectors)))
+                  attribute-byte-offset
+                  renderable-datas))]
+
+    (reduce (fn [^long attribute-byte-offset attribute]
+              (let [attribute-type (:type attribute)
+                    normalize (:normalize attribute)]
+                (case (:semantic-type attribute)
+                  :semantic-type-position-local
+                  (put-renderables! attribute-byte-offset attribute-type normalize :position-data)
+
+                  :semantic-type-position-world
+                  (put-renderables! attribute-byte-offset attribute-type normalize
+                                    (fn [renderable-data]
+                                      (let [local-positions (:position-data renderable-data)
+                                            world-transform (:world-transform renderable-data)]
+                                        (geom/transf-p4 world-transform local-positions))))
+
+                  :semantic-type-texcoord
+                  (put-renderables! attribute-byte-offset attribute-type normalize :uv-data)
+
+                  :semantic-type-page-index
+                  (put-renderables! attribute-byte-offset attribute-type normalize
+                                    (fn [renderable-data]
+                                      (let [local-positions (:position-data renderable-data)
+                                            page-index (:page-index renderable-data)]
+                                        (repeat (count local-positions)
+                                                [(double page-index)]))))
+
+                  ;; Default case.
+                  ;; TODO(vertex-attr): Obtain attribute-values from renderable user-data.
+                  ;; TODO(vertex-attr): Should this put the raw values from the declaration?
+                  (let [attribute-value (get attribute-values (:name attribute))]
+                    (assert (vector? attribute-value)) ; A vector of floats.
+                    (put-renderables! attribute-byte-offset attribute-type normalize (constantly attribute-value))))
+
+                (+ attribute-byte-offset
+                   (vtx/attribute-size attribute-type))))
+            0
+            (:attributes vertex-description))
     (vtx/flip! vbuf)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
   (.transform wt pt)
   [(.x pt) (.y pt) (.z pt) cr cg cb 1])
-
-(defn- conj-floats! [^ByteBuffer buf floats]
-  (doseq [n floats]
-    (.putFloat buf n))
-  buf)
 
 (defn- conj-outline-quad! [^ByteBuffer buf ^Matrix4d wt ^Point3d pt width height cr cg cb]
   (let [x1 (* 0.5 width)
@@ -126,27 +170,28 @@
         v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (doto buf
-      (conj-floats! v0)
-      (conj-floats! v1)
-      (conj-floats! v1)
-      (conj-floats! v2)
-      (conj-floats! v2)
-      (conj-floats! v3)
-      (conj-floats! v3)
-      (conj-floats! v0))))
+      (vtx/buf-push-floats! v0)
+      (vtx/buf-push-floats! v1)
+      (vtx/buf-push-floats! v1)
+      (vtx/buf-push-floats! v2)
+      (vtx/buf-push-floats! v2)
+      (vtx/buf-push-floats! v3)
+      (vtx/buf-push-floats! v3)
+      (vtx/buf-push-floats! v0))))
 
-(defn- conj-outline-slice9-quad! [vbuf line-data ^Matrix4d world-transform tmp-point cr cg cb]
+(defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (transduce (map (fn [[x y]]
                     (gen-outline-vertex world-transform tmp-point x y cr cg cb)))
-             conj-floats!
-             vbuf
+             vtx/buf-push-floats!
+             buf
              line-data))
 
 (defn- gen-outline-vertex-buffer
   [renderables count]
   (let [tmp-point (Point3d.)]
     (loop [renderables renderables
-           vbuf (->color-vtx (* count 8))]
+           ^VertexBuffer vbuf (->color-vtx (* count 8))
+           ^ByteBuffer buf (.buf vbuf)]
       (if-let [renderable (first renderables)]
         (let [[cr cg cb] (if (:selected renderable) colors/selected-outline-color colors/outline-color)
               world-transform (:world-transform renderable)
@@ -156,10 +201,10 @@
               animation-frame (get-in animation [:frames animation-frame-index])]
           (recur (rest renderables)
                  (if (= :size-mode-auto size-mode)
-                   (conj-outline-quad! (.buf vbuf) world-transform tmp-point quad-width quad-height cr cg cb)
+                   (conj-outline-quad! buf world-transform tmp-point quad-width quad-height cr cg cb)
                    (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
                          line-data (:line-data slice9-data)]
-                     (conj-outline-slice9-quad! vbuf line-data world-transform tmp-point cr cg cb)))))
+                     (conj-outline-slice9-quad! buf line-data world-transform tmp-point cr cg cb)))))
         (vtx/flip! vbuf)))))
 
 ; Rendering
@@ -298,13 +343,13 @@
 
 (defn- produce-attributes [material-attributes vertex-attribute-overrides]
   (let [overridden-material-attributes (filter #(contains? vertex-attribute-overrides (keyword (:name %))) material-attributes)
-        overridden-material-attributes+values (map (fn [attr]
-                                                     (let [overridden-value ((keyword (:name attr)) vertex-attribute-overrides)
-                                                           value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attr))]
-                                                       (-> attr
-                                                           (assoc value-keyword {:v overridden-value})
-                                                           (dissoc :name-hash))))
-                                                   overridden-material-attributes)]
+        overridden-material-attributes+values (mapv (fn [attr]
+                                                      (let [overridden-value ((keyword (:name attr)) vertex-attribute-overrides)
+                                                            value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attr))]
+                                                        (-> attr
+                                                            (assoc value-keyword {:v overridden-value})
+                                                            (dissoc :name-hash))))
+                                                    overridden-material-attributes)]
     overridden-material-attributes+values))
 
 ; Node defs
@@ -344,6 +389,7 @@
                         :tags #{:sprite}
                         :user-data {:gpu-texture gpu-texture
                                     :shader material-shader
+                                    ;; TODO(vertex-attr): Merge these into a single map for use in conj-animation-frame!
                                     :material-attributes material-attributes
                                     :vertex-attribute-overrides vertex-attribute-overrides
                                     :animation animation

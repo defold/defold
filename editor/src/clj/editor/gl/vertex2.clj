@@ -27,15 +27,17 @@
 
 (set! *warn-on-reflection* true)
 
-(def type-sizes
-  {:ubyte  Buffers/SIZEOF_BYTE
-   :byte   Buffers/SIZEOF_BYTE
-   :ushort Buffers/SIZEOF_SHORT
-   :short  Buffers/SIZEOF_SHORT
-   :uint   Buffers/SIZEOF_INT
-   :int    Buffers/SIZEOF_INT
-   :float  Buffers/SIZEOF_FLOAT
-   :double Buffers/SIZEOF_DOUBLE})
+(defn type-size
+  ^long [type]
+  (case type
+    :ubyte  Buffers/SIZEOF_BYTE
+    :byte   Buffers/SIZEOF_BYTE
+    :ushort Buffers/SIZEOF_SHORT
+    :short  Buffers/SIZEOF_SHORT
+    :uint   Buffers/SIZEOF_INT
+    :int    Buffers/SIZEOF_INT
+    :float  Buffers/SIZEOF_FLOAT
+    :double Buffers/SIZEOF_DOUBLE))
 
 (def gl-types
   {:ubyte   GL/GL_UNSIGNED_BYTE
@@ -72,6 +74,16 @@
     :value-type-int8 :byte
     :value-type-int16 :short
     :value-type-int32 :int))
+
+(defn attribute-data-type->type [attribute-data-type]
+  (case attribute-data-type
+    :type-byte :byte
+    :type-unsigned-byte :ubyte
+    :type-short :short
+    :type-unsigned-short :ushort
+    :type-int :int
+    :type-unsigned-int :uint
+    :type-float :float))
 
 ;; VertexBuffer object
 
@@ -126,12 +138,145 @@
               (.order ByteOrder/LITTLE_ENDIAN))]
     (wrap-vertex-buffer vertex-description usage buf)))
 
+;; low-level access
+
+(defn buf-put-floats!
+  (^ByteBuffer [^ByteBuffer buf ^long byte-offset floats]
+   (doseq [n floats]
+     (.putFloat buf byte-offset n)))
+  (^ByteBuffer [^ByteBuffer buf byte-offset data-type normalize floats]
+   (let [byte-offset (int byte-offset)]
+     (if normalize
+       ;; Normalized.
+       (case data-type
+         :type-float
+         (doseq [n floats]
+           (.putFloat buf byte-offset n))
+
+         :type-byte
+         (doseq [^double n floats]
+           (.put buf byte-offset (byte (Math/floor (* n 127.5)))))
+
+         :type-unsigned-byte
+         (doseq [^double n floats]
+           (.put buf byte-offset (byte (Math/floor (- (* n 255.5) 128.0)))))
+
+         :type-short
+         (doseq [^double n floats]
+           (.putShort buf byte-offset (Math/floor (* n 32767.5))))
+
+         :type-unsigned-short
+         (doseq [^double n floats]
+           (.putShort buf byte-offset (Math/floor (- (* n 65535.5) 32768.0))))
+
+         :type-int
+         (doseq [^double n floats]
+           (.putInt buf byte-offset (Math/floor (* n 2147483647.5))))
+
+         :type-unsigned-int
+         (doseq [^double n floats]
+           (.putInt buf byte-offset (Math/floor (- (* n 4294967295.5) 2147483648.0)))))
+
+       ;; Not normalized.
+       (case data-type
+         :type-float
+         (doseq [n floats]
+           (.putFloat buf byte-offset n))
+
+         (:type-byte :type-unsigned-byte)
+         (doseq [n floats]
+           (.put buf byte-offset (byte n)))
+
+         (:type-short :type-unsigned-short)
+         (doseq [n floats]
+           (.putShort buf byte-offset n))
+
+         (:type-int :type-unsigned-int)
+         (doseq [n floats]
+           (.putInt buf byte-offset n)))))
+   buf))
+
+(defn put-floats!
+  (^VertexBuffer [^VertexBuffer vbuf ^long byte-offset floats]
+   (buf-put-floats! (.buf vbuf) byte-offset floats)
+   vbuf)
+  (^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize floats]
+   (buf-put-floats! (.buf vbuf) byte-offset data-type normalize floats)
+   vbuf))
+
+(defn buf-push-floats!
+  (^ByteBuffer [^ByteBuffer buf floats]
+   (doseq [n floats]
+     (.putFloat buf n)))
+  (^ByteBuffer [^ByteBuffer buf data-type normalize floats]
+   (if normalize
+     ;; Normalized.
+     (case data-type
+       :type-float
+       (doseq [n floats]
+         (.putFloat buf n))
+
+       :type-byte
+       (doseq [^double n floats]
+         (.put buf (byte (Math/floor (* n 127.5)))))
+
+       :type-unsigned-byte
+       (doseq [^double n floats]
+         (.put buf (byte (Math/floor (- (* n 255.5) 128.0)))))
+
+       :type-short
+       (doseq [^double n floats]
+         (.putShort buf (Math/floor (* n 32767.5))))
+
+       :type-unsigned-short
+       (doseq [^double n floats]
+         (.putShort buf (Math/floor (- (* n 65535.5) 32768.0))))
+
+       :type-int
+       (doseq [^double n floats]
+         (.putInt buf (Math/floor (* n 2147483647.5))))
+
+       :type-unsigned-int
+       (doseq [^double n floats]
+         (.putInt buf (Math/floor (- (* n 4294967295.5) 2147483648.0)))))
+
+     ;; Not normalized.
+     (case data-type
+       :type-float
+       (doseq [n floats]
+         (.putFloat buf n))
+
+       (:type-byte :type-unsigned-byte)
+       (doseq [n floats]
+         (.put buf (byte n)))
+
+       (:type-short :type-unsigned-short)
+       (doseq [n floats]
+         (.putShort buf n))
+
+       (:type-int :type-unsigned-int)
+       (doseq [n floats]
+         (.putInt buf n))))
+   buf))
+
+(defn push-floats!
+  (^VertexBuffer [^VertexBuffer vbuf floats]
+   (buf-push-floats! (.buf vbuf) floats)
+   vbuf)
+  (^VertexBuffer [^VertexBuffer vbuf data-type normalize floats]
+   (buf-push-floats! (.buf vbuf) data-type normalize floats)
+   vbuf))
 
 ;; vertex description
 
+(defn attribute-size
+  ^long [{:keys [^long components type]}]
+  (* components (type-size type)))
+
 (defn- attribute-sizes
   [attributes]
-  (map (fn [{:keys [^long components type]}] (* components ^long (type-sizes type))) attributes))
+  (map attribute-size
+       attributes))
 
 (defn- vertex-size
   [attributes]
@@ -189,7 +334,7 @@
 
 (defn- parse-attribute-definition
   [form]
-  (let [[type nm & [normalized?]] form
+  (let [[type nm & [normalize]] form
         [prefix suffix]  (str/split (name type) #"\.")
         prefix           (keyword prefix)
         suffix           (keyword (or suffix "float"))
@@ -199,7 +344,7 @@
     {:components num-components
      :type suffix
      :name (name nm)
-     :normalized? (true? normalized?)}))
+     :normalize (true? normalize)}))
 
 (defmacro defvertex
   [name & attribute-definitions]
@@ -228,9 +373,9 @@
 
 (defn- vertex-attrib-pointer
   [^GL2 gl attrib loc stride offset]
-  (let [{:keys [name components type normalized?]} attrib]
+  (let [{:keys [name components type normalize]} attrib]
     (when (not= -1 loc)
-      (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalized? ^int stride ^long offset))))
+      (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalize ^int stride ^long offset))))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl attribs attrib-locs]
