@@ -310,7 +310,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         //
         final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
-        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe););
+        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
         options.add("-g"); // Keep debug info
         options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
