@@ -2792,60 +2792,6 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
- /*# LIVEUPDATE_OK
- *
- * @name resource.LIVEUPDATE_OK
- * @variable
- */
-
- /*# LIVEUPDATE_INVALID_RESOURCE
- * The handled resource is invalid.
- *
- * @name resource.LIVEUPDATE_INVALID_RESOURCE
- * @variable
- */
-
- /*# LIVEUPDATE_VERSION_MISMATCH
- * Mismatch between manifest expected version and actual version.
- *
- * @name resource.LIVEUPDATE_VERSION_MISMATCH
- * @variable
- */
-
- /*# LIVEUPDATE_ENGINE_VERSION_MISMATCH
- * Mismatch between running engine version and engine versions supported by manifest.
- *
- * @name resource.LIVEUPDATE_ENGINE_VERSION_MISMATCH
- * @variable
- */
-
- /*# LIVEUPDATE_SIGNATURE_MISMATCH
- * Mismatch between manifest expected signature and actual signature.
- *
- * @name resource.LIVEUPDATE_SIGNATURE_MISMATCH
- * @variable
- */
-
- /*# LIVEUPDATE_SCHEME_MISMATCH
- * Mismatch between scheme used to load resources. Resources are loaded with a different scheme than from manifest, for example over HTTP or directly from file. This is typically the case when running the game directly from the editor instead of from a bundle.
- *
- * @name resource.LIVEUPDATE_SCHEME_MISMATCH
- * @variable
- */
-
- /*# LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
- * Mismatch between between expected bundled resources and actual bundled resources. The manifest expects a resource to be in the bundle, but it was not found in the bundle. This is typically the case when a non-excluded resource was modified between publishing the bundle and publishing the manifest.
- *
- * @name resource.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
- * @variable
- */
-
- /*# LIVEUPDATE_FORMAT_ERROR
- * Failed to parse manifest data buffer. The manifest was probably produced by a different engine version.
- *
- * @name resource.LIVEUPDATE_FORMAT_ERROR
- * @variable
- */
 static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
