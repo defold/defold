@@ -43,7 +43,6 @@ namespace dmRender
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
-        uint32_t samplers_value_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             type = (dmGraphics::Type) -1;
@@ -56,7 +55,6 @@ namespace dmRender
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
                 samplers_count++;
-                samplers_value_count += num_values;
             }
             else
             {
@@ -169,7 +167,9 @@ namespace dmRender
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
                 Sampler& s           = m->m_Samplers[sampler_index];
+                s.m_NameHash         = name_hash;
                 s.m_UnitValueCount   = num_values;
+                s.m_Location         = location;
 
                 switch(type)
                 {
@@ -331,6 +331,18 @@ namespace dmRender
             return (HSampler) &material->m_Samplers[unit];
         }
         return 0x0;
+    }
+
+    int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash)
+    {
+        for (int i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            if (material->m_Samplers[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit)

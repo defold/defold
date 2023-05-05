@@ -124,7 +124,7 @@ namespace dmRender
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
         }
 
-        memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
+        memset(context->m_TextureBindings, 0, sizeof(TextureBinding) * RenderObject::MAX_TEXTURE_COUNT);
 
         InitializeTextContext(context, params.m_MaxCharacters);
 
@@ -667,6 +667,27 @@ namespace dmRender
         }
     }
 
+    void SetTextureBinding(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture, dmhash_t sampler_hash)
+    {
+        if (sampler_hash)
+        {
+            for (int i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+            {
+                if (render_context->m_TextureBindings[i].m_Texture == 0)
+                {
+                    render_context->m_TextureBindings[i].m_Texture     = texture;
+                    render_context->m_TextureBindings[i].m_Samplerhash = sampler_hash;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            render_context->m_TextureBindings[unit].m_Texture     = texture;
+            render_context->m_TextureBindings[unit].m_Samplerhash = 0;
+        }
+    }
+
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
     {
         DM_PROFILE("DrawRenderList");
@@ -789,6 +810,25 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
+    static void SetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
+    {
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context->m_TextureBindings[i].m_Samplerhash)
+            {
+                int32_t sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindings[i].m_Samplerhash);
+                if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
+                {
+                    textures[sampler_index] = render_context->m_TextureBindings[i].m_Texture;
+                }
+            }
+            else
+            {
+                textures[i] = render_context->m_TextureBindings[i].m_Texture;
+            }
+        }
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
@@ -798,12 +838,15 @@ namespace dmRender
 
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT];
+        memset(render_context_textures, 0, sizeof(render_context_textures));
 
         HMaterial material = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
+            SetRenderContextTextures(render_context, context_material, render_context_textures);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -829,6 +872,7 @@ namespace dmRender
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+                    SetRenderContextTextures(render_context, material, render_context_textures);
                 }
             }
 
@@ -846,9 +890,9 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context->m_Textures[i])
+                if (render_context_textures[i])
                 {
-                    texture = render_context->m_Textures[i];
+                    texture = render_context_textures[i];
                 }
 
                 if (texture)
@@ -879,8 +923,8 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context->m_Textures[i])
-                    texture = render_context->m_Textures[i];
+                if (render_context_textures[i])
+                    texture = render_context_textures[i];
                 if (texture)
                 {
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
