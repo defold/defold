@@ -308,19 +308,9 @@ public abstract class LuaBuilder extends Builder<Void> {
         // If a script error occurs in runtime we want Lua to report the end of the filepath
         // associated with the chunk, since this is where the filename is visible.
         //
-        String exe;
-        if (Platform.getHostPlatform().equals(Platform.Arm64MacOS) && luajitExe.equals("luajit-32"))
-        {
-            exe = Bob.getExe(Platform.X86_64MacOS, luajitExe);
-        }
-        else
-        {
-            exe = Bob.getExe(Platform.getHostPlatform(), luajitExe);
-        }
-
         final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
-        options.add(exe);
+        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe););
         options.add("-b");
         options.add("-g"); // Keep debug info
         options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
