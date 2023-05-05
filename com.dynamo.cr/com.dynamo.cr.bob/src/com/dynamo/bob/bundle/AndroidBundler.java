@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +113,81 @@ public class AndroidBundler implements IBundler {
         }
         return file;
     }
+
+    private static void extractFile(File zipFile, String fileName, File outputFile) throws IOException {
+        // Wrap the file system in a try-with-resources statement
+        // to auto-close it when finished and prevent a memory leak
+        try (FileSystem fileSystem = FileSystems.newFileSystem(zipFile.toPath(), null)) {
+            Path fileToExtract = fileSystem.getPath(fileName);
+            Files.copy(fileToExtract, outputFile.toPath());
+        }
+    }
+
+    private static String getAapt2Name()
+    {
+        if (Platform.getHostPlatform() == Platform.X86_64Win32)
+            return "aapt2.exe";
+        return "aapt2";
+    }
+
+    private static void initAndroid() {
+        Bob.init();
+        File rootFolder = Bob.getRootFolder();
+        try {
+            // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
+            // aapt will find it later when AndroidBundler is run.
+            String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
+            URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
+            if (libc_url != null) {
+                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename);
+                Bob.atomicCopy(libc_url, f, false);
+            }
+
+            Bob.extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
+
+            // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
+            URL android_jar = Bob.class.getResource("/lib/android.jar");
+            if (android_jar != null) {
+                File f = new File(rootFolder, "lib/android.jar");
+                Bob.atomicCopy(android_jar, f, false);
+            }
+            URL classes_dex = Bob.class.getResource("/lib/classes.dex");
+            if (classes_dex != null) {
+                File f = new File(rootFolder, "lib/classes.dex");
+                Bob.atomicCopy(classes_dex, f, false);
+            }
+
+            // Make sure it's extracted once
+            File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
+
+            // Find the file to extract from the bundletool
+            {
+                Platform hostPlatform = Platform.getHostPlatform();
+                String platformName = "macos";
+                String suffix = "";
+                if (hostPlatform == Platform.X86_64Win32)
+                {
+                    platformName = "windows";
+                    suffix = ".exe";
+                }
+                else if (hostPlatform == Platform.X86_64Linux)
+                {
+                    platformName = "linux";
+                }
+
+                File aapt2 = new File(bundletool.getParent(), getAapt2Name());
+                if (!aapt2.exists())
+                {
+                    extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2);
+                    aapt2.setExecutable(true);
+                }
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     private static Result exec(List<String> args) throws IOException {
         logger.info("exec: " + String.join(" ", args));
@@ -201,7 +280,7 @@ public class AndroidBundler implements IBundler {
         }
         return alias;
     }
-    
+
     /**
      * Get key password. This loads the key password file and returns
      * the password stored in the file.
@@ -209,7 +288,7 @@ public class AndroidBundler implements IBundler {
     private static String getKeyPassword(Project project) throws IOException, CompileExceptionError {
         return readFile(getKeyPasswordFile(project)).trim();
     }
-    
+
     /**
      * Get key password file. Uses the keystore password file if none specified
      */
@@ -384,12 +463,14 @@ public class AndroidBundler implements IBundler {
             File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
             compiledResourcesDir.deleteOnExit();
 
+            String aapt2 = Bob.getLibExecPath(getAapt2Name());
+
             // compile the resources for each package
             for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
                 File compiledResourceDir = createDir(compiledResourcesDir, packageDir.getName());
 
                 List<String> args = new ArrayList<String>();
-                args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
+                args.add(aapt2);
                 args.add("compile");
                 args.add("-o"); args.add(compiledResourceDir.getAbsolutePath());
                 args.add("--dir"); args.add(packageDir.getAbsolutePath());
@@ -423,7 +504,7 @@ public class AndroidBundler implements IBundler {
             File outApk = new File(apkDir, "output.apk");
 
             List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
+            args.add(Bob.getLibExecPath(getAapt2Name()));
             args.add("link");
             args.add("--proto-format");
             args.add("-o"); args.add(outApk.getAbsolutePath());
@@ -896,7 +977,7 @@ public class AndroidBundler implements IBundler {
         }
 
         TimeProfiler.start("Init Android");
-        Bob.initAndroid(); // extract 
+        initAndroid(); // extract
         TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
