@@ -261,7 +261,7 @@ public class IOSBundler implements IBundler {
         // Pickup each binary, either vanilla or from a extender build.
         List<File> binaries = new ArrayList<File>();
         for (Platform architecture : architectures) {
-            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            List<File> bins = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
             if (bins == null) {
                 bins = Bob.getDefaultDmengineFiles(architecture, variant);
             } else {

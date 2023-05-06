@@ -383,22 +383,6 @@ public class Bob {
         return binaryFiles;
     }
 
-    public static List<File> getNativeExtensionEngineBinaries(Platform platform, String extenderExeDir) throws IOException
-    {
-        List<String> binaryNames = platform.formatBinaryName("dmengine");
-        List<File> binaryFiles = new ArrayList<File>();
-        for (String binaryName : binaryNames) {
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), binaryName)));
-
-            // All binaries must exist, otherwise return null
-            if (!extenderExe.exists()) {
-                return null;
-            }
-            binaryFiles.add(extenderExe);
-        }
-        return binaryFiles;
-    }
-
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
