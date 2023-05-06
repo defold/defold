@@ -1283,7 +1283,7 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-        // if (params->m_PrintDeviceInfo)
+        if (params->m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(context);
         }
