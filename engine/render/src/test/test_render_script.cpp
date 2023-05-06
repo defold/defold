@@ -1167,7 +1167,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     ASSERT_EQ(texture, command->m_Operands[1]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
-    ASSERT_EQ(m_Context->m_Textures[unit], texture);
+    ASSERT_EQ(m_Context->m_TextureBindings[unit].m_Texture, texture);
 
     dmGraphics::DeleteTexture(texture);
 
