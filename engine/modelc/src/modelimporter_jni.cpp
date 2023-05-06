@@ -928,11 +928,8 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 
 } // namespace
 
-JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
-    dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
-    dmJNI::SignalContextScope env_scope(env);
-
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
 
@@ -947,12 +944,8 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
     jsize file_size = env->GetArrayLength(array);
     jbyte* file_data = env->GetByteArrayElements(array, 0);
 
-    dmLogDebug("LoadFromBufferInternal: %s suffix: %s bytes: %d\n", path, suffix, file_size);
-
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, (uint8_t*)file_data, file_size);
-
-    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
 
     if (!scene)
     {
@@ -1013,6 +1006,20 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
 
     dmModelImporter::DestroyScene(scene);
 
+    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+
+    return jscene;
+}
+
+JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+{
+    dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
+
+    jobject jscene;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        jscene = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
     return jscene;
 }
 

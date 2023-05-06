@@ -304,6 +304,16 @@ char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t i
     return CreateNameFromHash("mesh", index);
 }
 
+template <>
+char* CreateObjectName<>(cgltf_buffer* object, const char* prefix, uint32_t index)
+{
+    if (object && object->name)
+        return strdup(object->name);
+    if (object && object->uri)
+        return strdup(object->uri);
+    return CreateNameFromHash("buffer", index);
+}
+
 static void UpdateWorldTransforms(Node* node)
 {
     if (node->m_Parent)
@@ -1047,7 +1057,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
-        scene->m_Buffers[i].m_Uri = data->buffers[i].uri;
+        scene->m_Buffers[i].m_Uri = CreateObjectName(data->buffers, "buffer", i);
         scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
         scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
     }

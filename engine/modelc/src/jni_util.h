@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <jni.h>
 
+#if defined(_WIN32)
+    #include <Windows.h>
+    #include <Dbghelp.h>
+    #include <excpt.h>
+#endif
+
 namespace dmJNI
 {
     void EnableDefaultSignalHandlers(JavaVM* vm);
@@ -27,6 +33,26 @@ namespace dmJNI
             RemoveContext(m_Env);
         }
     };
+
+
+#if defined(_WIN32)
+    LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS* ptr);
+
+    #define DM_JNI_GUARD_SCOPE_BEGIN() \
+        __try { \
+
+    #define DM_JNI_GUARD_SCOPE_END(...) \
+        } __except (dmJNI::ExceptionHandler(GetExceptionInformation())) { \
+            __VA_ARGS__ \
+        }
+
+#else
+    #define DM_JNI_GUARD_SCOPE_BEGIN()
+    #define DM_JNI_GUARD_SCOPE_END(...) { \
+            __VA_ARGS__ \
+        }
+
+#endif
 
     // Caller has to free() the memory
     char* GenerateCallstack(char* buffer, uint32_t buffer_length);
