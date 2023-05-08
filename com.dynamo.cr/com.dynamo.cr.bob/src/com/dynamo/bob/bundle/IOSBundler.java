@@ -438,7 +438,9 @@ public class IOSBundler implements IBundler {
         // Copy extension frameworks
         for (Platform architecture : architectures) {
             File extensionArchitectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
+            if (!extensionArchitectureDir.exists()) continue;
             File extensionFrameworksDir = new File(extensionArchitectureDir, "frameworks");
+            if (!extensionFrameworksDir.exists()) continue;
             for (File extensionFrameworkDir : extensionFrameworksDir.listFiles()) {
                 File dest = new File(frameworksDir, extensionFrameworkDir.getName());
                 FileUtils.copyDirectory(extensionFrameworkDir, dest);
