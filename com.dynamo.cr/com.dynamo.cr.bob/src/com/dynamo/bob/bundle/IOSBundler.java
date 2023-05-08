@@ -421,7 +421,7 @@ public class IOSBundler implements IBundler {
         if( strip_executable ) {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
             if (stripResult.ret == 0) {
-                logger.info("Stripped binary: " + getFileDescription(tmpFile));
+                logger.fine("Stripped binary: " + getFileDescription(tmpFile));
             }
             else {
                 logger.severe("Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
@@ -434,20 +434,18 @@ public class IOSBundler implements IBundler {
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
-        logger.info("Bundle binary: " + getFileDescription(destExecutable));
 
         // Copy extension frameworks
-        logger.info("Copy frameworks");
         for (Platform architecture : architectures) {
             File extensionArchitectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
             File extensionFrameworksDir = new File(extensionArchitectureDir, "frameworks");
             for (File extensionFrameworkDir : extensionFrameworksDir.listFiles()) {
                 File dest = new File(frameworksDir, extensionFrameworkDir.getName());
                 FileUtils.copyDirectory(extensionFrameworkDir, dest);
+                logger.fine("Copy framework " + extensionFrameworkDir);
             }
         }
 
-        logger.info("Copy debug symbols");
         // Copy debug symbols
         // Create list of dSYM binaries
         List<File> dSYMBinaries = new ArrayList<File>();
@@ -456,6 +454,7 @@ public class IOSBundler implements IBundler {
             File buildSymbols = new File(zipDir, "dmengine.dSYM");
             if (buildSymbols.exists()) {
                 dSYMBinaries.add(new File(buildSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine")))));
+                logger.fine("Copy debug symbols");
             }
         }
 
@@ -484,7 +483,7 @@ public class IOSBundler implements IBundler {
 
         // Copy any libswift*.dylib files from the Frameworks folder
         if (frameworksDir.exists()) {
-            logger.info("Copying to /SwiftSupport folder");
+            logger.fine("Copying to /SwiftSupport folder");
             File iphoneosDir = new File(swiftSupportDir, "iphoneos");
 
             for (File file : frameworksDir.listFiles(File::isFile)) {
