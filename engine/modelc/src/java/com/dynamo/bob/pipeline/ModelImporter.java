@@ -493,6 +493,9 @@ public class ModelImporter {
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
 
+        if (scene == null)
+            return;
+
         System.out.printf("--------------------------------\n");
 
         for (Buffer buffer : scene.buffers) {
