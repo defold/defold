@@ -101,6 +101,8 @@ namespace dmGraphics
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HComputeShader (*NewComputeShaderFn)(HContext context, ShaderDesc::Shader* ddf);
+    typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+    typedef HProgram (*NewComputeProgramFn)(HContext context, HComputeShader compute_shader);
     typedef HProgram (*NewProgramFn)(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     typedef void (*DeleteProgramFn)(HContext context, HProgram program);
     typedef bool (*ReloadVertexProgramFn)(HVertexProgram prog, ShaderDesc::Shader* ddf);
@@ -214,7 +216,9 @@ namespace dmGraphics
         DrawFn m_Draw;
         NewVertexProgramFn m_NewVertexProgram;
         NewFragmentProgramFn m_NewFragmentProgram;
+        NewComputeProgramFn m_NewComputeProgram;
         NewComputeShaderFn m_NewComputeShader;
+        DispatchComputeFn m_DispatchCompute;
         NewProgramFn m_NewProgram;
         DeleteProgramFn m_DeleteProgram;
         ReloadVertexProgramFn m_ReloadVertexProgram;
@@ -331,6 +335,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeShader); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DispatchCompute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadVertexProgram); \

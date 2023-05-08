@@ -28,6 +28,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 public class ShaderUtil {
     public static class Common {
@@ -60,47 +61,64 @@ public class ShaderUtil {
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
         }
 
-        private static class ShaderDataTypeConversionEntry {
-            public String                    asStr;
-            public ShaderDesc.ShaderDataType asDataType;
-            public ShaderDataTypeConversionEntry(String str, ShaderDesc.ShaderDataType dataType) {
+        private static class ShaderTypeConversionentry<T> {
+            public String asStr;
+            public T      asDataType;
+            public ShaderTypeConversionentry(String str, T dataType) {
                 this.asStr      = str;
                 this.asDataType = dataType;
             }
         }
 
-        private static final ArrayList<ShaderDataTypeConversionEntry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
-                new ShaderDataTypeConversionEntry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
-                new ShaderDataTypeConversionEntry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
-                new ShaderDataTypeConversionEntry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
-                new ShaderDataTypeConversionEntry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
-                new ShaderDataTypeConversionEntry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
-                new ShaderDataTypeConversionEntry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
-                new ShaderDataTypeConversionEntry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
-                new ShaderDataTypeConversionEntry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
-                new ShaderDataTypeConversionEntry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
-                new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
-                new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
-                new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
-                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)
+        /*
+        TEXTURE_FORMAT_RGB16F
+        TEXTURE_FORMAT_RGB32F
+        TEXTURE_FORMAT_RGBA16F
+        TEXTURE_FORMAT_RGBA32F
+        TEXTURE_FORMAT_R16F
+        TEXTURE_FORMAT_RG16F
+        TEXTURE_FORMAT_R32F
+        TEXTURE_FORMAT_RG32F
+        */
+
+        private static final ArrayList<ShaderTypeConversionentry> shaderFormatConversionLut = new ArrayList<>(Arrays.asList(
+                new ShaderTypeConversionentry("rgba32f", TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F),
+                new ShaderTypeConversionentry("rgba8", TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA)
+            ));
+
+        public static TextureImage.TextureFormat stringFormatToTextureFormat(String formatAsString) {
+            for (ShaderTypeConversionentry e : shaderFormatConversionLut) {
+                if (e.asStr.equals(formatAsString)) {
+                    return (TextureImage.TextureFormat) e.asDataType;
+                }
+            }
+            return TextureImage.TextureFormat.TEXTURE_FORMAT_LUMINANCE;
+        }
+
+        private static final ArrayList<ShaderTypeConversionentry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
+                new ShaderTypeConversionentry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
+                new ShaderTypeConversionentry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
+                new ShaderTypeConversionentry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
+                new ShaderTypeConversionentry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
+                new ShaderTypeConversionentry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
+                new ShaderTypeConversionentry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
+                new ShaderTypeConversionentry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
+                new ShaderTypeConversionentry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
+                new ShaderTypeConversionentry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
+                new ShaderTypeConversionentry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
+                new ShaderTypeConversionentry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
+                new ShaderTypeConversionentry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
+                new ShaderTypeConversionentry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
+                new ShaderTypeConversionentry("image2D", ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
-            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
+            for (ShaderTypeConversionentry e : shaderDataTypeConversionLut) {
                 if (e.asStr.equals(typeAsString)) {
-                    return e.asDataType;
+                    return (ShaderDesc.ShaderDataType) e.asDataType;
                 }
             }
             return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-        }
-
-        public static String shaderTypeToString(ShaderDesc.ShaderDataType dataType) {
-            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
-                if (e.asDataType == dataType) {
-                    return e.asStr;
-                }
-            }
-            return null;
         }
     }
 
@@ -189,6 +207,7 @@ public class ShaderUtil {
         {
             public String name;
             public String type;
+            public String format;
             public int    elementCount;
             public int    binding;
             public int    set;
@@ -246,6 +265,42 @@ public class ShaderUtil {
             }
 
             return uniformBlocks;
+        }
+
+        /*
+        "images" : [
+            {
+                "type" : "image2D",
+                "name" : "texture_out",
+                "set" : 0,
+                "binding" : 0,
+                "format" : "rgba32f"
+            }
+        ]
+        */
+
+        public static ArrayList<Resource> getImages() {
+            ArrayList<Resource> images = new ArrayList<Resource>();
+
+            JsonNode imagesNode = root.get("images");
+
+            if (imagesNode == null) {
+                return images;
+            }
+
+            for (Iterator<JsonNode> iter = imagesNode.getElements(); iter.hasNext();) {
+                JsonNode imageNode = iter.next();
+                Resource res       = new Resource();
+                res.name           = imageNode.get("name").asText();
+                res.type           = imageNode.get("type").asText();
+                res.binding        = imageNode.get("binding").asInt();
+                res.set            = imageNode.get("set").asInt();
+                res.format         = imageNode.get("format").asText();
+                res.elementCount   = 1;
+                images.add(res);
+            }
+
+            return images;
         }
 
         public static ArrayList<Resource> getTextures() {

@@ -81,7 +81,7 @@ namespace dmGraphics
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.descriptorSetCount = setCount;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
         vk_descriptor_set_alloc.descriptorPool     = m_Handle.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
@@ -534,7 +534,8 @@ bail:
 
         VkDescriptorPoolSize vk_pool_size[] = {
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          descriptor_count},
         };
 
         descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
@@ -1061,7 +1062,7 @@ bail:
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
 
         vk_pipeline_info.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        vk_pipeline_info.stageCount          = sizeof(program->m_PipelineStageInfo) / sizeof(VkPipelineShaderStageCreateInfo);
+        vk_pipeline_info.stageCount          = 2; //  sizeof(program->m_PipelineStageInfo) / sizeof(VkPipelineShaderStageCreateInfo);
         vk_pipeline_info.pStages             = program->m_PipelineStageInfo;
         vk_pipeline_info.pVertexInputState   = &vk_vertex_input_info;
         vk_pipeline_info.pInputAssemblyState = &vk_input_assembly;
@@ -1080,6 +1081,21 @@ bail:
         return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
+    VkResult CreatePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut)
+    {
+        assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
+
+        VkComputePipelineCreateInfo vk_pipeline_create_info = {};
+        vk_pipeline_create_info.sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        vk_pipeline_create_info.basePipelineHandle = 0;
+        vk_pipeline_create_info.basePipelineIndex  = 0;
+        vk_pipeline_create_info.flags              = 0;
+        vk_pipeline_create_info.layout             = program->m_Handle.m_PipelineLayout;
+        vk_pipeline_create_info.pNext              = 0;
+        vk_pipeline_create_info.stage              = program->m_PipelineStageInfo[0];
+        return vkCreateComputePipelines(vk_device, 0, 1, &vk_pipeline_create_info, 0, pipelineOut);
+    }
+
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
     {
         assert(scratchBuffer);
@@ -1096,7 +1112,7 @@ bail:
             handle->m_PipelineLayout = VK_NULL_HANDLE;
         }
 
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        for (int i = 0; i < MAX_PROGRAM_MODULE_COUNT; ++i)
         {
             if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
             {

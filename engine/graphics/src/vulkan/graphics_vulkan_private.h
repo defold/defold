@@ -264,6 +264,9 @@ namespace dmGraphics
         uint16_t               m_UniformBufferCount;
     };
 
+    // 2 for graphics, 1 for compute. They cannot be shared so only need max 2 here
+    static const uint8_t MAX_PROGRAM_MODULE_COUNT = 2;
+
     struct Program
     {
         Program();
@@ -272,12 +275,12 @@ namespace dmGraphics
         {
             MODULE_TYPE_VERTEX   = 0,
             MODULE_TYPE_FRAGMENT = 1,
-            MODULE_TYPE_COUNT    = 2
+            MODULE_TYPE_COMPUTE  = 2,
         };
 
         struct VulkanHandle
         {
-            VkDescriptorSetLayout m_DescriptorSetLayout[MODULE_TYPE_COUNT];
+            VkDescriptorSetLayout m_DescriptorSetLayout[MAX_PROGRAM_MODULE_COUNT];
             VkPipelineLayout      m_PipelineLayout;
         };
 
@@ -287,7 +290,8 @@ namespace dmGraphics
         VulkanHandle                    m_Handle;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
-        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
+        ShaderModule*                   m_ComputeModule;
+        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MAX_PROGRAM_MODULE_COUNT];
         uint8_t                         m_Destroyed : 1;
 
         const VulkanResourceType GetType();
@@ -395,6 +399,7 @@ namespace dmGraphics
         Texture*                        m_DefaultTexture2D;
         Texture*                        m_DefaultTexture2DArray;
         Texture*                        m_DefaultTextureCubeMap;
+        Texture*                        m_DefaultImage2D;
         Texture                         m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
@@ -465,6 +470,7 @@ namespace dmGraphics
         const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
+    VkResult CreatePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut);
     // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     // Destroy funcions

@@ -48,16 +48,17 @@ namespace dmRender
     static const uint32_t MAX_PREDICATE_COUNT = 64;
     struct RenderScriptInstance
     {
-        dmArray<Command>            m_CommandBuffer;
-        dmHashTable64<HMaterial>    m_Materials;
-        Predicate*                  m_Predicates[MAX_PREDICATE_COUNT];
-        RenderContext*              m_RenderContext;
-        HRenderScript               m_RenderScript;
-        dmScript::ScriptWorld*      m_ScriptWorld;
-        uint32_t                    m_PredicateCount;
-        int                         m_InstanceReference;
-        int                         m_RenderScriptDataReference;
-        int                         m_ContextTableReference;
+        dmArray<Command>               m_CommandBuffer;
+        dmHashTable64<HMaterial>       m_Materials;
+        dmHashTable64<HComputeProgram> m_ComputePrograms;
+        Predicate*                     m_Predicates[MAX_PREDICATE_COUNT];
+        RenderContext*                 m_RenderContext;
+        HRenderScript                  m_RenderScript;
+        dmScript::ScriptWorld*         m_ScriptWorld;
+        uint32_t                       m_PredicateCount;
+        int                            m_InstanceReference;
+        int                            m_RenderScriptDataReference;
+        int                            m_ContextTableReference;
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size);

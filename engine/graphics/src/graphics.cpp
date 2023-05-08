@@ -130,6 +130,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_IMAGE_2D);
             default:break;
         }
         return "<unknown texture type>";
@@ -781,6 +782,14 @@ namespace dmGraphics
     HComputeShader NewComputeShader(HContext context, ShaderDesc::Shader* ddf)
     {
         return g_functions.m_NewComputeShader(context, ddf);
+    }
+    HProgram NewComputeProgram(HContext context, HComputeShader compute_shader)
+    {
+        return g_functions.m_NewComputeProgram(context, compute_shader);
+    }
+    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        return g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {

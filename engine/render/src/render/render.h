@@ -191,6 +191,7 @@ namespace dmRender
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script);
     void                    AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material);
+    void                    AddRenderScriptInstanceComputeProgram(HRenderScriptInstance render_script_instance, const char* program_name, dmRender::HComputeProgram program);
     void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);

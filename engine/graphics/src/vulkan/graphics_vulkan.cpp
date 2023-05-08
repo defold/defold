@@ -584,15 +584,16 @@ namespace dmGraphics
         // Create default texture sampler
         CreateVulkanTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
+        const uint32_t default_tex_size = 1;
         // Create default dummy texture
         TextureCreationParams default_texture_creation_params;
-        default_texture_creation_params.m_Width          = 1;
-        default_texture_creation_params.m_Height         = 1;
+        default_texture_creation_params.m_Width          = default_tex_size;
+        default_texture_creation_params.m_Height         = default_tex_size;
         default_texture_creation_params.m_Depth          = 1;
         default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
         default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
 
-        const uint8_t default_texture_data[4 * 6] = {0}; // RGBA * 6 (for cubemap)
+        const uint8_t default_texture_data[default_tex_size * default_tex_size * 4 * 6] = {0}; // RGBA * 6 (for cubemap)
 
         TextureParams default_texture_params;
         default_texture_params.m_Width  = 1;
@@ -604,13 +605,17 @@ namespace dmGraphics
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
 
+        default_texture_creation_params.m_Type = TEXTURE_TYPE_IMAGE_2D;
+        context->m_DefaultImage2D              = VulkanNewTextureInternal(default_texture_creation_params);
+        VulkanSetTextureInternal(context->m_DefaultImage2D, default_texture_params);
+
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_2D_ARRAY;
         default_texture_creation_params.m_Depth = 1;
-        context->m_DefaultTexture2DArray = VulkanNewTextureInternal(default_texture_creation_params);
+        context->m_DefaultTexture2DArray        = VulkanNewTextureInternal(default_texture_creation_params);
 
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_CUBE_MAP;
         default_texture_creation_params.m_Depth = 6;
-        context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
+        context->m_DefaultTextureCubeMap        = VulkanNewTextureInternal(default_texture_creation_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
 
@@ -934,6 +939,9 @@ namespace dmGraphics
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
         }
+
+        device_extensions.OffsetCapacity(1);
+        device_extensions.Push("VK_KHR_portability_subset");
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
@@ -1143,8 +1151,6 @@ bail:
 
         context->m_FrameBegun      = 1;
         context->m_CurrentPipeline = 0;
-
-        BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
     static void VulkanFlip(HContext _context)
@@ -1210,6 +1216,8 @@ bail:
 
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentRenderTarget);
+
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
@@ -1354,6 +1362,35 @@ bail:
 
         resource_list->Push(resource_to_destroy);
         resource->m_Destroyed = 1;
+    }
+
+    static Pipeline* GetOrCreateComputePipeline(VkDevice vk_device, PipelineCache& pipelineCache, Program* program)
+    {
+        HashState64 pipeline_hash_state;
+        dmHashInit64(&pipeline_hash_state, false);
+        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
+        uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+        Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
+        if (!cached_pipeline)
+        {
+            Pipeline new_pipeline;
+            memset(&new_pipeline, 0, sizeof(new_pipeline));
+
+            VkResult res = CreatePipeline(vk_device, program, &new_pipeline);
+            CHECK_VK_ERROR(res);
+
+            if (pipelineCache.Full())
+            {
+                pipelineCache.SetCapacity(32, pipelineCache.Capacity() + 4);
+            }
+
+            pipelineCache.Put(program->m_Hash, new_pipeline);
+            cached_pipeline = pipelineCache.Get(program->m_Hash);
+
+            dmLogDebug("Created new VK Compute Pipeline with hash %llu", (unsigned long long) program->m_Hash);
+        }
+
+        return cached_pipeline;
     }
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
@@ -1730,11 +1767,17 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
     }
 
+    static inline bool IsUniformImage(ShaderResourceBinding uniform)
+    {
+        return uniform.m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D;
+    }
+
     static inline Texture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
     {
         switch(type)
         {
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
+            case ShaderDesc::SHADER_TYPE_IMAGE2D:         return context->m_DefaultImage2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
             default:break;
@@ -1765,6 +1808,11 @@ bail:
             shader_module        = program->m_FragmentModule;
             uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_UniformCount];
             dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_UniformCount];
+        }
+        else if (module_type == Program::MODULE_TYPE_COMPUTE)
+        {
+            shader_module        = program->m_ComputeModule;
+            uniform_data_offsets = program->m_UniformDataOffsets;
         }
         else
         {
@@ -1816,6 +1864,21 @@ bail:
                 vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 vk_write_desc_info.pImageInfo     = &vk_image_info;
             }
+            else if (IsUniformImage(res))
+            {
+                Texture* texture = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, g_VulkanContext->m_TextureUnits[res.m_TextureUnit]);
+
+                if (texture == 0x0)
+                {
+                    texture = GetDefaultTexture(g_VulkanContext, res.m_Type);
+                }
+
+                VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
+                vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_GENERAL;
+                vk_image_info.imageView           = texture->m_Handle.m_ImageView;
+                vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                vk_write_desc_info.pImageInfo     = &vk_image_info;
+            }
             else
             {
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
@@ -1863,6 +1926,28 @@ bail:
         }
     }
 
+    static VkResult CommitComputeUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
+        Program* program_ptr, ScratchBuffer* scratch_buffer,
+        uint32_t* dynamic_offsets, const uint32_t alignment)
+    {
+        VkDescriptorSet* vk_descriptor_set_list = 0x0;
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, 1, &vk_descriptor_set_list);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        UpdateDescriptorSets(vk_device, vk_descriptor_set_list[0], program_ptr,
+            Program::MODULE_TYPE_COMPUTE, scratch_buffer,
+            alignment, dynamic_offsets);
+
+        vkCmdBindDescriptorSets(vk_command_buffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE, program_ptr->m_Handle.m_PipelineLayout,
+            0, 1, vk_descriptor_set_list, 0, 0);
+
+        return VK_SUCCESS;
+    }
+
     static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
         Program* program_ptr, ScratchBuffer* scratch_buffer,
         uint32_t* dynamic_offsets, const uint32_t alignment)
@@ -1887,7 +1972,7 @@ bail:
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
-            0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
+            0, MAX_PROGRAM_MODULE_COUNT, vk_descriptor_set_list,
             num_uniform_buffers, dynamic_offsets);
 
         return VK_SUCCESS;
@@ -1916,6 +2001,8 @@ bail:
         DeviceBuffer* vertex_buffer = context->m_CurrentVertexBuffer;
         Program* program_ptr        = context->m_CurrentProgram;
         VkDevice vk_device          = context->m_LogicalDevice.m_Device;
+
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         // Ensure there is room in the descriptor allocator to support this draw call
         bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) >
@@ -2117,7 +2204,7 @@ bail:
                 assert(res.m_Binding >= last_binding);
                 last_binding = res.m_Binding;
 
-                if (IsUniformTextureSampler(res))
+                if (IsUniformTextureSampler(res) || IsUniformImage(res))
                 {
                     res.m_TextureUnit = texture_sampler_count;
                     texture_sampler_count++;
@@ -2189,9 +2276,9 @@ bail:
         return (HComputeShader) shader;
     }
 
-    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
+    static uint32_t CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
-        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
+        VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
         uint32_t byte_offset         = byte_offset_base;
         uint32_t num_uniform_buffers = 0;
@@ -2208,6 +2295,11 @@ bail:
             if (IsUniformTextureSampler(res))
             {
                 vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            }
+            else if (IsUniformImage(res))
+            {
+                // TODO: How should we set this descriptor type based on data?
+                vk_descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             }
             else
             {
@@ -2227,10 +2319,61 @@ bail:
             vk_desc.pImmutableSamplers            = 0;
         }
 
-        *byte_offset_end_out = byte_offset;
+        return byte_offset;
     }
 
-    static void CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
+    static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
+    {
+        VkPipelineShaderStageCreateInfo vk_compute_shader_create_info = {};
+        vk_compute_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vk_compute_shader_create_info.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+        vk_compute_shader_create_info.module = compute_module->m_Module;
+        vk_compute_shader_create_info.pName  = "main"; // Should come from reflection!
+
+        memset(program, 0, sizeof(Program));
+
+        program->m_PipelineStageInfo[0] = vk_compute_shader_create_info;
+        program->m_ComputeModule = compute_module;
+
+        const uint32_t num_uniforms = compute_module->m_UniformCount;
+
+        VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = 0;
+
+        if (num_uniforms > 0)
+        {
+            vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
+            const uint32_t num_buffers = compute_module->m_UniformBufferCount;
+
+            if (num_buffers > 0)
+            {
+                program->m_UniformDataOffsets = new uint32_t[num_buffers];
+            }
+
+            CreateProgramUniforms(compute_module, VK_SHADER_STAGE_COMPUTE_BIT,
+                0, program->m_UniformDataOffsets, num_buffers, vk_descriptor_set_bindings);
+        }
+
+        VkDescriptorSetLayoutCreateInfo vk_set_create_info;
+        memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
+
+        vk_set_create_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        vk_set_create_info.pBindings    = vk_descriptor_set_bindings;
+        vk_set_create_info.bindingCount = compute_module->m_UniformCount;
+
+        vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
+            &vk_set_create_info, 0, &program->m_Handle.m_DescriptorSetLayout[0]);
+
+        VkPipelineLayoutCreateInfo vk_layout_create_info;
+        memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
+        vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        vk_layout_create_info.setLayoutCount = 1;
+        vk_layout_create_info.pSetLayouts    = &program->m_Handle.m_DescriptorSetLayout[0];
+
+        vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+        delete[] vk_descriptor_set_bindings;
+    }
+
+    static void CreateGraphicsProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
@@ -2283,20 +2426,17 @@ bail:
                 program->m_UniformDataOffsets = new uint32_t[num_buffers];
             }
 
-            uint32_t vs_last_offset   = 0;
-            uint32_t fs_last_offset   = 0;
+            uint32_t byte_offset = CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
+                0, program->m_UniformDataOffsets, num_buffers, vk_descriptor_set_bindings);
 
-            CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
-                0, program->m_UniformDataOffsets, num_buffers,
-                &vs_last_offset, vk_descriptor_set_bindings);
-            CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
-                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
-                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
+            byte_offset = CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
+                byte_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
+                &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
 
-            program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
-            memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
+            program->m_UniformData = new uint8_t[byte_offset];
+            memset(program->m_UniformData, 0, byte_offset);
 
-            VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
+            VkDescriptorSetLayoutCreateInfo vk_set_create_info[MAX_PROGRAM_MODULE_COUNT];
             memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
             vk_set_create_info[Program::MODULE_TYPE_VERTEX].sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             vk_set_create_info[Program::MODULE_TYPE_VERTEX].pBindings      = vk_descriptor_set_bindings;
@@ -2316,7 +2456,7 @@ bail:
             VkPipelineLayoutCreateInfo vk_layout_create_info;
             memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
             vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            vk_layout_create_info.setLayoutCount = Program::MODULE_TYPE_COUNT;
+            vk_layout_create_info.setLayoutCount = MAX_PROGRAM_MODULE_COUNT;
             vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayout;
 
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
@@ -2327,19 +2467,69 @@ bail:
     static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         Program* program = new Program;
-        CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
+        CreateGraphicsProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
+        return (HProgram) program;
+    }
+
+    static HProgram VulkanNewComputeProgram(HContext context, HComputeShader compute_shader)
+    {
+        Program* program = new Program;
+        CreateComputeProgram((VulkanContext*) context, program, (ShaderModule*) compute_shader);
         return (HProgram) program;
     }
 
     static void DestroyProgram(HContext context, Program* program)
     {
-        if (program->m_UniformData)
+        delete[] program->m_UniformData;
+        delete[] program->m_UniformDataOffsets;
+        DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
+    }
+
+    static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
+    {
+        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
+        Program* program_ptr = context->m_CurrentProgram;
+
+        assert(program_ptr->m_ComputeModule);
+
+        if (program_ptr->m_ComputeModule->m_UniformCount > 0)
         {
-            delete[] program->m_UniformData;
-            delete[] program->m_UniformDataOffsets;
+            // Ensure there is room in the descriptor allocator to support this draw call
+            bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + 1) >
+                scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
+
+            const uint8_t descriptor_increase = 32;
+            if (resize_desc_allocator)
+            {
+                VkResult res = ResizeDescriptorAllocator(context, scratchBuffer->m_DescriptorAllocator, scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase);
+                CHECK_VK_ERROR(res);
+            }
+
+            // Write the uniform data to the descriptors
+            uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+            VkResult res               = CommitComputeUniforms(vk_command_buffer, vk_device, program_ptr,
+                scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+            CHECK_VK_ERROR(res);
         }
 
-        DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
+        Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_PipelineCache, program_ptr);
+        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+    }
+
+    static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+
+        VulkanContext* context = (VulkanContext*) _context;
+
+        assert(context->m_FrameBegun);
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+
+        DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix]);
+        vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)
@@ -2450,7 +2640,7 @@ bail:
     {
         Program* program_ptr = (Program*) program;
         DestroyProgram(context, program_ptr);
-        CreateProgram((VulkanContext*) context, program_ptr, (ShaderModule*) vert_program, (ShaderModule*) frag_program);
+        CreateGraphicsProgram((VulkanContext*) context, program_ptr, (ShaderModule*) vert_program, (ShaderModule*) frag_program);
         return true;
     }
 
@@ -2569,7 +2759,7 @@ bail:
         {
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
-            assert(!IsUniformTextureSampler(res));
+            assert(!(IsUniformTextureSampler(res) || IsUniformImage(res)));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
@@ -2579,7 +2769,7 @@ bail:
         {
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
-            assert(!IsUniformTextureSampler(res));
+            assert(!(IsUniformTextureSampler(res) || IsUniformImage(res)));
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
@@ -2599,7 +2789,7 @@ bail:
         {
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
-            assert(!IsUniformTextureSampler(res));
+            assert(!(IsUniformTextureSampler(res) || IsUniformImage(res)));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4 * count);
@@ -2609,7 +2799,7 @@ bail:
         {
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
-            assert(!IsUniformTextureSampler(res));
+            assert(!(IsUniformTextureSampler(res) || IsUniformImage(res)));
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
@@ -3430,6 +3620,11 @@ bail:
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+            if (texture->m_Type == TEXTURE_TYPE_IMAGE_2D)
+            {
+                vk_usage_flags |= VK_IMAGE_USAGE_STORAGE_BIT;
+            }
 
             if (!use_stage_buffer)
             {

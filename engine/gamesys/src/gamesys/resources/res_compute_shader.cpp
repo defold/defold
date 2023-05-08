@@ -19,17 +19,17 @@ namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HComputeShader* program)
     {
-        // dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
-        // if (shader == 0x0)
-        // {
-        //     return dmResource::RESULT_FORMAT_ERROR;
-        // }
-        // dmGraphics::HComputeShader prog = dmGraphics::NewComputeShader(context, shader);
-        // if (prog == 0)
-        // {
-        //     return dmResource::RESULT_FORMAT_ERROR;
-        // }
-        // *program = prog;
+        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
+        if (shader == 0x0)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        dmGraphics::HComputeShader prog = dmGraphics::NewComputeShader(context, shader);
+        if (prog == 0)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        *program = prog;
 
         return dmResource::RESULT_OK;
     }

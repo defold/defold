@@ -73,6 +73,27 @@ namespace dmGameSystem
                     dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]);
                 }
             }
+
+            // Compute programs
+            prototype->m_ComputePrograms.SetCapacity(prototype_desc->m_ComputePrograms.m_Count);
+            for (uint32_t i = 0; i < prototype_desc->m_ComputePrograms.m_Count; ++i)
+            {
+                dmRender::HComputeProgram compute_program;
+                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_ComputePrograms[i].m_Program, (void**) &compute_program))
+                    prototype->m_ComputePrograms.Push(compute_program);
+                else break;
+            }
+            if (!prototype->m_ComputePrograms.Full())
+            {
+                result = dmResource::RESULT_OUT_OF_RESOURCES;
+            }
+            else
+            {
+                for (uint32_t i = 0; i < prototype->m_ComputePrograms.Size(); ++i)
+                {
+                    dmRender::AddRenderScriptInstanceComputeProgram(prototype->m_Instance, prototype_desc->m_ComputePrograms[i].m_Name, prototype->m_ComputePrograms[i]);
+                }
+            }
         }
         dmDDF::FreeMessage(prototype_desc);
         return result;

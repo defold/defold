@@ -38,6 +38,7 @@
 #include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_compute_program.h"
+#include "resources/res_compute_shader.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
 #include "resources/res_sound.h"
@@ -105,6 +106,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
         REGISTER_RESOURCE_TYPE("compute_programc", render_context, ResComputeProgramPreload, ResComputeProgramCreate, 0, ResComputeProgramDestroy, ResComputeProgramRecreate);
+        REGISTER_RESOURCE_TYPE("computec", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate);
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);

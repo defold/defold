@@ -197,15 +197,17 @@ message ShaderDesc
         SHADER_TYPE_SAMPLER3D       = 11;
         SHADER_TYPE_SAMPLER_CUBE    = 12;
         SHADER_TYPE_SAMPLER2D_ARRAY = 13;
+        SHADER_TYPE_IMAGE2D         = 14;
     }
 
     message ResourceBinding
     {
-        required string         name          = 1;
-        required ShaderDataType type          = 2;
-        optional uint32         element_count = 3 [default=1];
-        optional uint32         set           = 4 [default=0];
-        optional uint32         binding       = 5 [default=0];
+        required string                     name          = 1;
+        required ShaderDataType             type          = 2;
+        optional uint32                     element_count = 3 [default=1];
+        optional uint32                     set           = 4 [default=0];
+        optional uint32                     binding       = 5 [default=0];
+        optional TextureImage.TextureFormat image_format  = 6;
     }
 
     message Shader

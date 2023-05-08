@@ -359,6 +359,24 @@ public class ShaderCompilerHelpers {
             }
         }
 
+        for (SPIRVReflector.Resource img : reflector.getImages()) {
+            SetEntry setEntry = setBindingMap.get(img.set);
+            if (setEntry == null) {
+                setEntry = new SetEntry();
+                setBindingMap.put(img.set, setEntry);
+            }
+
+            BindingEntry bindingEntry = setEntry.get(img.binding);
+            if (bindingEntry == null) {
+                bindingEntry = new BindingEntry();
+                setEntry.put(img.binding, bindingEntry);
+            }
+
+            resource_list.add(img);
+
+            bindingEntry.add(img);
+        }
+
         for (SPIRVReflector.Resource tex : reflector.getTextures()) {
             SetEntry setEntry = setBindingMap.get(tex.set);
             if (setEntry == null) {
@@ -474,6 +492,7 @@ public class ShaderCompilerHelpers {
             resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);
+            resourceBindingBuilder.setImageFormat(Common.stringFormatToTextureFormat(res.format));
             builder.addUniforms(resourceBindingBuilder);
         }
 

@@ -15,8 +15,15 @@ message RenderPrototypeDesc
         required string material = 2 [(resource) = true];
     }
 
+    message ComputeProgramDesc
+    {
+        required string name = 1;
+        required string program = 2 [(resource) = true];
+    }
+
     required string script = 1 [(resource) = true];
     repeated MaterialDesc materials = 2;
+    repeated ComputeProgramDesc compute_programs = 3;
 }
 
 /*# Rendering API documentation

@@ -197,6 +197,22 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_ENABLE_COMPUTE_PROGRAM:
+                {
+                    HComputeProgram compute_program = (HComputeProgram) c->m_Operands[0];
+                    dmGraphics::EnableProgram(context, compute_program->m_Program);
+                    break;
+                }
+                case COMMAND_TYPE_DISABLE_COMPUTE_PROGRAM:
+                {
+                    dmGraphics::EnableProgram(context, 0);
+                    break;
+                }
+                case COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM:
+                {
+                    dmGraphics::DispatchCompute(context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
+                    break;
+                }
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

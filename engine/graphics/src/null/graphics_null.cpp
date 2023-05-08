@@ -735,6 +735,16 @@ namespace dmGraphics
         assert(0 && "Not implemented yet!");
     }
 
+    static HProgram NullNewComputeProgram(HContext context, HComputeShader compute_shader)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
+    static void NullDispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
     static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);

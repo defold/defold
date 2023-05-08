@@ -2791,6 +2791,73 @@ namespace dmRender
         }
     }
 
+    static int RenderScript_EnableComputeProgram(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        if (!lua_isnil(L, 1))
+        {
+            dmhash_t compute_program_id = dmScript::CheckHashOrString(L, 1);
+            dmRender::HComputeProgram* program_ptr = i->m_ComputePrograms.Get(compute_program_id);
+            if (program_ptr == 0x0)
+            {
+                assert(top == lua_gettop(L));
+                char str[128];
+                char buffer[256];
+                dmSnPrintf(buffer, sizeof(buffer), "Could not find compute program '%s' %llu",
+                    dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)),
+                    (unsigned long long) compute_program_id);
+                return luaL_error(L, "%s", buffer);
+            }
+            else
+            {
+                HComputeProgram program = *program_ptr;
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_COMPUTE_PROGRAM, (uint64_t) program)))
+                {
+                    assert(top == lua_gettop(L));
+                    return 0;
+                }
+                else
+                {
+                    assert(top == lua_gettop(L));
+                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                }
+            }
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "%s.enable_compute_program was supplied nil as program.", RENDER_SCRIPT_LIB_NAME);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static int RenderScript_DispatchComputeProgram(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void*)i;
+
+        int p_x = luaL_checkinteger(L, 1);
+        int p_y = luaL_checkinteger(L, 2);
+        int p_z = luaL_checkinteger(L, 3);
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, p_x, p_y, p_z)))
+        {
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+    }
+
     /*# disables the currently enabled material
      * If a material is currently enabled, disable it.
      *
@@ -2812,6 +2879,15 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    int RenderScript_DisableComputeProgram(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_COMPUTE_PROGRAM)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2855,6 +2931,11 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
+
+        // COMPUTE
+        {"enable_compute_program",          RenderScript_EnableComputeProgram},
+        {"disable_compute_program",         RenderScript_DisableComputeProgram},
+        {"dispatch_compute",                RenderScript_DispatchComputeProgram},
         {0, 0}
     };
 
@@ -3170,6 +3251,7 @@ bail:
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
         i->m_Materials.SetCapacity(16, 8);
+        i->m_ComputePrograms.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3237,6 +3319,21 @@ bail:
     void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
     {
         render_script_instance->m_Materials.Clear();
+    }
+
+    void AddRenderScriptInstanceComputeProgram(HRenderScriptInstance render_script_instance, const char* program_name, dmRender::HComputeProgram program)
+    {
+        if (render_script_instance->m_ComputePrograms.Full())
+        {
+            uint32_t new_capacity = 2 * render_script_instance->m_ComputePrograms.Capacity();
+            render_script_instance->m_ComputePrograms.SetCapacity(2 * new_capacity, new_capacity);
+        }
+        render_script_instance->m_ComputePrograms.Put(dmHashString64(program_name), program);
+    }
+
+    void ClearRenderScriptInstanceComputePrograms(HRenderScriptInstance render_script_instance)
+    {
+        render_script_instance->m_ComputePrograms.Clear();
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

@@ -1890,6 +1890,16 @@ static void LogFrameBufferError(GLenum status)
         assert(0 && "Not implemented yet!");
     }
 
+    static HProgram OpenGLNewComputeProgram(HContext context, HComputeShader compute_shader)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
+    static void OpenGLDispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
     static void BuildAttributes(OpenGLProgram* program_ptr)
     {
         GLint num_attributes;

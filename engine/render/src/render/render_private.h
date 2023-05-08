@@ -65,7 +65,8 @@ namespace dmRender
 
     struct ComputeProgram
     {
-        dmGraphics::HComputeShader m_Shader; // TODO: Should not be called shader
+        dmGraphics::HComputeShader m_Shader; // TODO: Should not be called shader.. kernel?
+        dmGraphics::HProgram       m_Program;
     };
 
     struct Material

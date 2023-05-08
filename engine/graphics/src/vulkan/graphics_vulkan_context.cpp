@@ -206,6 +206,7 @@ namespace dmGraphics
         vk_instance_create_info.ppEnabledExtensionNames = vk_required_extensions.Begin();
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
         vk_instance_create_info.ppEnabledLayerNames     = validationLayers;
+        vk_instance_create_info.flags                   = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
         VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)

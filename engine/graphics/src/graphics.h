@@ -128,6 +128,7 @@ namespace dmGraphics
         TEXTURE_TYPE_2D       = 0,
         TEXTURE_TYPE_2D_ARRAY = 1,
         TEXTURE_TYPE_CUBE_MAP = 2,
+        TEXTURE_TYPE_IMAGE_2D = 4,
     };
 
     // Texture filter
@@ -560,6 +561,8 @@ namespace dmGraphics
 
     // Compute shaders
     HComputeShader NewComputeShader(HContext context, ShaderDesc::Shader* ddf);
+    HProgram       NewComputeProgram(HContext context, HComputeShader compute_shader);
+    void           DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t GetUniformCount(HProgram prog);

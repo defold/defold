@@ -20,7 +20,9 @@ namespace dmRender
 {
     HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeShader shader)
     {
-        dmLogInfo("NewComputeProgram");
-        return 0;
+        ComputeProgram* program = new ComputeProgram();
+        program->m_Shader       = shader;
+        program->m_Program      = dmGraphics::NewComputeProgram(render_context->m_GraphicsContext, shader);
+        return (HComputeProgram) program;
     }
 }

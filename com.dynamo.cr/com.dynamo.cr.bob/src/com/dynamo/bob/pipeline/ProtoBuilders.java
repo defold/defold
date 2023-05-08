@@ -274,20 +274,28 @@ public class ProtoBuilders {
                 BuilderUtil.checkResource(this.project, resource, "material", m.getMaterial());
                 RenderPrototypeDesc.MaterialDesc.newBuilder();
                 String materialRes = m.getMaterial();
-
-                if (materialRes.endsWith(".compute_program")) {
-                    newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder()
-                        .mergeFrom(m)
-                        .setMaterial(BuilderUtil.replaceExt(materialRes, ".compute_program", ".compute_programc")).build());
-
-                } else {
-                    newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder()
+                newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder()
                         .mergeFrom(m)
                         .setMaterial(BuilderUtil.replaceExt(materialRes, ".material", ".materialc")).build());
-                }
             }
             messageBuilder.clearMaterials();
             messageBuilder.addAllMaterials(newMaterialList);
+
+            // Compute
+            List<RenderPrototypeDesc.ComputeProgramDesc> newComputeProgramsList = new ArrayList<RenderPrototypeDesc.ComputeProgramDesc>();
+
+            for (RenderPrototypeDesc.ComputeProgramDesc m : messageBuilder.getComputeProgramsList()) {
+                String programRes = m.getProgram();
+                BuilderUtil.checkResource(this.project, resource, "compute_program", programRes);
+                RenderPrototypeDesc.ComputeProgramDesc.newBuilder();
+
+                newComputeProgramsList.add(RenderPrototypeDesc.ComputeProgramDesc.newBuilder()
+                        .mergeFrom(m)
+                        .setProgram(BuilderUtil.replaceExt(programRes, ".compute_program", ".compute_programc")).build());
+            }
+
+            messageBuilder.clearComputePrograms();
+            messageBuilder.addAllComputePrograms(newComputeProgramsList);
 
             return messageBuilder;
         }
