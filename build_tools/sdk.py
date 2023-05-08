@@ -219,10 +219,10 @@ def get_windows_local_sdk_info(platform):
     if windows_info is not None:
         return windows_info
 
-    vswhere_path = '%s/../../scripts/windows/vswhere2/vswhere2.exe' % os.environ['DYNAMO_HOME']
+    vswhere_path = '%s/../../scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DYNAMO_HOME', '.')
     if not os.path.exists(vswhere_path):
         vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
-        vswhere_path = path.normpath(vswhere_path)
+        vswhere_path = os.path.normpath(vswhere_path)
         if not os.path.exists(vswhere_path):
             print ("Couldn't find executable '%s'" % vswhere_path)
             return None
