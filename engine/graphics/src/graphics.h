@@ -62,6 +62,8 @@ namespace dmGraphics
     typedef int (*EngineUpdate)(void* engine);
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
+    typedef uintptr_t HComputeShader;
+
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
@@ -555,6 +557,9 @@ namespace dmGraphics
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+
+    // Compute shaders
+    HComputeShader NewComputeShader(HContext context, ShaderDesc::Shader* ddf);
 
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t GetUniformCount(HProgram prog);

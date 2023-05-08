@@ -1885,6 +1885,11 @@ static void LogFrameBufferError(GLenum status)
         return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
     }
 
+    static HComputeShader OpenGLNewComputeShader(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
     static void BuildAttributes(OpenGLProgram* program_ptr)
     {
         GLint num_attributes;

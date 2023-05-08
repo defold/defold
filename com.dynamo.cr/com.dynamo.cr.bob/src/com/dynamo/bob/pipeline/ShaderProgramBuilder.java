@@ -94,7 +94,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return tsk;
     }
 
-    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults) {
+    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ES2ToES3Converter.ShaderType shaderType) {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
@@ -109,6 +109,9 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                 shaderDescBuilder.addShaders(shaderBuildResult.shaderBuilder);
             }
         }
+
+        shaderDescBuilder.setShaderClass(shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER ?
+            ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE : ShaderDesc.ShaderClass.SHADER_CLASS_GRAPHICS);
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
@@ -143,7 +146,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             }
         }
 
-        return buildResultsToShaderDescBuildResults(shaderBuildResults);
+        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
     }
 
     // Called from bob
@@ -157,7 +160,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         String finalShaderSource                          = shaderPreprocessor.getCompiledSource();
         IShaderCompiler shaderCompiler                    = project.getShaderCompiler(platformKey);
         ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, resourceOutputPath, isDebug, outputSpirv, false);
-        return buildResultsToShaderDescBuildResults(shaderCompilerResult);
+        return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
     }
 
     static private void handleShaderDescBuildResult(ShaderDescBuildResult result, String resourceOutputPath) throws CompileExceptionError {

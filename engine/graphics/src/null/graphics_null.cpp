@@ -730,6 +730,11 @@ namespace dmGraphics
         return (uintptr_t)p;
     }
 
+    static HComputeShader NullNewComputeShader(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        assert(0 && "Not implemented yet!");
+    }
+
     static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);

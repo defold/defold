@@ -2178,6 +2178,17 @@ bail:
         return (HFragmentProgram) shader;
     }
 
+    static HComputeShader VulkanNewComputeShader(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        ShaderModule* shader = new ShaderModule;
+        memset(shader, 0, sizeof(*shader));
+        VulkanContext* context = (VulkanContext*) _context;
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        CHECK_VK_ERROR(res);
+        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+        return (HComputeShader) shader;
+    }
+
     static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
         uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
