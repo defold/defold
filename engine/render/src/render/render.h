@@ -38,6 +38,7 @@ namespace dmRender
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
+    typedef struct ComputeProgram*          HComputeProgram;
 
     /**
      * Display profiles handle
@@ -208,6 +209,8 @@ namespace dmRender
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
+
+    HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeShader shader);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.

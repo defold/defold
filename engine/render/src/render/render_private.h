@@ -63,6 +63,11 @@ namespace dmRender
         }
     };
 
+    struct ComputeProgram
+    {
+        dmGraphics::HComputeShader m_Shader; // TODO: Should not be called shader
+    };
+
     struct Material
     {
         Material()

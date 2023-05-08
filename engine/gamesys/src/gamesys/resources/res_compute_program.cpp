@@ -22,17 +22,17 @@ namespace dmGameSystem
     	dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         dmRenderDDF::ComputeProgramDesc* ddf   = (dmRenderDDF::ComputeProgramDesc*)params.m_PreloadData;
 
-        void* pgm;
+        void* shader;
 
-        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &pgm);
+        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &shader);
         if (r == dmResource::RESULT_OK)
         {
-        	// dmRender::HMaterial material = dmRender::NewComputeProgram(render_context, (dmGraphics::HComputeProgram) pgm);
+        	dmRender::HComputeProgram program = dmRender::NewComputeProgram(render_context, (dmGraphics::HComputeShader) shader);
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;
 
-            // params.m_Resource->m_Resource = (void*) material;
+            params.m_Resource->m_Resource = (void*) program;
         }
         dmDDF::FreeMessage(ddf);
         return r;
