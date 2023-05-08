@@ -101,9 +101,9 @@
 
         put-float-vectors!
         (fn put-float-vectors!
-          ^long [^long vertex-byte-offset attribute-type normalize float-vectors]
+          ^long [^long vertex-byte-offset vtx-attribute-type normalize float-vectors]
           (reduce (fn [^long vertex-byte-offset float-vector]
-                    (vtx/buf-put-floats! buf vertex-byte-offset attribute-type normalize float-vector)
+                    (vtx/buf-put! buf vertex-byte-offset vtx-attribute-type normalize float-vector)
                     (+ vertex-byte-offset vertex-byte-stride))
                   vertex-byte-offset
                   float-vectors))
@@ -111,11 +111,12 @@
         put-renderables!
         (fn put-renderables!
           ^long [^long attribute-byte-offset attribute-type normalize renderable-data->float-vectors]
-          (reduce (fn [^long vertex-byte-offset renderable-data]
-                    (let [float-vectors (renderable-data->float-vectors renderable-data)]
-                      (put-float-vectors! vertex-byte-offset attribute-type normalize float-vectors)))
-                  attribute-byte-offset
-                  renderable-datas))]
+          (let [vtx-attribute-type (vtx/attribute-data-type->type attribute-type)]
+            (reduce (fn [^long vertex-byte-offset renderable-data]
+                      (let [float-vectors (renderable-data->float-vectors renderable-data)]
+                        (put-float-vectors! vertex-byte-offset vtx-attribute-type normalize float-vectors)))
+                    attribute-byte-offset
+                    renderable-datas)))]
 
     (reduce (fn [^long attribute-byte-offset attribute]
               (let [attribute-type (:type attribute)
@@ -170,19 +171,19 @@
         v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (doto buf
-      (vtx/buf-push-floats! v0)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v0))))
+      (vtx/buf-push! v0)
+      (vtx/buf-push! v1)
+      (vtx/buf-push! v1)
+      (vtx/buf-push! v2)
+      (vtx/buf-push! v2)
+      (vtx/buf-push! v3)
+      (vtx/buf-push! v3)
+      (vtx/buf-push! v0))))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (transduce (map (fn [[x y]]
                     (gen-outline-vertex world-transform tmp-point x y cr cg cb)))
-             vtx/buf-push-floats!
+             vtx/buf-push!
              buf
              line-data))
 
