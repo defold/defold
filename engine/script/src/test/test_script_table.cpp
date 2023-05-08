@@ -488,14 +488,10 @@ static int CustomPanicFn(lua_State* L)
 static void SetupCyclicTable(lua_State* L)
 {
     /**
-     * This table structure was guaranteed to crash on frist version of #6676
-     * Fix in https://github.com/defold/defold/pull/6991
-     *
      *  local x1 = {}
      *  local x2 = {}
      *  x1.x2 = x2
      *  x2.x1 = x1
-     *
      */
 
     lua_newtable(L); // x1
