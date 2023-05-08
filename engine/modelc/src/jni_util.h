@@ -47,9 +47,11 @@ namespace dmJNI
         }
 
 #else
-    #define DM_JNI_GUARD_SCOPE_BEGIN()
-    #define DM_JNI_GUARD_SCOPE_END(...) { \
-            __VA_ARGS__ \
+    #define DM_JNI_GUARD_SCOPE_BEGIN() { int _scope_result = 0;
+    #define DM_JNI_GUARD_SCOPE_END(...) \
+            if (_scope_result) { \
+                __VA_ARGS__ \
+            } \
         }
 
 #endif
