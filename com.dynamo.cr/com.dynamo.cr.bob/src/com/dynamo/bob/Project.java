@@ -175,7 +175,7 @@ public class Project {
     }
 
     public String getPluginsDirectory() {
-        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
+        return FilenameUtils.concat(rootDirectory, PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -183,11 +183,11 @@ public class Project {
     }
 
     public String getLibPath() {
-        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+        return FilenameUtils.concat(rootDirectory, LIB_DIR);
     }
 
     public String getBuildCachePath() {
-        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+        return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
     public String getLocalResourceCacheDirectory() {

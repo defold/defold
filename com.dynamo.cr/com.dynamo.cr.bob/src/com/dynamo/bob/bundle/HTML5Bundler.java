@@ -246,7 +246,6 @@ public class HTML5Bundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         List<File> binsAsmjs = null;
         List<File> binsWasm = null;
@@ -255,7 +254,7 @@ public class HTML5Bundler implements IBundler {
         // asmjs binaries
         {
             Platform targetPlatform = Platform.JsWeb;
-            binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            binsAsmjs = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsAsmjs == null) {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
@@ -269,7 +268,7 @@ public class HTML5Bundler implements IBundler {
         // wasm binaries
         {
             Platform targetPlatform = Platform.WasmWeb;
-            binsWasm = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsWasm == null) {
                 binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
@@ -305,11 +304,15 @@ public class HTML5Bundler implements IBundler {
         }
 
         // Copy debug symbols if they were generated
-        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
-        File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        String symbolsName = "dmengine.js.symbols";
+        if (variant.equals(Bob.VARIANT_RELEASE)) {
+            symbolsName = "dmengine_release.js.symbols";
+        }
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.JsWeb.getExtenderPair());
+        File bundleSymbols = new File(zipDir, symbolsName);
         if (!bundleSymbols.exists()) {
-            zipDir = FilenameUtils.concat(extenderExeDir, Platform.WasmWeb.getExtenderPair());
-            bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+            zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            bundleSymbols = new File(zipDir, symbolsName);
         }
         if (bundleSymbols.exists()) {
             File symbolsOut = new File(appDir, enginePrefix + ".symbols");
