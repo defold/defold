@@ -205,14 +205,13 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
 
     return md
 
-def generate(version, hide_details = False):
-    print("Generating release notes for %s" % version)
+def parse_github_project(version):
     project = get_project(version)
     if not project:
         print("Unable to find GitHub project for version %s" % version)
         return None
 
-    output = []
+    issues = []
     merged = get_issues_and_prs(project)
     for m in merged:
         content = m.get("content")
@@ -261,21 +260,27 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("User-facing changes:", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
 
+        # Make sure to ignore duplicates
         duplicate = False
-        for o in output:
-            if o.get("number") == entry.get("number"):
+        for issue in issues:
+            if issue.get("number") == entry.get("number"):
                 duplicate = True
                 break
-        if not duplicate:
-            output.append(entry)
 
+        if not duplicate:
+            issues.append(entry)
+
+    return issues
+
+
+def generate_markdown(version, issues, hide_details = False):
     engine = []
     editor = []
-    for o in output:
-        if "editor" in o["labels"]:
-            editor.append(o)
+    for issue in issues:
+        if "editor" in issue["labels"]:
+            editor.append(issue)
         else:
-            engine.append(o)
+            engine.append(issue)
  
     types = [ TYPE_BREAKING_CHANGE, TYPE_NEW, TYPE_FIX ]
     summary = ("\n## Summary\n")
@@ -291,9 +296,32 @@ def generate(version, hide_details = False):
                 summary += issue_to_markdown(issue, title_only = True)
                 details_editor += issue_to_markdown(issue, hide_details = hide_details)
 
-    content = ("# Defold %s\n" % version) + summary + details_engine + details_editor
-    with io.open("releasenotes-forum-%s.md" % version, "wb") as f:
-        f.write(content.encode('utf-8'))
+    output = ("# Defold %s\n" % version) + summary + details_engine + details_editor
+
+    with io.open("releasenotes/%s.md" % version, "wb") as f:
+        f.write(output.encode('utf-8'))
+
+
+def generate_json(version, issues):
+    output = {
+        "version": version,
+        "issues": issues
+    }
+
+    with io.open("releasenotes/%s.json" % version, "w") as f:
+        json.dump(output, f, indent=4, sort_keys=True)
+
+
+def generate(version, hide_details = False):
+    print("Generating release notes for %s" % version)
+
+    issues = parse_github_project(version)
+    if issues is None:
+        return
+    
+    generate_markdown(version, issues, hide_details)
+    generate_json(version, issues)
+
 
 
 if __name__ == '__main__':
