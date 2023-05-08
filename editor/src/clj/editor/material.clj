@@ -333,6 +333,15 @@
        (merge params default-tex-params)
        params))))
 
+(g/defnk produce-attribute-infos [attributes]
+  (mapv (fn [attribute]
+          (-> attribute
+              (dissoc :name-hash :int-values :uint-values :byte-values :float-values)
+              (assoc :name-key (graphics/attribute-name->key (:name attribute)))
+              (assoc :values (graphics/attribute->values attribute))
+              (assoc :bytes (.array (graphics/attribute->byte-buffer attribute)))))
+        attributes))
+
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -355,10 +364,10 @@
                                     [:shader-source-info :fragment-shader-source-info]))))
 
   (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
-  (property attributes g/Any (dynamic visible (g/constantly false)))
+  (property attributes [g/KeywordMap] (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers g/Any (dynamic visible (g/constantly false)))
+  (property samplers [g/KeywordMap] (dynamic visible (g/constantly false)))
   (property tags g/Any (dynamic visible (g/constantly false)))
   (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 
@@ -375,8 +384,7 @@
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
-  (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers)))
-  (output attributes [g/KeywordMap] (g/fnk [attributes] (vec attributes))))
+  (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
 
 (defn- make-sampler [name]
   (assoc default-sampler :name name))

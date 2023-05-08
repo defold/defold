@@ -15,6 +15,7 @@
 (ns editor.graphics
   (:require [editor.buffers :as buffers]
             [editor.gl.vertex2 :as vtx]
+            [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
   (:import [java.nio ByteBuffer]))
 
@@ -41,6 +42,9 @@
     :value-keyword :float-values
     :byte-size 4}])
 
+(defn attribute-name->key [^String name]
+  (protobuf/field-name->key name))
+
 (def attribute-data-type->attribute-value-keyword
   (into {}
         (map (juxt :data-type :value-keyword))
@@ -48,7 +52,7 @@
 
 (defn attribute->values [attribute]
   (let [attribute-value-keyword (attribute-data-type->attribute-value-keyword (:data-type attribute))]
-    (get attribute attribute-value-keyword)))
+    (:v (get attribute attribute-value-keyword))))
 
 (def attribute-data-type->byte-size
   (into {}
@@ -58,6 +62,7 @@
 (defn attribute->vtx-attribute [attribute]
   {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
   {:name (:name attribute)
+   :name-key (:name-key attribute)
    :semantic-type (:semantic-type attribute)
    :type (vtx/attribute-data-type->type (:data-type attribute))
    :components (:element-count attribute)
@@ -67,27 +72,24 @@
   (let [vtx-attributes (mapv attribute->vtx-attribute attributes)]
     (vtx/make-vertex-description nil vtx-attributes)))
 
-(defmulti put-attribute-values!
-  (fn [^ByteBuffer bb attribute-values attribute-data-type] attribute-data-type))
+(defn make-attribute-byte-buffer
+  ^ByteBuffer [attribute-data-type attribute-values]
+  (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
+        vtx-attribute-type (vtx/attribute-data-type->type attribute-data-type)
+        ^ByteBuffer byte-buffer (buffers/little-endian (ByteBuffer/allocate attribute-value-byte-count))]
+    (vtx/buf-push! byte-buffer vtx-attribute-type false attribute-values)
+    (.rewind byte-buffer)))
 
-(defmethod put-attribute-values! :type-float
-  [^ByteBuffer bb attribute-values _]
-  (doseq [v attribute-values]
-    (.putFloat bb v)))
-
-(defn attribute->byte-data [attribute]
+(defn attribute->byte-buffer
+  ^ByteBuffer [attribute]
   (let [attribute-data-type (:data-type attribute)
-        attribute-values (:v (attribute->values attribute))
-        attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
-        bb ^ByteBuffer (buffers/little-endian (buffers/new-byte-buffer attribute-value-byte-count))]
-    (put-attribute-values! bb attribute-values attribute-data-type)
-    (.rewind bb)
-    (buffers/byte-pack bb)))
+        attribute-values (attribute->values attribute)]
+    (make-attribute-byte-buffer attribute-data-type attribute-values)))
 
 (defn attributes->build-target [attributes]
   (mapv (fn [attr]
           (-> attr
               (dissoc :float-values :uint-values :int-values)
               (assoc :name-hash (murmur/hash64 (:name attr))
-                     :byte-values (attribute->byte-data attr))))
+                     :byte-values (buffers/byte-pack (attribute->byte-buffer attr)))))
         attributes))

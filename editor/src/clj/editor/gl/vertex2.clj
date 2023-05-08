@@ -140,6 +140,13 @@
 
 ;; low-level access
 
+(defn buf-blit!
+  ^ByteBuffer [^ByteBuffer buf ^long byte-offset ^bytes bytes]
+  (let [old-position (.position buf)]
+    (.position buf byte-offset)
+    (.put buf bytes)
+    (.position buf old-position)))
+
 (defn buf-put!
   (^ByteBuffer [^ByteBuffer buf ^long byte-offset numbers]
    (doseq [n numbers]
@@ -150,58 +157,97 @@
        ;; Normalized.
        (case data-type
          :float
-         (doseq [n numbers]
-           (.putFloat buf byte-offset n))
+         (reduce (fn [^long byte-offset n]
+                   (.putFloat buf byte-offset n)
+                   (+ byte-offset Float/BYTES))
+                 byte-offset
+                 numbers)
 
          :double
-         (doseq [n numbers]
-           (.putDouble buf byte-offset n))
+         (reduce (fn [^long byte-offset n]
+                   (.putDouble buf byte-offset n)
+                   (+ byte-offset Double/BYTES))
+                 byte-offset
+                 numbers)
 
          :byte
-         (doseq [^double n numbers]
-           (.put buf byte-offset (byte (Math/floor (* n 127.5)))))
+         (reduce (fn [^long byte-offset n]
+                   (.put buf byte-offset (byte (Math/floor (* n 127.5))))
+                   (inc byte-offset))
+                 byte-offset
+                 numbers)
 
          :ubyte
-         (doseq [^double n numbers]
-           (.put buf byte-offset (byte (Math/floor (- (* n 255.5) 128.0)))))
+         (reduce (fn [^long byte-offset n]
+                   (.put buf byte-offset (byte (Math/floor (- (* n 255.5) 128.0))))
+                   (inc byte-offset))
+                 byte-offset
+                 numbers)
 
          :short
-         (doseq [^double n numbers]
-           (.putShort buf byte-offset (Math/floor (* n 32767.5))))
+         (reduce (fn [^long byte-offset n]
+                   (.putShort buf byte-offset (Math/floor (* n 32767.5)))
+                   (+ byte-offset Short/BYTES))
+                 byte-offset
+                 numbers)
 
          :ushort
-         (doseq [^double n numbers]
-           (.putShort buf byte-offset (Math/floor (- (* n 65535.5) 32768.0))))
+         (reduce (fn [^long byte-offset n]
+                   (.putShort buf byte-offset (Math/floor (- (* n 65535.5) 32768.0)))
+                   (+ byte-offset Short/BYTES))
+                 byte-offset
+                 numbers)
 
          :int
-         (doseq [^double n numbers]
-           (.putInt buf byte-offset (Math/floor (* n 2147483647.5))))
+         (reduce (fn [^long byte-offset n]
+                   (.putInt buf byte-offset (Math/floor (* n 2147483647.5)))
+                   (+ byte-offset Integer/BYTES))
+                 byte-offset
+                 numbers)
 
          :uint
-         (doseq [^double n numbers]
-           (.putInt buf byte-offset (Math/floor (- (* n 4294967295.5) 2147483648.0)))))
+         (reduce (fn [^long byte-offset n]
+                   (.putInt buf byte-offset (Math/floor (- (* n 4294967295.5) 2147483648.0)))
+                   (+ byte-offset Integer/BYTES))
+                 byte-offset
+                 numbers))
 
        ;; Not normalized.
        (case data-type
          :float
-         (doseq [n numbers]
-           (.putFloat buf byte-offset n))
+         (reduce (fn [^long byte-offset n]
+                   (.putFloat buf byte-offset n)
+                   (+ byte-offset Float/BYTES))
+                 byte-offset
+                 numbers)
 
          :double
-         (doseq [n numbers]
-           (.putDouble buf byte-offset n))
+         (reduce (fn [^long byte-offset n]
+                   (.putDouble buf byte-offset n)
+                   (+ byte-offset Double/BYTES))
+                 byte-offset
+                 numbers)
 
          (:byte :ubyte)
-         (doseq [n numbers]
-           (.put buf byte-offset (byte n)))
+         (reduce (fn [^long byte-offset n]
+                   (.put buf byte-offset (byte n))
+                   (inc byte-offset))
+                 byte-offset
+                 numbers)
 
          (:short :ushort)
-         (doseq [n numbers]
-           (.putShort buf byte-offset n))
+         (reduce (fn [^long byte-offset n]
+                   (.putShort buf byte-offset n)
+                   (+ byte-offset Short/BYTES))
+                 byte-offset
+                 numbers)
 
          (:int :uint)
-         (doseq [n numbers]
-           (.putInt buf byte-offset n)))))
+         (reduce (fn [^long byte-offset n]
+                   (.putInt buf byte-offset n)
+                   (+ byte-offset Integer/BYTES))
+                 byte-offset
+                 numbers))))
    buf))
 
 (defn put!
