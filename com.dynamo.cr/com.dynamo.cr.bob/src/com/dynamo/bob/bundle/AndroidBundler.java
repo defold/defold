@@ -312,10 +312,6 @@ public class AndroidBundler implements IBundler {
         return exeName;
     }
 
-    private static String getExtenderExeDir(Project project) {
-        return FilenameUtils.concat(project.getRootDirectory(), "build");
-    }
-
     private static List<Platform> getArchitectures(Project project) {
         return Platform.getArchitecturesFromString(project.option("architectures", ""), Platform.Armv7Android);
     }
@@ -329,8 +325,7 @@ public class AndroidBundler implements IBundler {
     */
     private static void copyEngineBinary(Project project, Platform architecture, File dest) throws IOException {
         // vanilla or extender exe?
-        final String extenderExeDir = getExtenderExeDir(project);
-        List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+        List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
         if (bundleExe == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
@@ -359,7 +354,7 @@ public class AndroidBundler implements IBundler {
      * The assets originate from resolved gradle dependencies (.aar files)
      */
     private static ArrayList<File> getExtenderAssets(Project project) throws IOException {
-        final String extenderExeDir = getExtenderExeDir(project);
+        final String extenderExeDir = project.getBinaryOutputDirectory();
         ArrayList<File> assets = new ArrayList<File>();
         for (Platform architecture : getArchitectures(project)) {
             File assetsDir = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), "assets")));
@@ -376,11 +371,11 @@ public class AndroidBundler implements IBundler {
     * Get a list of dex files to include in the aab
     */
     private static ArrayList<File> getClassesDex(Project project) throws IOException {
-        final String extenderExeDir = getExtenderExeDir(project);
         ArrayList<File> classesDex = new ArrayList<File>();
 
+        final String extenderExeDir = project.getBinaryOutputDirectory();
         for (Platform architecture : getArchitectures(project)) {
-            List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
             if (bundleExe == null) {
                 if (classesDex.isEmpty()) {
                     classesDex.add(new File(Bob.getPath("lib/classes.dex")));
@@ -753,11 +748,11 @@ public class AndroidBundler implements IBundler {
         File symbolsDir = new File(outDir, getProjectTitle(project) + ".apk.symbols");
         symbolsDir.mkdirs();
         final String exeName = getBinaryNameFromProject(project);
-        final String extenderExeDir = getExtenderExeDir(project);
+        final String extenderExeDir = project.getBinaryOutputDirectory();
         final List<Platform> architectures = getArchitectures(project);
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         for (Platform architecture : architectures) {
-            List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
             if (bundleExe == null) {
                 bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
             }
