@@ -904,7 +904,7 @@ namespace dmGraphics
 
             selected_device = device;
             selected_queue_family = queue_family;
-            break; // Why do we break here? x_x
+            break;
 
             #undef DESTROY_AND_CONTINUE
         }
