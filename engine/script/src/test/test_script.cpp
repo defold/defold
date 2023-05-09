@@ -1091,7 +1091,7 @@ TEST_F(ScriptTest, LuaBooleanFunctions)
     /////////////////////////////////////////////
 
     {
-        int count = 0;
+        static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, boolean_panic_fn, jmpval);
 

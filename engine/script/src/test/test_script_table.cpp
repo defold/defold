@@ -520,9 +520,9 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
     SetupCyclicTable(L);
     {
         printf("\nExpected error begin -->\n");
-        int top = lua_gettop(L);
+        int scope_top = lua_gettop(L);
 
-        int count = 0;
+        static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
         ++count;
@@ -536,7 +536,7 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
         ASSERT_EQ(1, g_CustomPanicFunctionCalled);
         ASSERT_EQ(2, count);
 
-        lua_pop(L, lua_gettop(L) - top); // Pop any items that the function put on the stack
+        lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
         printf("<-- Expected error end\n");
     }
 
@@ -548,10 +548,11 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
 
-     {
+    {
         printf("\nExpected error begin -->\n");
-        int top = lua_gettop(L);
-        int count = 0;
+        int scope_top = lua_gettop(L);
+
+        static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
         ++count;
@@ -564,7 +565,7 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
 
         ASSERT_EQ(1, g_CustomPanicFunctionCalled);
         ASSERT_EQ(2, count);
-        lua_pop(L, lua_gettop(L) - top); // Pop any items that the function put on the stack
+        lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
 
         printf("<-- Expected error end\n");
     }
