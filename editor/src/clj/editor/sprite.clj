@@ -279,7 +279,6 @@
         gpu-texture (:gpu-texture user-data)
         pass (:pass render-args)
         num-quads (count-quads renderables)]
-    ;; Maybe do something with the vertex values here?
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
@@ -327,7 +326,7 @@
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
 
-(defn- render-sprite-outlines [^GL2 gl render-args renderables count]
+(defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
   (let [num-quads (count-quads renderables)
         outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
@@ -669,7 +668,5 @@
 ;; TODO(vertex-attr):
 ;; * Edit the values in the material view
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
-;; * Rename `VertexAttribute.byte_values` to `binary_values` to reflect that it is a write-only field for the engine runtime.
 ;; * local vs world-space as flag rather than embedded in semantic type?
-;; * Make everything optional except name `VertexAttribute`.
 ;; * Strip everything but name & values from attributes in .sprite files.

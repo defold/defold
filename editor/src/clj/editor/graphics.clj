@@ -91,5 +91,5 @@
           (-> attr
               (dissoc :float-values :uint-values :int-values)
               (assoc :name-hash (murmur/hash64 (:name attr))
-                     :byte-values (buffers/byte-pack (attribute->byte-buffer attr)))))
+                     :binary-values (buffers/byte-pack (attribute->byte-buffer attr)))))
         attributes))

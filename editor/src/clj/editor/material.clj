@@ -336,7 +336,7 @@
 (g/defnk produce-attribute-infos [attributes]
   (mapv (fn [attribute]
           (-> attribute
-              (dissoc :name-hash :int-values :uint-values :byte-values :float-values)
+              (dissoc :name-hash :int-values :uint-values :binary-values :float-values)
               (assoc :name-key (graphics/attribute-name->key (:name attribute)))
               (assoc :values (graphics/attribute->values attribute))
               (assoc :bytes (.array (graphics/attribute->byte-buffer attribute)))))

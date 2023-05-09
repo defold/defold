@@ -63,16 +63,16 @@ message VertexAttribute
     required string       name          = 1;
     optional uint64       name_hash     = 2;
     optional SemanticType semantic_type = 3 [default = SEMANTIC_TYPE_NONE];
-    required DataType     data_type     = 4;
-    required int32        element_count = 5;
+    optional DataType     data_type     = 4 [default = TYPE_FLOAT];
+    optional int32        element_count = 5 [default = 3];
     optional bool         normalize     = 6;
 
     oneof values
     {
-        IntValues   int_values   = 7;
-        UIntValues  uint_values  = 8;
-        FloatValues float_values = 9;
-        bytes       byte_values  = 10;
+        IntValues   int_values    = 7;
+        UIntValues  uint_values   = 8;
+        FloatValues float_values  = 9;
+        bytes       binary_values = 10; // Packed binary representation of the input values (engine only)
     }
 }
 

@@ -323,8 +323,8 @@ namespace dmGraphics
 
     void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
     {
-        *data_ptr  = attribute.m_Values.m_ByteValues.m_Data;
-        *data_size = attribute.m_Values.m_ByteValues.m_Count;
+        *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
+        *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)

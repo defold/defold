@@ -30,12 +30,12 @@ public class GraphicsUtil {
     {
         VertexAttribute.DataType dataType = attr.getDataType();
 
-        if (dataType == VertexAttribute.DataType.TYPE_BYTE && !(attr.hasByteValues() || attr.hasIntValues()))
+        if (dataType == VertexAttribute.DataType.TYPE_BYTE && !(attr.hasBinaryValues() || attr.hasIntValues()))
         {
             throw new CompileExceptionError(
                 String.format("Invalid vertex attribute configuration, data type is %s but neither byte_values nor int_values has been set.", dataType));
         }
-        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !(attr.hasByteValues() || attr.hasUintValues()))
+        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !(attr.hasBinaryValues() || attr.hasUintValues()))
         {
             throw new CompileExceptionError(
                 String.format("Invalid vertex attribute configuration, data type is %s but neither byte_values nor uint_values has been set.", dataType));
@@ -99,21 +99,21 @@ public class GraphicsUtil {
 
         validateAttribute(attr);
 
-        if (attr.getDataType() == VertexAttribute.DataType.TYPE_BYTE && !attr.hasByteValues())
+        if (attr.getDataType() == VertexAttribute.DataType.TYPE_BYTE && !attr.hasBinaryValues())
         {
             List<Integer> values = attr.getIntValues().getVList();
             ByteBuffer buffer = newByteBuffer(values.size());
             putByteList(buffer, values);
             buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !attr.hasByteValues())
+        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !attr.hasBinaryValues())
         {
         	List<Integer> values = attr.getUintValues().getVList();
         	ByteBuffer buffer = newByteBuffer(values.size());
         	putByteList(buffer, values);
         	buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
         else if (attr.getDataType() == VertexAttribute.DataType.TYPE_SHORT)
         {
@@ -121,7 +121,7 @@ public class GraphicsUtil {
         	ByteBuffer buffer = newByteBuffer(values.size() * 2);
         	putShortList(buffer, values);
         	buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
         else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT)
         {
@@ -129,7 +129,7 @@ public class GraphicsUtil {
             ByteBuffer buffer = newByteBuffer(values.size() * 2);
             putShortList(buffer, values);
             buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
         else if (attr.getDataType() == VertexAttribute.DataType.TYPE_FLOAT)
         {
@@ -137,7 +137,7 @@ public class GraphicsUtil {
             ByteBuffer buffer = newByteBuffer(values.size() * 4);
             putFloatList(buffer, values);
             buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
         else if (attr.getDataType() == VertexAttribute.DataType.TYPE_INT)
         {
@@ -145,7 +145,7 @@ public class GraphicsUtil {
             ByteBuffer buffer = newByteBuffer(values.size() * 4);
             putIntList(buffer, values);
             buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
         else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_INT)
         {
@@ -153,7 +153,7 @@ public class GraphicsUtil {
             ByteBuffer buffer = newByteBuffer(values.size() * 4);
             putIntList(buffer, values);
             buffer.rewind();
-            attributeBuilder.setByteValues(ByteString.copyFrom(buffer));
+            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
 
         attributeBuilder.setNameHash(MurmurHash.hash64(attr.getName()));
