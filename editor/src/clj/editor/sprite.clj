@@ -491,7 +491,7 @@
 (defn- attributes->intermediate-backing [attributes]
   (into {}
         (map (fn [attribute]
-               [(graphics/attribute-name->key (:name attribute))
+               [(vtx/attribute-name->key (:name attribute))
                 (graphics/attribute->values attribute)]))
         attributes))
 

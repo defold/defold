@@ -18,6 +18,7 @@
             [editor.code.shader :as code.shader]
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.protobuf :as protobuf]
@@ -337,7 +338,7 @@
   (mapv (fn [attribute]
           (-> attribute
               (dissoc :name-hash :int-values :uint-values :byte-values :float-values)
-              (assoc :name-key (graphics/attribute-name->key (:name attribute)))
+              (assoc :name-key (vtx/attribute-name->key (:name attribute)))
               (assoc :values (graphics/attribute->values attribute))
               (assoc :bytes (.array (graphics/attribute->byte-buffer attribute)))))
         attributes))
@@ -364,10 +365,10 @@
                                     [:shader-source-info :fragment-shader-source-info]))))
 
   (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
-  (property attributes [g/KeywordMap] (dynamic visible (g/constantly false)))
+  (property attributes g/Any (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers [g/KeywordMap] (dynamic visible (g/constantly false)))
+  (property samplers g/Any (dynamic visible (g/constantly false)))
   (property tags g/Any (dynamic visible (g/constantly false)))
   (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 
@@ -384,6 +385,7 @@
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
+  (output samplers [g/KeywordMap] (gu/passthrough samplers))
   (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
 
 (defn- make-sampler [name]
