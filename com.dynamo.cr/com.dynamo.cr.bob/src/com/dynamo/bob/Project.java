@@ -82,6 +82,7 @@ import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -179,7 +180,7 @@ public class Project {
     }
 
     public String getPluginsDirectory() {
-        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
+        return FilenameUtils.concat(rootDirectory, PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -187,11 +188,11 @@ public class Project {
     }
 
     public String getLibPath() {
-        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+        return FilenameUtils.concat(rootDirectory, LIB_DIR);
     }
 
     public String getBuildCachePath() {
-        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+        return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
     public String getLocalResourceCacheDirectory() {
@@ -208,6 +209,14 @@ public class Project {
 
     public String getRemoteResourceCachePass() {
         return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+    }
+
+    public int getMaxCpuThreads() {
+        String maxThreadsOpt = option("max-cpu-threads", null);
+        if (maxThreadsOpt == null) {
+            return getDefaultMaxCpuThreads();
+        }
+        return Integer.parseInt(maxThreadsOpt);
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -1407,6 +1416,8 @@ public class Project {
         }
         tasks.clear();
 
+        TextureGenerator.maxThreads = getMaxCpuThreads();
+
         // Keep track of the paths for all outputs
         outputs = new HashMap<>(allOutputs.size());
         for (IResource res : allOutputs) {
@@ -1950,6 +1961,18 @@ run:
             path = path.substring(1);
         }
         return path;
+    }
+
+    public static int getDefaultMaxCpuThreads() {
+        int maxThreads = 1;
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        if (availableProcessors > 4) {
+            maxThreads = availableProcessors - 2;
+        }
+        else if (availableProcessors > 1) {
+            maxThreads = availableProcessors - 1;
+        }
+        return maxThreads;
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {

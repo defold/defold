@@ -100,48 +100,7 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STR_CASE
 
-    #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
-    static const char* TextureFormatToString(TextureFormat format)
-    {
-        switch(format)
-        {
-            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE_ALPHA);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_4BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG_BC5);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC7);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG32F);
-            default:break;
-        }
-        return "UNKNOWN_FORMAT";
-    }
-    #undef DM_TEXTURE_FORMAT_TO_STR_CASE
-
-
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
-    : m_MainRenderTarget(0)
     {
         memset(this, 0, sizeof(*this));
         m_Instance                = vk_instance;
@@ -909,7 +868,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
-                dmLogError("Device selection failed for device %s: Could not get a valid queue family.", device->m_Properties.deviceName);
+                dmLogError("Device selection failed for device %s (%d/%d): Could not get a valid queue family.", device->m_Properties.deviceName, i, device_count);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -919,6 +878,7 @@ namespace dmGraphics
             {
                 if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
                 {
+                    dmLogError("Required device extension '%s' is missing for device %s (%d/%d).", device_extensions[ext_i], device->m_Properties.deviceName, i, device_count);
                     all_extensions_found = false;
                     break;
                 }
@@ -1179,9 +1139,11 @@ bail:
 
         vkBeginCommandBuffer(context->m_MainCommandBuffers[frame_ix], &vk_command_buffer_begin_info);
 
-        RenderTarget* rt             = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-        context->m_FrameBegun = 1;
-        rt->m_Framebuffer            = context->m_MainFrameBuffers[frame_ix];
+        RenderTarget* rt      = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        rt->m_Framebuffer     = context->m_MainFrameBuffers[frame_ix];
+
+        context->m_FrameBegun      = 1;
+        context->m_CurrentPipeline = 0;
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
@@ -1397,7 +1359,7 @@ bail:
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
-        Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+        Program* program, RenderTarget* rt, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
@@ -1420,7 +1382,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexBuffer, vertexDeclaration, rt, &new_pipeline);
+            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, rt, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1473,7 +1435,7 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (!buffer_ptr->m_Destroyed)
+        if (size != buffer_ptr->m_MemorySize)
         {
             DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
@@ -1534,7 +1496,7 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (!buffer_ptr->m_Destroyed && size != buffer_ptr->m_MemorySize)
+        if (size != buffer_ptr->m_MemorySize)
         {
             DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
@@ -2114,10 +2076,13 @@ bail:
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
-            program_ptr, current_rt,
-            vertex_buffer, context->m_CurrentVertexDeclaration);
-        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+            program_ptr, current_rt, context->m_CurrentVertexDeclaration);
 
+        if (pipeline != context->m_CurrentPipeline)
+        {
+            vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+            context->m_CurrentPipeline = pipeline;
+        }
 
         // Bind the indexbuffer
         if (indexBuffer)
@@ -3250,7 +3215,7 @@ bail:
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
-        tex->m_Depth       = dmMath::Max((uint16_t) 1, params.m_Depth);
+        tex->m_Depth       = params.m_Depth;
         tex->m_MipMapCount = params.m_MipMapCount;
 
         if (params.m_OriginalWidth == 0)
@@ -3437,7 +3402,7 @@ bail:
         {
             case TEXTURE_FORMAT_DEPTH:
             case TEXTURE_FORMAT_STENCIL:
-                dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
+                dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(params.m_Format));
                 return;
             default:break;
         }
@@ -3459,7 +3424,7 @@ bail:
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
-            dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(format_orig));
+            dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(format_orig));
             return;
         }
 
@@ -3634,36 +3599,42 @@ bail:
 
     static uint16_t VulkanGetTextureWidth(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_Width;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Width;
     }
 
     static uint16_t VulkanGetTextureHeight(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_Height;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Height;
     }
 
     static uint16_t VulkanGetOriginalTextureWidth(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_OriginalWidth;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
     static uint16_t VulkanGetOriginalTextureHeight(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_OriginalHeight;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
+    }
+
+    static uint16_t VulkanGetTextureDepth(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Depth;
+    }
+
+    static uint8_t VulkanGetTextureMipmapCount(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
     static TextureType VulkanGetTextureType(HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        return tex->m_Type;
+        return GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Type;
     }
 
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
     {
+        assert(0 && "GetTextureHandle is not implemented on Vulkan.");
         return HANDLE_RESULT_NOT_AVAILABLE;
     }
 
@@ -3695,7 +3666,10 @@ bail:
     }
 
     static void VulkanReadPixels(HContext context, void* buffer, uint32_t buffer_size)
-    {}
+    {
+        // JG: If someone needs this feature we should implement this at some point
+        assert(0 && "Not implemented on vulkan!");
+    }
 
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
@@ -3713,6 +3687,27 @@ bail:
     static bool VulkanIsContextFeatureSupported(HContext context, ContextFeature feature)
     {
         return true;
+    }
+
+    static bool VulkanIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
+    {
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        AssetType type         = GetAssetType(asset_handle);
+
+        if (type == ASSET_TYPE_TEXTURE)
+        {
+            return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        else if (type == ASSET_TYPE_RENDER_TARGET)
+        {
+            return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+        }
+        return false;
     }
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()

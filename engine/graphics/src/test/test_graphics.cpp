@@ -877,6 +877,89 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     }
 }
 
+TEST_F(dmGraphicsTest, TestGetTextureParams)
+{
+    const uint32_t texture_width  = 16;
+    const uint32_t texture_height = 16;
+
+    // Texture 2D
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        dmGraphics::TextureParams params;
+
+        creation_params.m_Width          = texture_width;
+        creation_params.m_Height         = texture_height;
+        creation_params.m_OriginalWidth  = texture_width;
+        creation_params.m_OriginalHeight = texture_height;
+
+        // Note: the m_MipMapCount value is ignored on null and opengl, it's only updated in SetTexture
+        // creation_params.m_MipMapCount = 255;
+
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+        // JG: I don't think we deal with mipmap data correctly in graphics_null,
+        //     we only allocate data for _this_ SetTexture call and not reallocate the buffer
+        //     depending on the actual data size..
+        params.m_MipMap = 127;
+        dmGraphics::SetTexture(texture, params);
+
+        ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+
+        dmGraphics::DeleteTexture(texture);
+    }
+    // Texture cube
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        dmGraphics::TextureParams params;
+
+        creation_params.m_Type           = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+        creation_params.m_Width          = texture_width;
+        creation_params.m_Height         = texture_height;
+        creation_params.m_OriginalWidth  = texture_width;
+        creation_params.m_OriginalHeight = texture_height;
+
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+        // JG: We don't really do bounds check for the depth either in graphics_null
+        params.m_MipMap = 127;
+        params.m_Depth  = 6;
+        dmGraphics::SetTexture(texture, params);
+
+        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+
+        dmGraphics::DeleteTexture(texture);
+    }
+
+    // Texture 2D array
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        dmGraphics::TextureParams params;
+
+        creation_params.m_Type           = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+        creation_params.m_Width          = texture_width;
+        creation_params.m_Height         = texture_height;
+        creation_params.m_OriginalWidth  = texture_width;
+        creation_params.m_OriginalHeight = texture_height;
+
+        dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+        // JG: We don't really do bounds check for the depth either in graphics_null
+        params.m_MipMap = 127;
+        params.m_Depth  = 1337;
+        dmGraphics::SetTexture(texture, params);
+
+        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+
+        dmGraphics::DeleteTexture(texture);
+    }
+}
+
 TEST_F(dmGraphicsTest, TestGraphicsHandles)
 {
     const uint32_t texture_width  = 16;

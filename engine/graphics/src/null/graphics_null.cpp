@@ -1019,10 +1019,18 @@ namespace dmGraphics
     {
         (void) transient_buffer_types;
         assert(_context);
-
         NullContext* context = (NullContext*) _context;
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
-        context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+
+        if (render_target == 0)
+        {
+            context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
+        }
+        else
+        {
+            assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
+            RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+            context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
+        }
     }
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
@@ -1111,19 +1119,23 @@ namespace dmGraphics
     static HTexture NullNewTexture(HContext _context, const TextureCreationParams& params)
     {
         NullContext* context  = (NullContext*) _context;
-        Texture* tex               = new Texture();
+        Texture* tex          = new Texture();
 
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
+        tex->m_Depth       = params.m_Depth;
         tex->m_MipMapCount = 0;
         tex->m_Data        = 0;
 
-        if (params.m_OriginalWidth == 0) {
-            tex->m_OriginalWidth = params.m_Width;
+        if (params.m_OriginalWidth == 0)
+        {
+            tex->m_OriginalWidth  = params.m_Width;
             tex->m_OriginalHeight = params.m_Height;
-        } else {
-            tex->m_OriginalWidth = params.m_OriginalWidth;
+        }
+        else
+        {
+            tex->m_OriginalWidth  = params.m_OriginalWidth;
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
@@ -1179,8 +1191,9 @@ namespace dmGraphics
         // Allocate even for 0x0 size so that the rendertarget dummies will work.
         tex->m_Data = new char[params.m_DataSize];
         if (params.m_Data != 0x0)
+        {
             memcpy(tex->m_Data, params.m_Data, params.m_DataSize);
-        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        }
 
         // The width/height of the texture can change from this function as well
         if (!params.m_SubUpdate && params.m_MipMap == 0)
@@ -1188,6 +1201,10 @@ namespace dmGraphics
             tex->m_Width  = params.m_Width;
             tex->m_Height = params.m_Height;
         }
+
+        tex->m_Depth       = dmMath::Max((uint16_t) 1, params.m_Depth);
+        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint8_t) (params.m_MipMap+1));
+        tex->m_MipMapCount = dmMath::Clamp(tex->m_MipMapCount, (uint8_t) 0, GetMipmapCount(dmMath::Max(tex->m_Width, tex->m_Height)));
     }
 
     static uint32_t NullGetTextureResourceSize(HTexture texture)
@@ -1228,13 +1245,14 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
+    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
-        assert(context);
+        assert(_context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(GetAssetFromContainer<Texture>(((NullContext*) context)->m_AssetHandleContainer, texture)->m_Data);
-        ((NullContext*) context)->m_Textures[unit] = texture;
+        NullContext* context = (NullContext*) _context;
+        assert(GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture)->m_Data);
+        context->m_Textures[unit] = texture;
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1438,23 +1456,39 @@ namespace dmGraphics
         return true;
     }
 
-    ////////////////////////////////
-    // UNIT TEST FUNCTIONS
-    ////////////////////////////////
-    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
+    static uint16_t NullGetTextureDepth(HTexture texture)
     {
-        AssetType type = GetAssetType(asset_handle);
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Depth;
+    }
+
+    static uint8_t NullGetTextureMipmapCount(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_MipMapCount;
+    }
+
+    static bool NullIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
+    {
+        assert(_context);
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+        NullContext* context = (NullContext*) _context;
+        AssetType type       = GetAssetType(asset_handle);
         if (type == ASSET_TYPE_TEXTURE)
         {
-            return GetAssetFromContainer<Texture>(((NullContext*) context)->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
-            return GetAssetFromContainer<RenderTarget>(((NullContext*) context)->m_AssetHandleContainer, asset_handle) != 0;
+            return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
     }
 
+    ////////////////////////////////
+    // UNIT TEST FUNCTIONS
+    ////////////////////////////////
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;

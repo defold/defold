@@ -420,7 +420,7 @@
 (defn- make-update-timer
   [project debug-view]
   (let [state   (volatile! {})
-        tick-fn (fn [timer _]
+        tick-fn (fn [timer _ _]
                   (when-not (ui/ui-disabled?)
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.
