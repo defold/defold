@@ -388,15 +388,14 @@ namespace dmRig
         uint32_t sample = (uint32_t)fraction;
         fraction -= sample;
         // Sample animation tracks
+        dmHashTable64<uint32_t>* bone_indices = instance->m_BoneIndices;
         uint32_t track_count = animation->m_Tracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti)
         {
             const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
 
-            const uint32_t* bone_index = instance->m_BoneIndices->Get(track->m_BoneId);
-            if (!bone_index) {
-            }
-            if (*bone_index >= pose.Size()) {
+            const uint32_t* bone_index = bone_indices->Get(track->m_BoneId);
+            if (!bone_index || *bone_index >= pose.Size()) {
                 continue;
             }
             dmTransform::Transform& transform = pose[*bone_index].m_Local;

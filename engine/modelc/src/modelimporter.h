@@ -93,13 +93,15 @@ namespace dmModelImporter
         dmTransform::Transform  m_Local;        // The local transform
         dmTransform::Transform  m_World;        // The world transform
         const char*             m_Name;
-        uint64_t                m_NameHash;
         Model*                  m_Model;        // not all nodes have a mesh
         Skin*                   m_Skin;         // not all nodes have a skin
         Node*                   m_Parent;
         Node**                  m_Children;
         uint32_t                m_ChildrenCount;
         uint32_t                m_Index;        // The index into the scene.nodes array
+
+        // internal
+        uint64_t                m_NameHash;
     };
 
     struct KeyFrame

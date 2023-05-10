@@ -593,7 +593,7 @@ struct BoneSortInfo
 {
     Bone*    m_Bone;
     uint32_t m_Rank;     // The depth in the hierarchy
-    uint32_t m_OldIndex; // The depth in the hierarchy
+    uint32_t m_OldIndex;
 };
 
 struct BoneInfoSortPred
@@ -637,11 +637,6 @@ static void SortSkinBones(Skin* skin)
     {
         delete[] skin->m_BoneRemap;
         skin->m_BoneRemap = 0;
-
-        printf("MAWE: modelc: The indices don't differ!\n");
-    }
-    else {
-        printf("MAWE: modelc: The index order differs!\n");
     }
 
     // do the remapping
@@ -658,12 +653,6 @@ static void SortSkinBones(Skin* skin)
     }
 
     delete[] infos;
-}
-
-static void SortBones(Scene* scene, cgltf_data* gltf_data)
-{
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
-        SortSkinBones(&scene->m_Skins[i]);
 }
 
 static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
