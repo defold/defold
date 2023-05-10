@@ -226,7 +226,6 @@ public class ModelUtil {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(bone.index);
         animTrackBuilder.setBoneId(MurmurHash.hash64(bone.name));
 
         {

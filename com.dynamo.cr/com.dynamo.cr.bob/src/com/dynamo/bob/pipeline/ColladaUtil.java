@@ -320,6 +320,7 @@ public class ColladaUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
+                                             Bone bone,
                                              RigUtil.AnimationTrack posTrack,
                                              RigUtil.AnimationTrack rotTrack,
                                              RigUtil.AnimationTrack sclTrack,
@@ -327,7 +328,7 @@ public class ColladaUtil {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.getName()));
 
         samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
         sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
@@ -436,7 +437,7 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
 
-                    createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+                    createAnimationTracks(animBuilder, bone, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
 
                     break; // we only support one animation per file/bone
                 }
