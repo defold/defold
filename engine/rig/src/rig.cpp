@@ -388,7 +388,7 @@ namespace dmRig
         uint32_t sample = (uint32_t)fraction;
         fraction -= sample;
         // Sample animation tracks
-        dmHashTable64<uint32_t>* bone_indices = instance->m_BoneIndices;
+        const dmHashTable64<uint32_t>* bone_indices = instance->m_BoneIndices;
         uint32_t track_count = animation->m_Tracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti)
         {
