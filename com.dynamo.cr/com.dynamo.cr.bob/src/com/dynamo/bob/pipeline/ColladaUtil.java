@@ -328,7 +328,7 @@ public class ColladaUtil {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.getName()));
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.getSourceId()));
 
         samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
         sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
