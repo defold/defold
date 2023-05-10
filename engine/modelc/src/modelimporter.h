@@ -83,6 +83,9 @@ namespace dmModelImporter
         Bone*                   m_Bones;
         uint32_t                m_BonesCount;
         uint32_t                m_Index;        // The index into the scene.skins array
+
+        // internal
+        uint32_t*               m_BoneRemap;    // old index -> new index: for sorting the bones
     };
 
     struct DM_ALIGNED(16) Node
@@ -90,6 +93,7 @@ namespace dmModelImporter
         dmTransform::Transform  m_Local;        // The local transform
         dmTransform::Transform  m_World;        // The world transform
         const char*             m_Name;
+        uint64_t                m_NameHash;
         Model*                  m_Model;        // not all nodes have a mesh
         Skin*                   m_Skin;         // not all nodes have a skin
         Node*                   m_Parent;

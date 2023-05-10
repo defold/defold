@@ -222,11 +222,12 @@ public class ModelUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation,
-                                                    int boneIndex, double duration, double startTime, double sampleRate) {
+                                                    Bone bone, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
+        animTrackBuilder.setBoneIndex(bone.index);
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.name));
 
         {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
@@ -362,7 +363,7 @@ public class ModelUtil {
                     continue;
                 }
 
-                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone.index, animation.duration, startTime, sampleRate);
+                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
@@ -903,8 +904,9 @@ public class ModelUtil {
             System.out.printf("--------------------------------------------\n");
             System.out.printf("Scene Bones:\n");
 
+            int bone_count = 0;
             for (Bone bone : scene.skins[0].bones) {
-                System.out.printf("  Scene Bone: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone.name, bone.index,
+                System.out.printf("  Scene Bone %d: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone_count++, bone.name, bone.index,
                                             ModelImporter.AddressOf(bone), ModelImporter.AddressOf(bone.node),
                                             bone.parent != null ? bone.parent.name : "");
                 System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(bone.node.local));
