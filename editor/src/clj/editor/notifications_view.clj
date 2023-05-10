@@ -14,23 +14,23 @@
 
 (ns editor.notifications-view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.flow-pane :as fx.flow-pane]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
+            [cljfx.fx.v-box :as fx.v-box]
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
-            [cljfx.fx.v-box :as fx.v-box]
-            [editor.ui :as ui]
-            [cljfx.fx.flow-pane :as fx.flow-pane]
-            [cljfx.fx.stack-pane :as fx.stack-pane]
-            [cljfx.fx.region :as fx.region]
-            [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.button :as fx.button]
-            [editor.notifications :as notifications]))
+            [editor.notifications :as notifications]
+            [editor.ui :as ui]))
 
 (def ^:private ext-with-v-box-props
   (fx/make-ext-with-props fx.v-box/props))
 
-(defn- close-notification! [{:keys [notifications-node]}]
-  (notifications/close-latest! notifications-node))
+(defn- close-notification! [{:keys [notifications-node id]}]
+  (notifications/close! notifications-node id))
 
 (defn- invoke-action! [{:keys [on-action] :as event}]
   (try
@@ -54,7 +54,8 @@
                       vertical-padding 8
                       close-button-margin 4
                       spacing 4
-                      {:keys [type text actions]} (id->notification (peek ids))]
+                      id (peek ids)
+                      {:keys [type text actions]} (id->notification id)]
                   {:fx/type fx.stack-pane/lifecycle
                    :max-width (+ (* typical-button-count 100) ;; min button width
                                  (* 2 horizontal-padding)
@@ -79,7 +80,7 @@
                                            :text text}
                                           {:fx/type fx.region/lifecycle
                                            :h-box/margin close-button-margin
-                                           :on-mouse-clicked {:fn #'close-notification!}
+                                           :on-mouse-clicked {:fn #'close-notification! :id id}
                                            :min-width 10
                                            :min-height 10
                                            :style-class "notification-card-close-button"}]}]
@@ -96,6 +97,7 @@
                                                    :style-class ["button" "notification-card-button"]
                                                    :text text
                                                    :on-action {:fn #'invoke-action!
+                                                               :id id
                                                                :on-action on-action}})
                                                 actions)}))}]})))}}))
 

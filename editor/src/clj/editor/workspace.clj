@@ -602,22 +602,19 @@ ordinary paths."
             removed (set/difference old-collisions new-collisions)
             added (set/difference new-collisions old-collisions)
             notifications-node (notifications workspace)]
-        (->> removed
-             (eduction
-               (map key))
-             (run! #(notifications/close! notifications-node (collision-notification-id %))))
-        (->> added
-             (eduction
-               (map (fn [[resource-path {:keys [source] :as status}]]
-                      {:type :warning
-                       :id (collision-notification-id resource-path)
-                       :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
-                                  (case source
-                                    :library (str " in a project dependency: " (:library status))
-                                    :builtins " in builtins"
-                                    :directory ""
-                                    source))})))
-             (run! #(notifications/submit! notifications-node %)))))))
+        (doseq [[resource-path] removed]
+          (notifications/close! notifications-node (collision-notification-id resource-path)))
+        (doseq [[resource-path {:keys [source] :as status}] (sort-by key added)]
+          (notifications/show!
+            notifications-node
+            {:type :warning
+             :id (collision-notification-id resource-path)
+             :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
+                        (case source
+                          :library (str " in a project dependency: " (:library status))
+                          :builtins " in builtins"
+                          :directory ""
+                          ""))}))))))
 
 (defn resource-sync!
   ([workspace]

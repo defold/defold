@@ -29,7 +29,7 @@
   (property notifications g/Any (default {:id->notification {}
                                           :ids []})))
 
-(defn submit!
+(defn show!
   "Show a notification in the view
 
   Args:
@@ -67,39 +67,26 @@
                           notifications)))
   nil)
 
-(defn close-latest!
-  "Close the latest (i.e. visible) notification"
-  [notifications-node]
-  (g/update-property! notifications-node :notifications
-                      (fn [{:keys [ids] :as notifications}]
-                        (if (pos? (count ids))
-                          (let [id (peek ids)]
-                            (-> notifications
-                                (update :ids pop)
-                                (update :id->notification dissoc id)))
-                          notifications)))
-  nil)
-
 (comment
 
   (editor.ui/run-now
-    (submit! (g/node-value 0 :notifications)
-             {:type :info
-              :id ::updatable
-              :text (str "Updatable " (rand-int 10000))}))
+    (show! (g/node-value 0 :notifications)
+           {:type :info
+            :id ::updatable
+            :text (str "Updatable " (rand-int 10000))}))
 
   (editor.ui/run-now
-    (submit! (g/node-value 0 :notifications)
-             {:type :error
-              :text "An error occurred"}))
+    (show! (g/node-value 0 :notifications)
+           {:type :error
+            :text "An error occurred"}))
 
   (editor.ui/run-now
-    (submit! (g/node-value 0 :notifications)
-             {:type :warning
-              :text "!"}))
+    (show! (g/node-value 0 :notifications)
+           {:type :warning
+            :text "!"}))
 
   (editor.ui/run-now
-    (submit!
+    (show!
       (g/node-value 0 :notifications)
       {:type :warning
        :text "Folder /defold-rive shadows a folder with the same name defined in a dependency: https://github.com/defold/extension-rive/archive/refs/tags/1.0.zip"
