@@ -51,7 +51,9 @@
   [{:keys [content resource] :as save-data}]
   (or (when (some? content)
         (make-line-coll #(BufferedReader. (StringReader. content))))
-      (when (and (resource/exists? resource) (not (text-util/binary? resource)))
+      (when (and (resource/exists? resource)
+                 (resource/textual? resource)
+                 (not (text-util/binary? resource)))
         (make-line-coll #(io/reader resource)))))
 
 (defn compile-find-in-files-regex
@@ -86,15 +88,15 @@
     (future
       (try
         (let [save-data (->> (into []
-                                     (keep (fn [node-id]
-                                             (let [save-data (g/node-value node-id :save-data evaluation-context)
-                                                   resource (:resource save-data)]
-                                               (when (and (some? resource)
-                                                          (not (resource/internal? resource))
-                                                          (= :file (resource/source-type resource)))
-                                                 save-data))))
-                                     (g/node-value project :nodes evaluation-context))
-                               (sort-by save-data-sort-key))]
+                                   (keep (fn [node-id]
+                                           (let [save-data (g/node-value node-id :save-data evaluation-context)
+                                                 resource (:resource save-data)]
+                                             (when (and (some? resource)
+                                                        (not (resource/internal? resource))
+                                                        (= :file (resource/source-type resource)))
+                                               save-data))))
+                                   (g/node-value project :nodes evaluation-context))
+                             (sort-by save-data-sort-key))]
           (ui/run-later
             (project/update-system-cache-save-data! evaluation-context))
           save-data)

@@ -320,12 +320,6 @@
       (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
         (dirty-save-data project (assoc evaluation-context :tracer progress-tracer))))))
 
-(defn textual-resource-type? [resource-type]
-  ;; Unregistered resources that are connected to the project
-  ;; save-data input are assumed to produce text data.
-  (or (nil? resource-type)
-      (:textual? resource-type)))
-
 (defn write-save-data-to-disk! [save-data {:keys [render-progress!]
                                            :or {render-progress! progress/null-render-progress!}
                                            :as opts}]
@@ -339,7 +333,7 @@
                      (not (resource/read-only? resource)))
             ;; If the file is non-binary, convert line endings to the
             ;; type used by the existing file.
-            (if (and (textual-resource-type? (resource/resource-type resource))
+            (if (and (resource/textual? resource)
                      (resource/exists? resource)
                      (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
               (spit resource (text-util/lf->crlf content))

@@ -197,8 +197,9 @@ ordinary paths."
   Optional kv-args:
     :node-type          a loaded resource node type; defaults to
                         editor.placeholder-resource/PlaceholderResourceNode
-    :textual?           whether the resource is saved as text and needs proper
-                        lf/crlf handling, default false
+    :textual?           whether the resource is textual, default false. This
+                        flag affects search in files availability for the
+                        resource type and lf/crlf handling on save
     :language           language identifier string used for textual resources
                         that can be opened as code, used for LSP interactions,
                         see https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers

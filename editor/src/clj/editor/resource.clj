@@ -437,6 +437,15 @@
   [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
 
+(defn textual?
+  "Returns whether the resource is configured to be textual or not
+
+  Unregistered resource types are assumed to produce text data. You should use
+  [[util.text-util/binary?]] to get a more accurate estimate of whether the
+  content of the resource is textual or not."
+  [resource]
+  (:textual? (resource-type resource) true))
+
 (def ^:private known-ext->language
   ;; See known language identifiers:
   ;; https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
