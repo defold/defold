@@ -41,14 +41,13 @@ message Skeleton
 
 message AnimationTrack
 {
-    required uint32 bone_index = 1;
-    required uint64 bone_id = 2;        // the bone name hash
+    required uint64 bone_id = 1;        // the bone name hash
     // x0, y0, z0, ...
-    repeated float positions = 3;
+    repeated float positions = 2;
     // x0, x0, z0, w0, …
-    repeated float rotations = 4;
+    repeated float rotations = 3;
     // x0, y0, z0, …
-    repeated float scale = 5;
+    repeated float scale = 4;
 }
 
 message EventKey
