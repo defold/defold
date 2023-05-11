@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -478,7 +478,7 @@ public class ColladaUtilTest {
          *  - Positions and scale don't change
          *  - Rotation is only increased on X-axis
          */
-        long boneId = MurmurHash.hash64(skeletonBuilder.getBones(0).getName());
+        long boneId = skeletonBuilder.getBones(0).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
@@ -537,8 +537,8 @@ public class ColladaUtilTest {
         float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
         int keyframeCount = (int)Math.ceil(duration*sampleRate);
 
-        long boneId0 = MurmurHash.hash64(skeletonBuilder.getBones(0).getName());
-        long boneId1 = MurmurHash.hash64(skeletonBuilder.getBones(1).getName());
+        long boneId0 = skeletonBuilder.getBones(0).getId();
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
@@ -604,8 +604,8 @@ public class ColladaUtilTest {
         float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
         int keyframeCount = (int)Math.ceil(duration*sampleRate);
 
-        long boneId0 = MurmurHash.hash64(skeletonBuilder.getBones(0).getName());
-        long boneId1 = MurmurHash.hash64(skeletonBuilder.getBones(1).getName());
+        long boneId0 = skeletonBuilder.getBones(0).getId();
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
@@ -673,7 +673,7 @@ public class ColladaUtilTest {
          *  - Positions and scale don't change
          *  - Rotation is only decreased on X-axis
          */
-        long boneId = MurmurHash.hash64(skeletonBuilder.getBones(0).getName());
+        long boneId = skeletonBuilder.getBones(0).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
@@ -725,9 +725,9 @@ public class ColladaUtilTest {
          *  We go through all tracks and verify they behave as expected.
          */
 
-        long boneId0 = MurmurHash.hash64(skeletonBuilder.getBones(0).getName());
-        long boneId1 = MurmurHash.hash64(skeletonBuilder.getBones(1).getName());
-        long boneId2 = MurmurHash.hash64(skeletonBuilder.getBones(2).getName());
+        long boneId0 = skeletonBuilder.getBones(0).getId();
+        long boneId1 = skeletonBuilder.getBones(1).getId();
+        long boneId2 = skeletonBuilder.getBones(2).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
@@ -783,7 +783,7 @@ public class ColladaUtilTest {
          *  We go through all tracks and verify they behave as expected.
          */
 
-        long boneId1 = MurmurHash.hash64(skeletonBuilder.getBones(1).getName());
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
@@ -848,7 +848,7 @@ public class ColladaUtilTest {
          *  - Positions will decrease on Z axis
          *  - Rotation don't change, is static the inverse of bind pose.
          */
-        long boneId1 = MurmurHash.hash64(skeletonBuilder.getBones(1).getName());
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         int trackCount = animation.getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
