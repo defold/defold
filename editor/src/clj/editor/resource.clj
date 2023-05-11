@@ -437,14 +437,16 @@
   [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
 
-(defn textual?
-  "Returns whether the resource is configured to be textual or not
+(defn textual-resource-type?
+  "Returns whether the resource type is marked as textual
 
-  Unregistered resource types are assumed to produce text data. You should use
-  [[util.text-util/binary?]] to get a more accurate estimate of whether the
-  content of the resource is textual or not."
-  [resource]
-  (:textual? (resource-type resource) true))
+  Resource type is a required argument. If a resource does not specify a
+  resource type, you can use [[util.text-util/binary?]] to estimate if
+  the content of the resource is textual or not"
+  [resource-type]
+  {:pre [(some? resource-type)]
+   :post [(boolean? %)]}
+  (:textual? resource-type))
 
 (def ^:private known-ext->language
   ;; See known language identifiers:

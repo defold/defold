@@ -52,8 +52,9 @@
   (or (when (some? content)
         (make-line-coll #(BufferedReader. (StringReader. content))))
       (when (and (resource/exists? resource)
-                 (resource/textual? resource)
-                 (not (text-util/binary? resource)))
+                 (if-let [resource-type (resource/resource-type resource)]
+                   (resource/textual-resource-type? resource-type)
+                   (not (text-util/binary? resource))))
         (make-line-coll #(io/reader resource)))))
 
 (defn compile-find-in-files-regex
