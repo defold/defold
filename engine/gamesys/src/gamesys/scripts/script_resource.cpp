@@ -499,9 +499,9 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
-static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(int textureformat)
+#define GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(x) case dmGraphics::x: return dmGraphics::TextureImage::x
+static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat)
 {
-    #define GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(x) case dmGraphics::x: return dmGraphics::TextureImage::x
     switch(textureformat)
     {
         GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_LUMINANCE);
@@ -527,8 +527,9 @@ static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageForma
         GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG16F);
         GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R32F);
         GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG32F);
+        default: assert(0);
     };
-    #undef GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE
+    dmLogError("Unsupported texture format: %s", dmGraphics::GetTextureFormatLiteral(textureformat));
     return (dmGraphics::TextureImage::TextureFormat) -1;
 }
 
@@ -539,16 +540,18 @@ static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics:
         case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
         case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
         case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        case dmGraphics::TEXTURE_TYPE_IMAGE_2D: return dmGraphics::TextureImage::TYPE_2D_IMAGE;
         default: assert(0);
     }
-    dmLogError("Unsupported texture type (%d)", texturetype);
+    dmLogError("Unsupported texture type: %s", dmGraphics::GetTextureTypeLiteral(texturetype));
     return (dmGraphics::TextureImage::Type) -1;
 }
+#undef GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE
 
 static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
     dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format,
     dmGraphics::TextureImage::CompressionType compression_type, dmBuffer::HBuffer texture_buffer,
-    dmGraphics::TextureImage* texture_image)
+    dmGraphics::MemoryAccess memory_access, dmGraphics::TextureImage* texture_image)
 {
     uint32_t* mip_map_sizes              = new uint32_t[max_mipmaps];
     uint32_t* mip_map_offsets            = new uint32_t[max_mipmaps];
@@ -602,6 +605,7 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     image->m_Format               = format;
     image->m_CompressionType      = compression_type;
     image->m_CompressionFlags     = 0;
+    image->m_MemoryAccess         = memory_access;
     image->m_Data.m_Data          = image_data;
     image->m_Data.m_Count         = image_data_size;
 
@@ -778,19 +782,20 @@ static int CreateTexture(lua_State* L)
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
-    dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
-    uint32_t width                   = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    dmGraphics::TextureType type           = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
+    dmGraphics::TextureFormat format       = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
+    uint32_t width                         = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height                        = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t max_mipmaps                   = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
+    dmGraphics::MemoryAccess memory_access                     = (dmGraphics::MemoryAccess) CheckTableInteger(L, 2, "memory_access", (int) dmGraphics::MEMORY_ACCESS_READ);
 
     dmBuffer::HBuffer buffer = 0;
     if (dmScript::IsBuffer(L, 3))
@@ -816,7 +821,7 @@ static int CreateTexture(lua_State* L)
 
     // Max mipmap count is inclusive, so need at least 1
     max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
-    uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
+    uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel(format);
     dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = {};
@@ -833,7 +838,7 @@ static int CreateTexture(lua_State* L)
             (int) compression_type, path_str, dmGraphics::GetTextureTypeLiteral(type));
     }
 
-    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, buffer, &texture_image);
+    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, buffer, memory_access, &texture_image);
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
@@ -2804,6 +2809,11 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
+
+    SETGRAPHICS_ENUM(MEMORY_ACCESS_READ);
+    SETGRAPHICS_ENUM(MEMORY_ACCESS_WRITE);
+    SETGRAPHICS_ENUM(MEMORY_ACCESS_READ_WRITE);
 #undef SETGRAPHICS_ENUM
 
 #define SETTEXTUREFORMAT_IF_SUPPORTED(name) \

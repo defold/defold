@@ -595,19 +595,16 @@ namespace dmGraphics
 
         const uint8_t default_texture_data[default_tex_size * default_tex_size * 4 * 6] = {0}; // RGBA * 6 (for cubemap)
 
-        TextureParams default_texture_params;
-        default_texture_params.m_Width  = 1;
-        default_texture_params.m_Height = 1;
-        default_texture_params.m_Depth  = 1;
-        default_texture_params.m_Data   = default_texture_data;
-        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+        TextureParams default_texture_params  = TextureParams();
+        default_texture_params.m_Width        = 1;
+        default_texture_params.m_Height       = 1;
+        default_texture_params.m_Depth        = 1;
+        default_texture_params.m_Data         = default_texture_data;
+        default_texture_params.m_Format       = TEXTURE_FORMAT_RGBA;
+        default_texture_params.m_MemoryAccess = MEMORY_ACCESS_READ;
 
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
-
-        default_texture_creation_params.m_Type = TEXTURE_TYPE_IMAGE_2D;
-        context->m_DefaultImage2D              = VulkanNewTextureInternal(default_texture_creation_params);
-        VulkanSetTextureInternal(context->m_DefaultImage2D, default_texture_params);
 
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_2D_ARRAY;
         default_texture_creation_params.m_Depth = 1;
@@ -616,6 +613,12 @@ namespace dmGraphics
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_CUBE_MAP;
         default_texture_creation_params.m_Depth = 6;
         context->m_DefaultTextureCubeMap        = VulkanNewTextureInternal(default_texture_creation_params);
+
+        default_texture_creation_params.m_Depth = 1;
+        default_texture_creation_params.m_Type  = TEXTURE_TYPE_IMAGE_2D;
+        default_texture_params.m_MemoryAccess   = MEMORY_ACCESS_READ_WRITE;
+        context->m_DefaultImage2D               = VulkanNewTextureInternal(default_texture_creation_params);
+        VulkanSetTextureInternal(context->m_DefaultImage2D, default_texture_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
 
@@ -1777,9 +1780,9 @@ bail:
         switch(type)
         {
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
-            case ShaderDesc::SHADER_TYPE_IMAGE2D:         return context->m_DefaultImage2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
+            case ShaderDesc::SHADER_TYPE_IMAGE2D:         return context->m_DefaultImage2D;
             default:break;
         }
         return 0x0;
@@ -1867,17 +1870,28 @@ bail:
             else if (IsUniformImage(res))
             {
                 Texture* texture = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, g_VulkanContext->m_TextureUnits[res.m_TextureUnit]);
-
                 if (texture == 0x0)
                 {
                     texture = GetDefaultTexture(g_VulkanContext, res.m_Type);
                 }
 
                 VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
-                vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_GENERAL;
-                vk_image_info.imageView           = texture->m_Handle.m_ImageView;
-                vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-                vk_write_desc_info.pImageInfo     = &vk_image_info;
+                vk_image_info.imageLayout            = VK_IMAGE_LAYOUT_GENERAL;
+                vk_image_info.imageView              = texture->m_Handle.m_ImageView;
+                vk_write_desc_info.pImageInfo        = &vk_image_info;
+
+                switch(texture->m_MemoryAccess)
+                {
+                    case MEMORY_ACCESS_READ_WRITE:
+                        vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                        break;
+                    case MEMORY_ACCESS_READ:
+                        vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                        break;
+                    case MEMORY_ACCESS_WRITE:
+                        vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                        break;
+                }
             }
             else
             {
@@ -2299,6 +2313,9 @@ bail:
             else if (IsUniformImage(res))
             {
                 // TODO: How should we set this descriptor type based on data?
+                //       We might want to parse spirv-cross with --dump-resources
+                //       to find out if an image is readonly, writeonly or both..
+                //       but what do we do when it's both read and writeable? Needs an investigation..
                 vk_descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             }
             else
@@ -3569,6 +3586,7 @@ bail:
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
         texture->m_Depth          = tex_layer_count;
+        texture->m_MemoryAccess   = (MemoryAccess) params.m_MemoryAccess;
 
         VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3616,14 +3634,23 @@ bail:
         {
             assert(!params.m_SubUpdate);
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
-            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-            if (texture->m_Type == TEXTURE_TYPE_IMAGE_2D)
+            switch(texture->m_MemoryAccess)
             {
-                vk_usage_flags |= VK_IMAGE_USAGE_STORAGE_BIT;
+                case MEMORY_ACCESS_READ_WRITE: 
+                    vk_usage_flags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+                    break;
+                case MEMORY_ACCESS_READ:
+                    vk_usage_flags |= VK_IMAGE_USAGE_SAMPLED_BIT;
+                    break;
+                case MEMORY_ACCESS_WRITE:
+                    vk_usage_flags |= VK_IMAGE_USAGE_STORAGE_BIT;
+                    break;
+                default:assert(0 && "Invalid / unsupported memory access flag");
             }
 
             if (!use_stage_buffer)

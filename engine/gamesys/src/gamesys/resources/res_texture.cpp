@@ -137,6 +137,7 @@ namespace dmGameSystem
             params.m_Y         = upload_params.m_Y;
             params.m_SubUpdate = upload_params.m_SubUpdate;
             params.m_MipMap    = specific_mip_requested ? upload_params.m_MipMap : 0;
+            params.m_MemoryAccess = image->m_MemoryAccess;
 
             if (!texture)
             {
@@ -151,6 +152,9 @@ namespace dmGameSystem
                         break;
                     case dmGraphics::TextureImage::TYPE_CUBEMAP:
                         creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+                        break;
+                    case dmGraphics::TextureImage::TYPE_2D_IMAGE:
+                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_IMAGE_2D;
                         break;
                     default: assert(0);
                 }

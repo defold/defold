@@ -16,6 +16,13 @@ message Cubemap
     required string back        = 6 [(resource)=true];
 }
 
+enum MemoryAccess
+{
+    MEMORY_ACCESS_READ_WRITE = 0;
+    MEMORY_ACCESS_READ       = 1;
+    MEMORY_ACCESS_WRITE      = 2;
+}
+
 message TextureImage
 {
     enum Type
@@ -26,6 +33,8 @@ message TextureImage
         TYPE_CUBEMAP  = 2;
         // Corresponds to GL_TEXTURE_2D_ARRAY
         TYPE_2D_ARRAY = 3;
+        // Corresponds to ... something!
+        TYPE_2D_IMAGE = 4;
     }
 
     enum CompressionType
@@ -94,8 +103,9 @@ message TextureImage
         repeated uint32 mip_map_size    = 7;    // always uncompressed (native) size
         required bytes data             = 8;
         optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
-        optional uint64 compression_flags = 10;
-        repeated uint32 mip_map_size_compressed  = 11;
+        optional uint64 compression_flags         = 10;
+        repeated uint32 mip_map_size_compressed   = 11;
+        optional MemoryAccess memory_access       = 12 [default = MEMORY_ACCESS_READ_WRITE];
     }
 
     repeated Image alternatives = 1;

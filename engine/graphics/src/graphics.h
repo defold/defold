@@ -235,7 +235,8 @@ namespace dmGraphics
         , m_Height(0)
         , m_Depth(0)
         , m_MipMap(0)
-        , m_SubUpdate(false)
+        , m_SubUpdate(0)
+        , m_MemoryAccess(MEMORY_ACCESS_READ)
         {}
 
         const void*   m_Data;
@@ -254,8 +255,9 @@ namespace dmGraphics
         uint16_t m_Width;
         uint16_t m_Height;
         uint16_t m_Depth; // For array texture, this is slice count
-        uint8_t  m_MipMap    : 7;
-        uint8_t  m_SubUpdate : 1;
+        uint8_t  m_MipMap       : 7;
+        uint8_t  m_SubUpdate    : 1;
+        uint8_t  m_MemoryAccess : 2;
     };
 
     // Parameters structure for OpenWindow
