@@ -55,6 +55,7 @@
   (workspace/register-resource-type workspace
                                     :ext "md"
                                     :label "Markdown"
+                                    :textual? true
                                     :node-type MarkdownNode
                                     :load-fn load-markdown
                                     :view-types [:html :text]
