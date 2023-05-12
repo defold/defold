@@ -40,7 +40,8 @@
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
+  (:import [com.dynamo.gamesys.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer Tile$TileCell]
+           [com.defold.extension.editor TilemapPlugins]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Point3d Vector3d]))
@@ -84,11 +85,41 @@
   (bit-or (bit-shift-left y Integer/SIZE)
           (bit-and x 0xFFFFFFFF)))
 
+(defn cell-to-proto
+  [cell-map x y]
+  (let [cell (get cell-map (cell-index x y))
+        builder (Tile$TileCell/newBuilder)]
+     (.setX builder x)
+     (.setY builder y)
+     (.setTile builder (if cell (:tile cell) 0))
+     (.setHFlip builder (if cell (if (:h-flip cell) 1 0) 0))
+     (.setVFlip builder (if cell (if (:v-flip cell) 1 0) 0))
+     (.setRotate90 builder (if cell (if (:rotate90 cell) 1 0) 0))
+     (.build builder)))
+
 (defn paint-cell!
   [cell-map x y tile h-flip v-flip rotate90]
-  (if tile
-    (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-    (dissoc! cell-map (cell-index x y))))
+  (let [neighbours (vector
+                     (cell-to-proto cell-map (+ x -1) (+ y -1))
+                     (cell-to-proto cell-map (+ x  0) (+ y -1))
+                     (cell-to-proto cell-map (+ x  1) (+ y -1))
+                     (cell-to-proto cell-map (+ x -1) (+ y  0))
+                     (cell-to-proto cell-map (+ x  0) (+ y  0))
+                     (cell-to-proto cell-map (+ x  1) (+ y  0))
+                     (cell-to-proto cell-map (+ x -1) (+ y  1))
+                     (cell-to-proto cell-map (+ x  0) (+ y  1))
+                     (cell-to-proto cell-map (+ x  1) (+ y  1)))]
+    (TilemapPlugins/init workspace/class-loader)
+    (if tile
+      (do
+        (println "paint " x ":" y " tile: " tile " cell-map: " cell-map)
+        (TilemapPlugins/onPaintTile x y neighbours tile)
+        (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90)))
+      (do
+        (println "clear " x ":" y " cell-map: " cell-map)
+        (TilemapPlugins/onClearTile x y neighbours)
+        (dissoc! cell-map (cell-index x y))))))
+
 
 (defn make-cell-map
   [cells]
