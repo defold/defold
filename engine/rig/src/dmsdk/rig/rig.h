@@ -20,6 +20,7 @@
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/align.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
 
@@ -139,10 +140,11 @@ namespace dmRig
         dmhash_t                      m_ModelId;
         dmhash_t                      m_DefaultAnimation;
 
-        const dmArray<struct RigBone>* m_BindPose;
-        const dmRigDDF::Skeleton*     m_Skeleton;
-        const dmRigDDF::MeshSet*      m_MeshSet;
-        const dmRigDDF::AnimationSet* m_AnimationSet;
+        const dmArray<struct RigBone>*  m_BindPose;
+        const dmHashTable64<uint32_t>*  m_BoneIndices;   // Map of bone name hash -> bone index
+        const dmRigDDF::Skeleton*       m_Skeleton;
+        const dmRigDDF::MeshSet*        m_MeshSet;
+        const dmRigDDF::AnimationSet*   m_AnimationSet;
 
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
