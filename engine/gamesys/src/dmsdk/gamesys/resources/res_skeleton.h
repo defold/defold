@@ -17,13 +17,15 @@
 
 #include <stdint.h>
 
+#include <dlib/hashtable.h>
 #include <rig/rig_ddf.h>
 
 namespace dmGameSystem
 {
     struct SkeletonResource
     {
-        dmRigDDF::Skeleton* m_Skeleton;
+        dmRigDDF::Skeleton*     m_Skeleton;
+        dmHashTable64<uint32_t> m_BoneIndices; // Map from bone name hash to bone index
     };
 }
 

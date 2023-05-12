@@ -95,6 +95,7 @@ static void DestroySkin(Skin* skin)
     for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
         DestroyBone(&skin->m_Bones[i]);
     delete[] skin->m_Bones;
+    delete[] skin->m_BoneRemap;
 }
 
 static void DestroyNodeAnimation(NodeAnimation* node_animation)
