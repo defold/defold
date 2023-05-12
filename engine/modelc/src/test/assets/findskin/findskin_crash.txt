@@ -1,0 +1,1 @@
+findskin_crash.glb file courtesy of Artsiom Trubchyk (github.com/aglitchman)

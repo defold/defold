@@ -85,6 +85,7 @@
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor Editor]
            [com.defold.editor UIUtil]
+           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -1472,6 +1473,15 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-stylesheet :global
   (run [] (ui/reload-root-styles!)))
 
+(handler/defhandler :open-project :global
+  (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
+  (run [] (let [resources-path (system/defold-resourcespath)
+                install-dir (.getCanonicalFile
+                              (case (.getOs (Platform/getHostPlatform))
+                                "macos" (io/file resources-path "../../")
+                                ("linux" "win32") (io/file resources-path)))]
+            (process/start! (system/defold-launcherpath) [] {:directory install-dir}))))
+
 (handler/register-menu! ::menubar
   [{:label "File"
     :id ::file
@@ -1509,9 +1519,13 @@ If you do not specifically require different script states, consider changing th
                 :command :referencing-files}
                {:label "Dependencies..."
                 :command :dependencies}
+               {:label "Show Overrides"
+                :command :show-overrides}
                {:label "Hot Reload"
                 :command :hot-reload}
                {:label :separator}
+               {:label "Open Project..."
+                :command :open-project}
                {:label "Preferences..."
                 :command :preferences}
                {:label "Quit"
@@ -1624,7 +1638,9 @@ If you do not specifically require different script states, consider changing th
    {:label "Referencing Files..."
     :command :referencing-files}
    {:label "Dependencies..."
-    :command :dependencies}])
+    :command :dependencies}
+   {:label "Show Overrides"
+    :command :show-overrides}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -1668,7 +1684,9 @@ If you do not specifically require different script states, consider changing th
            (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title
-  ([] "Defold Editor 2.0")
+  ([] (if-some [version (system/defold-version)]
+        (str "Defold " version)
+        "Defold"))
   ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
@@ -1690,11 +1708,11 @@ If you do not specifically require different script states, consider changing th
       (profiler/profile "view" (:name @(g/node-type* node))
         (g/node-value node label)))))
 
-(defn- refresh-scene-views! [app-view]
+(defn- refresh-scene-views! [app-view dt]
   (profiler/begin-frame)
   (doseq [view-id (g/node-value app-view :scene-view-ids)]
     (try
-      (scene/refresh-scene-view! view-id)
+      (scene/refresh-scene-view! view-id dt)
       (catch Throwable error
         (error-reporting/report-exception! error))))
   (scene-cache/prune-context! nil))
@@ -1801,14 +1819,14 @@ If you do not specifically require different script states, consider changing th
 
       (let [refresh-timer (ui/->timer
                             "refresh-app-view"
-                            (fn [_ _]
+                            (fn [_ elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))
-                                  (refresh-scene-views! app-view)
+                                  (refresh-scene-views! app-view dt)
                                   (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         (ui/timer-start! refresh-timer))
@@ -1842,8 +1860,6 @@ If you do not specifically require different script states, consider changing th
         (g/connect view :view-dirty app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
-    (g/transact
-      (select app-view resource-node [resource-node]))
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
@@ -1915,14 +1931,18 @@ If you do not specifically require different script states, consider changing th
                              text-view-type
                              view-type)
                  make-view-fn (:make-view-fn view-type)
-                 ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
+                 existing-tab (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
                                        %)
                                     open-tabs)
+                 ^Tab tab (or existing-tab
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
                                 (make-tab! app-view prefs workspace project resource resource-node
                                            resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
+             (when (or (nil? existing-tab) (:select-node opts))
+               (g/transact
+                 (select app-view resource-node [(:select-node opts resource-node)])))
              (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when-let [focus (:focus-fn view-type)]
                ;; Force layout pass since the focus function of some views
@@ -1931,7 +1951,7 @@ If you do not specifically require different script states, consider changing th
                (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
                (focus (ui/user-data tab ::view) opts))
              ;; Do an initial rendering so it shows up as fast as possible.
-             (ui/run-later (refresh-scene-views! app-view)
+             (ui/run-later (refresh-scene-views! app-view 1/60)
                            (ui/run-later (slog/smoke-log "opened-resource")))
              true)
            (let [^String path (or (resource/abs-path resource)
@@ -2102,6 +2122,40 @@ If you do not specifically require different script states, consider changing th
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
+
+(defn show-override-inspector!
+  "Show override inspector view and focus on its tab
+
+  Args:
+    app-view               app view node id
+    search-results-view    node id of a search result view
+    node-id                root node id whose overrides are inspected
+    properties             either :all or a coll of property keywords to include
+                           in the override inspector output"
+  [app-view search-results-view node-id properties]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [scene (g/node-value app-view :scene evaluation-context)
+          tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)]
+      (show-search-results! scene tool-tab-pane)
+      (search-results-view/show-override-inspector! search-results-view node-id properties))))
+
+(defn- select-possibly-overridable-resource-node [selection project evaluation-context]
+  (or (handler/selection->node-id selection)
+      (when-let [resource (handler/adapt-single selection resource/Resource)]
+        (when (contains? (:tags (resource/resource-type resource)) :overridable-properties)
+          (project/get-resource-node project resource evaluation-context)))))
+
+(handler/defhandler :show-overrides :global
+  (enabled? [selection project evaluation-context]
+    (let [node-id (select-possibly-overridable-resource-node selection project evaluation-context)]
+      (and node-id (pos? (count (g/overrides (:basis evaluation-context) node-id))))))
+  (run [selection search-results-view project app-view]
+    (show-override-inspector!
+      app-view
+      search-results-view
+      (g/with-auto-evaluation-context evaluation-context
+        (select-possibly-overridable-resource-node selection project evaluation-context))
+      :all)))
 
 (handler/defhandler :toggle-pane-left :global
   (run [^Stage main-stage]

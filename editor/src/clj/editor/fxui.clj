@@ -17,6 +17,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
@@ -156,6 +157,9 @@
                    (.setVvalue pane (/ (.getMinY child-bounds)
                                        (- content-height viewport-height)))))))))
        fx.lifecycle/dynamic)}))
+
+(def ext-with-anchor-pane-props
+  (fx/make-ext-with-props fx.anchor-pane/props))
 
 (defn ext-ensure-scroll-pane-child-visible
   "Extension lifecycle that ensures ScrollPane's child node is visible

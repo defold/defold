@@ -200,7 +200,7 @@
                          :fps             30
                          :flip-horizontal false
                          :flip-vertical   false
-                         :playback        :playback-once-forward}))
+                         :playback        :playback-none}))
 
 (defn- unique-id-error [node-id id id-counts]
   (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")

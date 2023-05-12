@@ -47,6 +47,13 @@
 
 (def ^:private default-indent-type :tabs)
 
+(defn make-code-error-user-data [^String path line-number]
+  (let [cursor-range (some-> line-number data/line-number->CursorRange)]
+    (cond-> {:filename path}
+
+            (some? cursor-range)
+            (assoc :cursor-range cursor-range))))
+
 (defn guess-indent-type [lines]
   ;; TODO: Use default from preferences if indeterminate.
   (or (data/guess-indent-type (take 512 lines) 4)

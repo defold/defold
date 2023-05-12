@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,8 +28,6 @@ import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.net.URLClassLoader;
 import java.net.URL;
 import java.lang.Math;
@@ -51,6 +49,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
@@ -70,6 +69,8 @@ import com.google.protobuf.Message;
  *
  */
 public abstract class LuaBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
@@ -207,7 +208,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
             } catch (InterruptedException e) {
-                Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
+                logger.severe("Unexpected interruption", e);
             } finally {
                 IOUtils.closeQuietly(is);
             }
@@ -236,6 +237,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return chunkName;
     }
 
+    /* We currently prefer source code over plain lua byte code due to the smaller size
     public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
@@ -289,6 +291,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         baos.close();
         return bytecode;
     }
+    */
 
     public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 
@@ -335,9 +338,9 @@ public abstract class LuaBuilder extends Builder<Void> {
          * The delta is stored together with the 64-bit bytecode and when
          * the 32-bit bytecode is needed the delta is applied to the 64-bit
          * bytecode to transform it to the equivalent 32-bit version.
-         * 
+         *
          * The delta is stored in the following format:
-         * 
+         *
          * * index - The index where to apply the next change. 1-4 bytes.
          *           The size depends on the size of the entire bytecode:
          *           1 byte - Size less than 2^8
@@ -365,7 +368,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // write index, count and bytes
             if (count > 0) {
                 if (count == 256) {
-                    Bob.verbose("\n\nLuaBuilder count %d\n\n", count);
+                    logger.info("\n\nLuaBuilder count %d\n\n", count);
                 }
 
                 // write index of diff
@@ -485,15 +488,15 @@ public abstract class LuaBuilder extends Builder<Void> {
                 Platform p = architectures.get(0);
                 if (p.is64bit()) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-                    Bob.verbose("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }
                 else {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
-                    Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.info("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                Bob.verbose("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                logger.info("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
@@ -501,7 +504,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
                 srcBuilder.setDelta(ByteString.copyFrom(delta));
 
-                Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                logger.info("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
             }
         }

@@ -264,13 +264,12 @@ static dmTransform::Transform ToTransform(const float* m)
     return dmTransform::ToTransform(mat);
 }
 
-static Skin* FindSkin(Scene* scene, const char* name)
+static Skin* FindSkin(Scene* scene, cgltf_data* gltf_data, cgltf_skin* gltf_skin)
 {
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
     {
-        Skin* skin = &scene->m_Skins[i];
-        if (strcmp(name, skin->m_Name) == 0)
-            return skin;
+        if (gltf_skin == &gltf_data->skins[i])
+            return &scene->m_Skins[i];
     }
     return 0;
 }
@@ -302,6 +301,16 @@ char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t i
 {
     (void)object;
     return CreateNameFromHash("mesh", index);
+}
+
+template <>
+char* CreateObjectName<>(cgltf_buffer* object, const char* prefix, uint32_t index)
+{
+    if (object && object->name)
+        return strdup(object->name);
+    if (object && object->uri)
+        return strdup(object->uri);
+    return CreateNameFromHash("buffer", index);
 }
 
 static void UpdateWorldTransforms(Node* node)
@@ -343,7 +352,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         node->m_Skin = 0;
         if (gltf_node->skin)
         {
-            node->m_Skin = FindSkin(scene, gltf_node->skin->name);
+            node->m_Skin = FindSkin(scene, gltf_data, gltf_node->skin);
         }
 
         if (gltf_node->has_translation)
@@ -1047,7 +1056,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
-        scene->m_Buffers[i].m_Uri = data->buffers[i].uri;
+        scene->m_Buffers[i].m_Uri = CreateObjectName(data->buffers, "buffer", i);
         scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
         scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
     }

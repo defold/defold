@@ -97,10 +97,7 @@
 
 (defn assemble-cubemap-texture-images
   ^Graphics$TextureImage [side->texture-image]
-  ;; FIXME: in graphics_opengl.cpp(1870ish) in the engine, we set the cubemap textures
-  ;; using glTexSubImage2D in the order +x, -x, +y, -y, and then ***-z***, ***+z***
-  ;; until this is fixed, if ever, we flip the order as below
-  (let [texture-images (into-array ((juxt :px :nx :py :ny :nz :pz) side->texture-image))
+  (let [texture-images (into-array ((juxt :px :nx :py :ny :pz :nz) side->texture-image))
         type Graphics$TextureImage$Type/TYPE_CUBEMAP]
     (TextureUtil/createCombinedTextureImage texture-images type)))
 

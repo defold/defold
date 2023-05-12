@@ -22,8 +22,6 @@
 #include <basis/encoder/basisu_comp.h>
 #include <basis/encoder/basisu_frontend.h>
 
-#include <basis/transcoder/basisu_global_selector_palette.h>
-
 namespace dmTexc
 {
     static void SetCompressionLevel(CompressionType compression_type, CompressionLevel compression_level, basisu::basis_compressor_params& comp_params)
@@ -110,15 +108,12 @@ namespace dmTexc
     {
         (void)pixel_format;
 
-        basist::etc1_global_selector_codebook sel_codebook(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
-
         basisu::job_pool jpool(num_threads);
 
         basisu::basis_compressor_params comp_params;
 
         comp_params.m_read_source_images = false;
         comp_params.m_write_output_basis_files = false;
-        comp_params.m_pSel_codebook = &sel_codebook;
         comp_params.m_pJob_pool = &jpool;
         comp_params.m_multithreading = num_threads > 1;
         comp_params.m_uastc = compression_type == CT_BASIS_UASTC;

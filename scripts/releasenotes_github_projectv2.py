@@ -243,13 +243,23 @@ def generate(version, hide_details = False):
             "is_issue": is_issue,
             "type": issue_type
         }
+        # strip from match to end of file
         entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Fixes .*/.*#....", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix .*/.*#....", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes #....", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix #....", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical notes:.*", "", entry["body"], flags=re.DOTALL).strip()
+
+        # Remove closing keywords
+        entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+
+        # Remove "user facing changes" header
+        entry["body"] = re.sub("User-facing changes:", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
 
         duplicate = False
         for o in output:

@@ -2526,7 +2526,7 @@
                                        :layout (g/node-value view-node :layout evaluation-context)
                                        :lines (g/node-value view-node :lines evaluation-context)})
                         (reset! state nil)))))
-        timer (ui/->timer 10 "hover-code-editor-timer" (fn [_ _]
+        timer (ui/->timer 10 "hover-code-editor-timer" (fn [_ _ _]
                                                          (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                            (refresh))))]
     (fx/mount-renderer state (fx/create-renderer
@@ -2570,7 +2570,7 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
-        repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
+        repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time _]
                                                            (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
         dispose-hover! (create-hover! view-node canvas tab)

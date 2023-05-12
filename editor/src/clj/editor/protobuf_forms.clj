@@ -201,10 +201,18 @@
                                                :type :boolean}]}]}]}}]}]
      :values (make-values (gamepad-pb->form-pb pb) [:driver])}))
 
-
+(def texture-profiles-unsupported-formats #{:texture-format-rgb16f
+                                            :texture-format-rgb32f
+                                            :texture-format-rgba16f
+                                            :texture-format-rgba32f
+                                            :texture-format-r16f
+                                            :texture-format-rg16f
+                                            :texture-format-r32f
+                                            :texture-format-rg32f})
 (defmethod protobuf-form-data Graphics$TextureProfiles [node-id pb def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
+        format-values-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-formats (first fmt)))) format-values)
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
         compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
@@ -247,8 +255,8 @@
                                            :columns [{:path [:format]
                                                       :label "Format"
                                                       :type :choicebox
-                                                      :options (make-options format-values)
-                                                      :default (ffirst format-values)}
+                                                      :options (make-options format-values-filtered)
+                                                      :default (ffirst format-values-filtered)}
                                                      {:path [:compression-level]
                                                       :label "Compression"
                                                       :type :choicebox

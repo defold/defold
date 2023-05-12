@@ -179,6 +179,12 @@
     (.transform mat v')
     v'))
 
+(defn transform-vector-v4
+  ^Vector4d [^Matrix4d mat ^Vector4d v]
+  (let [v' (Vector4d. v)]
+    (.transform mat v')
+    v'))
+
 (defn round-vector
   ^Vector3d [^Vector3d v]
   (Vector3d. (Math/round (.getX v))

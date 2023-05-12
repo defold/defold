@@ -23,6 +23,8 @@ def options(opt):
 
 def configure(conf):
     conf.load('waf_dynamo')
+    conf.load('java')
+
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")

@@ -24,6 +24,7 @@ ordinary paths."
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
+            [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -67,6 +68,13 @@ ordinary paths."
      (code-preprocessors workspace evaluation-context)))
   ([workspace evaluation-context]
    (g/node-value workspace :code-preprocessors evaluation-context)))
+
+(defn notifications
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (notifications workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (g/node-value workspace :notifications evaluation-context)))
 
 (defn- skip-first-char [path]
   (subs path 1))
@@ -197,8 +205,9 @@ ordinary paths."
   Optional kv-args:
     :node-type          a loaded resource node type; defaults to
                         editor.placeholder-resource/PlaceholderResourceNode
-    :textual?           whether the resource is saved as text and needs proper
-                        lf/crlf handling, default false
+    :textual?           whether the resource is textual, default false. This
+                        flag affects search in files availability for the
+                        resource type and lf/crlf handling on save
     :language           language identifier string used for textual resources
                         that can be opened as code, used for LSP interactions,
                         see https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
@@ -579,6 +588,35 @@ ordinary paths."
   (load-java-editor-plugins! workspace)
   (load-clojure-editor-plugins! workspace touched-resources))
 
+(defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
+  (when (or old-errors new-errors)
+    (letfn [(errors->collision-resource-path+statuses [errors]
+              (into #{}
+                    (comp
+                      (filter #(= :collision (:type %)))
+                      (mapcat :collisions))
+                    errors))
+            (collision-notification-id [resource-path]
+              [::resource-collision-notification resource-path])]
+      (let [old-collisions (errors->collision-resource-path+statuses old-errors)
+            new-collisions (errors->collision-resource-path+statuses new-errors)
+            removed (set/difference old-collisions new-collisions)
+            added (set/difference new-collisions old-collisions)
+            notifications-node (notifications workspace)]
+        (doseq [[resource-path] removed]
+          (notifications/close! notifications-node (collision-notification-id resource-path)))
+        (doseq [[resource-path {:keys [source] :as status}] (sort-by key added)]
+          (notifications/show!
+            notifications-node
+            {:type :warning
+             :id (collision-notification-id resource-path)
+             :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
+                        (case source
+                          :library (str " in a project dependency: " (:library status))
+                          :builtins " in builtins"
+                          :directory ""
+                          ""))}))))))
+
 (defn resource-sync!
   ([workspace]
    (resource-sync! workspace []))
@@ -602,6 +640,7 @@ ordinary paths."
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
          changes      (resource-watch/diff old-snapshot new-snapshot)]
+     (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
        (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
@@ -693,6 +732,7 @@ ordinary paths."
   (property editable-proj-path? g/Any)
 
   (input code-preprocessors g/NodeID :cascade-delete)
+  (input notifications g/NodeID :cascade-delete)
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
@@ -796,8 +836,11 @@ ordinary paths."
                         :resource-listeners (atom [])
                         :build-settings build-settings
                         :editable-proj-path? editable-proj-path?]
-             code-preprocessors code.preprocessors/CodePreprocessorsNode]
-            (g/connect code-preprocessors :_node-id workspace :code-preprocessors)))))))
+             code-preprocessors code.preprocessors/CodePreprocessorsNode
+             notifications notifications/NotificationsNode]
+            (concat
+              (g/connect notifications :_node-id workspace :notifications)
+              (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

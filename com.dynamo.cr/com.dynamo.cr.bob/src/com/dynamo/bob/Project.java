@@ -80,6 +80,10 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.IShaderCompiler;
+import com.dynamo.bob.pipeline.ShaderCompilers;
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
@@ -96,6 +100,8 @@ import com.dynamo.bob.cache.ResourceCacheKey;
  *
  */
 public class Project {
+
+    private static Logger logger = Logger.getLogger(Project.class.getName());
 
     public final static String LIB_DIR = ".internal/lib";
     public final static String CACHE_DIR = ".internal/cache";
@@ -131,6 +137,8 @@ public class Project {
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private ClassLoader classLoader = null;
+
+    private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -172,7 +180,7 @@ public class Project {
     }
 
     public String getPluginsDirectory() {
-        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
+        return FilenameUtils.concat(rootDirectory, PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -180,11 +188,11 @@ public class Project {
     }
 
     public String getLibPath() {
-        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+        return FilenameUtils.concat(rootDirectory, LIB_DIR);
     }
 
     public String getBuildCachePath() {
-        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+        return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
     public String getLocalResourceCacheDirectory() {
@@ -201,6 +209,14 @@ public class Project {
 
     public String getRemoteResourceCachePass() {
         return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+    }
+
+    public int getMaxCpuThreads() {
+        String maxThreadsOpt = option("max-cpu-threads", null);
+        if (maxThreadsOpt == null) {
+            return getDefaultMaxCpuThreads();
+        }
+        return Integer.parseInt(maxThreadsOpt);
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -319,6 +335,14 @@ public class Project {
                             bundlerClasses.add( (Class<? extends IBundler>) klass);
                         }
                     }
+
+                    if (IShaderCompiler.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IShaderCompiler.class)) {
+                            shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -652,7 +676,9 @@ public class Project {
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
             if (this.hasOption("build-report-html")) {
-                TimeProfiler.init(new File(this.option("build-report-html", "report.html")), TimeProfiler.ReportFormat.HTML, true);
+                List<File> reportFiles = new ArrayList<>();
+                reportFiles.add(new File(this.option("build-report-html", "report.html")));
+                TimeProfiler.init(reportFiles, true);
             }
             loadProjectFile();
             return doBuild(monitor, commands);
@@ -814,6 +840,40 @@ public class Project {
         bundler.bundleApplication(this, platform, bundleDir, monitor);
         m.worked(1);
         m.done();
+    }
+
+    private Class<? extends IShaderCompiler> getShaderCompilerClass(Platform platform) {
+        for (Class<? extends IShaderCompiler> klass : shaderCompilerClasses) {
+            BundlerParams bundlerParams = klass.getAnnotation(BundlerParams.class);
+            if (bundlerParams == null) {
+                continue;
+            }
+            for (Platform supportedPlatform : bundlerParams.platforms()) {
+                if (supportedPlatform == platform)
+                    return klass;
+            }
+        }
+        return null;
+    }
+
+    public IShaderCompiler getShaderCompiler(Platform platform) throws CompileExceptionError {
+        // Look for a shader compiler plugin for this platform
+        Class<? extends IShaderCompiler> shaderCompilerClass = getShaderCompilerClass(platform);
+        if (shaderCompilerClass != null) {
+            try {
+                return shaderCompilerClass.newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        // If not found, try to get a built-in shader compiler for this platform
+        IShaderCompiler commonShaderCompiler = ShaderCompilers.getCommonShaderCompiler(platform);
+        if (commonShaderCompiler != null) {
+            return commonShaderCompiler;
+        }
+
+        throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
     }
 
     private static boolean anyFailing(Collection<TaskResult> results) {
@@ -1075,7 +1135,7 @@ public class Project {
 
         // Set the concatenated jna.library path
         System.setProperty(variable, newPath);
-        Bob.verbose("Set %s to '%s'", variable, newPath);
+        logger.info("Set %s to '%s'", variable, newPath);
     }
 
     private void registerPipelinePlugins() throws CompileExceptionError {
@@ -1083,7 +1143,7 @@ public class Project {
         BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
         List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
         if (!plugins.isEmpty()) {
-            Bob.verbose("\nFound plugins:");
+            logger.info("\nFound plugins:");
         }
 
         String hostPlatform = Platform.getHostPlatform().getExtenderPair();
@@ -1101,9 +1161,9 @@ public class Project {
             }
 
             String relativePath = new File(rootDirectory).toURI().relativize(plugin.toURI()).getPath();
-            Bob.verbose("  %s", relativePath);
+            logger.info("  %s", relativePath);
         }
-        Bob.verbose("");
+        logger.info("");
     }
 
     private boolean shouldBuildArtifact(String artifact) {
@@ -1119,6 +1179,14 @@ public class Project {
 
     private boolean shouldBuildPlugins() {
         return shouldBuildArtifact("plugins");
+    }
+
+    public void scanJavaClasses() throws IOException, CompileExceptionError {
+        createClassLoaderScanner();
+        registerPipelinePlugins();
+        scan(scanner, "com.dynamo.bob");
+        scan(scanner, "com.dynamo.bob.pipeline");
+        scan(scanner, "com.defold.extension.pipeline");
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
@@ -1137,11 +1205,7 @@ public class Project {
         {
             IProgress mrep = monitor.subProgress(1);
             mrep.beginTask("Reading classes...", 1);
-            createClassLoaderScanner();
-            registerPipelinePlugins();
-            scan(scanner, "com.dynamo.bob");
-            scan(scanner, "com.dynamo.bob.pipeline");
-            scan(scanner, "com.defold.extension.pipeline");
+            scanJavaClasses();
             mrep.done();
         }
 
@@ -1188,7 +1252,7 @@ public class Project {
                         buildEngine(monitor, architectures, appmanifestOptions);
 
                         long tend = System.currentTimeMillis();
-                        Bob.verbose("Engine build took %f s\n", (tend-tstart)/1000.0);
+                        logger.info("Engine build took %f s", (tend-tstart)/1000.0);
                         TimeProfiler.stop();
 
                         if (!shouldBuildEngine()) {
@@ -1210,18 +1274,24 @@ public class Project {
 
                     // Do early test if report files are writable before we start building
                     boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
-                    FileWriter fileJSONWriter = null;
-                    FileWriter fileHTMLWriter = null;
+                    FileWriter resourceReportJSONWriter = null;
+                    FileWriter resourceReportHTMLWriter = null;
+                    FileWriter excludedResourceReportJSONWriter = null;
+                    FileWriter excludedResourceReportHTMLWriter = null;
 
                     if (this.hasOption("build-report")) {
-                        String reportJSONPath = this.option("build-report", "report.json");
-                        File reportJSONFile = new File(reportJSONPath);
-                        fileJSONWriter = new FileWriter(reportJSONFile);
+                        String resourceReportJSONPath = this.option("build-report", "report.json");
+                        File resourceReportJSONFile = new File(resourceReportJSONPath);
+                        resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
+                        File excludedResourceReportJSONFile = new File("excluded_" + resourceReportJSONPath);
+                        excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
                     }
                     if (this.hasOption("build-report-html")) {
-                        String reportHTMLPath = this.option("build-report-html", "report.html");
-                        File reportHTMLFile = new File(reportHTMLPath);
-                        fileHTMLWriter = new FileWriter(reportHTMLFile);
+                        String resourceReportHTMLPath = this.option("build-report-html", "report.html");
+                        File resourceReportHTMLFile = new File(resourceReportHTMLPath);
+                        resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
+                        File excludedResourceReportHTMLFile = new File("excluded_" + resourceReportHTMLPath);
+                        excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
                     }
 
                     IProgress m = monitor.subProgress(99);
@@ -1257,19 +1327,25 @@ public class Project {
                         mrep = monitor.subProgress(1);
                         mrep.beginTask("Generating report...", 1);
                         ReportGenerator rg = new ReportGenerator(this);
-                        String reportJSON = rg.generateJSON();
+                        String resourceReportJSON = rg.generateResourceReportJSON();
+                        String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
 
                         // Save JSON report
                         if (this.hasOption("build-report")) {
-                            fileJSONWriter.write(reportJSON);
-                            fileJSONWriter.close();
+                            resourceReportJSONWriter.write(resourceReportJSON);
+                            resourceReportJSONWriter.close();
+                            excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
+                            excludedResourceReportJSONWriter.close();
                         }
 
                         // Save HTML report
                         if (this.hasOption("build-report-html")) {
-                            String reportHTML = rg.generateHTML(reportJSON);
-                            fileHTMLWriter.write(reportHTML);
-                            fileHTMLWriter.close();
+                            String resourceReportHTML = rg.generateHTML(resourceReportJSON);
+                            String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
+                            resourceReportHTMLWriter.write(resourceReportHTML);
+                            resourceReportHTMLWriter.close();
+                            excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
+                            excludedResourceReportHTMLWriter.close();
                         }
                         mrep.done();
                     }
@@ -1339,6 +1415,8 @@ public class Project {
             allOutputs.addAll(task.getOutputs());
         }
         tasks.clear();
+
+        TextureGenerator.maxThreads = getMaxCpuThreads();
 
         // Keep track of the paths for all outputs
         outputs = new HashMap<>(allOutputs.size());
@@ -1883,6 +1961,18 @@ run:
             path = path.substring(1);
         }
         return path;
+    }
+
+    public static int getDefaultMaxCpuThreads() {
+        int maxThreads = 1;
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        if (availableProcessors > 4) {
+            maxThreads = availableProcessors - 2;
+        }
+        else if (availableProcessors > 1) {
+            maxThreads = availableProcessors - 1;
+        }
+        return maxThreads;
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {
