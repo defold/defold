@@ -85,41 +85,67 @@
   (bit-or (bit-shift-left y Integer/SIZE)
           (bit-and x 0xFFFFFFFF)))
 
-(defn cell-to-proto
+(defn cell-to-pb
   [cell-map x y]
   (let [cell (get cell-map (cell-index x y))
         builder (Tile$TileCell/newBuilder)]
-     (.setX builder x)
-     (.setY builder y)
-     (.setTile builder (if cell (:tile cell) 0))
-     (.setHFlip builder (if cell (if (:h-flip cell) 1 0) 0))
-     (.setVFlip builder (if cell (if (:v-flip cell) 1 0) 0))
-     (.setRotate90 builder (if cell (if (:rotate90 cell) 1 0) 0))
-     (.build builder)))
+     (if cell
+       (do
+         (.setX builder x)
+         (.setY builder y)
+         (.setTile builder (if cell (:tile cell) 0))
+         (.setHFlip builder (if cell (if (:h-flip cell) 1 0) 0))
+         (.setVFlip builder (if cell (if (:v-flip cell) 1 0) 0))
+         (.setRotate90 builder (if cell (if (:rotate90 cell) 1 0) 0))
+         (.build builder)))))
+
+(defn update-cell
+  [^Tile$TileCell cell cell-map]
+  (println "update-cell" cell cell-map)
+  (if cell
+    (do
+      (let [x (.getX cell)
+            y (.getY cell)
+            tile (.getTile cell)
+            h-flip (boolean (.getHFlip cell))
+            v-flip (boolean (.getVFlip cell))
+            rotate90 (boolean (.getRotate90 cell))]
+        (println "update-cell " x y tile h-flip v-flip rotate90)
+        ; (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
+        ))))
 
 (defn paint-cell!
   [cell-map x y tile h-flip v-flip rotate90]
-  (let [neighbours (vector
-                     (cell-to-proto cell-map (+ x -1) (+ y -1))
-                     (cell-to-proto cell-map (+ x  0) (+ y -1))
-                     (cell-to-proto cell-map (+ x  1) (+ y -1))
-                     (cell-to-proto cell-map (+ x -1) (+ y  0))
-                     (cell-to-proto cell-map (+ x  0) (+ y  0))
-                     (cell-to-proto cell-map (+ x  1) (+ y  0))
-                     (cell-to-proto cell-map (+ x -1) (+ y  1))
-                     (cell-to-proto cell-map (+ x  0) (+ y  1))
-                     (cell-to-proto cell-map (+ x  1) (+ y  1)))]
-    (TilemapPlugins/init workspace/class-loader)
-    (if tile
-      (do
-        (println "paint " x ":" y " tile: " tile " cell-map: " cell-map)
-        (TilemapPlugins/onPaintTile x y neighbours tile)
-        (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90)))
-      (do
-        (println "clear " x ":" y " cell-map: " cell-map)
-        (TilemapPlugins/onClearTile x y neighbours)
-        (dissoc! cell-map (cell-index x y))))))
+  (TilemapPlugins/init workspace/class-loader)
 
+  (println "paint or clear cell")
+  (let [updated-cell-map (if tile
+                           (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
+                           (dissoc! cell-map (cell-index x y)))]
+
+    (println "create current neighbours")
+    (let [current-cells (vector
+                          (cell-to-pb updated-cell-map (+ x -1) (+ y -1))
+                          (cell-to-pb updated-cell-map (+ x  0) (+ y -1))
+                          (cell-to-pb updated-cell-map (+ x  1) (+ y -1))
+                          (cell-to-pb updated-cell-map (+ x -1) (+ y  0))
+                          (cell-to-pb updated-cell-map (+ x  0) (+ y  0))
+                          (cell-to-pb updated-cell-map (+ x  1) (+ y  0))
+                          (cell-to-pb updated-cell-map (+ x -1) (+ y  1))
+                          (cell-to-pb updated-cell-map (+ x  0) (+ y  1))
+                          (cell-to-pb updated-cell-map (+ x  1) (+ y  1)))
+          updated-cells (if tile
+                          (TilemapPlugins/onPaintTile x y current-cells tile)
+                          (TilemapPlugins/onClearTile x y current-cells))]
+      (println "got updated neighbours" updated-cells)
+      (for [cell updated-cells]
+        (update-cell cell updated-cell-map)))
+    updated-cell-map))
+
+
+
+; (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
+; (dissoc! cell-map (cell-index x y))
 
 (defn make-cell-map
   [cells]

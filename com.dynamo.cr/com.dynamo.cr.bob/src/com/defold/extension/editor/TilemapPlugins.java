@@ -35,7 +35,7 @@ public class TilemapPlugins {
         }
     }
 
-    public static void onClearTile(int x, int y, Object neighbours) {
+    public static List<TileCell> onClearTile(int x, int y, List<TileCell> neighbours) {
         System.out.println("onClearTile " + neighbours);
         System.out.println(neighbours.getClass().getName());
         // Class<?>[] interfaces = o.getClass().getInterfaces();
@@ -43,28 +43,25 @@ public class TilemapPlugins {
         //     System.out.println("Interface: " + i.getName());
         // }
 
-        List<TileCell> n = (List<TileCell>)neighbours;
-        System.out.println("List: " + n);
-        for(TileCell cell : n) {
+        for(TileCell cell : neighbours) {
             System.out.println("List object: " + cell);
         }
         for (ITilemapPlugin plugin : tilemapPlugins) {
             plugin.onClearTile(x, y);
         }
+        return neighbours;
     }
-    public static void onPaintTile(int x, int y, Object neighbours, int tile) {
+    public static List<TileCell> onPaintTile(int x, int y, List<TileCell> neighbours, int tile) {
         System.out.println("onPaintTile " + neighbours);
         System.out.println(neighbours.getClass().getName());
 
-        List<TileCell> n = (List<TileCell>)neighbours;
-        System.out.println("List: " + n);
-        for(TileCell cell : n) {
+        for(TileCell cell : neighbours) {
             System.out.println("List object: " + cell);
         }
 
-        
         for (ITilemapPlugin plugin : tilemapPlugins) {
             plugin.onPaintTile(x, y, tile);
         }
+        return neighbours;
     }
 }
