@@ -20,7 +20,6 @@ import java.util.Set;
 import java.util.HashMap;
 import java.lang.reflect.Modifier;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.CompileExceptionError;
@@ -32,6 +31,16 @@ public class PluginScanner {
 	private static Logger logger = Logger.getLogger(PluginScanner.class.getName());
 
 	private static HashMap<String, Object> pluginsCache = new HashMap<>();
+
+
+	public static <T> T getOrCreatePlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+		IClassScanner scanner = Project.getClassLoaderScanner();
+		if (scanner == null) {
+			logger.info("PluginScanner has no class loader scanner");
+			return null;
+		}
+		return getOrCreatePlugin(scanner, packageName, pluginBaseClass);
+	}
 
 	/**
 	 * Get a previously cached instance or find and create an instance of a class
@@ -45,13 +54,14 @@ public class PluginScanner {
 	 * This function will generate a CompileExceptionError if more than one
 	 * class in the package path extends the same base class.
 	 * 
+	 * @param scanner
 	 * @param packageName 
 	 * @param pluginBaseClass
 	 * @return Class instance or null if no class was found
 	 */
-	public static <T> T getOrCreatePlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+	public static <T> T getOrCreatePlugin(IClassScanner scanner, String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
-		List<T> plugins = getOrCreatePlugins(packageName, pluginBaseClass);
+		List<T> plugins = getOrCreatePlugins(scanner, packageName, pluginBaseClass);
 		T plugin = null;
 		if (plugins != null) {
 			if (plugins.size() > 1) {
@@ -61,6 +71,16 @@ public class PluginScanner {
 			plugin = (T)plugins.get(0);
 		}
 		return plugin;
+	}
+
+
+	public static <T> List<T> getOrCreatePlugins(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+		IClassScanner scanner = Project.getClassLoaderScanner();
+		if (scanner == null) {
+			logger.info("PluginScanner has no class loader scanner");
+			return null;
+		}
+		return getOrCreatePlugins(scanner, packageName, pluginBaseClass);
 	}
 	
 	/**
@@ -72,11 +92,12 @@ public class PluginScanner {
 	 * - Not be abstract
 	 * - Extend the base class
 	 * 
+	 * @param scanner
 	 * @param packageName 
 	 * @param pluginBaseClass
 	 * @return List with class instances or null if no class was found
 	 */
-	public static <T> List<T> getOrCreatePlugins(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+	public static <T> List<T> getOrCreatePlugins(IClassScanner scanner, String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
 		// check if we've already searched for and cached a plugin for this package path and base class
 		// and if that is the case return the cached instance
@@ -90,12 +111,6 @@ public class PluginScanner {
 				logger.info("PluginScanner has %d cached plugins for key %s", plugins.size(), pluginKey);
 			}
 			return plugins;
-		}
-
-		IClassScanner scanner = Project.getClassLoaderScanner();
-		if (scanner == null) {
-			logger.info("PluginScanner has no class loader scanner");
-			return null;
 		}
 
 		logger.info("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
