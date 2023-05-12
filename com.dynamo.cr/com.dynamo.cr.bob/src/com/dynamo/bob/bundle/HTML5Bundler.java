@@ -289,7 +289,7 @@ public class HTML5Bundler implements IBundler {
         if (architectures.contains(Platform.JsWeb)) {
             BundleHelper.throwIfCanceled(canceled);
             Platform targetPlatform = Platform.JsWeb;
-            List<File> binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            List<File> binsAsmjs = Bob.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsAsmjs == null) {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
@@ -311,7 +311,7 @@ public class HTML5Bundler implements IBundler {
         if (architectures.contains(Platform.WasmWeb)) {
             BundleHelper.throwIfCanceled(canceled);
             Platform targetPlatform = Platform.WasmWeb;
-            List<File> binsWasm = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            List<File> binsWasm = Bob.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsWasm == null) {
                 binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
