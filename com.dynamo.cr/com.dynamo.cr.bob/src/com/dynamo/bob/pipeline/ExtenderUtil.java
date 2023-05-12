@@ -494,6 +494,25 @@ public class ExtenderUtil {
         return false;
     }
 
+
+
+    public static List<File> getNativeExtensionEngineBinaries(Project project, Platform platform) throws IOException {
+        final File platformDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+        List<String> binaryNames = platform.formatBinaryName("dmengine");
+        List<File> binaryFiles = new ArrayList<File>();
+        for (String binaryName : binaryNames) {
+            File extenderExe = new File(platformDir, binaryName);
+
+            // All binaries must exist, otherwise return null
+            if (!extenderExe.exists()) {
+                return null;
+            }
+            binaryFiles.add(extenderExe);
+        }
+        return binaryFiles;
+    }
+
+
     /**
      * Returns true if the project should build remotely
      * @param project
@@ -603,7 +622,7 @@ public class ExtenderUtil {
 
     /** Get the platform manifests from the extensions
      */
-    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -618,9 +637,7 @@ public class ExtenderUtil {
                     if (!(r instanceof FSExtenderResource))
                         continue;
                     File f = new File(r.getAbsPath());
-                    if (f.getName().equals(name)) {
-                        out.add( ((FSExtenderResource)r).getResource() );
-                    }
+                    out.add( ((FSExtenderResource)r).getResource() );
                 }
             }
         }

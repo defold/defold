@@ -93,9 +93,6 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(def with-anchor-pane-props
-  (fx/make-ext-with-props fx.anchor-pane/props))
-
 (def uri-string-converter
   (proxy [StringConverter] []
     (toString
@@ -816,11 +813,21 @@
                                                          on-value-changed
                                                          ui-state
                                                          state-path]}]
-  (let [indices-path (conj state-path :selected-indices)
-        selected-indices (set (get-in ui-state indices-path))
+  (let [{:keys [selected-indices edit] :as state} (get-in ui-state state-path)
+        selected-indices (set selected-indices)
         new-value (remove-indices selected-indices value)]
+    ;; When we remove a row that has been edited, JavaFX will commit the edit.
+    ;; However, by that point, the state will have already changed to a new
+    ;; state without the item that was deleted. This can result in either
+    ;; creating a new row with only one field set (if the deleted row was the
+    ;; last), or applying the edit to the next row after the deleted row (if it
+    ;; wasn't the last). Cancelling the edit here solves the issue.
+    (when edit
+      (.edit ^TableView (:table edit) -1 nil))
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
-     [:set-ui-state (assoc-in ui-state indices-path [])]]))
+     [:set-ui-state (assoc-in ui-state state-path (-> state
+                                                      (assoc :selected-indices [])
+                                                      (dissoc :edit)))]]))
 
 (defmethod handle-event :table-select [{:keys [ui-state state-path fx/event]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
@@ -1138,6 +1145,7 @@
             :always
             (conj (cond->
                     {:fx/type fx.label/lifecycle
+                     :fx/key [:label path]
                      :grid-pane/row row
                      :grid-pane/column 0
                      :grid-pane/valignment :top
@@ -1153,6 +1161,7 @@
             (and (form/optional-field? field)
                  (not= value ::no-value))
             (conj {:fx/type icon-button
+                   :fx/key [:clear path]
                    :grid-pane/row row
                    :grid-pane/column 1
                    :grid-pane/valignment :top
@@ -1165,6 +1174,7 @@
 
             :always
             (conj {:fx/type fx.v-box/lifecycle
+                   :fx/key [:control path]
                    :style-class (case (:severity error)
                                   :fatal ["cljfx-form-error"]
                                   :warning ["cljfx-form-warning"]
@@ -1400,7 +1410,7 @@
         filter-term (:filter-term ui-state)
         sections-with-visibility (mapv #(set-section-visibility % values filter-term) sections)
         navigation (:navigation form-data true)]
-    {:fx/type with-anchor-pane-props
+    {:fx/type fxui/ext-with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
      :props {:children [(if navigation
@@ -1548,7 +1558,7 @@
                     g/tx-nodes-added
                     first)
         repaint-timer (ui/->timer 30 "refresh-form-view"
-                                  (fn [_timer _elapsed]
+                                  (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
     (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)

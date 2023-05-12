@@ -37,7 +37,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
 
@@ -448,17 +449,13 @@
   (try
     (luajit/bytecode (data/lines-reader lines) proj-path arch)
     (catch Exception e
-      (let [{:keys [filename line message]} (ex-data e)
-            cursor-range (some-> line data/line-number->CursorRange)]
+      (let [{:keys [filename line message]} (ex-data e)]
         (g/map->error
           {:_label :modified-lines
            :message (.getMessage e)
            :severity :fatal
-           :user-data (cond-> {:filename filename
-                               :message message}
-
-                              (some? cursor-range)
-                              (assoc :cursor-range cursor-range))})))))
+           :user-data (assoc (r/make-code-error-user-data filename line)
+                        :message message)})))))
 
 (defn- build-script [resource dep-resources user-data]
   ;; We always compile the full source code in order to find syntax errors.
@@ -496,6 +493,13 @@
               (util/distinct-by :name))
         (:script-properties lua-info)))
 
+(def ^:const file-line-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+
+(defn- try-parse-file-line [^String message]
+  (when-some [[_ proj-path line-number-string] (re-find file-line-pattern message)]
+    (let [line-number (some-> line-number-string Long/parseLong)]
+      (pair proj-path line-number))))
+
 (g/defnk produce-build-targets [_node-id resource lines lua-preprocessors script-properties module-build-targets original-resource-property-build-targets]
   (if-some [errors
             (not-empty
@@ -510,11 +514,20 @@
             (preprocessors/preprocess-lua-lines lua-preprocessors lines resource :debug)
             (catch Exception exception
               exception))]
-      (if (ex-message preprocessed-lines)
+      (if-some [exception-message (ex-message preprocessed-lines)]
         (let [exception preprocessed-lines
-              message (format "Lua preprocessing failed for file '%s'. Check the editor logs for exception info." (resource/proj-path resource))]
-          (log/error :message message :exception exception)
-          (g/->error _node-id :build-targets :fatal resource message))
+              build-error-message (str "Lua preprocessing failed.\n" exception-message)
+              log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
+          (log/error :message log-error-message :exception exception)
+          (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
+            (let [project (project/get-project _node-id)
+                  exception-resource (workspace/resolve-resource resource proj-path)
+                  exception-node-id (project/get-resource-node project exception-resource)
+                  error-node-id (or exception-node-id _node-id)
+                  error-resource (if (nil? exception-node-id) resource exception-resource)
+                  error-user-data (r/make-code-error-user-data proj-path line-number)]
+              (g/->error error-node-id :modified-lines :fatal error-resource build-error-message error-user-data))
+            (g/->error _node-id :modified-lines :fatal resource build-error-message)))
         (let [workspace (resource/workspace resource)
 
               preprocessed-lua-info

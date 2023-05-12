@@ -20,8 +20,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -32,6 +30,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -111,11 +110,9 @@ public class MacOSBundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-
         BundleHelper.throwIfCanceled(canceled);
 
-        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        List<File> bundleExes = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (bundleExes == null) {
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
@@ -168,7 +165,7 @@ public class MacOSBundler implements IBundler {
         exeOut.setExecutable(true);
 
         // Copy debug symbols
-        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
         File buildSymbols = new File(zipDir, "dmengine.dSYM");
         if (buildSymbols.exists()) {
             String symbolsDir = String.format("%s.dSYM", title);
@@ -189,7 +186,7 @@ public class MacOSBundler implements IBundler {
             if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
                 Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
                 if (stripResult.ret != 0) {
-                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+                    logger.severe("Error executing strip command:\n" + new String(stripResult.stdOutErr));
                 }
             }
         }

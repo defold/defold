@@ -3,15 +3,16 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "../dlib/array.h"
 #include "../dlib/log.h"
 #include "../dlib/hash.h"
 #include "../dlib/buffer.h"
@@ -114,6 +115,57 @@ protected:
         dmBuffer::DeleteContext();
     }
 };
+
+TEST(BufferTest, CalcStructSize)
+{
+    {
+        dmBuffer::StreamDeclaration streams[] = {
+            {dmHashString64("dummy1"), dmBuffer::VALUE_TYPE_UINT8, 3},
+            {dmHashString64("dummy2"), dmBuffer::VALUE_TYPE_UINT8, 1},
+            {dmHashString64("dummy3"), dmBuffer::VALUE_TYPE_UINT64,1}
+        };
+        uint32_t expected_offsets[DM_ARRAY_SIZE(streams)] = { 0, 3, 8 };
+        uint32_t offsets[DM_ARRAY_SIZE(streams)];
+        uint32_t size;
+        dmBuffer::Result result = dmBuffer::CalcStructSize(DM_ARRAY_SIZE(streams), streams, &size, offsets);
+        ASSERT_EQ(dmBuffer::RESULT_OK, result);
+        ASSERT_EQ(16, size);
+        ASSERT_ARRAY_EQ(expected_offsets, offsets);
+    }
+
+    // From ticket #7599
+    {
+        dmBuffer::StreamDeclaration streams[] = {
+            {dmHashString64("dummy1"), dmBuffer::VALUE_TYPE_INT16, 1},
+            {dmHashString64("dummy2"), dmBuffer::VALUE_TYPE_INT16, 1},
+            {dmHashString64("dummy3"), dmBuffer::VALUE_TYPE_INT16, 1},
+            {dmHashString64("dummy4"), dmBuffer::VALUE_TYPE_INT16, 1},
+        };
+        uint32_t expected_offsets[DM_ARRAY_SIZE(streams)] = { 0, 2, 4, 6 };
+        uint32_t offsets[DM_ARRAY_SIZE(streams)];
+        uint32_t size;
+        dmBuffer::Result result = dmBuffer::CalcStructSize(DM_ARRAY_SIZE(streams), streams, &size, offsets);
+        ASSERT_EQ(dmBuffer::RESULT_OK, result);
+        ASSERT_EQ(8, size);
+        ASSERT_ARRAY_EQ(expected_offsets, offsets);
+    }
+    {
+        dmBuffer::StreamDeclaration streams[] = {
+            {dmHashString64("dummy1"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+            {dmHashString64("dummy2"), dmBuffer::VALUE_TYPE_INT16, 1},
+            {dmHashString64("dummy3"), dmBuffer::VALUE_TYPE_INT16, 1},
+            {dmHashString64("dummy4"), dmBuffer::VALUE_TYPE_INT16, 1},
+        };
+        uint32_t expected_offsets[DM_ARRAY_SIZE(streams)] = { 0, 4, 6, 8 };
+        uint32_t offsets[DM_ARRAY_SIZE(streams)];
+        uint32_t size;
+        dmBuffer::Result result = dmBuffer::CalcStructSize(DM_ARRAY_SIZE(streams), streams, &size, offsets);
+        ASSERT_EQ(dmBuffer::RESULT_OK, result);
+        ASSERT_EQ(12, size);
+        ASSERT_ARRAY_EQ(expected_offsets, offsets);
+    }
+}
+
 
 #define CLEAR_OUT_VARS()\
     out_stream = 0x0;\

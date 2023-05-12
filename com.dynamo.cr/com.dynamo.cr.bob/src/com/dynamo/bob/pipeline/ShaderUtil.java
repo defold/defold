@@ -359,6 +359,9 @@ public class ShaderUtil {
                 return result;
             }
 
+            // Preprocess the source so we can potentially reduce the workload a bit
+            input = Common.stripComments(input);
+
             int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
 
             // Index to output used for post patching tasks

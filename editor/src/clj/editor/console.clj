@@ -577,7 +577,7 @@
                                  0 nil
                                  1 (open-resource! (first resource-candidates))
                                  (ui/show-simple-context-menu-at-mouse! resource->menu-item open-resource! resource-candidates event)))))
-        repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
+        repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time _]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
                                                          (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)

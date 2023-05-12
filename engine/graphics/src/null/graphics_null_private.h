@@ -16,9 +16,13 @@
 #define GRAPHICS_DEVICE_NULL
 
 #include <dmsdk/dlib/vmath.h>
+#include <dlib/opaque_handle_container.h>
 
 namespace dmGraphics
 {
+    const static uint32_t MAX_REGISTER_COUNT = 16;
+    const static uint32_t MAX_TEXTURE_COUNT  = 32;
+
     struct Texture
     {
         void* m_Data;
@@ -26,9 +30,10 @@ namespace dmGraphics
         TextureType     m_Type;
         uint32_t m_Width;
         uint32_t m_Height;
+        uint32_t m_Depth;
         uint32_t m_OriginalWidth;
         uint32_t m_OriginalHeight;
-        uint16_t m_MipMapCount;
+        uint8_t  m_MipMapCount;
     };
 
     struct VertexStreamBuffer
@@ -38,9 +43,6 @@ namespace dmGraphics
         uint16_t m_Size;
         uint16_t m_Stride;
     };
-
-    const static uint32_t MAX_REGISTER_COUNT = 16;
-    const static uint32_t MAX_TEXTURE_COUNT = 32;
 
     struct FrameBuffer
     {
@@ -59,15 +61,15 @@ namespace dmGraphics
 
     struct VertexBuffer
     {
-        char* m_Buffer;
-        char* m_Copy;
+        char*    m_Buffer;
+        char*    m_Copy;
         uint32_t m_Size;
     };
 
     struct IndexBuffer
     {
-        char* m_Buffer;
-        char* m_Copy;
+        char*    m_Buffer;
+        char*    m_Copy;
         uint32_t m_Size;
     };
 
@@ -78,10 +80,11 @@ namespace dmGraphics
         FrameBuffer     m_FrameBuffer;
     };
 
-    struct Context
+    struct NullContext
     {
-        Context(const ContextParams& params);
+        NullContext(const ContextParams& params);
 
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer          m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4            m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];

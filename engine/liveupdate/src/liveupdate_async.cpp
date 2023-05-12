@@ -17,12 +17,12 @@
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
+#include <dlib/atomic.h>
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 #include <dlib/array.h>
 #include <dmsdk/dlib/profile.h>
-
 
 namespace dmLiveUpdate
 {
@@ -35,8 +35,8 @@ namespace dmLiveUpdate
     static dmThread::Thread m_AsyncThread = 0x0;
     static dmMutex::HMutex  m_ConsumerThreadMutex;
     static dmConditionVariable::HConditionVariable m_ConsumerThreadCondition;
-    static volatile bool m_ThreadJobComplete = false;
-    static volatile bool m_Active = false;
+    static int32_atomic_t m_ThreadJobComplete = 0;
+    static int32_atomic_t m_Active = 0;
 
     /// job input and output queues
     static dmArray<AsyncResourceRequest> m_JobQueue;
@@ -91,7 +91,7 @@ namespace dmLiveUpdate
 
         // Liveupdate async thread batch processing requested liveupdate tasks
         AsyncResourceRequest request;
-        while (m_Active)
+        while (dmAtomicGet32(&m_Active))
         {
             DM_PROFILE("Update");
             // Lock and sleep until signaled there is requests queued up
@@ -99,30 +99,30 @@ namespace dmLiveUpdate
                 dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
                 while(m_ThreadJobQueue.Empty())
                     dmConditionVariable::Wait(m_ConsumerThreadCondition, m_ConsumerThreadMutex);
-                if((m_ThreadJobComplete) || (!m_Active))
+                if(dmAtomicGet32(&m_ThreadJobComplete) || !dmAtomicGet32(&m_Active))
                     continue;
                 request = m_ThreadJobQueue.Back();
                 m_ThreadJobQueue.Pop();
             }
             ProcessRequest(request);
-            m_ThreadJobComplete = true;
+            dmAtomicStore32(&m_ThreadJobComplete, 1);
         }
     }
 
     void AsyncUpdate()
     {
-        if(m_Active && ((m_ThreadJobComplete) || (!m_JobQueue.Empty())))
+        if(dmAtomicGet32(&m_Active) && (dmAtomicGet32(&m_ThreadJobComplete) || (!m_JobQueue.Empty())))
         {
             // Process any completed jobs, lock resource loadmutex as we will swap (update) archive containers archiveindex data
             dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
-            if(m_ThreadJobComplete)
+            if(dmAtomicGet32(&m_ThreadJobComplete))
             {
                 dmMutex::HMutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
                 if(!dmMutex::TryLock(mutex))
                     return;
                 ProcessRequestComplete();
                 dmMutex::Unlock(mutex);
-                m_ThreadJobComplete = false;
+                dmAtomicStore32(&m_ThreadJobComplete, 0);
             }
             // Push any accumulated request queue batch to job queue
             if(!m_JobQueue.Empty())
@@ -142,7 +142,7 @@ namespace dmLiveUpdate
     bool AddAsyncResourceRequest(AsyncResourceRequest& request)
     {
         // Add single job to job queue that will be batch pushed to thread worker in AsyncUpdate
-        if(!m_Active)
+        if(!dmAtomicGet32(&m_Active))
             return false;
         if(m_JobQueue.Full())
         {
@@ -161,8 +161,8 @@ namespace dmLiveUpdate
         m_ThreadJobQueue.SetSize(0);
         m_ConsumerThreadMutex = dmMutex::New();
         m_ConsumerThreadCondition = dmConditionVariable::New();
-        m_ThreadJobComplete = false;
-        m_Active = true;
+        m_ThreadJobComplete = 0;
+        m_Active = 1;
         m_AsyncThread = dmThread::New(AsyncThread, 0x80000, 0, "liveupdate");
     }
 
@@ -171,7 +171,7 @@ namespace dmLiveUpdate
         if(m_AsyncThread)
         {
             // When shutting down, discard any complete jobs as they are going to be mounted at boot time in any case
-            m_Active = false;
+            dmAtomicStore32(&m_Active, 0);
             dmMutex::Lock(m_ConsumerThreadMutex);
             m_JobQueue.SetSize(0);
             m_ThreadJobQueue.SetSize(1);
@@ -212,12 +212,12 @@ namespace dmLiveUpdate
     void AsyncInitialize(const dmResource::HFactory factory)
     {
         m_ResourceFactory = factory;
-        m_Active = true;
+        m_Active = 0;
     }
 
     void AsyncFinalize()
     {
-        m_Active = false;
+        m_Active = 0;
         m_JobQueue.SetSize(0);
     }
 

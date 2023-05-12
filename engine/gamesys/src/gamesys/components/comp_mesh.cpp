@@ -279,7 +279,9 @@ namespace dmGameSystem
         return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
     }
 
-    static inline dmGraphics::HTexture GetTexture(TextureResource* texture_res) {
+    static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index)
+    {
+        TextureResource* texture_res = GetTextureResource(component, resource, index);
         return texture_res ? texture_res->m_Texture : 0;
     }
 
@@ -299,9 +301,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
 
         // We have to hash individually since we don't know which textures are set as properties
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            TextureResource* texture_res = GetTextureResource(component, resource, i);
-            dmGraphics::HTexture texture = GetTexture(texture_res);
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+        {
+            dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
 
@@ -1071,9 +1073,9 @@ namespace dmGameSystem
 
                 for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
                 {
-                    TextureResource* texture_res = GetTextureResource(component, component->m_Resource, i);
-                    dmGraphics::HTexture texture = GetTexture(texture_res);
-                    if (texture == params.m_Resource->m_Resource)
+                    dmGraphics::HTexture texture = GetTexture(component, component->m_Resource, i);
+
+                    if (texture == (uintptr_t) params.m_Resource->m_Resource)
                     {
                         component->m_ReHash = 1;
                         break;

@@ -73,6 +73,7 @@ public class ModelImporter {
     // The suffix of the path dictates which loader it will use
     public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
+    public static native void TestException(String message);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -471,6 +472,16 @@ public class ModelImporter {
             return;
         }
 
+        // TODO: Setup a java test suite for the model importer
+        for (int i = 0; i < args.length; ++i)
+        {
+            if (args[i].equalsIgnoreCase("--test-exception"))
+            {
+                ModelImporter.TestException("Testing exception: " + args[i+1]);
+                return; // exit code 0
+            }
+        }
+
         String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
@@ -481,6 +492,9 @@ public class ModelImporter {
 
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        if (scene == null)
+            return;
 
         System.out.printf("--------------------------------\n");
 

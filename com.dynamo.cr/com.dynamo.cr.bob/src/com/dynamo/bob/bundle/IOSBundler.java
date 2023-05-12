@@ -32,8 +32,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.configuration2.io.FileLocator;
 import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
@@ -53,6 +51,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -72,7 +71,7 @@ public class IOSBundler implements IBundler {
 
             int ret = process.waitFor();
             if (ret != 0) {
-                logger.log(Level.SEVERE, errorMessage);
+                logger.severe(errorMessage);
                 throw new IOException(errorMessage);
             }
         } catch (InterruptedException e1) {
@@ -142,10 +141,10 @@ public class IOSBundler implements IBundler {
 
         Result lipoResult = Exec.execResult(lipoArgList.toArray(new String[0]));
         if (lipoResult.ret == 0) {
-            logger.log(Level.INFO, "Result of lipo command is a universal binary: " + getFileDescription(resultFile));
+            logger.info("Result of lipo command is a universal binary: " + getFileDescription(resultFile));
         }
         else {
-            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
+            logger.severe("Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
         }
     }
 
@@ -233,7 +232,7 @@ public class IOSBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
+        logger.info("Entering IOSBundler.bundleApplication()");
 
         String bundleIdentifier = project.getProjectProperties().getStringValue("ios", "bundle_identifier");
         if (bundleIdentifier == null) {
@@ -253,24 +252,20 @@ public class IOSBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
-        // If a custom engine was built we need to copy it
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
-        File extenderPlatformDir = new File(project.getBuildDirectory(), architectures.get(0).getExtenderPair());
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-
         // Loop over all architectures needed for bundling
         // Pickup each binary, either vanilla or from a extender build.
         List<File> binaries = new ArrayList<File>();
         for (Platform architecture : architectures) {
-            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            List<File> bins = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
             if (bins == null) {
                 bins = Bob.getDefaultDmengineFiles(architecture, variant);
-            } else {
-                logger.log(Level.INFO, "Using extender binary for " + architecture.getPair());
+            }
+            else {
+                logger.info("Using extender binary for " + architecture.getPair());
             }
 
             File binary = bins.get(0);
-            logger.log(Level.INFO, architecture.getPair() + " exe: " + getFileDescription(binary));
+            logger.info(architecture.getPair() + " exe: " + getFileDescription(binary));
             binaries.add(binary);
 
             BundleHelper.throwIfCanceled(canceled);
@@ -283,7 +278,8 @@ public class IOSBundler implements IBundler {
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
-        logger.log(Level.INFO, "Bundling to " + appDir.getPath());
+        File frameworksDir = new File(appDir, "Frameworks");
+        logger.info("Bundling to " + appDir.getPath());
 
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
@@ -293,21 +289,24 @@ public class IOSBundler implements IBundler {
         if (shouldSign) {
             if (provisioningProfile == null) {
                 throw new IOException("Cannot sign application without a provisioning profile, missing --mobileprovisioning argument.");
-            } else if (identity == null) {
+            }
+            else if (identity == null) {
                 throw new IOException("Cannot sign application without a signing identity, missing --identity argument.");
             }
         }
 
         if (shouldSign) {
-            logger.log(Level.INFO, "Code signing enabled.");
-        } else {
-            logger.log(Level.INFO, "Code signing disabled.");
+            logger.info("Code signing enabled.");
+        }
+        else {
+            logger.info("Code signing disabled.");
         }
 
         String projectRoot = project.getRootDirectory();
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
+        frameworksDir.mkdirs();
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -322,8 +321,7 @@ public class IOSBundler implements IBundler {
 
         String launchScreen = projectProperties.getStringValue("ios", "launch_screen");
         // It might be null if the user uses the "bundle_resources" to copy everything
-        if (launchScreen != null)
-        {
+        if (launchScreen != null) {
             final String launchScreenBaseName = FilenameUtils.getName(launchScreen);
             IResource source = project.getResource(launchScreen);
             IResource storyboardPlist = project.getResource(launchScreen + "/Info.plist");
@@ -355,20 +353,20 @@ public class IOSBundler implements IBundler {
                     }
 
                     FileUtils.writeByteArrayToFile(target, r.getContent());
-                } catch (IOException e) {
-                    logger.log(Level.SEVERE, String.format("Failed copying %s to %s\n", r.getPath(), target));
+                }
+                catch (IOException e) {
+                    logger.severe("Failed copying %s to %s\n", r.getPath(), target);
                     throw e;
                 }
             }
         } else
         {
-            logger.log(Level.WARNING, "ios.launch_screen is not set");
+            logger.warning("ios.launch_screen is not set");
         }
 
         String iconsAsset = projectProperties.getStringValue("ios", "icons_asset");
         // It might be null if the user uses the "bundle_resources" to copy everything
-        if (iconsAsset != null)
-        {
+        if (iconsAsset != null) {
             final String iconsName = FilenameUtils.getName(iconsAsset);
             IResource source = project.getResource(iconsAsset);
             if (source == null) {
@@ -379,13 +377,14 @@ public class IOSBundler implements IBundler {
 
             try {
                 FileUtils.writeByteArrayToFile(target, source.getContent());
-            } catch (IOException e) {
-                logger.log(Level.SEVERE, String.format("Failed copying %s to %s\n", source.getPath(), target));
+            }
+            catch (IOException e) {
+                logger.severe("Failed copying %s to %s\n", source.getPath(), target);
                 throw e;
             }
-        } else
-        {
-            logger.log(Level.WARNING, "ios.icons_asset is not set");
+        }
+        else {
+            logger.warning("ios.icons_asset is not set");
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
@@ -419,14 +418,13 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Strip executable
-        if( strip_executable )
-        {
+        if( strip_executable ) {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
             if (stripResult.ret == 0) {
-                logger.log(Level.INFO, "Stripped binary: " + getFileDescription(tmpFile));
+                logger.fine("Stripped binary: " + getFileDescription(tmpFile));
             }
             else {
-                logger.log(Level.SEVERE, "Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
+                logger.severe("Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
             }
         }
 
@@ -436,23 +434,35 @@ public class IOSBundler implements IBundler {
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
-        logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
+
+        // Copy extension frameworks
+        for (Platform architecture : architectures) {
+            File extensionArchitectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
+            if (!extensionArchitectureDir.exists()) continue;
+            File extensionFrameworksDir = new File(extensionArchitectureDir, "frameworks");
+            if (!extensionFrameworksDir.exists()) continue;
+            for (File extensionFrameworkDir : extensionFrameworksDir.listFiles()) {
+                File dest = new File(frameworksDir, extensionFrameworkDir.getName());
+                FileUtils.copyDirectory(extensionFrameworkDir, dest);
+                logger.fine("Copy framework " + extensionFrameworkDir);
+            }
+        }
 
         // Copy debug symbols
         // Create list of dSYM binaries
         List<File> dSYMBinaries = new ArrayList<File>();
         for (Platform architecture : architectures) {
-            String zipDir = FilenameUtils.concat(extenderExeDir, architecture.getExtenderPair());
+            String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
             File buildSymbols = new File(zipDir, "dmengine.dSYM");
             if (buildSymbols.exists()) {
                 dSYMBinaries.add(new File(buildSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine")))));
+                logger.fine("Copy debug symbols");
             }
         }
 
-        if (dSYMBinaries.size() > 0)
-        {
+        if (dSYMBinaries.size() > 0) {
             // Copy one of debug symbols and use it as result for lipo
-            String zipDir = FilenameUtils.concat(extenderExeDir, architectures.get(0).getExtenderPair());
+            String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), architectures.get(0).getExtenderPair());
             File buildSymbols = new File(zipDir, "dmengine.dSYM");
             String symbolsDir = String.format("%s.dSYM", title);
             File bundleSymbols = new File(bundleDir, symbolsDir);
@@ -474,10 +484,8 @@ public class IOSBundler implements IBundler {
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
-        File frameworksDir = new File(appDir, "Frameworks");
-
         if (frameworksDir.exists()) {
-            logger.log(Level.INFO, "Copying to /SwiftSupport folder");
+            logger.fine("Copying to /SwiftSupport folder");
             File iphoneosDir = new File(swiftSupportDir, "iphoneos");
 
             for (File file : frameworksDir.listFiles(File::isFile)) {
@@ -513,7 +521,7 @@ public class IOSBundler implements IBundler {
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
-                logger.log(Level.SEVERE, "Error executing security command:\n" + new String(securityResult.stdOutErr));
+                logger.severe("Error executing security command:\n" + new String(securityResult.stdOutErr));
             }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
@@ -536,10 +544,11 @@ public class IOSBundler implements IBundler {
                     outStream.write(buffer);
                 }
                 catch (Exception e) {
-                    logger.log(Level.SEVERE, "Error when loading custom entitlements from file '" + customEntitlementsProperty + "'.");
+                    logger.severe("Error when loading custom entitlements from file '" + customEntitlementsProperty + "'.");
                     throw new RuntimeException(e);
                 }
-            } else {
+            }
+            else {
                 try {
                     XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                     XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
@@ -568,7 +577,7 @@ public class IOSBundler implements IBundler {
                                 String key = keys.next();
 
                                 if (entitlements.getProperty(key) == null) {
-                                    logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
+                                    logger.severe("No such key found in provisions profile entitlements '" + key + "'.");
                                     throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
                                 }
                                 entitlements.clearProperty(key);
@@ -583,18 +592,20 @@ public class IOSBundler implements IBundler {
                     entitlements.write(writer);
                     writer.close();
                     entitlementOut.deleteOnExit();
-                } catch (ConfigurationException e) {
-                    logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
+                }
+                catch (ConfigurationException e) {
+                    logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
                     throw new RuntimeException(e);
-                } catch (IOException e) {
-                    logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
+                }
+                catch (IOException e) {
+                    logger.severe("Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
                     throw new RuntimeException(e);
                 }
             }
 
             // Sign any .dylib files in the Frameworks folder
             if (frameworksDir.exists()) {
-                logger.log(Level.INFO, "Signing ./Frameworks folder");
+                logger.info("Signing ./Frameworks folder");
                 for (File file : frameworksDir.listFiles()) {
 
                     BundleHelper.throwIfCanceled(canceled);
@@ -608,14 +619,15 @@ public class IOSBundler implements IBundler {
                     Process process = processBuilder.start();
                     logProcess(process);
                 }
-            } else {
+            }
+            else {
                 System.out.printf("No ./Framework folder to sign\n");
             }
 
             // Sign any .appex files in the PlugIns folder
             File pluginsDir = new File(appDir, "PlugIns");
             if (pluginsDir.exists()) {
-                logger.log(Level.INFO, "Signing ./PlugIns folder");
+                logger.info("Signing ./PlugIns folder");
                 for (File file : pluginsDir.listFiles()) {
 
                     BundleHelper.throwIfCanceled(canceled);
@@ -630,7 +642,8 @@ public class IOSBundler implements IBundler {
                     Process process = processBuilder.start();
                     logProcess(process);
                 }
-            } else {
+            }
+            else {
                 System.out.printf("No ./PlugIns folder to sign\n");
             }
 
@@ -665,10 +678,12 @@ public class IOSBundler implements IBundler {
 
         // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
         // to import the resulting zip files.
-        if (swiftSupportDir.exists())
+        if (swiftSupportDir.exists()) {
             processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName(), swiftSupportDir.getName());
-        else
+        }
+        else {
             processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+        }
 
         processBuilder.directory(tmpZipDir);
 
@@ -678,6 +693,6 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
+        logger.info("Finished ipa: " + getFileDescription(zipFile));
     }
 }
