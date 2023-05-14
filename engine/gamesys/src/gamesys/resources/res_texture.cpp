@@ -137,7 +137,6 @@ namespace dmGameSystem
             params.m_Y         = upload_params.m_Y;
             params.m_SubUpdate = upload_params.m_SubUpdate;
             params.m_MipMap    = specific_mip_requested ? upload_params.m_MipMap : 0;
-            params.m_MemoryAccess = image->m_MemoryAccess;
 
             if (!texture)
             {

@@ -26,7 +26,6 @@ namespace dmGraphics
         t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
         t->m_DeviceBuffer        = VK_IMAGE_USAGE_SAMPLED_BIT;
         t->m_Format              = VK_FORMAT_UNDEFINED;
-        t->m_MemoryAccess        = MEMORY_ACCESS_READ;
         t->m_Width               = 0;
         t->m_Height              = 0;
         t->m_OriginalWidth       = 0;

@@ -80,7 +80,6 @@ namespace dmGraphics
         TextureFormat  m_GraphicsFormat;
         VkFormat       m_Format;
         DeviceBuffer   m_DeviceBuffer;
-        MemoryAccess   m_MemoryAccess;
         uint16_t       m_Width;
         uint16_t       m_Height;
         uint16_t       m_Depth;

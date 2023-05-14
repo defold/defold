@@ -252,6 +252,8 @@ namespace dmRender
 
         HMaterial                   m_Material;
 
+        HComputeProgram             m_ComputeProgram;
+
         dmMessage::HSocket          m_Socket;
 
         uint32_t                    m_OutOfResources : 1;
@@ -275,6 +277,8 @@ namespace dmRender
 
     bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit);
+
+    void DispatchCompute(HRenderContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

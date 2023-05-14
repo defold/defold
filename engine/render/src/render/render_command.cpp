@@ -199,18 +199,21 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_ENABLE_COMPUTE_PROGRAM:
                 {
-                    HComputeProgram compute_program = (HComputeProgram) c->m_Operands[0];
-                    dmGraphics::EnableProgram(context, compute_program->m_Program);
+                    // HComputeProgram compute_program = (HComputeProgram) c->m_Operands[0];
+                    // dmGraphics::EnableProgram(context, compute_program->m_Program);
+                    render_context->m_ComputeProgram = (HComputeProgram) c->m_Operands[0];
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_COMPUTE_PROGRAM:
                 {
-                    dmGraphics::EnableProgram(context, 0);
+                    render_context->m_ComputeProgram = 0;
+                    // dmGraphics::EnableProgram(context, 0);
                     break;
                 }
                 case COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM:
                 {
-                    dmGraphics::DispatchCompute(context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
+                    dmRender::DispatchCompute(render_context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
+                    // dmGraphics::DispatchCompute(context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
                     break;
                 }
                 default:

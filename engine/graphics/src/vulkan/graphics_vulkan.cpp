@@ -601,7 +601,6 @@ namespace dmGraphics
         default_texture_params.m_Depth        = 1;
         default_texture_params.m_Data         = default_texture_data;
         default_texture_params.m_Format       = TEXTURE_FORMAT_RGBA;
-        default_texture_params.m_MemoryAccess = MEMORY_ACCESS_READ;
 
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
@@ -616,7 +615,6 @@ namespace dmGraphics
 
         default_texture_creation_params.m_Depth = 1;
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_IMAGE_2D;
-        default_texture_params.m_MemoryAccess   = MEMORY_ACCESS_READ_WRITE;
         context->m_DefaultImage2D               = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultImage2D, default_texture_params);
 
@@ -1878,20 +1876,12 @@ bail:
                 VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
                 vk_image_info.imageLayout            = VK_IMAGE_LAYOUT_GENERAL;
                 vk_image_info.imageView              = texture->m_Handle.m_ImageView;
+                vk_write_desc_info.descriptorType    = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 vk_write_desc_info.pImageInfo        = &vk_image_info;
 
-                switch(texture->m_MemoryAccess)
-                {
-                    case MEMORY_ACCESS_READ_WRITE:
-                        vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                        break;
-                    case MEMORY_ACCESS_READ:
-                        vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-                        break;
-                    case MEMORY_ACCESS_WRITE:
-                        vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-                        break;
-                }
+                // In the future we could separate between read / write by using these enums here
+                // -- read  : VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+                // -- write : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
             }
             else
             {
@@ -3586,7 +3576,6 @@ bail:
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
         texture->m_Depth          = tex_layer_count;
-        texture->m_MemoryAccess   = (MemoryAccess) params.m_MemoryAccess;
 
         VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3634,24 +3623,10 @@ bail:
         {
             assert(!params.m_SubUpdate);
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
-            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-            switch(texture->m_MemoryAccess)
-            {
-                case MEMORY_ACCESS_READ_WRITE: 
-                    vk_usage_flags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-                    break;
-                case MEMORY_ACCESS_READ:
-                    vk_usage_flags |= VK_IMAGE_USAGE_SAMPLED_BIT;
-                    break;
-                case MEMORY_ACCESS_WRITE:
-                    vk_usage_flags |= VK_IMAGE_USAGE_STORAGE_BIT;
-                    break;
-                default:assert(0 && "Invalid / unsupported memory access flag");
-            }
 
             if (!use_stage_buffer)
             {

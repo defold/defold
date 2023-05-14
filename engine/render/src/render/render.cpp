@@ -789,6 +789,51 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
+    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        if (render_context->m_ComputeProgram == 0)
+        {
+            return;
+        }
+
+        dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+
+        uint8_t next_texture_unit = 0;
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context->m_Textures[i])
+            {
+                for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(render_context->m_Textures[i]); ++sub_handle)
+                {
+                    // HSampler sampler = GetMaterialSampler(material, next_texture_unit);
+
+                    dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, render_context->m_Textures[i]);
+                    // ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, render_context->m_Textures[i]);
+
+                    next_texture_unit++;
+                }
+            }
+        }
+
+        dmGraphics::EnableProgram(context, render_context->m_ComputeProgram->m_Program);
+        dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+
+        next_texture_unit = 0;
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context->m_Textures[i])
+            {
+                for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(render_context->m_Textures[i]); ++sub_handle)
+                {
+                    dmGraphics::DisableTexture(context, next_texture_unit, render_context->m_Textures[i]);
+                    next_texture_unit++;
+                }
+            }
+        }
+
+        dmGraphics::DisableProgram(context);
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
