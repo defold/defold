@@ -13,17 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gl.vertex2
-  (:require
-   [clojure.string :as str]
-   [editor.gl :as gl]
-   [editor.gl.protocols :refer [GlBind]]
-   [editor.gl.shader :as shader]
-   [editor.scene-cache :as scene-cache]
-   [internal.util :as util])
-  (:import
-   [com.jogamp.common.nio Buffers]
-   [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
-   [com.jogamp.opengl GL GL2]))
+  (:require [clojure.string :as str]
+            [editor.gl :as gl]
+            [editor.gl.protocols :refer [GlBind]]
+            [editor.gl.shader :as shader]
+            [editor.protobuf :as protobuf]
+            [editor.scene-cache :as scene-cache]
+            [internal.util :as util])
+  (:import [com.jogamp.common.nio Buffers]
+           [com.jogamp.opengl GL GL2]
+           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
 
 (set! *warn-on-reflection* true)
 
@@ -84,6 +83,24 @@
     :type-int :int
     :type-unsigned-int :uint
     :type-float :float))
+
+(defn attribute-name->key [^String name]
+  (protobuf/field-name->key name))
+
+(defn attribute-key->semantic-type [attribute-key vertex-space]
+  (case attribute-key
+    :position (case vertex-space
+                :vertex-space-world :semantic-type-position-world
+                :vertex-space-local :semantic-type-position-local)
+    :normal :semantic-type-normal
+    :tangent :semantic-type-tangent
+    :binormal :semantic-type-binormal
+    :color :semantic-type-color
+    (:texcoord :texcoord0) :semantic-type-texcoord
+    :page-index :semantic-type-page-index
+    :blend-indices :semantic-type-blend-indices
+    :blend-weights :semantic-type-blend-weights
+    :semantic-type-none))
 
 ;; VertexBuffer object
 
@@ -400,13 +417,17 @@
         [prefix suffix]  (str/split (name type) #"\.")
         prefix           (keyword prefix)
         suffix           (keyword (or suffix "float"))
-        num-components   (type-component-counts prefix)]
+        num-components   (type-component-counts prefix)
+        attribute-name   (name nm)
+        attribute-key    (attribute-name->key attribute-name)]
     (assert num-components (str type " is not a valid type name. It must start with vec1, vec2, vec3, or vec4."))
     (assert (get gl-types suffix) (str type " is not a valid type name. It must end with byte, short, int, float, or double. (Defaults to float if no suffix.)"))
-    {:components num-components
+    {:name attribute-name
+     :name-key attribute-key
      :type suffix
-     :name (name nm)
-     :normalize (true? normalize)}))
+     :components num-components
+     :normalize (true? normalize)
+     :semantic-type (attribute-key->semantic-type attribute-key :vertex-space-world)})) ; TODO: Typically determined by vertex-space setting of material.
 
 (defmacro defvertex
   [name & attribute-definitions]

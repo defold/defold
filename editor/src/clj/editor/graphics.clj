@@ -15,7 +15,6 @@
 (ns editor.graphics
   (:require [editor.buffers :as buffers]
             [editor.gl.vertex2 :as vtx]
-            [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
   (:import [java.nio ByteBuffer]))
 
@@ -41,9 +40,6 @@
    {:data-type :type-float
     :value-keyword :float-values
     :byte-size 4}])
-
-(defn attribute-name->key [^String name]
-  (protobuf/field-name->key name))
 
 (def attribute-data-type->attribute-value-keyword
   (into {}
