@@ -240,15 +240,13 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 Creating a new android package is straight forward:
 
     APILEVEL=33
-
     mkdir -p sdkpack_android
     cd sdkpack_android
-
     mkdir -p share/java
     cp ../tmp/dynamo_home/ext/SDKs/android-sdk/platforms/android-$APILEVEL/android.jar share/java
+    ./scripts/mobile/android_jar_reduce_size.sh share/java/android.jar
     tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
     tar -cvzf android-$APILEVEL-arm64-android.tar.gz share
-
     cp android-$APILEVEL-armv7-android.tar.gz ../packages
     cp android-$APILEVEL-arm64-android.tar.gz ../packages
 
