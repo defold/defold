@@ -137,7 +137,7 @@ namespace dmRender
                 }
                 dmRender::SetConstantValues(render_constant, default_values, num_values);
 
-                MaterialConstant constant;
+                RenderConstant constant;
                 constant.m_Constant = render_constant;
 
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
@@ -207,12 +207,12 @@ namespace dmRender
 
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
-        const dmArray<MaterialConstant>& constants = material->m_Constants;
+        const dmArray<RenderConstant>& constants = material->m_Constants;
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            const MaterialConstant& material_constant = constants[i];
+            const RenderConstant& material_constant = constants[i];
             const HConstant constant = material_constant.m_Constant;
             int32_t location = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
@@ -396,7 +396,7 @@ namespace dmRender
 
     static inline int32_t FindMaterialConstantIndex(HMaterial material, dmhash_t name_hash)
     {
-        dmArray<MaterialConstant>& constants = material->m_Constants;
+        dmArray<RenderConstant>& constants = material->m_Constants;
         int32_t n = (int32_t)constants.Size();
         for (int32_t i = 0; i < n; ++i)
         {
@@ -415,7 +415,7 @@ namespace dmRender
         if (index < 0)
             return;
 
-        MaterialConstant& mc = material->m_Constants[index];
+        RenderConstant& mc = material->m_Constants[index];
         SetConstantType(mc.m_Constant, type);
     }
 
@@ -425,19 +425,19 @@ namespace dmRender
         if (index < 0)
             return false;
 
-        MaterialConstant& mc = material->m_Constants[index];
+        RenderConstant& mc = material->m_Constants[index];
         out_value = mc.m_Constant;
         return true;
     }
 
     bool GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_array_size)
     {
-        dmArray<MaterialConstant>& constants = material->m_Constants;
+        dmArray<RenderConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         *out_element_index = ~0u;
         for (uint32_t i = 0; i < n; ++i)
         {
-            MaterialConstant& c = constants[i];
+            RenderConstant& c = constants[i];
             dmhash_t constant_name_hash = GetConstantName(c.m_Constant);
             uint32_t num_values;
             dmVMath::Vector4* values = GetConstantValues(c.m_Constant, &num_values);
@@ -469,7 +469,7 @@ namespace dmRender
         if (index < 0)
             return;
 
-        MaterialConstant& mc = material->m_Constants[index];
+        RenderConstant& mc = material->m_Constants[index];
 
         uint32_t num_default_values;
         dmVMath::Vector4* constant_values = dmRender::GetConstantValues(mc.m_Constant, &num_default_values);

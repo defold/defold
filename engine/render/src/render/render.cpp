@@ -789,7 +789,7 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
-    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
     {
         if (render_context->m_ComputeProgram == 0)
         {
@@ -816,6 +816,14 @@ namespace dmRender
         }
 
         dmGraphics::EnableProgram(context, render_context->m_ComputeProgram->m_Program);
+
+        ApplyComputeProgramConstants(render_context, render_context->m_ComputeProgram);
+
+        if (constant_buffer)
+        {
+            ApplyNamedConstantBuffer(render_context, render_context->m_ComputeProgram, constant_buffer);
+        }
+
         dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
 
         next_texture_unit = 0;

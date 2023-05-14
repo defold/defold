@@ -17,6 +17,23 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    static void SetProgram(const char* path, dmRender::HComputeProgram program, dmRenderDDF::ComputeProgramDesc* ddf)
+    {
+        dmRenderDDF::ComputeProgramDesc::Constant* constants = ddf->m_Constants.m_Data;
+
+        // save pre-set fragment constants
+        for (uint32_t i = 0; i < ddf->m_Constants.m_Count; i++)
+        {
+            const char* name   = constants[i].m_Name;
+            dmhash_t name_hash = dmHashString64(name);
+            dmRender::SetComputeProgramConstant(program, name_hash, (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+
+            // dmRender::SetMaterialProgramConstantType(material, name_hash, constants[i].m_Type);
+            // dmRender::SetMaterialProgramConstant(material, name_hash,
+            //     (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+        }
+    }
+
     dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams& params)
     {
     	dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
@@ -28,6 +45,8 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
         	dmRender::HComputeProgram program = dmRender::NewComputeProgram(render_context, (dmGraphics::HComputeShader) shader);
+
+            SetProgram(params.m_Filename, program, ddf);
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;

@@ -212,8 +212,9 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM:
                 {
-                    dmRender::DispatchCompute(render_context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
-                    // dmGraphics::DispatchCompute(context, c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
+                    dmRender::DispatchCompute(render_context,
+                        c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], // group x,y,z
+                        (dmRender::HNamedConstantBuffer) c->m_Operands[3]);
                     break;
                 }
                 default:

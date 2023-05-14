@@ -9,6 +9,13 @@ option java_outer_classname = "ComputeProgram";
 
 message ComputeProgramDesc
 {
-    required string name    = 1;
-    required string program = 2 [(resource)=true];
+    message Constant
+    {
+        required string name          = 1;
+        repeated dmMath.Vector4 value = 2;
+    }
+
+    required string name        = 1;
+    required string program     = 2 [(resource)=true];
+    repeated Constant constants = 3;
 }

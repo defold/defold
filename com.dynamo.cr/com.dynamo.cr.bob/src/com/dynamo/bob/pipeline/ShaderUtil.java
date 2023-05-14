@@ -419,7 +419,7 @@ public class ShaderUtil {
             // Preprocess the source so we can potentially reduce the workload a bit
             input = Common.stripComments(input);
 
-            int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
+            int layoutSet = shaderType == ShaderType.FRAGMENT_SHADER ? 1 : 0;
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;

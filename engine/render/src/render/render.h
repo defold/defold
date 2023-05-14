@@ -85,7 +85,7 @@ namespace dmRender
         Constant(dmhash_t name_hash, int32_t location);
     };
 
-    struct MaterialConstant
+    struct RenderConstant
     {
         HConstant           m_Constant;
         dmhash_t            m_ElementIds[4];
@@ -212,6 +212,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeShader shader);
+    void                            SetComputeProgramConstant(HComputeProgram program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
@@ -238,6 +239,7 @@ namespace dmRender
     void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
 
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
+    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
 
     void                            ClearMaterialTags(HMaterial material);
     void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);

@@ -67,6 +67,8 @@ namespace dmRender
     {
         dmGraphics::HComputeShader m_Shader; // TODO: Should not be called shader.. kernel?
         dmGraphics::HProgram       m_Program;
+        dmArray<RenderConstant>    m_Constants;
+        dmHashTable64<int32_t>     m_NameHashToLocation;
     };
 
     struct Material
@@ -87,7 +89,7 @@ namespace dmRender
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmHashTable64<int32_t>                  m_NameHashToLocation;
-        dmArray<MaterialConstant>               m_Constants;
+        dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;
@@ -278,7 +280,8 @@ namespace dmRender
     bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit);
 
-    void DispatchCompute(HRenderContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
+    void ApplyComputeProgramConstants(dmRender::HRenderContext render_context, HComputeProgram compute_program);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

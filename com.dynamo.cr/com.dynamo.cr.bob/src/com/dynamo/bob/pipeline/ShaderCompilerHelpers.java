@@ -201,9 +201,13 @@ public class ShaderCompilerHelpers {
 
         if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
 
+            int version = 430;
+
+            ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".compute");
             file_in_compute.deleteOnExit();
-            FileUtils.writeByteArrayToFile(file_in_compute, shaderSource.getBytes());
+            FileUtils.writeByteArrayToFile(file_in_compute, es3Result.output.getBytes());
 
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
             file_out_spv.deleteOnExit();

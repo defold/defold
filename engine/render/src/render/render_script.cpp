@@ -2846,7 +2846,21 @@ namespace dmRender
         int p_y = luaL_checkinteger(L, 2);
         int p_z = luaL_checkinteger(L, 3);
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, p_x, p_y, p_z)))
+        HNamedConstantBuffer constant_buffer = 0;
+
+        if (lua_istable(L, 4))
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "constants");
+            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, p_x, p_y, p_z, (uint64_t) constant_buffer)))
         {
             assert(top == lua_gettop(L));
             return 0;
