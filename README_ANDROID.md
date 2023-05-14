@@ -244,7 +244,7 @@ Creating a new android package is straight forward:
     cd sdkpack_android
     mkdir -p share/java
     cp ../tmp/dynamo_home/ext/SDKs/android-sdk/platforms/android-$APILEVEL/android.jar share/java
-    ./scripts/mobile/android_jar_reduce_size.sh share/java/android.jar
+    ./../scripts/mobile/android_jar_reduce_size.sh share/java/android.jar
     tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
     tar -cvzf android-$APILEVEL-arm64-android.tar.gz share
     cp android-$APILEVEL-armv7-android.tar.gz ../packages
