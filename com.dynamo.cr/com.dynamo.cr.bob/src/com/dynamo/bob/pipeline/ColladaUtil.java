@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 import java.util.Map.Entry;
 
@@ -76,12 +77,13 @@ import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.RigUtil;
-
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.Weight;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -98,6 +100,8 @@ import com.google.protobuf.TextFormat;
 public class ColladaUtil {
 
     static int BONE_NO_PARENT = 0xffffffff;
+
+    private static Logger logger = Logger.getLogger(ColladaUtil.class.getName());
 
     static private class AssetSpace
     {
@@ -320,6 +324,7 @@ public class ColladaUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
+                                             Bone bone,
                                              RigUtil.AnimationTrack posTrack,
                                              RigUtil.AnimationTrack rotTrack,
                                              RigUtil.AnimationTrack sclTrack,
@@ -327,7 +332,7 @@ public class ColladaUtil {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.getSourceId()));
 
         samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
         sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
@@ -436,7 +441,7 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
 
-                    createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+                    createAnimationTracks(animBuilder, bone, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
 
                     break; // we only support one animation per file/bone
                 }
@@ -823,32 +828,52 @@ public class ColladaUtil {
 
         class MeshVertexIndex {
             public int position, texcoord0, normal;
-            public boolean equals(Object o) {
-                MeshVertexIndex m = (MeshVertexIndex) o;
-                return (this.position == m.position && this.texcoord0 == m.texcoord0 && this.normal == m.normal);
+
+            @Override
+            public final int hashCode() { // fnv 32 bit hash
+                int result = 0x811c9dc5;
+                result ^= position;
+                result *= 0x01000193;
+                result ^= texcoord0;
+                result *= 0x01000193;
+                result ^= normal;
+                result *= 0x01000193;
+                return result;
             }
         }
+
+        long tstart = System.currentTimeMillis();
+        TimeProfiler.start();
+        TimeProfiler.addData("optimizeVertices", "Colladautil");
 
         // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
         // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
         boolean mesh_has_normals = normal_indices_list.size() > 0;
         List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(mesh.triangles.count*3);
+        Map<Integer, Integer> shared_vertex_index_map = new HashMap<>();
+
         List<Integer> mesh_index_list = new ArrayList<Integer>(mesh.triangles.count*3);
         for (int i = 0; i < mesh.triangles.count*3; ++i) {
             MeshVertexIndex ci = new MeshVertexIndex();
             ci.position = position_indices_list.get(i);
             ci.texcoord0 = texcoord_indices_list.get(i);
             ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
-            int index = optimize ? shared_vertex_indices.indexOf(ci) : -1;
+            int index = optimize ? (int)shared_vertex_index_map.getOrDefault(ci.hashCode(), -1) : -1;
             if(index == -1) {
                 // create new vertex as this is not equal to any existing in generated list
-                mesh_index_list.add(shared_vertex_indices.size());
+                index = shared_vertex_indices.size();
+                mesh_index_list.add(index);
                 shared_vertex_indices.add(ci);
+                shared_vertex_index_map.put(ci.hashCode(), index);
             } else {
                 // shared vertex, add index to existing vertex in generating list instead of adding new
                 mesh_index_list.add(index);
             }
         }
+
+        TimeProfiler.stop();
+        long tend = System.currentTimeMillis();
+        logger.fine("ColladaUtil: Creating %d vertices (optimize: %s) took %f s", shared_vertex_indices.size(), optimize?"on":"off", (tend-tstart)/1000.0);
 
         int vertex_count = shared_vertex_indices.size();
 

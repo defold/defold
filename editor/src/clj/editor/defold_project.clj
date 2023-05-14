@@ -324,7 +324,7 @@
   ;; Unregistered resources that are connected to the project
   ;; save-data input are assumed to produce text data.
   (or (nil? resource-type)
-      (:textual? resource-type)))
+      (resource/textual-resource-type? resource-type)))
 
 (defn write-save-data-to-disk! [save-data {:keys [render-progress!]
                                            :or {render-progress! progress/null-render-progress!}

@@ -83,6 +83,9 @@ namespace dmModelImporter
         Bone*                   m_Bones;
         uint32_t                m_BonesCount;
         uint32_t                m_Index;        // The index into the scene.skins array
+
+        // internal
+        uint32_t*               m_BoneRemap;    // old index -> new index: for sorting the bones
     };
 
     struct DM_ALIGNED(16) Node
@@ -96,6 +99,9 @@ namespace dmModelImporter
         Node**                  m_Children;
         uint32_t                m_ChildrenCount;
         uint32_t                m_Index;        // The index into the scene.nodes array
+
+        // internal
+        uint64_t                m_NameHash;
     };
 
     struct KeyFrame
