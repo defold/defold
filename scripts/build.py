@@ -797,8 +797,7 @@ class Configuration(object):
 
                 # Android Jars (external)
                 external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar",
-                                 "android.jar")
+                                 "androidx-multidex.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
