@@ -200,11 +200,11 @@
       (vtx/buf-push! v0))))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
-  (transduce (map (fn [[x y]]
-                    (gen-outline-vertex world-transform tmp-point x y cr cg cb)))
-             vtx/buf-push!
-             buf
-             line-data))
+  (let [outline-points (map (fn [[x y]]
+                              (gen-outline-vertex world-transform tmp-point x y cr cg cb))
+                            line-data)]
+    (doseq [outline-point outline-points]
+      (vtx/buf-push! buf outline-point))))
 
 (defn- gen-outline-vertex-buffer [renderables count]
   (let [tmp-point (Point3d.)
@@ -333,15 +333,20 @@
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
-(defn- pb-overridden-attributes [material-attribute-infos vertex-attribute-overrides]
+(defn- pb-overridden-attributes [material-attribute-infos vertex-attribute-overrides strip-optional?]
   (let [overridden-material-attribute-infos (filter #(contains? vertex-attribute-overrides (:name-key %))
                                                     material-attribute-infos)
         pb-vertex-attributes (mapv (fn [material-attribute-info]
                                      (let [overridden-value ((:name-key material-attribute-info) vertex-attribute-overrides)
                                            value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type material-attribute-info))]
-                                       (-> material-attribute-info
-                                           (assoc value-keyword {:v overridden-value})
-                                           (dissoc :name-hash :bytes :name-key :values))))
+                                       (if (true? strip-optional?)
+                                         ;; Keep just the value and the attribute name (only used when saving)
+                                         {value-keyword {:v overridden-value}
+                                          :name (:name material-attribute-info)}
+                                         ;; Otherwise, just remove a few specific items
+                                         (-> material-attribute-info
+                                             (assoc value-keyword {:v overridden-value})
+                                             (dissoc :name-hash :bytes :name-key :values)))))
                                    overridden-material-attribute-infos)]
     pb-vertex-attributes))
 
@@ -352,7 +357,7 @@
            :default-animation default-animation
            :material (resource/resource->proj-path material)
            :blend-mode blend-mode
-           :attributes (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides)}
+           :attributes (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides true)}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -449,7 +454,7 @@
                                              :slice9 slice9
                                              :offset offset
                                              :playback-rate playback-rate
-                                             :attributes (graphics/attributes->build-target (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides))}
+                                             :attributes (graphics/attributes->build-target (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides false))}
                                             [:tile-set :material])]))
 (defn- fill-with-zeros [values expected-count]
   (let [trailing-vec-with-zeros (repeat (- expected-count (count values)) 0)]
@@ -669,4 +674,3 @@
 ;; * Edit the values in the material view
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
 ;; * local vs world-space as flag rather than embedded in semantic type?
-;; * Strip everything but name & values from attributes in .sprite files.
