@@ -34,3 +34,5 @@
 
 (defn view-type [workspace]
   (workspace/get-view-type workspace :code))
+
+(def search-fn r/search-fn)

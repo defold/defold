@@ -20,7 +20,6 @@
             [editor.defold-project-search :as project-search]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]
             [util.thread-util :as thread-util])
   (:import [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 

@@ -196,6 +196,8 @@ ordinary paths."
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
 (defn register-resource-type
+  ;; TODO(save-value): Add documentation for :search-fn.
+  ;; TODO(save-value): Make sure every :textual? resource type that needs it has a :search-fn.
   "Register new resource type to be handled by the editor
 
   Required kv-args:
@@ -250,7 +252,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn search-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
@@ -265,6 +267,7 @@ ordinary paths."
                        :read-fn read-fn
                        :read-raw-fn (or read-raw-fn read-fn)
                        :sanitize-fn sanitize-fn
+                       :search-fn search-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts

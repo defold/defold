@@ -603,6 +603,8 @@
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
+
+  ;; TODO(save-value): Only include overridden fields in pb-maps for override nodes so that changes to the template scene do not bleed into referencing scenes.
   (-> (protobuf/make-map-without-defaults Gui$NodeDesc
         :custom-type custom-type
         :template-node-child false

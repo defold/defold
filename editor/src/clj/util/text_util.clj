@@ -14,8 +14,10 @@
 
 (ns util.text-util
   (:require [clojure.java.io :as io]
-            [clojure.string :as string])
-  (:import (java.io Reader)))
+            [clojure.string :as string]
+            [util.coll :refer [pair]])
+  (:import [clojure.lang IReduceInit]
+           [java.io BufferedReader Reader StringReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -189,3 +191,68 @@
     (if (empty? inner-string)
       inner-string
       (str "\"" inner-string "\""))))
+
+(defn- line-info-coll [make-buffered-reader]
+  (reify IReduceInit
+    (reduce [_ rf init]
+      (with-open [^BufferedReader reader (make-buffered-reader)]
+        (loop [ret init
+               row 0
+               caret-position 0]
+          (if-some [line (.readLine reader)]
+            (let [ret (rf ret {:line line
+                               :row row
+                               :caret-position caret-position})]
+              (if (reduced? ret)
+                @ret
+                (recur ret
+                       (inc row)
+                       (+ caret-position (count line)))))
+            ret))))))
+
+(defn- readable->line-infos [readable]
+  (line-info-coll #(io/reader readable)))
+
+(defn- string->line-infos [^String text]
+  (line-info-coll #(BufferedReader. (StringReader. text))))
+
+(defn- line-infos->text-matches [line-infos pattern]
+  (persistent!
+    (reduce
+      (fn [matches line-info]
+        (let [line (:line line-info)
+              matcher (re-matcher pattern line)]
+          (loop [matches matches]
+            (if-not (.find matcher)
+              matches
+              (recur (conj! matches
+                            (assoc line-info
+                              :start-col (.start matcher)
+                              :end-col (.end matcher))))))))
+      (transient [])
+      line-infos)))
+
+(defn lines->text-matches [lines pattern]
+  (persistent!
+    (second
+      (reduce-kv
+        (fn [[^long line-start-pos matches] ^long row ^String line]
+          (let [next-line-start-pos (+ line-start-pos (count line))
+                matcher (re-matcher pattern line)]
+            (loop [matches matches]
+              (if-not (.find matcher)
+                (pair next-line-start-pos matches)
+                (recur (conj! matches
+                              {:line line
+                               :row row
+                               :start-col (.start matcher)
+                               :end-col (.end matcher)
+                               :caret-position line-start-pos}))))))
+        (pair 0 (transient []))
+        lines))))
+
+(defn readable->text-matches [readable pattern]
+  (line-infos->text-matches (readable->line-infos readable) pattern))
+
+(defn string->text-matches [^String text pattern]
+  (line-infos->text-matches (string->line-infos text) pattern))

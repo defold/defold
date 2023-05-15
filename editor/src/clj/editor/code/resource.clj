@@ -18,10 +18,12 @@
             [editor.code.data :as data]
             [editor.code.util :as util]
             [editor.lsp :as lsp]
+            [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.text-util :as text-util])
   (:import [editor.code.data Cursor CursorRange]))
 
 (set! *warn-on-reflection* true)
@@ -64,6 +66,11 @@
 
 (defn write-fn [lines]
   (string/join "\n" lines))
+
+(defn search-fn [save-data pattern]
+  (if-some [loaded-lines (:save-value save-data)]
+    (text-util/lines->text-matches loaded-lines pattern)
+    (resource/resource->text-matches (:resource save-data) pattern)))
 
 ;; To save memory, we defer loading the file contents until it has been modified
 ;; and read directly from disk up to that point. Once the file is edited we need
@@ -183,5 +190,6 @@
                  (dissoc :additional-load-fn :eager-loading?)
                  (assoc :load-fn load-fn
                         :write-fn write-fn
+                        :search-fn search-fn
                         :textual? true))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

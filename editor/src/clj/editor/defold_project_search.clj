@@ -13,50 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.defold-project-search
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
-            [util.text-util :as text-util]
+            [util.coll :as coll]
             [util.thread-util :as thread-util])
-  (:import [clojure.lang IReduceInit]
-           [java.io BufferedReader StringReader]
-           [java.util.concurrent LinkedBlockingQueue]
+  (:import [java.util.concurrent LinkedBlockingQueue]
            [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
-
-(defn- make-line-coll
-  [make-buffered-reader]
-  (reify IReduceInit
-    (reduce [_ rf init]
-      (with-open [^BufferedReader rdr (make-buffered-reader)]
-        (loop [ret init
-               row 0
-               pos 0]
-          (if-some [line (.readLine rdr)]
-            (let [ret (rf ret {:line line
-                               :row row
-                               :pos pos})]
-              (if (reduced? ret)
-                @ret
-                (recur ret (inc row) (+ pos (count line)))))
-            ret))))))
-
-(defn- line-coll [save-data]
-  (let [resource (:resource save-data)
-        content (resource-node/save-data-content save-data)]
-    ;; TODO(save-value): Converting to string here is not very efficient.
-    (or (when (some? content)
-          (make-line-coll #(BufferedReader. (StringReader. content))))
-        (when (and (resource/exists? resource)
-                   (if-let [resource-type (resource/resource-type resource)]
-                     (resource/textual-resource-type? resource-type)
-                     (not (text-util/binary? resource))))
-          (make-line-coll #(io/reader resource))))))
 
 (defn compile-find-in-files-regex
   "Convert a search-string to a case-insensitive java regex."
@@ -65,22 +33,6 @@
                        (map #(Pattern/quote %))
                        (string/join ".*"))]
     (re-pattern (str "(?i)" clean-str))))
-
-(defn- find-matches [pattern save-data]
-  (when-some [lines (line-coll save-data)]
-    (into []
-          (mapcat (fn [{:keys [line row pos]}]
-                    (let [matcher (re-matcher pattern line)]
-                      (loop [matches (transient [])]
-                        (if-not (.find matcher)
-                          (persistent! matches)
-                          (recur (conj! matches
-                                        {:line line
-                                         :row row
-                                         :start-col (.start matcher)
-                                         :end-col (.end matcher)
-                                         :caret-position pos})))))))
-          lines)))
 
 (defn- save-data-sort-key [entry]
   (some-> entry :resource resource/proj-path))
@@ -127,14 +79,20 @@
                                 (some-> exts
                                         (string/replace #" " "")
                                         (string/split #",")))
-            xform (comp (map thread-util/abortable-identity!)
-                        (filter (fn [{:keys [resource]}]
-                                  (and (resource-matches-library-setting? resource include-libraries?)
-                                       (resource-matches-file-ext? resource file-ext-pats))))
-                        (map (fn [{:keys [resource] :as save-data}]
-                               {:resource resource
-                                :matches (find-matches pattern save-data)}))
-                        (filter #(seq (:matches %))))]
+            xform (keep (fn [save-data]
+                          (thread-util/throw-if-interrupted!)
+                          (let [resource (:resource save-data)]
+                            (when (and (resource-matches-library-setting? resource include-libraries?)
+                                       (resource-matches-file-ext? resource file-ext-pats))
+                              (let [resource-type (resource/resource-type resource)
+                                    search-fn (if resource-type
+                                                (:search-fn resource-type)
+                                                placeholder-resource/search-fn)
+                                    matches (when search-fn
+                                              (search-fn save-data pattern))]
+                                (when-not (coll/empty? matches)
+                                  {:resource resource
+                                   :matches matches}))))))]
         (run! produce-fn (sequence xform (deref file-resource-save-data-future)))
         (produce-fn ::done))
       (catch InterruptedException _

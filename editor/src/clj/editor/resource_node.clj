@@ -24,7 +24,8 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
-            [internal.graph.types :as gt])
+            [internal.graph.types :as gt]
+            [util.text-util :as text-util])
   (:import [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
@@ -209,21 +210,33 @@
                         {:proj-path proj-path
                          :error-value sha256-or-error}))))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
+(defn search-ddf-save-data [save-data pattern]
+  ;; TODO(save-value): Converting to string is inefficient. Search the pb-map structure in :save-value instead.
+  (let [resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        write-fn (:write-fn resource-type)
+        save-value (:save-value save-data)
+        save-content (write-fn save-value)]
+    (text-util/string->text-matches save-content pattern)))
+
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
   (let [read-defaults (if (nil? read-defaults) true read-defaults)
         read-raw-fn (if read-defaults
                       (partial protobuf/read-map-with-defaults ddf-type)
                       (partial protobuf/read-map-without-defaults ddf-type))
         read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
+        write-fn (cond-> (partial protobuf/map->str ddf-type)
+                         (some? string-encode-fn) (comp string-encode-fn))
+        search-fn (or search-fn search-ddf-save-data)
         args (-> args
                  (dissoc :string-encode-fn)
                  (assoc :textual? true
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                         :read-raw-fn read-raw-fn
                         :read-fn read-fn
-                        :write-fn (cond-> (partial protobuf/map->str ddf-type)
-                                          (some? string-encode-fn) (comp string-encode-fn))))]
+                        :write-fn write-fn
+                        :search-fn search-fn))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]

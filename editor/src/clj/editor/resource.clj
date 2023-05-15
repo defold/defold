@@ -20,7 +20,8 @@
             [editor.core :as core]
             [editor.fs :as fs]
             [schema.core :as s]
-            [util.digest :as digest])
+            [util.digest :as digest]
+            [util.text-util :as text-util])
   (:import [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -469,3 +470,10 @@
   (or (:language (resource-type resource))
       (known-ext->language (ext resource))
       "plaintext"))
+
+(defn resource->text-matches [resource pattern]
+  (when (and (exists? resource)
+             (if-some [resource-type (resource-type resource)]
+               (textual-resource-type? resource-type)
+               (not (text-util/binary? resource))))
+    (text-util/readable->text-matches resource pattern)))
