@@ -86,76 +86,68 @@
           (bit-and x 0xFFFFFFFF)))
 
 (defn cell-to-pb
-  [cell-map x y]
-  (let [cell (get cell-map (cell-index x y))
-        builder (Tile$TileCell/newBuilder)]
-     (if cell
-       (do
-         (.setX builder x)
-         (.setY builder y)
-         (.setTile builder (if cell (:tile cell) 0))
-         (.setHFlip builder (if cell (if (:h-flip cell) 1 0) 0))
-         (.setVFlip builder (if cell (if (:v-flip cell) 1 0) 0))
-         (.setRotate90 builder (if cell (if (:rotate90 cell) 1 0) 0))
-         (.build builder)))))
-
-(defn update-cell
-  [^Tile$TileCell cell cell-map]
-  (println "update-cell" cell cell-map)
-  (if cell
+  [cell]
+  (let [builder (Tile$TileCell/newBuilder)]
     (do
-      (let [x (.getX cell)
-            y (.getY cell)
-            tile (.getTile cell)
-            h-flip (boolean (.getHFlip cell))
-            v-flip (boolean (.getVFlip cell))
-            rotate90 (boolean (.getRotate90 cell))]
-        (println "update-cell " x y tile h-flip v-flip rotate90)
-        ; (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-        ))))
+      (.setX builder (:x cell))
+      (.setY builder (:y cell))
+      (.setTile builder (:tile cell))
+      (.setHFlip builder (if (:h-flip cell) 1 0))
+      (.setVFlip builder (if (:v-flip cell) 1 0))
+      (.setRotate90 builder (if (:rotate90 cell) 1 0))
+      (.build builder))))
+
+(defn cell-map-to-pb
+  [cell-map id z is-visible]
+  (let [builder (Tile$TileLayer/newBuilder)]
+    (.setId builder id)
+    (.setZ builder z)
+    (.setIsVisible builder (if is-visible 1 0))
+    (doseq [[index cell] cell-map]
+      (do
+        (.addCell builder (cell-to-pb cell))))
+    (.build builder)))
+
+(defn update-cell-from-pb
+  [cell-map ^Tile$TileCell cell]
+  (assoc! cell-map
+    (cell-index (.getX cell) (.getY cell))
+    (->Tile (.getX cell)
+            (.getY cell)
+            (.getTile cell)
+            (if (= (.getHFlip cell) 1) true false)
+            (if (= (.getVFlip cell) 1) true false)
+            (if (= (.getRotate90 cell) 1) true false))))
 
 (defn paint-cell!
-  [cell-map x y tile h-flip v-flip rotate90]
+  [cell-map layer-id x y tile h-flip v-flip rotate90]
+  ; figure out where to best do this once
   (TilemapPlugins/init workspace/class-loader)
-
-  (println "paint or clear cell")
+  ; update the cell-map
+  ; convert to protobuf
+  ; send to plugins
+  ; apply changes from plugins to cell-map
   (let [updated-cell-map (if tile
                            (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-                           (dissoc! cell-map (cell-index x y)))]
-
-    (println "create current neighbours")
-    (let [current-cells (vector
-                          (cell-to-pb updated-cell-map (+ x -1) (+ y -1))
-                          (cell-to-pb updated-cell-map (+ x  0) (+ y -1))
-                          (cell-to-pb updated-cell-map (+ x  1) (+ y -1))
-                          (cell-to-pb updated-cell-map (+ x -1) (+ y  0))
-                          (cell-to-pb updated-cell-map (+ x  0) (+ y  0))
-                          (cell-to-pb updated-cell-map (+ x  1) (+ y  0))
-                          (cell-to-pb updated-cell-map (+ x -1) (+ y  1))
-                          (cell-to-pb updated-cell-map (+ x  0) (+ y  1))
-                          (cell-to-pb updated-cell-map (+ x  1) (+ y  1)))
-          updated-cells (if tile
-                          (TilemapPlugins/onPaintTile x y current-cells tile)
-                          (TilemapPlugins/onClearTile x y current-cells))]
-      (println "got updated neighbours" updated-cells)
-      (for [cell updated-cells]
-        (update-cell cell updated-cell-map)))
-    updated-cell-map))
-
-
-
-; (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-; (dissoc! cell-map (cell-index x y))
+                           (dissoc! cell-map (cell-index x y)))
+        tile-layer       (cell-map-to-pb updated-cell-map layer-id 0 true)
+        updated-cells    (if tile
+                           (TilemapPlugins/onPaintTile x y tile-layer)
+                           (TilemapPlugins/onClearTile x y tile-layer))]
+    (reduce (fn [map cell]
+                (update-cell-from-pb map cell))
+                updated-cell-map
+                updated-cells)))
 
 (defn make-cell-map
-  [cells]
+  [cells layer-id]
   (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip rotate90] :or {h-flip 0 v-flip 0} :as cell}]
-                         (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip) (not= 0 rotate90)))
+                         (paint-cell! ret layer-id x y tile (not= 0 h-flip) (not= 0 v-flip) (not= 0 rotate90)))
                        (transient (int-map/int-map))
                        cells)))
 
 (defn paint
-  [cell-map [sx sy] brush]
+  [cell-map layer-id [sx sy] brush]
   (let [{:keys [width height tiles]} brush]
     (let [ex (+ sx width)
           ey (+ sy height)]
@@ -166,7 +158,7 @@
         (if (< y ey)
           (if (< x ex)
             (let [{:keys [tile h-flip v-flip rotate90]} (first tiles)]
-              (recur (inc x) y (rest tiles) (paint-cell! cell-map x y tile h-flip v-flip rotate90)))
+              (recur (inc x) y (rest tiles) (paint-cell! cell-map layer-id x y tile h-flip v-flip rotate90)))
             (recur sx (inc y) tiles cell-map))
           (persistent! cell-map))))))
 
@@ -413,7 +405,7 @@
      [layer-node [LayerNode {:id (:id tile-layer)
                              :z (:z tile-layer)
                              :visible (not= 0 (:is-visible tile-layer))
-                             :cell-map (make-cell-map (:cell tile-layer))}]]
+                             :cell-map (make-cell-map (:cell tile-layer) (:id tile-layer))}]]
      (attach-layer-node parent layer-node))))
 
 
@@ -1024,11 +1016,12 @@
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       (let [brush (g/node-value self :brush evaluation-context)
-            op-seq (gensym)]
+            op-seq (gensym)
+            layer-id (g/node-value active-layer :id evaluation-context)]
         (swap! state assoc :last-tile current-tile)
         [(g/set-property self :op-seq op-seq)
          (g/operation-sequence op-seq)
-         (g/update-property active-layer :cell-map paint current-tile brush)]))))
+         (g/update-property active-layer :cell-map paint layer-id current-tile brush)]))))
 
 (defmethod update-op :paint
   [op self action state evaluation-context]
@@ -1037,9 +1030,10 @@
       (when (not= current-tile (-> state deref :last-tile))
         (swap! state assoc :last-tile current-tile)
         (let [brush (g/node-value self :brush evaluation-context)
-              op-seq (g/node-value self :op-seq evaluation-context)]
+              op-seq (g/node-value self :op-seq evaluation-context)
+              layer-id (g/node-value active-layer :id evaluation-context)]
           [(g/operation-sequence op-seq)
-           (g/update-property active-layer :cell-map paint current-tile brush)])))))
+           (g/update-property active-layer :cell-map paint layer-id current-tile brush)])))))
 
 (defmethod end-op :paint
   [op self action state evaluation-context]
