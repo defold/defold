@@ -1707,11 +1707,11 @@ bail:
 
             ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-            for (uint32_t j=0; j < vertex_shader->m_AttributeCount; j++)
+            for (uint32_t j=0; j < vertex_shader->m_InputCount; j++)
             {
-                if (vertex_shader->m_Attributes[j].m_NameHash == stream.m_NameHash)
+                if (vertex_shader->m_Inputs[j].m_NameHash == stream.m_NameHash)
                 {
-                    stream.m_Location = vertex_shader->m_Attributes[j].m_Binding;
+                    stream.m_Location = vertex_shader->m_Inputs[j].m_Binding;
                     break;
                 }
             }
@@ -2102,7 +2102,6 @@ bail:
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
             uint32_t uniform_buffer_count      = 0;
-            int32_t  last_binding              = -1;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -2115,9 +2114,6 @@ bail:
                 res.m_NameHash             = 0;
 
                 assert(res.m_Set <= 1);
-                assert(res.m_Binding >= last_binding);
-                last_binding = res.m_Binding;
-
                 if (IsUniformTextureSampler(res))
                 {
                     res.m_TextureUnit = texture_sampler_count;
@@ -2135,23 +2131,35 @@ bail:
             shader->m_UniformBufferCount     = uniform_buffer_count;
         }
 
-        if (ddf->m_Attributes.m_Count > 0)
+        if (ddf->m_Inputs.m_Count > 0)
         {
-            shader->m_Attributes     = new ShaderResourceBinding[ddf->m_Attributes.m_Count];
-            shader->m_AttributeCount = ddf->m_Attributes.m_Count;
-            int32_t  last_binding    = -1;
+            shader->m_Inputs     = new ShaderResourceBinding[ddf->m_Inputs.m_Count];
+            shader->m_InputCount = ddf->m_Inputs.m_Count;
 
-            for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
+            for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
             {
-                ShaderResourceBinding& res = shader->m_Attributes[i];
-                res.m_Binding              = ddf->m_Attributes[i].m_Binding;
-                res.m_Set                  = ddf->m_Attributes[i].m_Set;
-                res.m_Type                 = ddf->m_Attributes[i].m_Type;
-                res.m_Name                 = strdup(ddf->m_Attributes[i].m_Name);
-                res.m_NameHash             = dmHashString64(res.m_Name);
+                ShaderResourceBinding& res = shader->m_Inputs[i];
+                res.m_Binding              = ddf->m_Inputs[i].m_Binding;
+                res.m_Set                  = ddf->m_Inputs[i].m_Set;
+                res.m_Type                 = ddf->m_Inputs[i].m_Type;
+                res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
+                res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
+            }
+        }
 
-                assert(res.m_Binding >= last_binding);
-                last_binding = res.m_Binding;
+        if (ddf->m_Outputs.m_Count > 0)
+        {
+            shader->m_Outputs     = new ShaderResourceBinding[ddf->m_Outputs.m_Count];
+            shader->m_OutputCount = ddf->m_Outputs.m_Count;
+
+            for (uint32_t i=0; i < ddf->m_Outputs.m_Count; i++)
+            {
+                ShaderResourceBinding& res = shader->m_Outputs[i];
+                res.m_Binding              = ddf->m_Outputs[i].m_Binding;
+                res.m_Set                  = ddf->m_Outputs[i].m_Set;
+                res.m_Type                 = ddf->m_Outputs[i].m_Type;
+                res.m_NameHash             = ddf->m_Outputs[i].m_NameHash;
+                res.m_Name                 = strdup(ddf->m_Outputs[i].m_Name);
             }
         }
     }
@@ -2220,8 +2228,28 @@ bail:
         *byte_offset_end_out = byte_offset;
     }
 
-    static void CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
+    static bool CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
+        // Check all fragment inputs if they are available as outputs from the vertex shader
+        for (uint32_t i = 0; i < fragment_module->m_InputCount; ++i)
+        {
+            bool input_found = false;
+            for (uint32_t j = 0; j < vertex_module->m_OutputCount; ++j)
+            {
+                if (fragment_module->m_Inputs[i].m_NameHash == vertex_module->m_Outputs[j].m_NameHash)
+                {
+                    input_found = true;
+                    break;
+                }
+            }
+
+            if (!input_found)
+            {
+                dmLogError("Input of fragment shader '%s' not written by vertex shader", fragment_module->m_Inputs[i].m_Name);
+                return false;
+            }
+        }
+
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
         memset(&vk_vertex_shader_create_info, 0, sizeof(vk_vertex_shader_create_info));
@@ -2239,8 +2267,8 @@ bail:
         vk_fragment_shader_create_info.module = fragment_module->m_Module;
         vk_fragment_shader_create_info.pName  = "main";
 
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT]    = vk_fragment_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]   = vk_vertex_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT] = vk_fragment_shader_create_info;
         program->m_Hash               = 0;
         program->m_UniformDataOffsets = 0;
         program->m_UniformData        = 0;
@@ -2250,11 +2278,11 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        if (vertex_module->m_AttributeCount > 0)
+        if (vertex_module->m_InputCount > 0)
         {
-            for (uint32_t i=0; i < vertex_module->m_AttributeCount; i++)
+            for (uint32_t i=0; i < vertex_module->m_InputCount; i++)
             {
-                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Attributes[i].m_Binding, sizeof(vertex_module->m_Attributes[i].m_Binding));
+                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
             }
         }
 
@@ -2312,12 +2340,17 @@ bail:
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
+
+        return true;
     }
 
     static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         Program* program = new Program;
-        CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
+        if (!CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program))
+        {
+            return 0;
+        }
         return (HProgram) program;
     }
 
@@ -2342,6 +2375,11 @@ bail:
 
     static void DestroyShader(ShaderModule* shader)
     {
+        if (!shader)
+        {
+            return;
+        }
+
         DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
@@ -2349,20 +2387,19 @@ bail:
             free(shader->m_Uniforms[i].m_Name);
         }
 
-        for (uint32_t i=0; i < shader->m_AttributeCount; i++)
+        for (uint32_t i=0; i < shader->m_InputCount; i++)
         {
-            free(shader->m_Attributes[i].m_Name);
+            free(shader->m_Inputs[i].m_Name);
         }
 
-        if (shader->m_Attributes)
+        for (uint32_t i=0; i < shader->m_OutputCount; i++)
         {
-            delete[] shader->m_Attributes;
+            free(shader->m_Outputs[i].m_Name);
         }
 
-        if (shader->m_Uniforms)
-        {
-            delete[] shader->m_Uniforms;
-        }
+        delete[] shader->m_Inputs;
+        delete[] shader->m_Outputs;
+        delete[] shader->m_Uniforms;
     }
 
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
@@ -2404,20 +2441,7 @@ bail:
     static void VulkanDeleteFragmentProgram(HFragmentProgram prog)
     {
         ShaderModule* shader = (ShaderModule*) prog;
-        assert(shader->m_Attributes == 0);
-
-        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
-
-        for (uint32_t i=0; i < shader->m_UniformCount; i++)
-        {
-            free(shader->m_Uniforms[i].m_Name);
-        }
-
-        if (shader->m_Uniforms)
-        {
-            delete[] shader->m_Uniforms;
-        }
-
+        DestroyShader(shader);
         delete shader;
     }
 
