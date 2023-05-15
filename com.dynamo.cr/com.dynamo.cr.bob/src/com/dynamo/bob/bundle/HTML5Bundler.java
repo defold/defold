@@ -294,7 +294,7 @@ public class HTML5Bundler implements IBundler {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for Asm.js");
+                logger.info("Using extender binary for Asm.js");
             }
             // Copy engine binaries
             for (File bin : binsAsmjs) {
@@ -316,7 +316,7 @@ public class HTML5Bundler implements IBundler {
                 binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for WASM");
+                logger.info("Using extender binary for WASM");
             }
             for (File bin : binsWasm) {
                 BundleHelper.throwIfCanceled(canceled);
