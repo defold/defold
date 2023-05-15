@@ -20,32 +20,14 @@
 #include "provider.h"
 #include "../resource_archive.h" // HArchiveIndexContainer
 
-namespace dmResource
-{
-    struct Manifest;
-}
-
 namespace dmResourceProviderArchivePrivate
 {
-    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
-    const static uint32_t MANIFEST_VERSION = 0x04;
-    //const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
-
-    const char* GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size);       // .dmanifest
     const char* GetArchiveIndexPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size);   // .arci
     const char* GetArchiveDataPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size);   // .arcd
-
-    void                        DeleteManifest(dmResource::Manifest* manifest);
-    dmResourceProvider::Result  LoadManifest(const dmURI::Parts* uri, dmResource::Manifest** out);
-    dmResourceProvider::Result  LoadManifest(const char* path, dmResource::Manifest** out);
-    dmResourceProvider::Result  LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out);
-
-    dmResourceProvider::Result  WriteManifest(const char* path, dmResource::Manifest* manifest);
 
     // For debugging
     void DebugPrintBuffer(const uint8_t* hash, uint32_t len);
     void DebugPrintArchiveIndex(dmResourceArchive::HArchiveIndexContainer archive);
-    void DebugPrintManifest(dmResource::Manifest* manifest);
 }
 
 #endif // DM_RESOURCE_PROVIDER_ARCHIVE_PRIVATE_H

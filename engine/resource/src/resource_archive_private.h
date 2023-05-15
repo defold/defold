@@ -46,5 +46,6 @@ namespace dmResourceArchive
 
     void Delete(ArchiveIndex* archive);
 
+    dmResource::Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive_index);
 }
 #endif // RESOURCE_ARCHIVE_PRIVATE_H

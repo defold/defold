@@ -16,6 +16,13 @@
 #define DM_RESOURCE_MOUNTS_H
 
 #include "resource.h"
+#include "resource_private.h"
+#include <dlib/hash.h>
+
+namespace dmResourceProvider
+{
+    typedef struct Archive*         HArchive;
+}
 
 namespace dmResourceMounts
 {

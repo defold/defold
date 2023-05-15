@@ -18,6 +18,7 @@
 #include "provider_archive_private.h"
 
 #include "../resource.h" // dmResource::Manifest
+#include "../resource_manifest.h"
 #include "../resource_archive.h"
 #include "../resource_util.h"
 #include "../resource_private.h"
@@ -82,7 +83,7 @@ namespace dmResourceProviderArchiveMutable
     static void DeleteArchive(GameArchiveFile* archive)
     {
         if (archive->m_Manifest)
-            dmResourceProviderArchivePrivate::DeleteManifest(archive->m_Manifest);
+            dmResourceManifest::DeleteManifest(archive->m_Manifest);
 
         if (archive->m_ArchiveContainer)
             dmResource::UnmountArchiveInternal(archive->m_ArchiveContainer, archive->m_ArchiveContainer->m_UserData);
@@ -108,7 +109,7 @@ namespace dmResourceProviderArchiveMutable
             info.m_ArchiveInfo = 0;
             if (archive->m_ArchiveContainer)
             {
-                dmResourceArchive::Result result = dmResourceProviderArchive::FindEntry(archive->m_ArchiveContainer,
+                dmResourceArchive::Result result = dmResourceArchive::FindEntry(archive->m_ArchiveContainer,
                                                                                 entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count, &info.m_ArchiveInfo);
                 if (result != dmResourceArchive::RESULT_OK)
                 {
@@ -310,16 +311,16 @@ namespace dmResourceProviderArchiveMutable
         memcpy(&archive->m_Uri, uri, sizeof(dmURI::Parts));
 
         char manifest_path[DMPATH_MAX_PATH];
-        dmResourceProviderArchivePrivate::GetManifestPath(&archive->m_Uri, manifest_path, sizeof(manifest_path));
+        dmResourceManifest::GetManifestPath(&archive->m_Uri, manifest_path, sizeof(manifest_path));
 
         if (dmSys::Exists(manifest_path))
         {
-            result = dmResourceProviderArchivePrivate::LoadManifest(uri, &archive->m_Manifest);
-            if (dmResourceProvider::RESULT_OK != result)
+            dmResource::Result mresult = dmResourceManifest::LoadManifest(uri, &archive->m_Manifest);
+            if (dmResource::RESULT_OK != mresult)
             {
                 dmLogError("Failed to load manifest '%s'. Cannot mount archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
                 DeleteArchive(archive);
-                return result;
+                return dmResourceProvider::RESULT_INVAL_ERROR;
             }
         }
 
@@ -327,7 +328,7 @@ namespace dmResourceProviderArchiveMutable
         {
             archive->m_Manifest = CreateManifestCopy(base_manifest);
 
-            dmResourceProviderArchivePrivate::WriteManifest(manifest_path, archive->m_Manifest);
+            dmResourceManifest::WriteManifest(manifest_path, archive->m_Manifest);
             dmLogInfo("Stored manifest copy '%s' for archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
         }
 
@@ -378,15 +379,14 @@ namespace dmResourceProviderArchiveMutable
                                              uint8_t* archive_data, uint32_t archive_data_len,
                                              dmResourceProvider::HArchiveInternal* out_archive)
     {
-        dmResourceProvider::Result result;
         GameArchiveFile* archive = new GameArchiveFile;
 
-        result = dmResourceProviderArchivePrivate::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
-        if (dmResourceProvider::RESULT_OK != result)
+        dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
+        if (dmResource::RESULT_OK != result)
         {
             dmLogError("Failed to load manifest in-memory, result: %u", result);
             DeleteArchive(archive);
-            return result;
+            return dmResourceProvider::RESULT_INVAL_ERROR;
         }
 
         dmResourceArchive::Result ar_result = dmResourceArchive::WrapArchiveBuffer( index_data, index_data_len, true,
@@ -436,7 +436,7 @@ namespace dmResourceProviderArchiveMutable
         if (buffer_len < dmEndian::ToNetwork(entry->m_ArchiveInfo->m_ResourceSize))
             return dmResourceProvider::RESULT_INVAL_ERROR;
 
-        dmResourceArchive::Result result = dmResourceProviderArchive::ReadEntry(archive->m_ArchiveContainer, entry->m_ArchiveInfo, buffer);
+        dmResourceArchive::Result result = dmResourceArchive::ReadEntry(archive->m_ArchiveContainer, entry->m_ArchiveInfo, buffer);
         if (dmResourceArchive::RESULT_OK != result)
         {
             return dmResourceProvider::RESULT_IO_ERROR;

@@ -24,12 +24,6 @@
 
 namespace dmResourceProviderArchivePrivate
 {
-    const char* GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size)
-    {
-        dmSnPrintf(buffer, buffer_size, "%s%s.dmanifest", uri->m_Location, uri->m_Path);
-        return buffer;
-    }
-
     const char* GetArchiveIndexPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size)
     {
         dmSnPrintf(buffer, buffer_size, "%s%s.arci", uri->m_Location, uri->m_Path);
@@ -42,132 +36,7 @@ namespace dmResourceProviderArchivePrivate
         return buffer;
     }
 
-    void DeleteManifest(dmResource::Manifest* manifest)
-    {
-        if (!manifest)
-            return;
-        if (manifest->m_DDF)
-            dmDDF::FreeMessage(manifest->m_DDF);
-        if (manifest->m_DDFData)
-            dmDDF::FreeMessage(manifest->m_DDFData);
-        manifest->m_DDF = 0x0;
-        manifest->m_DDFData = 0x0;
-        delete manifest;
-    }
-
-    static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
-    {
-        // Read from manifest resource
-        dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
-        if (result != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to parse Manifest (%i)", result);
-            return dmResource::RESULT_DDF_ERROR;
-        }
-
-        // Read data blob from ManifestFile into ManifestData message
-        result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
-        if (result != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to parse Manifest data (%i)", result);
-            dmDDF::FreeMessage(out_manifest->m_DDF);
-            out_manifest->m_DDF = 0x0;
-            return dmResource::RESULT_DDF_ERROR;
-        }
-        if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
-        {
-            dmLogError("Manifest format mismatch (expected '%x', actual '%x')", MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
-            dmDDF::FreeMessage(out_manifest->m_DDFData);
-            dmDDF::FreeMessage(out_manifest->m_DDF);
-            out_manifest->m_DDFData = 0x0;
-            out_manifest->m_DDF = 0x0;
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
-        if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
-        {
-            dmLogError("Manifest version mismatch (expected '%i', actual '%i')", dmResourceArchive::VERSION, out_manifest->m_DDFData->m_Header.m_Version);
-            dmDDF::FreeMessage(out_manifest->m_DDFData);
-            dmDDF::FreeMessage(out_manifest->m_DDF);
-            out_manifest->m_DDFData = 0x0;
-            out_manifest->m_DDF = 0x0;
-            return dmResource::RESULT_VERSION_MISMATCH;
-        }
-
-        return dmResource::RESULT_OK;
-    }
-
-    dmResourceProvider::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out)
-    {
-        dmResource::Manifest* manifest = new dmResource::Manifest();
-        dmResource::Result result = ManifestLoadMessage(buffer, buffer_len, manifest);
-
-        if (dmResource::RESULT_OK == result)
-        {
-            *out = manifest;
-        }
-        else
-        {
-            DeleteManifest(manifest);
-        }
-
-        return dmResource::RESULT_OK == result ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_IO_ERROR;
-    }
-
-    dmResourceProvider::Result LoadManifest(const char* path, dmResource::Manifest** out)
-    {
-        uint32_t manifest_length = 0;
-        uint8_t* manifest_buffer = 0x0;
-
-        uint32_t dummy_file_size = 0;
-        dmSys::ResourceSize(path, &manifest_length);
-        dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
-        assert(manifest_buffer);
-        dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
-
-        if (sys_result != dmSys::RESULT_OK)
-        {
-            dmLogError("Failed to read manifest %s (%i)", path, sys_result);
-            dmMemory::AlignedFree(manifest_buffer);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
-
-        dmResourceProvider::Result result = LoadManifestFromBuffer(manifest_buffer, manifest_length, out);
-        dmMemory::AlignedFree(manifest_buffer);
-
-        if (result == dmResourceProvider::RESULT_OK)
-            printf("Loaded manifest %s\n", path);
-        return result;
-    }
-
-    dmResourceProvider::Result LoadManifest(const dmURI::Parts* uri, dmResource::Manifest** out)
-    {
-        char manifest_path[DMPATH_MAX_PATH];
-        return LoadManifest(GetManifestPath(uri, manifest_path, sizeof(manifest_path)), out);
-    }
-
-    dmResourceProvider::Result WriteManifest(const char* path, dmResource::Manifest* manifest)
-    {
-        char manifest_tmp_file_path[DMPATH_MAX_PATH];
-        dmSnPrintf(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", path);
-
-        // write to tempfile, if successful move/rename and then delete tmpfile
-        dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
-        if (ddf_result != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed storing manifest to file '%s', result: %i", manifest_tmp_file_path, ddf_result);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
-        dmSys::Result sys_result = dmSys::RenameFile(path, manifest_tmp_file_path);
-        if (sys_result != dmSys::RESULT_OK)
-        {
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
-        dmLogInfo("Stored manifest: '%s'", path);
-        return dmResourceProvider::RESULT_OK;
-    }
-
-    static void PrintHash(const uint8_t* hash, uint32_t len)
+    void DebugPrintBuffer(const uint8_t* hash, uint32_t len)
     {
         for (uint32_t i = 0; i < len; ++i)
         {
@@ -175,7 +44,7 @@ namespace dmResourceProviderArchivePrivate
         }
     }
 
-    void DebugPrintBuffer(const uint8_t* hash, uint32_t len)
+    static void PrintHash(const uint8_t* hash, uint32_t len)
     {
         for (uint32_t i = 0; i < len; ++i)
         {
@@ -219,15 +88,5 @@ namespace dmResourceProviderArchivePrivate
     // required HashDigest         hash = 3;
     // repeated uint32             dependants = 4;
     // required uint32             flags = 5 [default = 0]; // ResourceEntryFlag
-    void DebugPrintManifest(dmResource::Manifest* manifest)
-    {
-        for (uint32_t i = 0; i < manifest->m_DDFData->m_Resources.m_Count; ++i)
-        {
-            dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
-            printf("entry: hash: ");
-            uint8_t* h = entry->m_Hash.m_Data.m_Data;
-            PrintHash(h, entry->m_Hash.m_Data.m_Count);
-            printf("  flags: %u url: %llx  %s\n", entry->m_Flags, entry->m_UrlHash, entry->m_Url);
-        }
-    }
+
 }

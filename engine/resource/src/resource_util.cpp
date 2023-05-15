@@ -29,6 +29,8 @@ FDecryptResource g_ResourceDecryption = DecryptWithXtea; // Currently global sin
 void RegisterResourceDecryptionFunction(FDecryptResource decrypt_resource)
 {
     g_ResourceDecryption = decrypt_resource;
+    if (g_ResourceDecryption == 0)
+        g_ResourceDecryption = DecryptWithXtea;
 }
 
 static dmResource::Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
@@ -44,6 +46,17 @@ static dmResource::Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
 dmResource::Result DecryptBuffer(void* buffer, uint32_t buffer_len)
 {
     return g_ResourceDecryption(buffer, buffer_len);
+}
+
+Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
+{
+    const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+    dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
+    if (r != dmCrypt::RESULT_OK) {
+        return RESULT_INVALID_DATA;
+    }
+    return RESULT_OK;
 }
 
 uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
@@ -73,7 +86,6 @@ void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_
     }
 }
 
-
 Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len)
 {
     if (expected_len != len)
@@ -86,6 +98,14 @@ Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_d
         return RESULT_FORMAT_ERROR;
     }
     return RESULT_OK;
+}
+
+void PrintHash(const uint8_t* hash, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; ++i)
+    {
+        printf("%02X", hash[i]);
+    }
 }
 
 

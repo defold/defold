@@ -43,8 +43,11 @@
 
 #include <resource/resource_ddf.h>
 #include "../resource.h"
+#include "../resource_manifest.h"
 #include "../resource_archive.h"
+#include "../resource_util.h"
 #include "../resource_private.h"
+#include "../resource_archive_private.h"
 #include "test/test_resource_ddf.h"
 
 #if defined(TEST_HTTP_SUPPORTED)
@@ -1417,48 +1420,41 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
 
 TEST_F(ResourceTest, ManifestLoadDdfFail)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
     const char* buf = "this is not a manifest buffer";
-    dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
+    dmResource::Manifest* manifest;
+    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer((uint8_t*)buf, strlen(buf), &manifest);
     ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
-    delete manifest;
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Manifest* manifest;
+    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-
-    dmResourceArchive::SetDefaultReader(archive);
 
     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     uint32_t hash_len = dmResource::HashLength(algorithm);
 
-    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, hash_len, archive);
+    result = dmResourceArchive::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, hash_len, archive);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::Delete(archive);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResourceManifest::DeleteManifest(manifest);
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Manifest* manifest;
+    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-
-    dmResourceArchive::SetDefaultReader(archive);
 
     // Deep-copy current manifest resource entries with space for an extra resource entry
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
@@ -1483,7 +1479,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     uint32_t hash_len = dmResource::HashLength(algorithm);
 
-    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, hash_len, archive);
+    result = dmResourceArchive::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, hash_len, archive);
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
 
     // Clean up deep-copied resource entries
@@ -1495,9 +1491,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     free(entries);
 
     dmResourceArchive::Delete(archive);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResourceManifest::DeleteManifest(manifest);
 }
 
 int main(int argc, char **argv)

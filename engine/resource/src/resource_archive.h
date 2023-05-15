@@ -21,19 +21,12 @@
 #include <stdlib.h>
 
 #include "providers/provider.h"
-#include <dmsdk/resource/resource_archive.h>
 
 #include <dlib/uri.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
-#include <dlib/path.h>
+#include <dlib/path.h> // DMPATH_MAX_PATH
 
-
-namespace dmResource
-{
-    struct Manifest;
-    typedef dmArray<char> LoadBufferType;
-}
 
 namespace dmResourceArchive
 {
@@ -83,9 +76,6 @@ namespace dmResourceArchive
         uint32_t m_ResourceCompressedSize;  // 0xFFFFFFFF if uncompressed
         uint32_t m_Flags;                   // A combination of dmResourceArchive::EntryFlag
     };
-
-    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
-
 
     // For memory mapped files (or files read directly into memory)
     struct DM_ALIGNED(16) ArchiveIndex
@@ -143,7 +133,7 @@ namespace dmResourceArchive
     typedef struct ArchiveIndex* HArchiveIndex;
 
     // This header is a little bit hidden.
-    // It is written byu the ArchiveBUilder.java in writeResourcePack()
+    // It is written by the ArchiveBuilder.java in writeResourcePack()
     struct DM_ALIGNED(16) LiveUpdateResourceHeader {
         uint32_t    m_Size;
         uint8_t     m_Flags;        // See dmResourceArchive::EntryData / EntryFlag
@@ -174,30 +164,8 @@ namespace dmResourceArchive
         LiveUpdateResourceHeader* m_Header;
     };
 
-
-    // // Sets the default format finder/reader for an archive (currently used for the builtins manifest/archive)
-    // void SetDefaultReader(HArchiveIndexContainer archive);
-
-    // // Reused by other loaders
-    // // Loads a .dmanifest from memory
-    // Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out);
-    // // Loads a .dmanifest
-    // Result LoadManifest(const char* path, dmResource::Manifest** out);
-
     // Loads a .arci and a .arcd into an HArchiveContainer
     Result LoadArchiveFromFile(const char* index_path, const char* data_path, HArchiveIndexContainer* out);
-
-
-    // Calls each loader in sequence
-
-    // /*# Loads the archives, calling each registered loader in sequence
-    //  * Skipping the ones where the signature differs from the base bundle
-    //  */
-    // Result LoadArchives(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** manifest, HArchiveIndexContainer* out);
-
-    // /*# Unloads the archives, calling each registered loader in sequence
-    //  */
-    // Result UnloadArchives(HArchiveIndexContainer archive);
 
     /**
      * Wrap an archive index and data file already loaded in memory. Calling Delete() on wrapped
@@ -219,14 +187,13 @@ namespace dmResourceArchive
      * Find resource entry within the loaded archives
      * @param archive archive index handle
      * @param hash resource hash digest to find
-     * @param out_archive the archive in which the resource was first found
      * @param entry entry data
      * @return RESULT_OK on success
      */
-    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, HArchiveIndexContainer* out_archive, EntryData* entry);
+    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData** entry);
 
-    // Deprecated
-    Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer);
+    // // Deprecated
+    // Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer);
 
     /**
      * Read resource from the given archive
@@ -257,15 +224,6 @@ namespace dmResourceArchive
      */
     Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const char* path, const uint8_t* hash_digest, uint32_t hash_digest_len,
                                             const dmResourceArchive::LiveUpdateResource* resource, HArchiveIndex& out_new_index);
-
-    /**
-     * The manifest has a signature embedded. This signature is created when bundling by hashing the manifest content
-     * and encrypting the hash with the private part of a public-private key pair. To verify a manifest this procedure
-     * is performed in reverse; first decrypting the signature using the public key (bundled with the engine) to
-     * retreive the content hash then hashing the actual manifest content and comparing the two.
-     * This method handles the signature decryption part.
-     */
-    Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
 
     /**
      * Set new archive index in archive container. Replace existing archive index if set

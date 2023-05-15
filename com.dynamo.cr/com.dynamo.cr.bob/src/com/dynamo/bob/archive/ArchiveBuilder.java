@@ -305,6 +305,7 @@ public class ArchiveBuilder {
         System.exit(1);
     }
 
+    // The main function is used to create test content
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, CompileExceptionError {
         // Validate input
         if (args.length < 3) {

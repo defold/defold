@@ -14,11 +14,13 @@
 
 #include <stdint.h>
 #include "../resource.h"
+#include "../resource_manifest.h"
 #include "../resource_archive_private.h"
 #include "../resource_util.h"
 #include "../providers/provider_archive_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
+#include <dlib/sys.h>
 #include <dlib/testutil.h>
 
 // TODO: replace with dmEndian
@@ -210,165 +212,159 @@ bool IsLiveUpdateResource(dmhash_t lu_path_hash)
 
 TEST(dmResourceArchive, ShiftInsertResource)
 {
-printf("\nMAWE: TEMPORARILY DISABLED!\n");
+    const char* resource_filename = "test_resource_liveupdate.arcd";
+    char host_name[512];
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
 
-    // const char* resource_filename = "test_resource_liveupdate.arcd";
-    // char host_name[512];
-    // const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
+    FILE* resource_file = fopen(path, "wb");
+    bool success = resource_file != 0x0;
+    ASSERT_EQ(success, true);
 
-    // FILE* resource_file = fopen(path, "wb");
-    // bool success = resource_file != 0x0;
-    // ASSERT_EQ(success, true);
+    // Resource data to insert
+    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
+    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
+    PopulateLiveUpdateResource(resource);
 
-    // // Resource data to insert
-    // dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
-    // resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
-    // PopulateLiveUpdateResource(resource);
+    // Use copy since we will shift/insert data
+    dmResourceArchive::HArchiveIndex arci_copy;
+    uint32_t arci_size = GetMutableIndexData((void*&)arci_copy, 1);
 
-    // // Use copy since we will shift/insert data
-    // uint8_t* arci_copy;
-    // uint32_t arci_size = GetMutableIndexData((void*&)arci_copy, 1);
+    // Init archive container
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, arci_size, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, false, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    // // Init archive container
-    // dmResourceArchive::HArchiveIndexContainer archive = 0;
-    // dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, arci_size, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, false, &archive);
-    // ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
 
-    // archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
+    // dmResourceArchive::SetDefaultReader(archive);
 
-    //// dmResourceArchive::SetDefaultReader(archive);
+    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(5U, entry_count_before);
 
-    // uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
-    // ASSERT_EQ(7U, entry_count_before);
+    // Insertion
+    int index = -1;
+    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
+    ASSERT_TRUE(index >= 0);
+    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, arci_copy, sorted_middle_hash, 20, index, resource, 0x0);
+    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
+    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(6U, entry_count_after);
 
-    // // Insertion
-    // int index = -1;
-    // dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
-    // ASSERT_TRUE(index >= 0);
-    // dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, (dmResourceArchive::ArchiveIndex*)arci_copy, sorted_middle_hash, 20, index, resource, 0x0);
-    // ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-    // uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    // ASSERT_EQ(8U, entry_count_after);
+    // Find inserted entry in archive after insertion
+    dmResourceArchive::EntryData* entry;
+    result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, sizeof(sorted_middle_hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
 
-    // // Find inserted entry in archive after insertion
-    // dmResourceArchive::EntryData entry;
-    // dmResourceArchive::HArchiveIndexContainer entryarchive = 0;
-    // result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, sizeof(sorted_middle_hash), &entryarchive, &entry);
-    // ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    // ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
+    int cmp = VerifyArchiveIndex(archive);
+    ASSERT_EQ(0, cmp);
 
-    // int cmp = VerifyArchiveIndex(archive);
-    // ASSERT_EQ(0, cmp);
-
-    // free(resource->m_Header);
-    // free(resource);
-    // dmResourceArchive::Delete(archive); // fclose on the FILE*
-    // FreeMutableIndexData((void*&)arci_copy);
-    // remove(path);
+    free(resource->m_Header);
+    free(resource);
+    dmResourceArchive::Delete(archive); // fclose on the FILE*
+    FreeMutableIndexData((void*&)arci_copy);
+    dmSys::Unlink(path);
 }
 
 
 TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
 {
-printf("\nMAWE: TEMPORARILY DISABLED!\n");
+    const char* resource_filename = "test_resource_liveupdate.arcd";
+    char host_name[512];
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
 
-    // const char* resource_filename = "test_resource_liveupdate.arcd";
-    // char host_name[512];
-    // const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
+    FILE* resource_file = fopen(path, "wb");
+    bool success = resource_file != 0x0;
+    ASSERT_EQ(success, true);
 
-    // FILE* resource_file = fopen(path, "wb");
-    // bool success = resource_file != 0x0;
-    // ASSERT_EQ(success, true);
+    // Resource data to insert
+    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
+    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
+    PopulateLiveUpdateResource(resource);
 
-    // // Resource data to insert
-    // dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
-    // resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
-    // PopulateLiveUpdateResource(resource);
+    dmResourceArchive::HArchiveIndexContainer archive = new dmResourceArchive::ArchiveIndexContainer;
+    archive->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
+    archive->m_ArchiveIndex->m_HashLength = dmEndian::ToHost(20U);
+    archive->m_IsMemMapped = true;
+    archive->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
+    archive->m_ArchiveFileIndex->m_ResourceSize = RESOURCES_ARCD_SIZE;
+    archive->m_ArchiveFileIndex->m_ResourceData = RESOURCES_ARCD;
+    archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
+    archive->m_ArchiveFileIndex->m_IsMemMapped = false;
 
-    // dmResourceArchive::HArchiveIndexContainer archive = new dmResourceArchive::ArchiveIndexContainer;
-    // archive->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
-    // archive->m_ArchiveIndex->m_HashLength = dmEndian::ToHost(20U);
-    // archive->m_IsMemMapped = true;
-    // archive->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-    // archive->m_ArchiveFileIndex->m_ResourceSize = RESOURCES_ARCD_SIZE;
-    // archive->m_ArchiveFileIndex->m_ResourceData = RESOURCES_ARCD;
-    // archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
-    // archive->m_ArchiveFileIndex->m_IsMemMapped = false;
+    // dmResourceArchive::SetDefaultReader(archive);
 
-    //// dmResourceArchive::SetDefaultReader(archive);
+    dmResourceArchive::ArchiveIndex* ai_temp = 0;
+    dmResourceArchive::NewArchiveIndexFromCopy(ai_temp, archive, 3);
 
-    // dmResourceArchive::ArchiveIndex* ai_temp = 0;
-    // dmResourceArchive::NewArchiveIndexFromCopy(ai_temp, archive, 3);
+    delete archive->m_ArchiveIndex;
+    archive->m_ArchiveIndex = ai_temp;
 
-    // delete archive->m_ArchiveIndex;
-    // archive->m_ArchiveIndex = ai_temp;
+    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(0U, entry_count_before);
 
-    // uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
-    // ASSERT_EQ(0U, entry_count_before);
+    // we got:
+    // 0: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
+    // 1: '07f1284d530deb401da0ed142da50d5724cb04cd'
+    // 2: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
+    const uint8_t hash1[20] = {0x07, 0xf1, 0x28, 0x4d, 0x53, 0x0d, 0xeb, 0x40, 0x1d, 0xa0, 0xed, 0x14, 0x2d, 0xa5, 0x0d, 0x57, 0x24, 0xcb, 0x04, 0xcd};
+    const uint8_t hash2[20] = {0x91, 0x70, 0xa1, 0x2e, 0x26, 0x6e, 0xc4, 0x1f, 0x55, 0x75, 0xbb, 0x8f, 0x83, 0x7d, 0x0f, 0x4b, 0xb6, 0xca, 0xb0, 0x3f};
+    const uint8_t hash3[20] = {0x3b, 0xe3, 0x2c, 0xfd, 0x80, 0xb4, 0x01, 0x6a, 0x9e, 0xba, 0xf1, 0xc7, 0x24, 0x93, 0x96, 0xef, 0x60, 0x8c, 0x95, 0xbd};
+    // but we wanted:
+    // 0: '07f1284d530deb401da0ed142da50d5724cb04cd'
+    // 1: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
+    // 2: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
 
-    // // we got:
-    // // 0: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
-    // // 1: '07f1284d530deb401da0ed142da50d5724cb04cd'
-    // // 2: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
-    // const uint8_t hash1[20] = {0x07, 0xf1, 0x28, 0x4d, 0x53, 0x0d, 0xeb, 0x40, 0x1d, 0xa0, 0xed, 0x14, 0x2d, 0xa5, 0x0d, 0x57, 0x24, 0xcb, 0x04, 0xcd};
-    // const uint8_t hash2[20] = {0x91, 0x70, 0xa1, 0x2e, 0x26, 0x6e, 0xc4, 0x1f, 0x55, 0x75, 0xbb, 0x8f, 0x83, 0x7d, 0x0f, 0x4b, 0xb6, 0xca, 0xb0, 0x3f};
-    // const uint8_t hash3[20] = {0x3b, 0xe3, 0x2c, 0xfd, 0x80, 0xb4, 0x01, 0x6a, 0x9e, 0xba, 0xf1, 0xc7, 0x24, 0x93, 0x96, 0xef, 0x60, 0x8c, 0x95, 0xbd};
-    // // but we wanted:
-    // // 0: '07f1284d530deb401da0ed142da50d5724cb04cd'
-    // // 1: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
-    // // 2: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
+    // Insertion
+    int index = -1;
+    dmResourceArchive::GetInsertionIndex(archive, hash1, &index);
+    ASSERT_EQ(0, index);
 
-    // // Insertion
-    // int index = -1;
-    // dmResourceArchive::GetInsertionIndex(archive, hash1, &index);
-    // ASSERT_EQ(0, index);
+    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash1, sizeof(hash1), index, resource, 0x0);
+    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
 
-    // dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash1, sizeof(hash1), index, resource, 0x0);
-    // ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
+    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(1U, entry_count_after);
 
-    // uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    // ASSERT_EQ(1U, entry_count_after);
+    dmResourceArchive::GetInsertionIndex(archive, hash2, &index);
+    ASSERT_EQ(1, index);
 
-    // dmResourceArchive::GetInsertionIndex(archive, hash2, &index);
-    // ASSERT_EQ(1, index);
+    insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash2, sizeof(hash2), index, resource, 0x0);
+    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
 
-    // insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash2, sizeof(hash2), index, resource, 0x0);
-    // ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
+    entry_count_after = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(2U, entry_count_after);
 
-    // entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    // ASSERT_EQ(2U, entry_count_after);
+    dmResourceArchive::GetInsertionIndex(archive, hash3, &index);
+    ASSERT_EQ(1, index);
 
-    // dmResourceArchive::GetInsertionIndex(archive, hash3, &index);
-    // ASSERT_EQ(1, index);
+    insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash3, sizeof(hash3), index, resource, 0x0);
+    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
 
-    // insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash3, sizeof(hash3), index, resource, 0x0);
-    // ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
+    entry_count_after = dmResourceArchive::GetEntryCount(archive);
+    ASSERT_EQ(3U, entry_count_after);
 
-    // entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    // ASSERT_EQ(3U, entry_count_after);
+    int cmp = VerifyArchiveIndex(archive);
+    ASSERT_EQ(0, cmp);
 
-    // int cmp = VerifyArchiveIndex(archive);
-    // ASSERT_EQ(0, cmp);
+    // Find inserted entry in archive after insertion
+    dmResourceArchive::Result result;
+    dmResourceArchive::EntryData* entry;
+    result = dmResourceArchive::FindEntry(archive, hash1, sizeof(hash1), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
+    result = dmResourceArchive::FindEntry(archive, hash2, sizeof(hash2), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
+    result = dmResourceArchive::FindEntry(archive, hash3, sizeof(hash3), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
 
-    // // Find inserted entry in archive after insertion
-    // dmResourceArchive::Result result;
-    // dmResourceArchive::EntryData entry;
-    // dmResourceArchive::HArchiveIndexContainer entryarchive = 0;
-    // result = dmResourceArchive::FindEntry(archive, hash1, sizeof(hash1), &entryarchive, &entry);
-    // ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    // ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
-    // result = dmResourceArchive::FindEntry(archive, hash2, sizeof(hash2), &entryarchive, &entry);
-    // ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    // ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
-    // result = dmResourceArchive::FindEntry(archive, hash3, sizeof(hash3), &entryarchive, &entry);
-    // ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    // ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
-
-    // free(resource->m_Header);
-    // free(resource);
-    // dmResourceArchive::Delete(archive); // fclose on the FILE*
-    // FreeMutableIndexData((void*&)ai_temp);
-    // remove(path);
+    free(resource->m_Header);
+    free(resource);
+    dmResourceArchive::Delete(archive); // fclose on the FILE*
+    FreeMutableIndexData((void*&)ai_temp);
+    dmSys::Unlink(path);
 }
 
 TEST(dmResourceArchive, NewArchiveIndexFromCopy)
@@ -376,20 +372,20 @@ TEST(dmResourceArchive, NewArchiveIndexFromCopy)
     uint32_t single_entry_offset = dmResourceArchive::MAX_HASH;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true,&archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(496U, dmResourceArchive::GetEntryDataOffset(archive_container));
+    ASSERT_EQ(368U, dmResourceArchive::GetEntryDataOffset(archive_container));
 
     // No extra allocation
     dmResourceArchive::HArchiveIndex dst_archive = 0;
     dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 0);
-    ASSERT_EQ(496U, dmResourceArchive::GetEntryDataOffset(dst_archive));
+    ASSERT_EQ(368U, dmResourceArchive::GetEntryDataOffset(dst_archive));
     dmResourceArchive::Delete(dst_archive);
 
     // Allocate space for 3 extra entries
     dst_archive = 0;
     dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 3);
-    ASSERT_EQ(496U + 3 * single_entry_offset, dmResourceArchive::GetEntryDataOffset(dst_archive));
+    ASSERT_EQ(368U + 3 * single_entry_offset, dmResourceArchive::GetEntryDataOffset(dst_archive));
     dmResourceArchive::Delete(dst_archive);
 
     dmResourceArchive::Delete(archive_container);
@@ -400,7 +396,14 @@ TEST(dmResourceArchive, GetInsertionIndex)
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
+
+    // Saving it here in for debugging purposes
+    // printf("Archive:\n");
+    // dmResourceArchive::DebugArchiveIndex(archive);
+    // printf("sorted_first_hash: "); dmResource::PrintHash(sorted_first_hash, sizeof(sorted_first_hash)); printf("\n");
+    // printf("sorted_middle_hash: "); dmResource::PrintHash(sorted_middle_hash, sizeof(sorted_middle_hash)); printf("\n");
+    // printf("sorted_last_hash: "); dmResource::PrintHash(sorted_last_hash, sizeof(sorted_last_hash)); printf("\n");
 
     int index = -1;
 
@@ -411,7 +414,7 @@ TEST(dmResourceArchive, GetInsertionIndex)
     ASSERT_EQ(2, index);
 
     dmResourceArchive::GetInsertionIndex(archive, sorted_last_hash, &index);
-    ASSERT_EQ(7, index);
+    ASSERT_EQ(5, index);
 
     dmResourceArchive::Delete(archive);
 }
@@ -420,20 +423,20 @@ TEST(dmResourceArchive, ManifestHeader)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResourceProvider::Result result = dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
 
-    ASSERT_EQ(dmResourceProviderArchivePrivate::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
-    ASSERT_EQ(dmResourceProviderArchivePrivate::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
+    ASSERT_EQ(dmResourceManifest::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
+    ASSERT_EQ(dmResourceManifest::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);
 
     ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, manifest_data->m_Header.m_SignatureSignAlgorithm);
 
-    dmResourceProviderArchivePrivate::DeleteManifest(manifest);
+    dmResourceManifest::DeleteManifest(manifest);
 }
 
 static void PrintHash(const uint8_t* hash, uint32_t len)
@@ -501,7 +504,7 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
@@ -538,7 +541,7 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     }
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
     // debug prints to determine cause of intermittent test fail on both Linux/macOS
     printf("Actual digest (%u bytes):\n", hex_digest_len);
@@ -548,7 +551,7 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::MemCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
 
     free(hex_digest);
-    dmResourceProviderArchivePrivate::DeleteManifest(manifest);
+    dmResourceManifest::DeleteManifest(manifest);
 }
 #endif
 
@@ -564,14 +567,14 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
     ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
@@ -593,14 +596,14 @@ This test is failing intermittenly on Linux. Typical output from a failed test:
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, dmResourceArchive::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
     ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
@@ -614,14 +617,14 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
     resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResourceArchive::RESULT_INVALID_DATA, dmResourceArchive::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
     free(hex_digest);
     free(resources_public_wrong);
@@ -634,7 +637,7 @@ TEST(dmResourceArchive, ResourceEntries)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
 
     manifest_data = manifest->m_DDFData;
 
@@ -663,7 +666,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProviderArchivePrivate::LoadManifestFromBuffer(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, &manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceManifest::LoadManifestFromBuffer(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, &manifest));
 
     manifest_data = manifest->m_DDFData;
 
@@ -695,20 +698,19 @@ TEST(dmResourceArchive, Wrap)
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    //dmResourceArchive::SetDefaultReader(archive);
-    ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
-    dmResourceArchive::HArchiveIndexContainer entryarchive;
-    dmResourceArchive::EntryData entry;
+    dmResourceArchive::EntryData* entry;
     for (uint32_t i = 0; i < (sizeof(path_hash) / sizeof(path_hash[0])); ++i)
     {
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, content_hash[i], sizeof(content_hash[i]), &entryarchive, &entry);
+
+        result = dmResourceArchive::FindEntry(archive, content_hash[i], sizeof(content_hash[i]), &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, content_hash[i], sizeof(content_hash[i]), &entry, buffer);
+        result = dmResourceArchive::ReadEntry(archive, entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -716,7 +718,7 @@ TEST(dmResourceArchive, Wrap)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -728,21 +730,18 @@ TEST(dmResourceArchive, Wrap_Compressed)
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, true, (void*) RESOURCES_COMPRESSED_ARCD, RESOURCES_COMPRESSED_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    //dmResourceArchive::SetDefaultReader(archive);
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
-    ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
-
-    dmResourceArchive::HArchiveIndexContainer entryarchive;
-    dmResourceArchive::EntryData entry;
+    dmResourceArchive::EntryData* entry;
     for (uint32_t i = 0; i < (sizeof(path_hash) / sizeof(path_hash[0])); ++i)
     {
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entry, buffer);
+        result = dmResourceArchive::ReadEntry(archive, entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -750,7 +749,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -763,21 +762,18 @@ TEST(dmResourceArchive, LoadFromDisk)
     const char* resource_path = DM_HOSTFS "build/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
-    //dmResourceArchive::SetDefaultReader(archive);
-
-    dmResourceArchive::HArchiveIndexContainer entryarchive;
-    dmResourceArchive::EntryData entry;
+    dmResourceArchive::EntryData* entry;
     for (uint32_t i = 0; i < sizeof(path_name)/sizeof(path_name[0]); ++i)
     {
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, content_hash[i], sizeof(content_hash[i]), &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, content_hash[i], sizeof(content_hash[i]), &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, content_hash[i], sizeof(content_hash[i]), &entry, buffer);
+        result = dmResourceArchive::ReadEntry(archive, entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -785,7 +781,7 @@ TEST(dmResourceArchive, LoadFromDisk)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -807,21 +803,18 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     const char* resource_path = DM_HOSTFS "build/src/test/resources_compressed.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
+    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
 
-    //dmResourceArchive::SetDefaultReader(archive);
-
-    dmResourceArchive::HArchiveIndexContainer entryarchive;
-    dmResourceArchive::EntryData entry;
+    dmResourceArchive::EntryData* entry;
     for (uint32_t i = 0; i < sizeof(path_name)/sizeof(path_name[0]); ++i)
     {
         if (IsLiveUpdateResource(path_hash[i])) continue;
 
         char buffer[1024] = { 0 };
-        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entryarchive, &entry);
+        result = dmResourceArchive::FindEntry(archive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entry);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-        result = dmResourceArchive::Read(entryarchive, compressed_content_hash[i], sizeof(compressed_content_hash[i]), &entry, buffer);
+        result = dmResourceArchive::ReadEntry(archive, entry, buffer);
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
@@ -829,7 +822,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
-    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entryarchive, &entry);
+    result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
@@ -850,28 +843,26 @@ TEST(dmResourceArchive, ResourceDecryption)
 {
     uint8_t buffer[] = { 0x00, 0x00, 0x00 };
     uint32_t buffer_len = 3;
+
     // test the default decryption (using Xtea)
     dmResource::Result result = dmResource::DecryptBuffer(buffer, buffer_len);
     ASSERT_EQ(dmResource::RESULT_OK, result);
-    ASSERT_EQ(0xE7, buffer[0]);
-    ASSERT_EQ(0xF0, buffer[1]);
-    ASSERT_EQ(0x00, buffer[2]);
+    uint8_t expected_buffer_xtea[] = { 0xE7, 0xF0, 0x00 };
+    ASSERT_ARRAY_EQ_LEN(expected_buffer_xtea, buffer, DM_ARRAY_SIZE(buffer));
 
     // set a custom decryption function and test that it works
     dmResource::RegisterResourceDecryptionFunction(TestDecryption);
     result = dmResource::DecryptBuffer(buffer, buffer_len);
     ASSERT_EQ(dmResource::RESULT_OK, result);
-    ASSERT_EQ(0x00, buffer[0]);
-    ASSERT_EQ(0x01, buffer[1]);
-    ASSERT_EQ(0x02, buffer[2]);
+    uint8_t expected_buffer_custom[] = { 0x00, 0x01, 0x02 };
+    ASSERT_ARRAY_EQ_LEN(expected_buffer_custom, buffer, DM_ARRAY_SIZE(buffer));
 
-    // set a custom decryption function and test that it works
+    // reset the custom decryption function (to Xtea)
+    memset(buffer, 0, sizeof(buffer));
     dmResource::RegisterResourceDecryptionFunction(0);
     result = dmResource::DecryptBuffer(buffer, buffer_len);
     ASSERT_EQ(dmResource::RESULT_OK, result);
-    ASSERT_EQ(0xE7, buffer[0]);
-    ASSERT_EQ(0xF0, buffer[1]);
-    ASSERT_EQ(0x00, buffer[2]);
+    ASSERT_ARRAY_EQ_LEN(expected_buffer_xtea, buffer, DM_ARRAY_SIZE(buffer));
 }
 
 int main(int argc, char **argv)

@@ -30,17 +30,6 @@ namespace dmResourceProviderArchive
                 uint8_t* index_data, uint32_t index_data_len,
                 uint8_t* archive_data, uint32_t archive_data_len,
                 dmResourceProvider::HArchiveInternal* out_internal);
-
-    // Should really be private!
-
-    // Finds an entry in a single archive
-    dmResourceArchive::Result FindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry);
-
-    // Reads an entry from a single archive (deprecated)
-    dmResourceArchive::Result ReadEntryFromArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const dmResourceArchive::EntryData* entry, void* buffer);
-
-    dmResourceArchive::Result FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData** entry);
-    dmResourceArchive::Result ReadEntry(dmResourceArchive::HArchiveIndexContainer archive, const dmResourceArchive::EntryData* entry, void* buffer);
 }
 
 #endif // DM_RESOURCE_PROVIDER_ARCHIVE_H

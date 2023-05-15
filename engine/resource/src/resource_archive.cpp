@@ -70,18 +70,6 @@ namespace dmResourceArchive
         return RESULT_VERSION_MISMATCH;
     }
 
-    Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, HArchiveIndexContainer* out_archive, EntryData* entry)
-    {
-        dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
-        return RESULT_VERSION_MISMATCH;
-    }
-
-    Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer)
-    {
-        dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
-        return RESULT_VERSION_MISMATCH;
-    }
-
     static void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
     {
         if (index_file)
@@ -244,6 +232,56 @@ namespace dmResourceArchive
         }
     }
 
+    dmResourceArchive::Result FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData** entry)
+    {
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
+        uint8_t* hashes = 0;
+        dmResourceArchive::EntryData* entries = 0;
+
+        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
+        if (!archive->m_IsMemMapped)
+        {
+            hashes = archive->m_ArchiveFileIndex->m_Hashes;
+            entries = archive->m_ArchiveFileIndex->m_Entries;
+        }
+        else
+        {
+            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
+            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
+        }
+
+        // Search for hash with binary search (entries are sorted on hash)
+        int first = 0;
+        int last = (int)entry_count-1;
+        while (first <= last)
+        {
+            int mid = first + (last - first) / 2;
+            uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
+
+            int cmp = memcmp(hash, h, hash_len);
+            if (cmp == 0)
+            {
+                if (entry != 0)
+                {
+                    *entry = &entries[mid];
+                }
+                return dmResourceArchive::RESULT_OK;
+            }
+            else if (cmp > 0)
+            {
+                first = mid+1;
+            }
+            else if (cmp < 0)
+            {
+                last = mid-1;
+            }
+        }
+
+        return dmResourceArchive::RESULT_NOT_FOUND;
+    }
+
     static const uint8_t* LowerBound(const uint8_t* first, size_t size, const uint8_t* hash_digest, uint32_t hash_length)
     {
         while (size > 0) {
@@ -296,76 +334,31 @@ namespace dmResourceArchive
 
     void DebugArchiveIndex(HArchiveIndexContainer archive)
     {
-        dmLogInfo("HArchiveIndexContainer: %p  %s", archive, archive->m_ArchiveFileIndex?archive->m_ArchiveFileIndex->m_Path:"no path");
-
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
         uint8_t* hashes = 0;
-        EntryData* entries = 0;
+        dmResourceArchive::EntryData* entries = 0;
 
         // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
         if (!archive->m_IsMemMapped)
         {
-            if (archive->m_ArchiveFileIndex)
-            {
-                hashes = archive->m_ArchiveFileIndex->m_Hashes;
-                entries = archive->m_ArchiveFileIndex->m_Entries;
-            }
+            hashes = archive->m_ArchiveFileIndex->m_Hashes;
+            entries = archive->m_ArchiveFileIndex->m_Entries;
         }
         else
         {
-            if (archive->m_ArchiveIndex)
-            {
-                uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-                uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-                hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-                entries = (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-            }
-        }
-
-        uint32_t hash_len = 0;
-        uint32_t entry_count = 0;
-        if (archive->m_ArchiveIndex)
-        {
-            hash_len = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashLength);
-            entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
+            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
         }
 
         for (uint32_t i = 0; i < entry_count; ++i)
         {
-            const EntryData* entry = &entries[i];
-            const uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
+            uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
+            dmResourceArchive::EntryData* e = &entries[i];
+            uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
 
-            char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
-            dmResource::BytesToHexString(h, hash_len, hash_buffer, sizeof(hash_buffer));
-            uint32_t flags = dmEndian::ToNetwork(entry->m_Flags);
-
-            uint32_t compressed_size = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
-            bool compressed = compressed_size != 0xFFFFFFFF;
-            bool encrypted = flags & ENTRY_FLAG_ENCRYPTED;
-            bool liveupdate = flags & ENTRY_FLAG_LIVEUPDATE_DATA;
-
-            dmLogInfo("Entry: %3d: '%s'  csz: %6u sz: %8u  offs: %8u  encr: %d lz4: %d lu: %d", i, hash_buffer,
-                                    compressed ? compressed_size : 0,
-                                    dmEndian::ToNetwork(entry->m_ResourceSize),
-                                    dmEndian::ToNetwork(entry->m_ResourceDataOffset),
-                                    encrypted, compressed, liveupdate);
         }
-
-        if (archive->m_Next)
-        {
-            dmLogInfo("\n->m_Next\n");
-            DebugArchiveIndex(archive->m_Next);
-        }
-    }
-
-    Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
-    {
-        const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-        dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
-        if (r != dmCrypt::RESULT_OK) {
-            return RESULT_INVALID_DATA;
-        }
-        return RESULT_OK;
     }
 
     dmResource::Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
@@ -375,7 +368,7 @@ namespace dmResourceArchive
             if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
             {
                 uint8_t* hash = entries[i].m_Hash.m_Data.m_Data;
-                dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive, hash, hash_len, 0x0, 0x0);
+                dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive, hash, hash_len, 0x0);
                 if (res == dmResourceArchive::RESULT_NOT_FOUND)
                 {
                     char hash_buffer[64*2+1]; // String repr. of project id SHA1 hash
@@ -405,7 +398,7 @@ namespace dmResourceArchive
 
     int VerifyArchiveIndex(HArchiveIndexContainer archive)
     {
-        dmLogInfo("VerifyArchiveIndex: %p", archive);
+        dmLogInfo("VerifyArchiveIndex: %p\n", archive);
 
         uint8_t* hashes = 0;
         //EntryData* entries = 0;
@@ -605,6 +598,7 @@ namespace dmResourceArchive
 
     Result ReadEntry(HArchiveIndexContainer archive, const EntryData* entry, void* buffer)
     {
+        // We always assume it's in Host format, since it may arrive from memory mapped data
         const uint32_t flags            = dmEndian::ToNetwork(entry->m_Flags);
         const uint32_t size             = dmEndian::ToNetwork(entry->m_ResourceSize);
         const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
@@ -645,7 +639,6 @@ namespace dmResourceArchive
         }
 
         assert(compressed_buf);
-
         if (!resource_memmapped)
         {
             FILE* resource_file = afi->m_FileResourceData;
@@ -784,7 +777,6 @@ namespace dmResourceArchive
         archive_container->m_ArchiveIndex = new_index;
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = mem_mapped;
-
     }
 
     uint32_t GetEntryCount(HArchiveIndexContainer archive)
@@ -792,13 +784,14 @@ namespace dmResourceArchive
         return dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
     }
 
-    uint32_t GetEntryDataOffset(ArchiveIndexContainer* archive_container)
+    uint32_t GetEntryDataOffset(HArchiveIndex index)
     {
-        return dmEndian::ToNetwork(archive_container->m_ArchiveIndex->m_EntryDataOffset);
+        return dmEndian::ToNetwork(index->m_EntryDataOffset);
     }
 
-    uint32_t GetEntryDataOffset(ArchiveIndex* archive)
+    uint32_t GetEntryDataOffset(HArchiveIndexContainer archive_container)
     {
-        return dmEndian::ToNetwork(archive->m_EntryDataOffset);
+        return GetEntryDataOffset(archive_container->m_ArchiveIndex);
     }
+
 }  // namespace dmResourceArchive

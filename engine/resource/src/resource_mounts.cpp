@@ -1,4 +1,6 @@
 #include "resource_mounts.h"
+#include "providers/provider.h"
+
 #include <dlib/log.h>
 
 namespace dmResourceMounts
