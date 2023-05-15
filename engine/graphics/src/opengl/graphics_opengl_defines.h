@@ -54,6 +54,18 @@
 #error "Platform not supported."
 #endif
 
+#ifdef __ANDROID__
+	#define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
+	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+#else
+	#define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
+	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
+#endif
+
 // Types
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444                 (GL_UNSIGNED_SHORT_4_4_4_4)
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_565                  (GL_UNSIGNED_SHORT_5_6_5)
