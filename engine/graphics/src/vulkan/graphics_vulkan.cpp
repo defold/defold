@@ -2146,22 +2146,6 @@ bail:
                 res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
             }
         }
-
-        if (ddf->m_Outputs.m_Count > 0)
-        {
-            shader->m_Outputs     = new ShaderResourceBinding[ddf->m_Outputs.m_Count];
-            shader->m_OutputCount = ddf->m_Outputs.m_Count;
-
-            for (uint32_t i=0; i < ddf->m_Outputs.m_Count; i++)
-            {
-                ShaderResourceBinding& res = shader->m_Outputs[i];
-                res.m_Binding              = ddf->m_Outputs[i].m_Binding;
-                res.m_Set                  = ddf->m_Outputs[i].m_Set;
-                res.m_Type                 = ddf->m_Outputs[i].m_Type;
-                res.m_NameHash             = ddf->m_Outputs[i].m_NameHash;
-                res.m_Name                 = strdup(ddf->m_Outputs[i].m_Name);
-            }
-        }
     }
 
     static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
@@ -2230,26 +2214,6 @@ bail:
 
     static bool CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
-        // Check all fragment inputs if they are available as outputs from the vertex shader
-        for (uint32_t i = 0; i < fragment_module->m_InputCount; ++i)
-        {
-            bool input_found = false;
-            for (uint32_t j = 0; j < vertex_module->m_OutputCount; ++j)
-            {
-                if (fragment_module->m_Inputs[i].m_NameHash == vertex_module->m_Outputs[j].m_NameHash)
-                {
-                    input_found = true;
-                    break;
-                }
-            }
-
-            if (!input_found)
-            {
-                dmLogError("Input of fragment shader '%s' not written by vertex shader", fragment_module->m_Inputs[i].m_Name);
-                return false;
-            }
-        }
-
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
         memset(&vk_vertex_shader_create_info, 0, sizeof(vk_vertex_shader_create_info));
@@ -2278,12 +2242,9 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        if (vertex_module->m_InputCount > 0)
+        for (uint32_t i=0; i < vertex_module->m_InputCount; i++)
         {
-            for (uint32_t i=0; i < vertex_module->m_InputCount; i++)
-            {
-                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
-            }
+            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
         }
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
@@ -2392,13 +2353,7 @@ bail:
             free(shader->m_Inputs[i].m_Name);
         }
 
-        for (uint32_t i=0; i < shader->m_OutputCount; i++)
-        {
-            free(shader->m_Outputs[i].m_Name);
-        }
-
         delete[] shader->m_Inputs;
-        delete[] shader->m_Outputs;
         delete[] shader->m_Uniforms;
     }
 
