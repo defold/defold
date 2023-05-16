@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -314,6 +314,17 @@
               "mobileprovisioning" provisioning-profile-path
               "identity" code-signing-identity))))))
 
+(def ^:private macos-architecture-option->bob-architecture-string
+  {:architecture-x86_64? "x86_64-macos"
+   :architecture-arm64? "arm64-macos"})
+
+(defn- macos-bundle-bob-args [bundle-options]
+  (let [bob-architectures (for [[option-key bob-architecture] macos-architecture-option->bob-architecture-string
+                                :when (bundle-options option-key)]
+                            bob-architecture)
+        bob-args {"architectures" (string/join "," bob-architectures)}]
+    bob-args))
+
 (def bundle-bob-commands ["distclean" "build" "bundle"])
 
 (defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
@@ -322,7 +333,7 @@
 (defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
-(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (macos-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :windows [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) {"architectures" (bundle-options :platform)}))
 
 ;; -----------------------------------------------------------------------------
