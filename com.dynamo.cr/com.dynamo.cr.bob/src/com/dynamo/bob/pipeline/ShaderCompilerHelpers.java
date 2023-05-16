@@ -347,7 +347,17 @@ public class ShaderCompilerHelpers {
         res.resources = resources;
         res.source    = FileUtils.readFileToByteArray(file_out_spv);
 
+        Collections.sort(res.inputs, new SortBindingsComparator());
+        Collections.sort(res.outputs, new SortBindingsComparator());
+        Collections.sort(res.resources, new SortBindingsComparator());
+
         return res;
+    }
+
+    static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
+        public int compare(SPIRVReflector.Resource a, SPIRVReflector.Resource b) {
+            return a.binding - b.binding;
+        }
     }
 
     static public class SPIRVCompileResult
@@ -372,8 +382,6 @@ public class ShaderCompilerHelpers {
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
         builder.setSource(ByteString.copyFrom(compile_res.source));
 
-        // Note: No need to check for duplicates for vertex attributes,
-        // the SPIR-V compiler will complain about it.
         for (SPIRVReflector.Resource input : compile_res.inputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(input.name);
@@ -394,7 +402,6 @@ public class ShaderCompilerHelpers {
             builder.addOutputs(resourceBindingBuilder);
         }
 
-        // Build uniforms
         for (SPIRVReflector.Resource res : compile_res.resources) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(res.name);
