@@ -77,6 +77,38 @@ public class MaterialBuilder extends Builder<Void>  {
         return selected;
     }
 
+    private ShaderDesc.Shader getSpirvShader(ShaderDesc shaderDesc) {
+        for (int i=0; i < shaderDesc.getShadersCount(); i++) {
+            ShaderDesc.Shader shader = shaderDesc.getShaders(i);
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_SPIRV) {
+                return shader;
+            }
+        }
+        return null;
+    }
+
+    private void validateSpirvShaders(ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) throws CompileExceptionError {
+        ShaderDesc.Shader spirvVertex = getSpirvShader(vertexBuildContext.desc);
+        if (spirvVertex == null) {
+            return;
+        }
+        ShaderDesc.Shader spirvFragment = getSpirvShader(fragmentBuildContext.desc);
+
+
+        for (ShaderDesc.ResourceBinding input : spirvFragment.getInputsList()) {
+            boolean input_found = false;
+            for (ShaderDesc.ResourceBinding output : spirvVertex.getOutputsList()) {
+                if (output.getNameHash() == input.getNameHash()) {
+                    input_found = true;
+                    break;
+                }
+            }
+            if (!input_found) {
+                throw new CompileExceptionError(String.format("Input of fragment shader '%s' not written by vertex shader", input.getName()));
+            }
+        }
+    }
+
     private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext ctx, String inExt, String outExt) throws IOException, CompileExceptionError {
 
         ShaderDesc.Language shaderLanguage = findTextureArrayShaderLanguage(ctx.desc);
@@ -211,6 +243,8 @@ public class MaterialBuilder extends Builder<Void>  {
 
         ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
         ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());
+
+        validateSpirvShaders(vertexBuildContext, fragmentBuildContext);
 
         applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
 

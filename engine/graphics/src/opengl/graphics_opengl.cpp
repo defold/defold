@@ -2097,9 +2097,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteShader(OpenGLShader* shader)
     {
-        glDeleteShader(shader->m_Id);
-        CHECK_GL_ERROR;
-        delete shader;
+        if (shader)
+        {
+            glDeleteShader(shader->m_Id);
+            CHECK_GL_ERROR;
+            delete shader;
+        }
     }
 
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
