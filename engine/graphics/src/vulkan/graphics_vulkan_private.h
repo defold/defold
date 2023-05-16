@@ -262,6 +262,7 @@ namespace dmGraphics
         uint16_t               m_UniformCount;
         uint16_t               m_AttributeCount;
         uint16_t               m_UniformBufferCount;
+        uint16_t               m_TextureSamplerCount;
     };
 
     struct Program
