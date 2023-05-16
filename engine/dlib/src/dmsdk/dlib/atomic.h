@@ -136,7 +136,7 @@ inline int32_t dmAtomicCompareStore32(int32_atomic_t *ptr, int32_t value, int32_
 }
 
 /*#
- * Atomic getof an int32_atomic_t
+ * Atomic get of an int32_atomic_t
  * @name dmAtomicGet32
  * @param ptr [type: int32_atomic_t*] Pointer to an int32_atomic_t to get from.
  * @return value [type: int32_t] Current value
