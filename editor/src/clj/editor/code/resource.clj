@@ -67,10 +67,13 @@
 (defn write-fn [lines]
   (string/join "\n" lines))
 
-(defn search-fn [save-data pattern]
+(defn search-fn
+  ([^String search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([save-data re-pattern]
   (if-some [loaded-lines (:save-value save-data)]
-    (text-util/lines->text-matches loaded-lines pattern)
-    (resource/resource->text-matches (:resource save-data) pattern)))
+    (text-util/lines->text-matches loaded-lines re-pattern)
+    (resource/resource->text-matches (:resource save-data) re-pattern))))
 
 ;; To save memory, we defer loading the file contents until it has been modified
 ;; and read directly from disk up to that point. Once the file is edited we need

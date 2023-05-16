@@ -76,8 +76,12 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
   (field-name->key (.getName field-desc)))
 
+(defn enum-name->keyword-name
+  ^String [^String enum-name]
+  (util/lower-case* (string/replace enum-name "_" "-")))
+
 (defn- enum-name->keyword-raw [^String enum-name]
-  (keyword (util/lower-case* (string/replace enum-name "_" "-"))))
+  (keyword (enum-name->keyword-name enum-name)))
 
 (def ^:private enum-name->keyword (memoize enum-name->keyword-raw))
 

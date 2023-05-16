@@ -19,20 +19,14 @@
             [editor.placeholder-resource :as placeholder-resource]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [util.coll :as coll]
+            [editor.workspace :as workspace]
+            [util.coll :as coll :refer [pair]]
+            [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [java.util.concurrent LinkedBlockingQueue]
-           [java.util.regex Pattern]))
+  (:import [java.util ArrayList]
+           [java.util.concurrent LinkedBlockingQueue]))
 
 (set! *warn-on-reflection* true)
-
-(defn compile-find-in-files-regex
-  "Convert a search-string to a case-insensitive java regex."
-  [search-str]
-  (let [clean-str (->> (string/split search-str #"\*")
-                       (map #(Pattern/quote %))
-                       (string/join ".*"))]
-    (re-pattern (str "(?i)" clean-str))))
 
 (defn- save-data-sort-key [entry]
   (some-> entry :resource resource/proj-path))
@@ -68,28 +62,55 @@
         (some #(.find (re-matcher % ext))
               file-ext-pats))))
 
-(defn- start-search-thread [report-error! file-resource-save-data-future term exts include-libraries? produce-fn]
+(defn- make-resource-type->matches-fn [workspace search-string]
+  (let [placeholder-resource-matches-fn
+        (delay
+          (let [pattern (placeholder-resource/search-fn search-string)
+                matches-fn #(placeholder-resource/search-fn % pattern)]
+            matches-fn))
+
+        search-fn->matches-fn
+        (into {}
+              (comp (mapcat #(vals (workspace/get-resource-type-map workspace %)))
+                    (keep :search-fn)
+                    (distinct)
+                    (map (fn [search-fn]
+                           (let [pattern (search-fn search-string)
+                                 matches-fn #(search-fn % pattern)]
+                             (pair search-fn matches-fn)))))
+              [:editable :non-editable])]
+
+    (fn resource-type->matches-fn [resource-type]
+      (if (nil? resource-type)
+        (deref placeholder-resource-matches-fn)
+        (search-fn->matches-fn (:search-fn resource-type))))))
+
+(defn- make-search-resource? [searched-exts search-libraries]
+  {:pre [(boolean? search-libraries)]}
+  (let [file-ext-patterns
+        (into []
+              (comp (remove empty?)
+                    (distinct)
+                    (map #(text-util/search-string->re-pattern (string/replace % #"\*?\." "") :case-insensitive)))
+              (some-> searched-exts
+                      (string/replace #" " "")
+                      (string/split #",")))]
+    (fn search-resource? [resource]
+      (and (resource-matches-library-setting? resource search-libraries)
+           (resource-matches-file-ext? resource file-ext-patterns)))))
+
+(defn- start-search-thread [report-error! file-resource-save-data-future resource-type->matches-fn search-resource? produce-fn]
+  {:pre [(ifn? search-resource?)]}
   (future
     (try
-      (let [pattern (compile-find-in-files-regex term)
-            file-ext-pats (into []
-                                (comp (remove empty?)
-                                      (distinct)
-                                      (map #(compile-find-in-files-regex (string/replace % #"\*?\." ""))))
-                                (some-> exts
-                                        (string/replace #" " "")
-                                        (string/split #",")))
-            xform (keep (fn [save-data]
+      (let [xform (keep (fn [save-data]
                           (thread-util/throw-if-interrupted!)
                           (let [resource (:resource save-data)]
-                            (when (and (resource-matches-library-setting? resource include-libraries?)
-                                       (resource-matches-file-ext? resource file-ext-pats))
+                            (when (search-resource? resource)
                               (let [resource-type (resource/resource-type resource)
-                                    search-fn (if resource-type
-                                                (:search-fn resource-type)
-                                                placeholder-resource/search-fn)
-                                    matches (when search-fn
-                                              (search-fn save-data pattern))]
+                                    matches-fn (resource-type->matches-fn resource-type)
+                                    matches (when matches-fn
+                                              (matches-fn save-data))]
                                 (when-not (coll/empty? matches)
                                   {:resource resource
                                    :matches matches}))))))]
@@ -106,7 +127,7 @@
   "Returns a map of two functions, start-search! and abort-search! that can be
   used to perform asynchronous search queries against an ordered sequence of
   file resource save data. The save data is expected to be sorted in the order
-  it should appear in the search results list, and entires are expected to have
+  it should appear in the search results list, and entries are expected to have
   :resource (Resource) and :content (String) fields.
   When start-search! is called, it will cancel any pending search and start a
   new search using the provided term and exts String arguments. It will call
@@ -123,30 +144,32 @@
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be
   called with the Throwable in the event of an error."
-  [file-resource-save-data-future start-consumer! stop-consumer! report-error!]
+  [workspace file-resource-save-data-future start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
                         (some-> pending-search :consumer stop-consumer!)
                         nil)
-        start-search! (fn [pending-search term exts include-libraries?]
+        start-search! (fn [pending-search search-string searched-exts search-libraries]
                         (abort-search! pending-search)
-                        (if (seq term)
+                        (if (seq search-string)
                           (let [queue (LinkedBlockingQueue. 1024)
                                 produce-fn #(do
                                               (.put queue %))
-                                consume-fn #(let [results (java.util.ArrayList.)]
+                                consume-fn #(let [results (ArrayList.)]
                                               (.drainTo queue results)
                                               (seq results))
-                                thread (start-search-thread report-error! file-resource-save-data-future term exts include-libraries? produce-fn)
+                                resource-type->matches-fn (make-resource-type->matches-fn workspace search-string)
+                                search-resource? (make-search-resource? searched-exts search-libraries)
+                                thread (start-search-thread report-error! file-resource-save-data-future resource-type->matches-fn search-resource? produce-fn)
                                 consumer (start-consumer! consume-fn)]
                             {:thread thread
                              :consumer consumer})
                           (do (start-consumer! (constantly [::done]))
                               nil)))]
-    {:start-search! (fn [term exts include-libraries?]
+    {:start-search! (fn [search-string searched-exts include-libraries?]
                       (try
-                        (swap! pending-search-atom start-search! term exts include-libraries?)
+                        (swap! pending-search-atom start-search! search-string searched-exts include-libraries?)
                         (catch Throwable error
                           (report-error! error)))
                       nil)

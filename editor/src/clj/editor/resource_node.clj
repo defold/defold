@@ -25,6 +25,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [internal.graph.types :as gt]
+            [util.coll :refer [pair]]
             [util.text-util :as text-util])
   (:import [org.apache.commons.codec.digest DigestUtils]))
 
@@ -48,8 +49,8 @@
          (boolean? dirty)]}
   {:node-id node-id ; Used to invalidate the :source-value output after saving.
    :resource resource
-   :save-value save-value
-   :dirty dirty})
+   :dirty dirty
+   :save-value save-value})
 
 (g/defnk produce-save-data [_node-id resource save-value source-value]
   (let [dirty (and (some? save-value)
@@ -210,14 +211,21 @@
                         {:proj-path proj-path
                          :error-value sha256-or-error}))))))
 
-(defn search-ddf-save-data [save-data pattern]
-  ;; TODO(save-value): Converting to string is inefficient. Search the pb-map structure in :save-value instead.
-  (let [resource (:resource save-data)
-        resource-type (resource/resource-type resource)
-        write-fn (:write-fn resource-type)
-        save-value (:save-value save-data)
-        save-content (write-fn save-value)]
-    (text-util/string->text-matches save-content pattern)))
+(defn search-ddf-save-data
+  ([^String search-string]
+   (let [enum-search-string (protobuf/enum-name->keyword-name search-string)
+         text-re-pattern (text-util/search-string->re-pattern search-string :case-insensitive)
+         enum-re-pattern (text-util/search-string->re-pattern enum-search-string :case-insensitive)]
+     (pair text-re-pattern enum-re-pattern)))
+  ([save-data [text-re-pattern enum-re-pattern]]
+   ;; TODO(save-value): Converting to string is inefficient. Search the pb-map structure in :save-value instead.
+   ;; TODO(save-value): Use coll/search-with-path match enum-re-pattern against keyword values.
+   (let [resource (:resource save-data)
+         resource-type (resource/resource-type resource)
+         write-fn (:write-fn resource-type)
+         save-value (:save-value save-data)
+         save-content (write-fn save-value)]
+     (text-util/string->text-matches save-content text-re-pattern))))
 
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
   (let [read-defaults (if (nil? read-defaults) true read-defaults)

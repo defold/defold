@@ -56,3 +56,76 @@
 
     :else
     (not (seq coll))))
+
+(defn mapcat-indexed
+  "Returns the result of applying concat to the result of applying map-indexed
+  to f and coll. Thus function f should return a collection. Returns a
+  transducer when no collection is provided."
+  ([f] (comp (map-indexed f) cat))
+  ([f coll] (sequence (mapcat-indexed f) coll)))
+
+(into []
+      (mapcat-indexed (fn [index value]
+                  [[:one index value]
+                   [:two index value]]))
+      [:a :b :c :d])
+
+(defn search
+  "Traverses the supplied collection hierarchy recursively, applying the
+  specified match-fn to every non-collection value. Records are considered
+  values, not collections. Returns a sequence of all non-nil results returned by
+  the match-fn."
+  [coll match-fn]
+  (cond
+    (record? coll)
+    (when-some [match (match-fn coll)]
+      [match])
+
+    (map? coll)
+    (eduction
+      (mapcat
+        (fn [entry]
+          (search (val entry) match-fn)))
+      coll)
+
+    (coll? coll)
+    (eduction
+      (mapcat
+        (fn [value]
+          (search value match-fn)))
+      coll)
+
+    :else
+    (when-some [match (match-fn coll)]
+      [match])))
+
+(defn search-with-path
+  "Traverses the supplied collection hierarchy recursively, applying the
+  specified match-fn to every non-collection value. Records are considered
+  values, not collections. Returns a sequence of pairs of every non-nil result
+  returned by the match-fn and the path to the match from the root of the
+  collection. Path tokens will be conjoined onto the supplied init-path at each
+  level and the resulting path will be part of the matching result pair."
+  [coll init-path match-fn]
+  (cond
+    (record? coll)
+    (when-some [match (match-fn coll)]
+      [(pair match init-path)])
+
+    (map? coll)
+    (eduction
+      (mapcat
+        (fn [[key value]]
+          (search-with-path value (conj init-path key) match-fn)))
+      coll)
+
+    (coll? coll)
+    (eduction
+      (mapcat-indexed
+        (fn [index value]
+          (search-with-path value (conj init-path index) match-fn)))
+      coll)
+
+    :else
+    (when-some [match (match-fn coll)]
+      [(pair match init-path)])))

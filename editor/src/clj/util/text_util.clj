@@ -17,7 +17,8 @@
             [clojure.string :as string]
             [util.coll :refer [pair]])
   (:import [clojure.lang IReduceInit]
-           [java.io BufferedReader Reader StringReader]))
+           [java.io BufferedReader Reader StringReader]
+           [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
 
@@ -256,3 +257,15 @@
 
 (defn string->text-matches [^String text pattern]
   (line-infos->text-matches (string->line-infos text) pattern))
+
+(defn search-string->re-pattern
+  "Convert a search string that may contain wildcards and special characters to
+  a Java regex Pattern."
+  ^Pattern [^String string-with-wildcards case-sensitivity]
+  (let [re-string (->> (string/split string-with-wildcards #"\*")
+                       (map #(Pattern/quote %))
+                       (string/join ".*"))]
+    (re-pattern
+      (case case-sensitivity
+        :case-sensitive re-string
+        :case-insensitive (str "(?i)" re-string)))))

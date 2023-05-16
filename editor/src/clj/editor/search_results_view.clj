@@ -30,6 +30,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.core :as core]
+            [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
@@ -230,8 +231,9 @@
                                %)
             stop-consumer! ui/timer-stop!
             report-error! (fn [error] (ui/run-later (throw error)))
+            workspace (project/workspace project)
             file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
-            {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
+            {:keys [abort-search! start-search!]} (project-search/make-file-searcher workspace file-resource-save-data-future start-consumer! stop-consumer! report-error!)
             on-input-changed! (fn [_ _ _]
                                 (let [term (.getText search)
                                       exts (.getText types)

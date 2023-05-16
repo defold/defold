@@ -130,16 +130,6 @@
     (is (false? (consumer-finished? consumer)))
     (is (true? (consumer-stopped? consumer)))))
 
-(deftest compile-find-in-files-regex-test
-  (is (= "(?i)\\Qfoo\\E" (str (project-search/compile-find-in-files-regex "foo"))))
-  (testing "* is handled correctly"
-    (is (= "(?i)\\Qfoo\\E.*\\Qbar\\E" (str (project-search/compile-find-in-files-regex "foo*bar")))))
-  (testing "other wildcard chars are quoted"
-    (is (= "(?i)\\Qfoo\\E.*\\Qbar[]().$^\\E" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
-  (testing "case insensitive search strings"
-    (let [pattern (project-search/compile-find-in-files-regex "fOoO")]
-      (is (= "fooo" (re-matches pattern "fooo"))))))
-
 (defn- try-make-save-data-future [project]
   (let [report-error! (test-util/make-call-logger)
         save-data-future (project-search/make-file-resource-save-data-future report-error! project)]
@@ -165,7 +155,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace save-data-future start-consumer! stop-consumer! report-error!)
                 perform-search! (fn [term exts]
                                   (start-search! term exts true)
                                   (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -196,7 +186,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)]
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace save-data-future start-consumer! stop-consumer! report-error!)]
             (start-search! "*" nil true)
             (is (true? (consumer-started? consumer)))
             (abort-search!)
@@ -208,7 +198,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace save-data-future start-consumer! stop-consumer! report-error!)
                 search-string "peaNUTbutterjellytime"
                 perform-search! (fn [term exts]
                                   (start-search! term exts true)
@@ -237,7 +227,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace save-data-future start-consumer! stop-consumer! report-error!)
                 perform-search! (fn [term exts include-libraries?]
                                   (start-search! term exts include-libraries?)
                                   (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
