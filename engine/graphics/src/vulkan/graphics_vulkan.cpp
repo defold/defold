@@ -2129,6 +2129,7 @@ bail:
 
             shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
+            shader->m_TextureSamplerCount    = texture_sampler_count;
         }
 
         if (ddf->m_Inputs.m_Count > 0)
@@ -2157,6 +2158,22 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+
+        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            DeleteVertexProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return 0;
+        }
+        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            DeleteVertexProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return 0;
+        }
+
         return (HVertexProgram) shader;
     }
 
@@ -2168,6 +2185,22 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+
+        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            DeleteFragmentProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of uniform buffers exceeded: fragment shader has %d buffers, but maximum is %d.",
+                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return 0;
+        }
+        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            DeleteFragmentProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of texture samplers exceeded: fragment shader has %d samplers, but maximum is %d.",
+                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return 0;
+        }
+
         return (HFragmentProgram) shader;
     }
 
