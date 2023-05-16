@@ -22,7 +22,11 @@
 #include <dlib/hashtable.h>
 #include <dlib/mutex.h>
 #include <resource/liveupdate_ddf.h>
-#include "resource_archive.h"
+
+namespace dmResourceArchive
+{
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+}
 
 namespace dmResource
 {
@@ -381,13 +385,6 @@ namespace dmResource
 // TODO: Used by Live update only
     Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
 
-    /**
-     * Gets the actual resource path e.g. "/my/icon.texturec".
-     * @param relative_dir the relative dir of the resource
-     * @param buf the result of the operation
-     * @return the length of the buffer
-     */
-    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
 }
 
 #endif // RESOURCE_H

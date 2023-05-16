@@ -100,6 +100,33 @@ Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_d
     return RESULT_OK;
 }
 
+// TODO: Test this...
+uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
+{
+    dmSnPrintf(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
+
+    char* source = buf;
+    char* dest = buf;
+    char last_c = 0;
+    while (*source != 0)
+    {
+        char c = *source;
+        if (c != '/' || (c == '/' && last_c != '/'))
+            *dest++ = c;
+
+        last_c = c;
+        ++source;
+    }
+    *dest = '\0';
+    return (uint32_t)(dest - buf);
+}
+
+uint32_t GetCanonicalPath(const char* relative_dir, char* buf)
+{
+    return GetCanonicalPathFromBase("", relative_dir, buf);
+}
+
+
 void PrintHash(const uint8_t* hash, uint32_t len)
 {
     for (uint32_t i = 0; i < len; ++i)
