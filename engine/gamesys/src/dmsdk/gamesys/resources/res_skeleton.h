@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <dlib/hashtable.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <rig/rig_ddf.h>
 
 namespace dmGameSystem
