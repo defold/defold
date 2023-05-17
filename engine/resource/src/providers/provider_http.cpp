@@ -1,269 +1,239 @@
 #include "provider.h"
-// #include "provider_archive.h"
-// #include "../resource_archive.h"
+#include "provider_private.h"
+#include "../resource_util.h"
 
-// #include <dlib/dstrings.h>
-// #include <dlib/endian.h>
-// #include <dlib/log.h>
-// #include <dlib/lz4.h>
-// #include <dlib/memory.h>
-// #include <dlib/sys.h>
+#include <dlib/dstrings.h>
+#include <dlib/array.h>
+#include <dlib/hash.h>
+#include <dlib/log.h>
+#include <dlib/sys.h>
+
+#include <dlib/http_client.h>
+#include <dlib/http_cache.h>
+#include <dlib/http_cache_verify.h>
+
+#include <stdio.h> // debug printf
 
 namespace dmResourceProviderHttp
 {
-    // dmResourceArchive::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out)
-    // {
-    //     dmResource::Manifest* manifest = new dmResource::Manifest();
-    //     dmResource::Result result = ManifestLoadMessage(buffer, buffer_len, manifest);
 
-    //     if (dmResource::RESULT_OK == result)
-    //         *out = manifest;
-    //     else
-    //     {
-    //         dmResource::DeleteManifest(manifest);
-    //     }
+struct HttpProviderContext
+{
+    dmURI::Parts            m_BaseUri;
+    dmHttpClient::HClient   m_HttpClient;
+    dmHttpCache::HCache     m_HttpCache;
+    dmArray<char>           m_HttpBuffer;
 
-    //     return dmResource::RESULT_OK == result ? dmResourceArchive::RESULT_OK : dmResourceArchive::RESULT_IO_ERROR;
-    // }
+    int32_t                 m_HttpContentLength;        // Total number bytes loaded in current GET-request
+    uint32_t                m_HttpTotalBytesStreamed;
+    int                     m_HttpStatus;
+};
 
-    // dmResourceArchive::Result LoadManifest(const char* path, dmResource::Manifest** out)
-    // {
-    //     uint32_t manifest_length = 0;
-    //     uint8_t* manifest_buffer = 0x0;
+static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
+{
+    HttpProviderContext* archive = (HttpProviderContext*)user_data;
+    archive->m_HttpStatus = status_code;
 
-    //     uint32_t dummy_file_size = 0;
-    //     dmSys::ResourceSize(path, &manifest_length);
-    //     dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
-    //     assert(manifest_buffer);
-    //     dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
+    if (dmStrCaseCmp(key, "Content-Length") == 0)
+    {
+        archive->m_HttpContentLength = strtol(value, 0, 10);
+        if (archive->m_HttpContentLength < 0) {
+            dmLogError("Content-Length negative (%d)", archive->m_HttpContentLength);
+        } else {
+            if (archive->m_HttpBuffer.Capacity() < (uint32_t)archive->m_HttpContentLength) {
+                archive->m_HttpBuffer.SetCapacity(archive->m_HttpContentLength);
+            }
+            archive->m_HttpBuffer.SetSize(0);
+        }
+    }
+}
 
-    //     if (sys_result != dmSys::RESULT_OK)
-    //     {
-    //         dmLogError("Failed to read manifest %s (%i)", path, sys_result);
-    //         dmMemory::AlignedFree(manifest_buffer);
-    //         return dmResourceArchive::RESULT_IO_ERROR;
-    //     }
+static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+{
+    HttpProviderContext* archive = (HttpProviderContext*)user_data;
+    (void) status_code;
 
-    //     dmResourceArchive::Result result = LoadManifestFromBuffer(manifest_buffer, manifest_length, out);
-    //     dmMemory::AlignedFree(manifest_buffer);
-    //     return result;
-    // }
+    if (!content_data && content_data_size)
+    {
+        archive->m_HttpBuffer.SetSize(0);
+        return;
+    }
 
-    // static dmResourceArchive::Result ResourceArchiveDefaultLoadManifest(const char* archive_name, const char* app_path, const char* app_support_path,
-    //                                                                     const dmResource::Manifest* previous, dmResource::Manifest** out)
-    // {
-    //     // This function should be called first, so there should be no prior manifest
-    //     assert(previous == 0);
+    // We must set http-status here. For direct cached result HttpHeader is not called.
+    archive->m_HttpStatus = status_code;
 
-    //     char manifest_path[DMPATH_MAX_PATH];
-    //     dmPath::Concat(app_path, archive_name, manifest_path, sizeof(manifest_path));
-    //     dmStrlCat(manifest_path, ".dmanifest", sizeof(manifest_path));
+    if (archive->m_HttpBuffer.Remaining() < content_data_size) {
+        uint32_t diff = content_data_size - archive->m_HttpBuffer.Remaining();
+        // NOTE: Resizing the the array can be inefficient but sometimes we don't know the actual size, i.e. when "Content-Size" isn't set
+        archive->m_HttpBuffer.OffsetCapacity(diff + 1024 * 1024);
+    }
 
-    //     return LoadManifest(manifest_path, out);
-    // }
+    archive->m_HttpBuffer.PushArray((const char*) content_data, content_data_size);
+    archive->m_HttpTotalBytesStreamed += content_data_size;
+}
 
-    // static dmResourceArchive::Result ResourceArchiveDefaultLoad(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path,
-    //                                                             dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out)
-    // {
-    //     char archive_index_path[DMPATH_MAX_PATH];
-    //     char archive_data_path[DMPATH_MAX_PATH];
-    //     dmPath::Concat(app_path, archive_name, archive_index_path, sizeof(archive_index_path));
-    //     dmPath::Concat(app_path, archive_name, archive_data_path, sizeof(archive_index_path));
-    //     dmStrlCat(archive_index_path, ".arci", sizeof(archive_index_path));
-    //     dmStrlCat(archive_data_path, ".arcd", sizeof(archive_data_path));
+static bool MatchesUri(const dmURI::Parts* uri)
+{
+    return strcmp(uri->m_Scheme, "http") == 0 || strcmp(uri->m_Scheme, "https") == 0;
+}
 
-    //     void* mount_info = 0;
-    //     dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
-    //     if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
-    //     {
-    //         (*out)->m_UserData = mount_info;
-    //     }
-    //     return dmResourceArchive::RESULT_OK;
-    // }
+static char* CreateEncodedUri(const dmURI::Parts* uri, const char* path, char* buffer, uint32_t buffer_len)
+{
+    char combined_path[dmResource::RESOURCE_PATH_MAX];
+    dmResource::GetCanonicalPathFromBase(uri->m_Path, path, combined_path);
+    dmURI::Encode(combined_path, buffer, buffer_len, 0);
+    return buffer;
+}
 
-    // static dmResourceArchive::Result ResourceArchiveDefaultUnload(dmResourceArchive::HArchiveIndexContainer archive)
-    // {
-    //     dmResource::UnmountArchiveInternal(archive, archive->m_UserData);
-    //     return dmResourceArchive::RESULT_OK;
-    // }
+static void DeleteHttpArchiveInternal(dmResourceProvider::HArchiveInternal _archive)
+{
+    HttpProviderContext* archive = (HttpProviderContext*)_archive;
+    if (archive->m_HttpClient)
+        dmHttpClient::Delete(archive->m_HttpClient);
+    if (archive->m_HttpCache)
+        dmHttpCache::Close(archive->m_HttpCache);
 
-    // dmResourceArchive::Result FindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry)
-    // {
-    //     uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-    //     uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-    //     uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-    //     uint8_t* hashes = 0;
-    //     dmResourceArchive::EntryData* entries = 0;
+    archive->m_HttpClient = 0;
+    archive->m_HttpCache = 0;
+    delete archive;
+}
 
-    //     // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-    //     if (!archive->m_IsMemMapped)
-    //     {
-    //         hashes = archive->m_ArchiveFileIndex->m_Hashes;
-    //         entries = archive->m_ArchiveFileIndex->m_Entries;
-    //     }
-    //     else
-    //     {
-    //         hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-    //         entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-    //     }
+static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
+{
+    if (!MatchesUri(uri))
+        return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
-    //     // Search for hash with binary search (entries are sorted on hash)
-    //     int first = 0;
-    //     int last = (int)entry_count-1;
-    //     while (first <= last)
-    //     {
-    //         int mid = first + (last - first) / 2;
-    //         uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
+    HttpProviderContext* archive = new HttpProviderContext;
+    memset(archive, 0, sizeof(HttpProviderContext));
+    memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
 
-    //         int cmp = memcmp(hash, h, hash_len);
-    //         if (cmp == 0)
-    //         {
-    //             if (entry != 0)
-    //             {
-    //                 dmResourceArchive::EntryData* e = &entries[mid];
-    //                 entry->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
-    //                 entry->m_ResourceSize = dmEndian::ToNetwork(e->m_ResourceSize);
-    //                 entry->m_ResourceCompressedSize = dmEndian::ToNetwork(e->m_ResourceCompressedSize);
-    //                 entry->m_Flags = dmEndian::ToNetwork(e->m_Flags);
-    //             }
-    //             return dmResourceArchive::RESULT_OK;
-    //         }
-    //         else if (cmp > 0)
-    //         {
-    //             first = mid+1;
-    //         }
-    //         else if (cmp < 0)
-    //         {
-    //             last = mid-1;
-    //         }
-    //     }
+    dmHttpClient::NewParams http_params;
+    http_params.m_HttpHeader = &HttpHeader;
+    http_params.m_HttpContent = &HttpContent;
+    http_params.m_Userdata = archive;
+    http_params.m_HttpCache = archive->m_HttpCache;
+    archive->m_HttpClient = dmHttpClient::New(&http_params, uri->m_Hostname, uri->m_Port, strcmp(uri->m_Scheme, "https") == 0, 0);
+    if (!archive->m_HttpClient)
+    {
+        char buffer[dmResource::RESOURCE_PATH_MAX*2];
+        dmLogError("Failed to connect to: %s", CreateEncodedUri(uri, "", buffer, sizeof(buffer)));
+        DeleteHttpArchiveInternal(archive);
+        return dmResourceProvider::RESULT_ERROR_UNKNOWN;
+    }
 
-    //     return dmResourceArchive::RESULT_NOT_FOUND;
-    // }
+    *out_archive = (dmResourceProvider::HArchiveInternal)archive;
+    return dmResourceProvider::RESULT_OK;
+}
 
-    // dmResourceArchive::Result ReadEntryFromArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len,
-    //                                                 const dmResourceArchive::EntryData* entry, void* buffer)
-    // {
-    //     (void)hash;
-    //     (void)hash_len;
-    //     uint32_t size = entry->m_ResourceSize;
-    //     uint32_t compressed_size = entry->m_ResourceCompressedSize;
+static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal archive)
+{
+    DeleteHttpArchiveInternal((HttpProviderContext*)archive);
+    return dmResourceProvider::RESULT_OK;
+}
 
-    //     bool encrypted = (entry->m_Flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
-    //     bool compressed = compressed_size != 0xFFFFFFFF;
+static void ResetHttpInfo(HttpProviderContext* archive)
+{
+    archive->m_HttpContentLength = -1;
+    archive->m_HttpTotalBytesStreamed = 0;
+    archive->m_HttpStatus = -1;
+    archive->m_HttpBuffer.SetSize(0);
+}
 
-    //     const dmResourceArchive::ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
-    //     bool resource_memmapped = afi->m_IsMemMapped;
+// Note. This is used in a synchronous manner.
+static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive, const char* method, const char* path, uint32_t* buffer_length, uint8_t* buffer)
+{
+    ResetHttpInfo(archive);
 
-    //     // We have multiple combinations for regular archives:
-    //     // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
-    //     // Decryption can be done into a buffer of the same size, although not into a read only array
-    //     // We do this is to avoid unnecessary memory allocations
+    // // Always verify cache for reloaded resources
+    // if (factory->m_HttpCache)
+    //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_VERIFY);
 
-    //     //  compressed +  encrypted +  memmapped = need malloc (encrypt cannot modify memmapped file, decompress cannot use same src/dst)
-    //     //  compressed +  encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-    //     //  compressed + !encrypted +  memmapped = doesn't need malloc (can decompress because src != dst)
-    //     //  compressed + !encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-    //     // !compressed +  encrypted +  memmapped = doesn't need malloc
-    //     // !compressed +  encrypted + !memmapped = doesn't need malloc
-    //     // !compressed + !encrypted +  memmapped = doesn't need malloc
-    //     // !compressed + !encrypted + !memmapped = doesn't need malloc
+    char encoded_uri[dmResource::RESOURCE_PATH_MAX*2];
+    CreateEncodedUri(&archive->m_BaseUri, path, encoded_uri, sizeof(encoded_uri));
 
-    //     void* compressed_buf = 0;
-    //     bool temp_buffer = false;
+    dmHttpClient::Result http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
 
-    //     if (compressed && !( !encrypted && resource_memmapped))
-    //     {
-    //         compressed_buf = malloc(compressed_size);
-    //         temp_buffer = true;
-    //     } else {
-    //         // For uncompressed data, use the destination buffer
-    //         compressed_buf = buffer;
-    //         memset(buffer, 0, size);
-    //         compressed_size = compressed ? compressed_size : size;
-    //     }
+    // // Always verify cache for reloaded resources
+    // if (factory->m_HttpCache)
+    //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUSTED);
 
-    //     assert(compressed_buf);
+    if (http_result != dmHttpClient::RESULT_OK)
+    {
+        if (archive->m_HttpStatus == 404)
+        {
+            return dmResourceProvider::RESULT_NOT_FOUND;
+        }
+        else
+        {
+            // 304 (NOT MODIFIED) is OK. 304 is returned when the resource is loaded from cache, ie ETag or similar match
+            if (http_result == dmHttpClient::RESULT_NOT_200_OK && archive->m_HttpStatus != 304)
+            {
+                dmLogWarning("Unexpected http status code: %d", archive->m_HttpStatus);
+                return dmResourceProvider::RESULT_IO_ERROR;
+            }
 
-    //     if (!resource_memmapped)
-    //     {
-    //         FILE* resource_file = afi->m_FileResourceData;
+            dmLogError("Unexpected http result: %d %s", http_result, dmHttpClient::ResultToString(http_result));
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+    }
 
-    //         assert(temp_buffer || compressed_buf == buffer);
+    bool get_file_size = strcmp(method, "HEAD") == 0;
 
-    //         fseek(resource_file, entry->m_ResourceDataOffset, SEEK_SET);
-    //         if (fread(compressed_buf, 1, compressed_size, resource_file) != compressed_size)
-    //         {
-    //             if (temp_buffer)
-    //                 free(compressed_buf);
-    //             return dmResourceArchive::RESULT_IO_ERROR;
-    //         }
-    //     } else {
-    //         void* r = (void*) (((uintptr_t)afi->m_ResourceData + entry->m_ResourceDataOffset));
+    if (get_file_size)
+    {
+        *buffer_length = archive->m_HttpContentLength;
+    }
+    else
+    {
+        // Only check content-length if status != 304 (NOT MODIFIED)
+        if (archive->m_HttpStatus != 304 && archive->m_HttpContentLength != -1 && archive->m_HttpContentLength != (int32_t)archive->m_HttpTotalBytesStreamed)
+        {
+            dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", encoded_uri, archive->m_HttpContentLength, archive->m_HttpTotalBytesStreamed);
+        }
 
-    //         if (compressed && !encrypted)
-    //         {
-    //             compressed_buf = r;
-    //         } else {
-    //             memcpy(compressed_buf, r, compressed_size);
-    //         }
-    //     }
+        // We might have streamed more than we have a buffer for
+        if (archive->m_HttpTotalBytesStreamed > *buffer_length)
+            return dmResourceProvider::RESULT_IO_ERROR;
 
-    //     // Design wish: If we switch the order of operations (and thus the file format)
-    //     // we can simplify the code and save a temporary allocation
-    //     //
-    //     // Currently, we need to decrypt into a new buffer (since the input is read only):
-    //     // input:[Encrypted + LZ4] ->   temp:[  LZ4      ] -> output:[   data   ]
-    //     //
-    //     // We could instead have:
-    //     // input:[Encrypted + LZ4] -> output:[ Encrypted ] -> output:[   data   ]
+        *buffer_length = archive->m_HttpTotalBytesStreamed;
+        if (buffer)
+        {
+            memcpy(buffer, archive->m_HttpBuffer.Begin(), *buffer_length);
+        }
+    }
+    return dmResourceProvider::RESULT_OK;
+}
 
-    //     if(encrypted)
-    //     {
-    //         assert(temp_buffer || compressed_buf == buffer);
+static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint32_t* file_size)
+{
+    HttpProviderContext* archive = (HttpProviderContext*)_archive;
+    (void)path_hash;
 
-    //         dmResourceArchive::Result r = dmResourceArchive::DecryptBuffer(compressed_buf, compressed_size);
-    //         if (r != dmResourceArchive::RESULT_OK)
-    //         {
-    //             if (temp_buffer)
-    //                 free(compressed_buf);
-    //             return r;
-    //         }
-    //     }
+    return GetRequestFromUri((HttpProviderContext*)archive, "HEAD", path, file_size, 0);
+}
 
-    //     if (compressed)
-    //     {
-    //         assert(compressed_buf != buffer);
-    //         int decompressed_size;
-    //         dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
-    //         if (dmLZ4::RESULT_OK != r)
-    //         {
-    //             if (temp_buffer)
-    //                 free(compressed_buf);
-    //             return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
-    //         }
-    //     } else {
-    //         if (buffer != compressed_buf)
-    //             memcpy(buffer, compressed_buf, size);
-    //     }
+static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t _buffer_len)
+{
+    HttpProviderContext* archive = (HttpProviderContext*)_archive;
+    (void)path_hash;
 
-    //     if (temp_buffer)
-    //         free(compressed_buf);
+    uint32_t buffer_len = _buffer_len;
+    dmResourceProvider::Result result = GetRequestFromUri((HttpProviderContext*)archive, "GET", path, &buffer_len, buffer);
+    if (result != dmResourceProvider::RESULT_OK)
+    {
+        return result;
+    }
+    return dmResourceProvider::RESULT_OK;
+}
 
-    //     return dmResourceArchive::RESULT_OK;
-    // }
+static void SetupArchiveLoaderHttp(dmResourceProvider::ArchiveLoader* loader)
+{
+    loader->m_CanMount      = MatchesUri;
+    loader->m_Mount         = Mount;
+    loader->m_Unmount       = Unmount;
+    loader->m_GetFileSize   = GetFileSize;
+    loader->m_ReadFile      = ReadFile;
+}
 
-    // static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
-    // {
-    //     dmResourceArchive::ArchiveLoader loader;
-    //     loader.m_NameHash = dmHashString64("http");
-    //     loader.m_LoadManifest = ResourceArchiveDefaultLoadManifest;
-    //     loader.m_Load = ResourceArchiveDefaultLoad;
-    //     loader.m_Unload = ResourceArchiveDefaultUnload;
-    //     loader.m_FindEntry = FindEntryInArchive;
-    //     loader.m_Read = ReadEntryFromArchive;
-    //     dmResourceArchive::RegisterArchiveLoader(loader);
-    // }
-
-    //DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, dmHashString64("http"), SetupArchiveLoader);
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderHttp, "http", SetupArchiveLoaderHttp);
 }

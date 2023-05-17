@@ -61,7 +61,7 @@ namespace dmResource
     Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
-     * Gets the normalized resource path: "/my/icon.texturec" -> "/my/icon.texturec".
+     * Gets the normalized resource path: "/my//icon.texturec" -> "/my/icon.texturec". "my/icon.texturec" -> "/my/icon.texturec".
      * @param relative_dir the relative dir of the resource
      * @param buf the result of the operation
      * @return the length of the buffer

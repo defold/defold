@@ -39,6 +39,7 @@ namespace dmResourceProviderArchive
 
     struct GameArchiveFile
     {
+        dmURI::Parts                                m_BaseUri;
         dmResource::Manifest*                       m_Manifest;
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
         dmHashTable64<EntryInfo>                    m_EntryMap; // url hash -> entry in the manifest
@@ -105,26 +106,33 @@ namespace dmResourceProviderArchive
     static dmResourceProvider::Result LoadArchive(const dmURI::Parts* uri, dmResourceProvider::HArchiveInternal* out_archive)
     {
         GameArchiveFile* archive = new GameArchiveFile;
+        {
+            memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
+            // Remove the suffix, as we'll reuse this later
+            char* dot = strrchr(archive->m_BaseUri.m_Path, '.');
+            if (dot != 0 && strcmp(dot, ".dmanifest") == 0)
+                *dot = 0;
+        }
 
-        dmResource::Result m_result = dmResourceManifest::LoadManifest(uri, &archive->m_Manifest);
+        dmResource::Result m_result = dmResourceManifest::LoadManifest(&archive->m_BaseUri, &archive->m_Manifest);
         if (dmResource::RESULT_OK != m_result)
         {
             DeleteArchive(archive);
             return dmResourceProvider::RESULT_INVAL_ERROR;
         }
 
-        printf("Manifest:\n");
-        dmResourceManifest::DebugPrintManifest(archive->m_Manifest);
+    // printf("Manifest:\n");
+    // dmResourceManifest::DebugPrintManifest(archive->m_Manifest);
 
-        dmResourceProvider::Result result = MountArchive(uri, &archive->m_ArchiveIndex);
+        dmResourceProvider::Result result = MountArchive(&archive->m_BaseUri, &archive->m_ArchiveIndex);
         if (dmResourceProvider::RESULT_OK != result)
         {
             DeleteArchive(archive);
             return result;
         }
 
-        printf("Archive:\n");
-        dmResourceProviderArchivePrivate::DebugPrintArchiveIndex(archive->m_ArchiveIndex);
+    // printf("Archive:\n");
+    // dmResourceProviderArchivePrivate::DebugPrintArchiveIndex(archive->m_ArchiveIndex);
 
         CreateEntryMap(archive);
 
@@ -139,7 +147,7 @@ namespace dmResourceProviderArchive
         if (!MatchesUri(uri))
             return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
-        printf("\nMount archive: '%s:%s%s'\n", uri->m_Scheme, uri->m_Location, uri->m_Path);
+        //printf("\nMount archive: '%s:%s%s'\n", uri->m_Scheme, uri->m_Location, uri->m_Path);
 
         return LoadArchive(uri, out_archive);
     }
@@ -156,6 +164,7 @@ namespace dmResourceProviderArchive
                                              dmResourceProvider::HArchiveInternal* out_archive)
     {
         GameArchiveFile* archive = new GameArchiveFile;
+        memset(&archive->m_BaseUri, 0, sizeof(dmURI::Parts));
 
         dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
         if (dmResource::RESULT_OK != result)

@@ -37,7 +37,6 @@ void RegisterArchiveLoader(ArchiveLoader* loader)
     loader->Verify();
     loader->m_Next = g_ArchiveLoaders;
     g_ArchiveLoaders = loader;
-    DBG_LOG("\nRegistered archive loader: %s\n", dmHashReverseSafe64(loader->m_NameHash));
 }
 
 void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*setup_fn)(ArchiveLoader*))
@@ -47,6 +46,7 @@ void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*set
 
     setup_fn(loader);
     RegisterArchiveLoader(loader);
+    DBG_LOG("\nRegistered loader: %s %llx\n", name, loader->m_NameHash);
 }
 
 void ClearArchiveLoaders(ArchiveLoader* loader)

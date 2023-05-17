@@ -15,8 +15,4 @@
 #ifndef DM_RESOURCE_PROVIDER_HTTP_H
 #define DM_RESOURCE_PROVIDER_HTTP_H
 
-namespace dmResourceProviderHttp
-{
-}
-
 #endif

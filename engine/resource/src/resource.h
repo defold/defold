@@ -315,12 +315,6 @@ namespace dmResource
      */
     void DeletePreloader(HPreloader preloader);
 
-// Called from liveupdate after storing a manifest
-    /**
-     * Verify that all resources the manifest expects to be bundled actually are bundled.
-     */
-    Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
-
     /**
      * Loads the public RSA key from the bundle.
      * Uses the public key to decrypt the manifest signature to get the content hash.
@@ -328,7 +322,7 @@ namespace dmResource
      * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
      * Inspect asn1 key content; http://lapo.it/asn1js/#
      */
-    Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
+    //Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
      * Returns the mutex held when loading asynchronous
@@ -383,7 +377,7 @@ namespace dmResource
     /*# Get the support path for the project, with the hashed project name at the end
      */
 // TODO: Used by Live update only
-    Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+    //Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
 
 }
 

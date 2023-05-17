@@ -29,19 +29,15 @@ namespace dmResourceProvider
 
     struct ArchiveLoader
     {
-        dmhash_t                m_NameHash;             // E.g. "http", "archive", "archive_mutable", "file", "zip"
+        dmhash_t                m_NameHash;         // E.g. "http", "archive", "archive_mutable", "file", "zip"
         FCanMount               m_CanMount;
         FMount                  m_Mount;
         FUnmount                m_Unmount;
         FGetManifest            m_GetManifest;
 
-
         FGetFileSize            m_GetFileSize;
         FReadFile               m_ReadFile;
-
-        // For writeable archives
-        FWriteFile              m_WriteFile;
-        FWriteManifest          m_WriteManifest;
+        FWriteFile              m_WriteFile;        // For writeable archives
 
         void Verify();
 

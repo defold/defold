@@ -57,7 +57,6 @@ namespace dmResourceProvider
     typedef Result (*FGetFileSize)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
-    typedef Result (*FWriteManifest)(HArchiveInternal archive, dmResource::Manifest* manifest);
 
     typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**); // In order for other providers to get the base manifest
 

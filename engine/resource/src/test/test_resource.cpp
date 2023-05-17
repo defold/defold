@@ -25,11 +25,6 @@
 #include <dlib/testutil.h>
 #include <ddf/ddf.h>
 
-#define TEST_HTTP_SUPPORTED
-#if defined(__NX__) || defined(__SCE__)
-    #undef TEST_HTTP_SUPPORTED
-#endif
-
 #if defined(_MSC_VER)
     #define TMP_DIR "."
     #define MOUNT_DIR "."
@@ -50,7 +45,7 @@
 #include "../resource_archive_private.h"
 #include "test/test_resource_ddf.h"
 
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
 #include <dlib/http_client.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
@@ -400,13 +395,16 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& p
     return dmResource::RESULT_OK;
 }
 
-#if defined(TEST_HTTP_SUPPORTED)
 TEST_P(GetResourceTest, GetTestResource)
 {
     dmResource::Result e;
 
     TestResourceContainer* test_resource_cont = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
+    if (e != dmResource::RESULT_OK)
+    {
+        printf("Failed to load resource: %s\n", m_ResourceName);
+    }
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_NE((void*) 0, test_resource_cont);
     ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
@@ -544,10 +542,14 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
-const char* params_resource_paths[] = {"build/src/test/", "http://127.0.0.1:6123", "dmanif:build/src/test/resources_pb.dmanifest"};
+const char* params_resource_paths[] = {
+    "build/src/test/",
+#if defined(DM_TEST_HTTP_SUPPORTED)
+    "http://127.0.0.1:6123",
+#endif
+    "dmanif:build/src/test/resources_pb.dmanifest"
+};
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI, GetResourceTest, jc_test_values_in(params_resource_paths));
-
-#endif // TEST_HTTP_SUPPORTED
 
 TEST_P(GetResourceTest, GetReference1)
 {
@@ -901,7 +903,7 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
     }
 }
 
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
 TEST(dmResource, InvalidHost)
 {
     dmResource::NewFactoryParams params;
@@ -1496,7 +1498,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 
 int main(int argc, char **argv)
 {
-    #if defined(TEST_HTTP_SUPPORTED)
+    #if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
     #endif
 
@@ -1508,7 +1510,7 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
 
-    #if defined(TEST_HTTP_SUPPORTED)
+    #if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
     #endif
     return ret;
