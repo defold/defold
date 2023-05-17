@@ -97,9 +97,8 @@ def build(bld):
     with open('src/test/test_include.cpp', 'rt', encoding='utf-8') as f:
         template = f.read()
 
-    sources = []
-    for include in includes:
-        basename = os.path.basename(include).replace('.', '_') + '.cpp'
+    for index, include in enumerate(includes):
+        basename = os.path.basename(include).replace('.', '_') + '_%d.cpp' % index
         source = 'test_include_%s' % basename
 
         source_node = bld.path.find_or_declare(source)
@@ -108,10 +107,8 @@ def build(bld):
             content = template.replace('{custom_include}', include)
             f.write(content)
 
-        sources.append(source_node)
-
-    bld.stlib(features = 'cxx sdk_include_filter',
-          includes = ['.','../'] + [extra_node],
-          source   = sources,
-          target   = 'test_sdk_include',
-          always   = True)
+        bld.stlib(features = 'cxx sdk_include_filter',
+              includes = ['.','../'] + [extra_node],
+              source   = source,
+              target   = 'test_sdk_include_%s_%d' % (basename, index),
+              always   = True)
