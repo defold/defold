@@ -26,7 +26,8 @@ Macros currently mean no foreseeable performance gain, however."
             [editor.workspace :as workspace]
             [internal.java :as j]
             [util.coll :as coll :refer [pair]]
-            [util.digest :as digest])
+            [util.digest :as digest]
+            [util.text-util :as text-util])
   (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
@@ -76,7 +77,7 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
   (field-name->key (.getName field-desc)))
 
-(defn enum-name->keyword-name
+(defn- enum-name->keyword-name
   ^String [^String enum-name]
   (util/lower-case* (string/replace enum-name "_" "-")))
 
@@ -928,3 +929,30 @@ Macros currently mean no foreseeable performance gain, however."
      (if (= ::not-found items)
        pb-map
        (assign-repeated pb-map field-kw (some->> items (mapv sanitize-item-fn)))))))
+
+(defn make-search-match-fn
+  "Returns a function that takes a value and returns it if its protobuf-text
+  representation matches the provided search-string. This function is suitable
+  for use with coll/search and its ilk."
+  [^String search-string]
+  (let [enum-search-string (enum-name->keyword-name search-string)
+        text-re-pattern (text-util/search-string->re-pattern search-string :case-insensitive)
+        enum-re-pattern (text-util/search-string->re-pattern enum-search-string :case-insensitive)
+        search-string-is-numeric (text-util/search-string-numeric? search-string)]
+    (fn match-fn [value]
+      (cond
+        (string? value)
+        (when (text-util/includes-re-pattern? value text-re-pattern)
+          value)
+
+        (keyword? value)
+        (when (text-util/includes-re-pattern? (name value) enum-re-pattern)
+          value)
+
+        (and search-string-is-numeric (number? value))
+        (when (text-util/includes-re-pattern? (str value) text-re-pattern)
+          value)
+
+        (boolean? value)
+        (when (text-util/includes-re-pattern? (if value "true" "false") text-re-pattern)
+          value)))))

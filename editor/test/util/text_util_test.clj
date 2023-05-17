@@ -278,6 +278,36 @@
   (is (= "\"234\", \"aaa, bbbb\", \"galaxy\", \"iPhone10,6\""
          (text-util/join-comma-separated-string ["234" "aaa, bbbb" "galaxy" "iPhone10,6"]))))
 
+(deftest search-string-numeric?-test
+  (testing "Returns true for patterns that might match a numeric value."
+    (is (true? (text-util/search-string-numeric? ".")))
+    (is (true? (text-util/search-string-numeric? "-")))
+    (is (true? (text-util/search-string-numeric? "*")))
+    (is (true? (text-util/search-string-numeric? "**")))
+    (is (true? (text-util/search-string-numeric? "-*")))
+    (is (true? (text-util/search-string-numeric? "5.")))
+    (is (true? (text-util/search-string-numeric? ".5")))
+    (is (true? (text-util/search-string-numeric? "*.")))
+    (is (true? (text-util/search-string-numeric? ".*")))
+    (is (true? (text-util/search-string-numeric? "*.*")))
+    (is (true? (text-util/search-string-numeric? "-*.*")))
+    (is (true? (text-util/search-string-numeric? "-50.*")))
+    (is (true? (text-util/search-string-numeric? "-*.05")))
+    (is (true? (text-util/search-string-numeric? "1234567890")))
+    (is (true? (text-util/search-string-numeric? "1234.56789")))
+    (is (true? (text-util/search-string-numeric? "-1234.56789")))
+    (is (true? (text-util/search-string-numeric? "-*12*34*.*56*78*"))))
+
+  (testing "Returns false for patterns that cannot match a numeric value."
+    (is (false? (text-util/search-string-numeric? "")))
+    (is (false? (text-util/search-string-numeric? "a")))
+    (is (false? (text-util/search-string-numeric? "1a")))
+    (is (false? (text-util/search-string-numeric? "a1")))
+    (is (false? (text-util/search-string-numeric? "..")))
+    (is (false? (text-util/search-string-numeric? "--")))
+    (is (false? (text-util/search-string-numeric? "*-")))
+    (is (false? (text-util/search-string-numeric? "*.*.*")))))
+
 (defn- search-text [text search-string case-sensitivity]
   (let [pattern (text-util/search-string->re-pattern search-string case-sensitivity)
         matcher (re-matcher pattern text)]
@@ -314,3 +344,8 @@
       (is (nil? (re-matches case-sensitive-pattern "fooo")))
       (is (= "fOoO" (re-matches case-insensitive-pattern "fOoO")))
       (is (= "fooo" (re-matches case-insensitive-pattern "fooo"))))))
+
+(deftest includes-re-pattern?-test
+  (is (true? (text-util/includes-re-pattern? "exact" #"exact")))
+  (is (true? (text-util/includes-re-pattern? "two words" #"word")))
+  (is (false? (text-util/includes-re-pattern? "two words" #"missing"))))

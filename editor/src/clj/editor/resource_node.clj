@@ -25,8 +25,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [internal.graph.types :as gt]
-            [util.coll :refer [pair]]
-            [util.text-util :as text-util])
+            [util.coll :as coll])
   (:import [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
@@ -211,21 +210,27 @@
                         {:proj-path proj-path
                          :error-value sha256-or-error}))))))
 
-(defn search-ddf-save-data
+(defn default-ddf-resource-search-fn
   ([^String search-string]
-   (let [enum-search-string (protobuf/enum-name->keyword-name search-string)
-         text-re-pattern (text-util/search-string->re-pattern search-string :case-insensitive)
-         enum-re-pattern (text-util/search-string->re-pattern enum-search-string :case-insensitive)]
-     (pair text-re-pattern enum-re-pattern)))
-  ([save-data [text-re-pattern enum-re-pattern]]
-   ;; TODO(save-value): Converting to string is inefficient. Search the pb-map structure in :save-value instead.
-   ;; TODO(save-value): Use coll/search-with-path match enum-re-pattern against keyword values.
-   (let [resource (:resource save-data)
-         resource-type (resource/resource-type resource)
-         write-fn (:write-fn resource-type)
-         save-value (:save-value save-data)
-         save-content (write-fn save-value)]
-     (text-util/string->text-matches save-content text-re-pattern))))
+   (protobuf/make-search-match-fn search-string))
+  ([save-data match-fn]
+   (let [pb-map (:save-value save-data)]
+     (mapv (fn [value]
+             {:match-type :match-type-pb
+              :value value})
+           (coll/search pb-map match-fn)))))
+
+(defn make-ddf-resource-search-fn [init-path path-fn]
+  (defn search-fn
+    ([^String search-string]
+     (protobuf/make-search-match-fn search-string))
+    ([save-data match-fn]
+     (let [pb-map (:save-value save-data)]
+       (mapv (fn [[value path]]
+               {:match-type :match-type-pb
+                :value value
+                :path (path-fn pb-map path)})
+             (coll/search-with-path pb-map init-path match-fn))))))
 
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
   (let [read-defaults (if (nil? read-defaults) true read-defaults)
@@ -236,7 +241,7 @@
                          (some? sanitize-fn) (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
                          (some? string-encode-fn) (comp string-encode-fn))
-        search-fn (or search-fn search-ddf-save-data)
+        search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
                  (dissoc :string-encode-fn)
                  (assoc :textual? true

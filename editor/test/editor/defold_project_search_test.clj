@@ -93,12 +93,14 @@
 (defn- consumer-consumed [consumer]
   (-> consumer :consumed-atom deref))
 
-(defn- match->trimmed-text [{:keys [line] :as _match}]
-  (string/trim line))
+(defn- match->value [match]
+  (case (:match-type match)
+    :match-type-text (string/trim (:line match)) ; Trim lines to disregard indentation in tests below.
+    :match-type-pb (:value match)))
 
 (defn- matched-text-by-proj-path [consumed]
   (mapv (fn [{:keys [resource matches]}]
-          [(resource/proj-path resource) (mapv match->trimmed-text matches)])
+          [(resource/proj-path resource) (mapv match->value matches)])
         consumed))
 
 (defn- match-proj-paths [consumed]

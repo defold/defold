@@ -217,34 +217,36 @@
 (defn- string->line-infos [^String text]
   (line-info-coll #(BufferedReader. (StringReader. text))))
 
-(defn- line-infos->text-matches [line-infos pattern]
+(defn- line-infos->text-matches [line-infos ^Pattern re-pattern]
   (persistent!
     (reduce
       (fn [matches line-info]
         (let [line (:line line-info)
-              matcher (re-matcher pattern line)]
+              matcher (re-matcher re-pattern line)]
           (loop [matches matches]
             (if-not (.find matcher)
               matches
               (recur (conj! matches
                             (assoc line-info
+                              :match-type :match-type-text
                               :start-col (.start matcher)
                               :end-col (.end matcher))))))))
       (transient [])
       line-infos)))
 
-(defn lines->text-matches [lines pattern]
+(defn lines->text-matches [lines ^Pattern re-pattern]
   (persistent!
     (second
       (reduce-kv
         (fn [[^long line-start-pos matches] ^long row ^String line]
           (let [next-line-start-pos (+ line-start-pos (count line))
-                matcher (re-matcher pattern line)]
+                matcher (re-matcher re-pattern line)]
             (loop [matches matches]
               (if-not (.find matcher)
                 (pair next-line-start-pos matches)
                 (recur (conj! matches
-                              {:line line
+                              {:match-type :match-type-text
+                               :line line
                                :row row
                                :start-col (.start matcher)
                                :end-col (.end matcher)
@@ -252,15 +254,22 @@
         (pair 0 (transient []))
         lines))))
 
-(defn readable->text-matches [readable pattern]
-  (line-infos->text-matches (readable->line-infos readable) pattern))
+(defn readable->text-matches [readable ^Pattern re-pattern]
+  (line-infos->text-matches (readable->line-infos readable) re-pattern))
 
-(defn string->text-matches [^String text pattern]
-  (line-infos->text-matches (string->line-infos text) pattern))
+(defn string->text-matches [^String text ^Pattern re-pattern]
+  (line-infos->text-matches (string->line-infos text) re-pattern))
+
+(defn search-string-numeric?
+  "Returns true if the supplied search string might match a numeric value."
+  [^String string-with-wildcards]
+  (and (pos? (.length string-with-wildcards))
+       (some? (re-matches #"^-?[\d*]*\.?[\d*]*$" string-with-wildcards))))
 
 (defn search-string->re-pattern
   "Convert a search string that may contain wildcards and special characters to
-  a Java regex Pattern."
+  a Java regex Pattern. The case-sensitivity can be either :case-sensitive or
+  :case-insensitive."
   ^Pattern [^String string-with-wildcards case-sensitivity]
   (let [re-string (->> (string/split string-with-wildcards #"\*")
                        (map #(Pattern/quote %))
@@ -269,3 +278,9 @@
       (case case-sensitivity
         :case-sensitive re-string
         :case-insensitive (str "(?i)" re-string)))))
+
+(defn includes-re-pattern?
+  "Returns true if the re-pattern matches any part of the text."
+  [^String text ^Pattern re-pattern]
+  (let [matcher (re-matcher re-pattern text)]
+    (.find matcher)))
