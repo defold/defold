@@ -86,6 +86,7 @@ static void DestroyNode(Node* node)
 
 static void DestroyBone(Bone* bone)
 {
+    delete bone->m_Children;
     free((void*)bone->m_Name);
 }
 
@@ -165,7 +166,6 @@ void DestroyScene(Scene* scene)
         DestroyAnimation(&scene->m_Animations[i]);
     scene->m_AnimationsCount = 0;
     delete[] scene->m_Animations;
-
 
     scene->m_BuffersCount = 0;
     delete[] scene->m_Buffers;
