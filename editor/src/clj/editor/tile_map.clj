@@ -85,29 +85,6 @@
   (bit-or (bit-shift-left y Integer/SIZE)
           (bit-and x 0xFFFFFFFF)))
 
-(defn cell-to-pb
-  [cell]
-  (let [builder (Tile$TileCell/newBuilder)]
-    (do
-      (.setX builder (:x cell))
-      (.setY builder (:y cell))
-      (.setTile builder (:tile cell))
-      (.setHFlip builder (if (:h-flip cell) 1 0))
-      (.setVFlip builder (if (:v-flip cell) 1 0))
-      (.setRotate90 builder (if (:rotate90 cell) 1 0))
-      (.build builder))))
-
-(defn cell-map-to-pb
-  [cell-map id z is-visible]
-  (let [builder (Tile$TileLayer/newBuilder)]
-    (.setId builder id)
-    (.setZ builder z)
-    (.setIsVisible builder (if is-visible 1 0))
-    (doseq [[index cell] cell-map]
-      (do
-        (.addCell builder (cell-to-pb cell))))
-    (.build builder)))
-
 (defn update-cell-from-pb
   [cell-map ^Tile$TileCell cell]
   (assoc! cell-map
@@ -124,20 +101,18 @@
   ; figure out where to best do this once
   (TilemapPlugins/init workspace/class-loader)
   ; update the cell-map
-  ; convert to protobuf
   ; send to plugins
   ; apply changes from plugins to cell-map
   (let [updated-cell-map (if tile
                            (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
                            (dissoc! cell-map (cell-index x y)))
-        tile-layer       (cell-map-to-pb updated-cell-map layer-id 0 true)
-        updated-cells    (if tile
-                           (TilemapPlugins/onPaintTile x y tile-layer)
-                           (TilemapPlugins/onClearTile x y tile-layer))]
+        updated-cells-pb (if tile
+                           (TilemapPlugins/onPaintTile x y (persistent! updated-cell-map) layer-id)
+                           (TilemapPlugins/onClearTile x y (persistent! updated-cell-map) layer-id))]
     (reduce (fn [map cell]
                 (update-cell-from-pb map cell))
                 updated-cell-map
-                updated-cells)))
+                updated-cells-pb)))
 
 (defn make-cell-map
   [cells layer-id]

@@ -1,5 +1,7 @@
 package com.defold.extension.editor;
 
+import java.lang.reflect.Field;
+
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -10,29 +12,23 @@ import com.dynamo.bob.Project;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.gamesys.proto.Tile.TileCell;
-import com.dynamo.gamesys.proto.Tile.TileCell.Builder;
-import com.dynamo.gamesys.proto.Tile.TileLayer;
 
 
 public class TilemapPlugins {
 
     /**
-     * Map for the TileCell objects of a TileLayer, where each cell
-     * is keyed on an index created from the x and y position of
+     * Wrapper for the cells of a tilemap layer. Each cell is
+     * keyed on an index created from the x and y position of
      * the cell.
      */
-    public static class TileLayerCellMap extends HashMap<Long, TileCell> {
+    public static class TilemapLayer {
 
+        private Map<Long, Object> cells;
         private String layerId;
 
-        public TileLayerCellMap(TileLayer layer) {
-            for (TileCell cell : layer.getCellList()) {
-                long x = (long)cell.getX();
-                long y = (long)cell.getY();
-                long i = (y << Integer.SIZE) | (x & 0xFFFFFFFF);
-                put(i, cell);
-            }
-            this.layerId = layer.getId();
+        public TilemapLayer(Map<Long, Object> cells, String layerId) {
+            this.cells = cells;
+            this.layerId = layerId;
         }
 
         public String getLayerId() {
@@ -43,8 +39,24 @@ public class TilemapPlugins {
             return ((long)y << Integer.SIZE) | ((long)x & 0xFFFFFFFF);
         }
 
-        public TileCell get(int x, int y) {
-            return get(xyToIndex(x, y));
+        public Integer get(int x, int y) {
+            Object cell = cells.get(xyToIndex(x, y));
+            if (cell == null) {
+                return null;
+            }
+            try {
+                // It would be better if the (defrecord Tile) in tile_map.clj
+                // implemented a shared interface so that we don't have to use
+                // reflection to get the field(s) of the tile
+                Class<?> cls = cell.getClass();
+                Field field = cls.getField("tile");
+                Long value = (Long)field.get(cell);
+                return new Integer(value.intValue());
+            }
+            catch (Exception e) {
+                System.err.println("Unable to get field: " + e.getMessage());
+            }
+            return null;
         }
     }
 
@@ -60,24 +72,28 @@ public class TilemapPlugins {
             tilemapPlugins = PluginScanner.getOrCreatePlugins(scanner, "com.defold.extension.editor", ITilemapPlugin.class);
         }
         catch(Exception e) {
-            System.err.println("exception scanning plugins");
+            System.err.println("Exception while scanning for tilemap plugins");
             tilemapPlugins = new ArrayList<>();
         }
     }
 
-    public static List<TileCell> onClearTile(int x, int y, TileLayer layer) {
-        TileLayerCellMap cells = new TileLayerCellMap(layer);
+    public static List<TileCell> onClearTile(int x, int y, Map<Long, Object> cells, String layerId) {
         List<TileCell> changedCells = new ArrayList<>();
-        for (ITilemapPlugin plugin : tilemapPlugins) {
-            changedCells.addAll(plugin.onClearTile(x, y, cells));
+        if (tilemapPlugins != null) {
+            TilemapLayer layer = new TilemapLayer(cells, layerId);
+            for (ITilemapPlugin plugin : tilemapPlugins) {
+                changedCells.addAll(plugin.onClearTile(x, y, layer));
+            }
         }
         return changedCells;
     }
-    public static List<TileCell> onPaintTile(int x, int y, TileLayer layer) {
-        TileLayerCellMap cells = new TileLayerCellMap(layer);
+    public static List<TileCell> onPaintTile(int x, int y, Map<Long, Object> cells, String layerId) {
         List<TileCell> changedCells = new ArrayList<>();
-        for (ITilemapPlugin plugin : tilemapPlugins) {
-            changedCells.addAll(plugin.onPaintTile(x, y, cells));
+        if (tilemapPlugins != null) {
+            TilemapLayer layer = new TilemapLayer(cells, layerId);
+            for (ITilemapPlugin plugin : tilemapPlugins) {
+                changedCells.addAll(plugin.onPaintTile(x, y, layer));
+            }
         }
         return changedCells;
     }
