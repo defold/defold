@@ -36,7 +36,9 @@ public class TilemapPlugins {
         }
 
         public long xyToIndex(int x, int y) {
-            return ((long)y << Integer.SIZE) | ((long)x & 0xFFFFFFFF);
+            // 4294967295L = 0xFFFFFFFF
+            // using 0xFFFFFFFF messes up the & operation for some reason
+            return (y << Integer.SIZE) | (x & 4294967295L);
         }
 
         public Integer get(int x, int y) {
