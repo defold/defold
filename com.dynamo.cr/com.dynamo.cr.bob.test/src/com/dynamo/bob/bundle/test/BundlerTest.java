@@ -81,7 +81,6 @@ public class BundlerTest {
     private String outputDir;
     private String contentRootUnused;
     private Platform platform;
-    private String architectures;
 
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
     	+ "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
@@ -97,25 +96,26 @@ public class BundlerTest {
     	+ "</manifest>";
 
     @Parameters
-    public static Collection data() {
+    public static Collection<Platform[]> data() {
+        List<Platform[]> data = new ArrayList<>();
+
         String skipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
         if (skipTest != null) {
-            return Arrays.asList(new Object[][] {{ Platform.getHostPlatform(), "" }});
+            data.add(new Platform[]{Platform.getHostPlatform()});
         }
+        else {
+            data.add(new Platform[]{Platform.X86Win32});
+            data.add(new Platform[]{Platform.X86_64Win32});
+            data.add(new Platform[]{Platform.X86_64MacOS});
+            data.add(new Platform[]{Platform.X86_64Linux});
+            data.add(new Platform[]{Platform.Armv7Android});
+            data.add(new Platform[]{Platform.JsWeb});
 
-        List<Object[]> data = new ArrayList<>();
-        data.add(new Object[] { Platform.X86Win32, "" });
-        data.add(new Object[] { Platform.X86_64Win32, "" });
-        data.add(new Object[] { Platform.X86_64MacOS, "" });
-        data.add(new Object[] { Platform.X86_64Linux, "" });
-        data.add(new Object[] { Platform.Armv7Android, "" });
-        data.add(new Object[] { Platform.JsWeb, "" });
-        data.add(new Object[] { Platform.JsWeb, "js-web" });
-        data.add(new Object[] { Platform.JsWeb, "wasm-web" });
-        // Can only do this on OSX machines currently
-        if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
-            data.add(new Object[] { Platform.Arm64Ios, "" });
-            data.add(new Object[] { Platform.X86_64Ios, ""});
+            // Can only do this on OSX machines currently
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
+                data.add(new Platform[]{Platform.Arm64Ios});
+                data.add(new Platform[]{Platform.X86_64Ios});
+            }
         }
         return data;
     }
@@ -144,9 +144,8 @@ public class BundlerTest {
     }
 
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
-    private void verifyEngineBinaries(Project project) throws IOException
+    private void verifyEngineBinaries() throws IOException
     {
-        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
         String projectName = "unnamed";
         String exeName = BundleHelper.projectNameToBinaryName(projectName);
         File outputDirFile = getOutputDirFile(outputDir, projectName);
@@ -182,19 +181,14 @@ public class BundlerTest {
                 assertTrue(Files.isReadable(classesDexPath));
             }
             break;
-            case WasmWeb:
             case JsWeb:
             {
-                if (architectures.contains(Platform.JsWeb)) {
-                    File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-                    assertTrue(asmjsFile.exists());
-                }
-                if (architectures.contains(Platform.WasmWeb)) {
-                    File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
-                    assertTrue(wasmjsFile.exists());
-                    File wasmFile = new File(outputDirFile, exeName + ".wasm");
-                    assertTrue(wasmFile.exists());
-                }
+                File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
+                assertTrue(asmjsFile.exists());
+                File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
+                assertTrue(wasmjsFile.exists());
+                File wasmFile = new File(outputDirFile, exeName + ".wasm");
+                assertTrue(wasmFile.exists());
             }
             break;
             case Arm64Ios:
@@ -305,9 +299,8 @@ public class BundlerTest {
         return files;
     }
 
-    public BundlerTest(Platform platform, String architectures) {
+    public BundlerTest(Platform platform) {
         this.platform = platform;
-        this.architectures = architectures;
     }
 
     @Before
@@ -330,7 +323,7 @@ public class BundlerTest {
         FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
-    Project build() throws IOException, CompileExceptionError, MultipleCompileException {
+    void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -348,8 +341,7 @@ public class BundlerTest {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
 
-        verifyEngineBinaries(project);
-        return project;
+        verifyEngineBinaries();
     }
 
     @SuppressWarnings("unused")
@@ -440,7 +432,7 @@ public class BundlerTest {
         }
 
         project.setOption("platform", buildPlatform.getPair());
-        project.setOption("architectures", architectures);
+        project.setOption("architectures", platform.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
     }
@@ -543,9 +535,8 @@ public class BundlerTest {
         assertTrue(found);
     }
 
-    static HashSet<String> getExpectedFilesForPlatform(Project project, Platform platform, HashSet<String> actualFiles)
+    static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
-        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
         HashSet<String> expectedFiles = new HashSet<String>();
         switch (platform)
         {
@@ -560,29 +551,12 @@ public class BundlerTest {
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
                 break;
-            case WasmWeb:
+            case JsWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
-                expectedFiles.add("archive/archive_files.json");
-                break;
-            case JsWeb:
-                expectedFiles.add("dmloader.js");
-                expectedFiles.add("index.html");
-                if (architectures.contains(Platform.JsWeb)) {
-                    expectedFiles.add("unnamed_asmjs.js");
-                }
-                if (architectures.contains(Platform.WasmWeb)) {
-                    expectedFiles.add("unnamed_wasm.js");
-                    expectedFiles.add("unnamed.wasm");
-                }
                 expectedFiles.add("archive/game.arcd0");
                 expectedFiles.add("archive/game.arci0");
                 expectedFiles.add("archive/game.dmanifest0");
@@ -745,14 +719,14 @@ public class BundlerTest {
 
         // first test - no bundle resources
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
-        Project project = build();
+        build();
         HashSet<String> actualFiles = new HashSet<String>();
         List<String> files = getBundleFiles();
         for (String file : files) {
-            System.out.println("Actual file:" + file);
+            System.out.println(file);
             actualFiles.add(file);
         }
-        HashSet<String> expectedFiles = getExpectedFilesForPlatform(project, platform, actualFiles);
+        HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         for (String file : expectedFiles) {
             System.out.println("Expected file:" + file);
         }
@@ -762,14 +736,14 @@ public class BundlerTest {
 
         // second test - /sub1
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
-        project = build();
+        build();
         files = getBundleFiles();
         actualFiles = new HashSet<String>();
         for (String file : files) {
-            System.out.println("Actual file:" + file);
+            System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles = getExpectedFilesForPlatform(project, platform, actualFiles);
+        expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
         for (String file : expectedFiles) {
@@ -781,14 +755,14 @@ public class BundlerTest {
 
         // third test - /sub1 and /sub2
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
-        project = build();
+        build();
         files = getBundleFiles();
         actualFiles = new HashSet<String>();
         for (String file : files) {
-            System.out.println("Actual file:" + file);
+            System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles = getExpectedFilesForPlatform(project, platform, actualFiles);
+        expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
         expectedFiles.add(appFolder + "s2-root1.txt");
