@@ -110,7 +110,6 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
             data.add(new Platform[]{Platform.JsWeb});
-            data.add(new Platform[]{Platform.JsWeb});
 
             // Can only do this on OSX machines currently
             if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
@@ -557,20 +556,11 @@ public class BundlerTest {
                 expectedFiles.add("game.projectc");
                 break;
             case WasmWeb:
+            case JsWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
-                expectedFiles.add("archive/archive_files.json");
-                break;
-            case JsWeb:
-                expectedFiles.add("dmloader.js");
-                expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_asmjs.js");
                 expectedFiles.add("archive/game.arcd0");
                 expectedFiles.add("archive/game.arci0");
