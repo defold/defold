@@ -6,7 +6,7 @@ APPNAME='texc'
 srcdir = '.'
 blddir = 'build'
 
-import sys
+import os, sys
 import waf_dynamo
 import waflib.Options
 import TestContext
@@ -34,6 +34,17 @@ def configure(conf):
     conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
+
+    if 'JAVA_HOME' in os.environ:
+
+        host = 'windows'
+        if 'linux' in sys.platform:
+            host = 'linux'
+        elif 'darwin' in sys.platform:
+            host = 'darwin'
+
+        conf.env['CPPPATH_JDK'] = [os.path.join(os.environ['JAVA_HOME'], 'include'), os.path.join(os.environ['JAVA_HOME'], 'include', host)]
+        conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
 
 def build(bld):
     global test_context

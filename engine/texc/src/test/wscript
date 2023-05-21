@@ -1,16 +1,15 @@
 #! /usr/bin/env python
 
-import waflib.Task, waflib.TaskGen
-from waf_dynamo import copy_file_task
 from waflib.Options import options
 
 def build(bld):
-    if options.skip_build_tests:
-       return
+   bld(features     = 'c cxx cprogram test',
+       source       = 'test_texc.cpp',
+       use          = 'DLIB BASIS_ENCODER PROFILE_NULL texc',
+       proto_gen_py = True,
+       target       = 'test_texc')
 
-    test_texc = bld(features     = 'c cxx cprogram test',
-                    source       = bld.path.ant_glob("*.cpp"),
-                    use          = 'DLIB BASIS_ENCODER PROFILE_NULL texc',
-                    proto_gen_py = True,
-                    target       = 'test_texc')
-    test_texc.install_path = None
+   bld(features     = 'c cxx cprogram test',
+       source       = 'test_atlasc.cpp',
+       use          = 'DLIB BASIS_ENCODER PROFILE_NULL atlasc atlaspacker',
+       target       = 'test_atlasc')
