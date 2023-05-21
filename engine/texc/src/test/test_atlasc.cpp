@@ -49,6 +49,14 @@ static void TreeIterCallback(void* ctx, const char* path, bool isdir)
     if (isdir)
         return;
 
+    const char* ext = strrchr(path, '.');
+    if (!ext)
+        return;
+
+    bool is_image = strcmp(ext, ".png") == 0;
+    if (!is_image)
+        return;
+
     dmArray<dmAtlasc::SourceImage>* images = (dmArray<dmAtlasc::SourceImage>*)ctx;
     dmAtlasc::SourceImage image;
     int result = LoadImage(path, &image);
@@ -64,8 +72,7 @@ struct CompileInfo
 {
     const char*                 m_DirPath;
     dmAtlasc::PackingAlgorithm  m_PackingAlgorithm;
-    uint32_t                    m_PageWidth;
-    uint32_t                    m_PageHeight;
+    int                         m_PageSize;
 
     // expected results
     uint32_t                    m_ExpectedWidth;
@@ -75,9 +82,9 @@ struct CompileInfo
 
 static CompileInfo compile_info[] =
 {
-    {"src/test/data/atlas01", dmAtlasc::PA_BINPACK_SKYLINE_BL, 0, 0},
-    {"src/test/data/atlas01", dmAtlasc::PA_TILEPACK_AUTO, 0, 0},
-    {"src/test/data/atlas01", dmAtlasc::PA_TILEPACK_CONVEXHULL, 0, 0},
+    {"src/test/data/atlas01", dmAtlasc::PA_BINPACK_SKYLINE_BL, 0, 512, 256},
+    {"src/test/data/atlas01", dmAtlasc::PA_TILEPACK_AUTO, 0, 512, 256},
+    {"src/test/data/atlas01", dmAtlasc::PA_TILEPACK_CONVEXHULL, 0, 512, 256},
 };
 
 class AtlascCompileTest : public jc_test_params_class<CompileInfo>
@@ -89,8 +96,6 @@ protected:
 
         dmSys::IterateTree(info.m_DirPath, true, true, &m_Images, TreeIterCallback);
         ASSERT_NE(0U, m_Images.Size());
-
-        printf("Loaded %u images\n", m_Images.Size());
     }
 
     virtual void TearDown()
@@ -112,6 +117,7 @@ TEST_P(AtlascCompileTest, Pack)
 
     dmAtlasc::Options options;
     options.m_Algorithm = (dmAtlasc::PackingAlgorithm)info.m_PackingAlgorithm;
+    options.m_PageSize = info.m_PageSize;
     dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, m_Images.Begin(), m_Images.Size());
 
     dmAtlasc::DestroyAtlas(atlas);
@@ -121,10 +127,34 @@ TEST_P(AtlascCompileTest, Pack)
 
 INSTANTIATE_TEST_CASE_P(AtlascCompileTest, AtlascCompileTest, jc_test_values_in(compile_info));
 
+static int TestStandAlone(const char* dirpath)
+{
+    dmArray<dmAtlasc::SourceImage> images;
+    dmSys::IterateTree(dirpath, true, true, &images, TreeIterCallback);
+
+    if (images.Empty())
+    {
+        printf("Found no images in %s\n", dirpath);
+        return 1;
+    }
+
+    dmAtlasc::Options options;
+    options.m_Algorithm = dmAtlasc::PA_TILEPACK_AUTO;
+    options.m_PageSize = 1024;
+    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, images.Begin(), images.Size());
+
+    dmAtlasc::DestroyAtlas(atlas);
+
+    return 0;
+}
 
 int main(int argc, char **argv)
 {
+    if (argc > 1)
+    {
+        return TestStandAlone(argv[1]);
+    }
+
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

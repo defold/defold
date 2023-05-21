@@ -68,14 +68,6 @@ static void SortImages(SourceImage* images, uint32_t num_images)
 
 static apPacker* CreateTilePacker(const Options& options)
 {
-    // typedef struct
-    // {
-    //     int     no_rotate;
-    //     int     tile_size;          // The size in texels. Default 16
-    //     int     padding;            // Internal padding for each image. Default 1
-    //     int     alpha_threshold;    // values below or equal to this threshold are considered transparent. (range 0-255)
-    // } apTilePackerOptions;
-
     apTilePackerOptions packer_options;
     apTilePackerSetDefaultOptions(&packer_options);
     packer_options.no_rotate        = options.m_PackerNoRotate;
