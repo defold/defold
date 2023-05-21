@@ -83,11 +83,6 @@ static apPacker* CreateTilePacker(const Options& options)
     packer_options.padding          = options.m_TilePackerPadding;
     packer_options.alpha_threshold  = options.m_TIlePackerAlphaThreshold;
 
-    printf("options.no_rotate: %d\n", packer_options.no_rotate);
-    printf("options.tile_size: %d\n", packer_options.tile_size);
-    printf("options.padding: %d\n", packer_options.padding);
-    printf("options.alpha_threshold: %d\n", packer_options.alpha_threshold);
-
     return apTilePackerCreate(&packer_options);
 }
 
@@ -97,6 +92,51 @@ static apPacker* CreateBinPacker(const Options& options)
     apBinPackerSetDefaultOptions(&packer_options);
     packer_options.no_rotate = options.m_PackerNoRotate;
     return apBinPackerCreate(&packer_options);
+}
+
+static int CreateHullImage(apPacker* packer, SourceImage* image, apImage* apimage)
+{
+    int num_planes = 8;
+
+    uint8_t* hull_image = 0;
+
+    int num_vertices = 0;
+    apPosf* vertices = 0;
+
+    int num_triangles = 0;
+    apPosf* triangles = 0;
+
+// TODO: Move this code into the tilepacker itself
+
+    int dilate = 0;
+    hull_image = apCreateHullImage(image->m_Data, (uint32_t)image->m_Size.x, (uint32_t)image->m_Size.y, (uint32_t)image->m_NumChannels, dilate);
+
+    vertices = apConvexHullFromImage(num_planes, hull_image, image->m_Size.x, image->m_Size.y, &num_vertices);
+    if (!vertices)
+    {
+        printf("Failed to generate hull for %s\n", image->m_Path);
+        return 0;
+    }
+
+    // Triangulate a convex hull
+    num_triangles = num_vertices - 2;
+    triangles = (apPosf*)malloc(sizeof(apPosf) * (size_t)num_triangles * 3);
+    for (int t = 0; t < num_triangles; ++t)
+    {
+        triangles[t*3+0] = vertices[0];
+        triangles[t*3+1] = vertices[1+t+0];
+        triangles[t*3+2] = vertices[1+t+1];
+    }
+
+    apimage->vertices = triangles;
+    apimage->num_vertices = num_triangles*3;
+
+    apTilePackerCreateTileImageFromTriangles(packer, apimage, triangles, num_triangles*3);
+
+    free((void*)vertices);
+    free((void*)hull_image);
+
+    return 1;
 }
 
 Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uint32_t num_source_images)
@@ -118,26 +158,44 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
     apOptions options;
     options.page_size = atlas_options.m_PageSize;
 
-
-
     apContext* ctx = apCreate(&options, packer);
+    int result = 1;
 
     for (uint32_t i = 0; i < num_source_images; ++i)
     {
         SourceImage* image = &source_images[i];
 
-        printf("Adding image: %s, %d x %d  \t\tarea: %d\n", image->m_Path, image->m_Size.x, image->m_Size.y, image->m_Size.x * image->m_Size.y);
+        //printf("Adding image: %s, %d x %d  \t\tarea: %d\n", image->m_Path, image->m_Size.x, image->m_Size.y, image->m_Size.x * image->m_Size.y);
         apImage* apimage = apAddImage(ctx, image->m_Path, image->m_Size.x, image->m_Size.y, image->m_NumChannels, image->m_Data);
+        if (!apimage)
+        {
+            result = 0;
+            break;
+        }
+
+        if (atlas_options.m_Algorithm == dmAtlasc::PA_TILEPACK_CONVEXHULL)
+        {
+            int result = CreateHullImage(packer, image, apimage);
+            if (!result)
+            {
+                result = 0;
+                break;
+            }
+        }
 
     }
 
+    Atlas* atlas = 0;
 
-    apPackImages(ctx);
+    if (result)
+    {
+        apPackImages(ctx);
 
-    // Create the atlas info
+        // Create the atlas info
+    }
 
     apDestroy(ctx);
-    return 0;
+    return atlas;
 }
 
 void DestroyAtlas(Atlas* atlas)

@@ -46,7 +46,6 @@ static int LoadImage(const char* path, dmAtlasc::SourceImage* image)
 
 static void TreeIterCallback(void* ctx, const char* path, bool isdir)
 {
-    printf("ITER: %s\n", path);
     if (isdir)
         return;
 
@@ -112,6 +111,7 @@ TEST_P(AtlascCompileTest, Pack)
     const CompileInfo& info = GetParam();
 
     dmAtlasc::Options options;
+    options.m_Algorithm = (dmAtlasc::PackingAlgorithm)info.m_PackingAlgorithm;
     dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, m_Images.Begin(), m_Images.Size());
 
     dmAtlasc::DestroyAtlas(atlas);
