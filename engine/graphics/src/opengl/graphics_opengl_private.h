@@ -18,17 +18,51 @@
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dlib/opaque_handle_container.h>
 
 namespace dmGraphics
 {
-    struct Context
+    struct OpenGLTexture
     {
-        Context(const ContextParams& params);
+        TextureType m_Type;
+        GLuint*     m_TextureIds;
+        uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
+        uint16_t    m_NumTextureIds;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_Depth;
+        uint16_t    m_OriginalWidth;
+        uint16_t    m_OriginalHeight;
+        uint16_t    m_MipMapCount;
+
+        // data state per mip-map (mipX = bitX). 0=ok, 1=pending
+        volatile uint16_t    m_DataState;
+
+        TextureParams m_Params;
+    };
+
+    struct OpenGLRenderTarget
+    {
+        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
+        HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
+        GLuint          m_DepthBuffer;
+        GLuint          m_StencilBuffer;
+        GLuint          m_DepthStencilBuffer;
+        GLuint          m_Id;
+        uint32_t        m_BufferTypeFlags;
+        uint32_t        m_DepthBufferBits;
+    };
+
+    struct OpenGLContext
+    {
+        OpenGLContext(const ContextParams& params);
 
         // Async queue data and synchronization objects
         dmMutex::HMutex         m_AsyncMutex;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
+
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;
@@ -87,6 +121,7 @@ namespace dmGraphics
         TextureParams m_Params;
     };
 
+    // JG: dmsdk/graphics.h defines this as a struct ptr so don't want to rename it yet..
     struct VertexDeclaration
     {
         struct Stream
@@ -123,18 +158,5 @@ namespace dmGraphics
         GLuint                         m_Id;
         dmArray<OpenglVertexAttribute> m_Attributes;
     };
-
-    struct RenderTarget
-    {
-        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
-        GLuint          m_DepthBuffer;
-        GLuint          m_StencilBuffer;
-        GLuint          m_DepthStencilBuffer;
-        GLuint          m_Id;
-        uint32_t        m_BufferTypeFlags;
-        uint32_t        m_DepthBufferBits;
-    };
-
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

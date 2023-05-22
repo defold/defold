@@ -43,6 +43,33 @@ namespace dmGraphics
     void SetForceFragmentReloadFail(bool should_fail);
     void SetForceVertexReloadFail(bool should_fail);
     bool IsTextureFormatCompressed(TextureFormat format);
+
+    // Test functions:
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HVertexBuffer buffer);
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HIndexBuffer buffer);
+    // <- end test functions
+
+    template <typename T>
+    static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
+    {
+        if (container.Full())
+        {
+            container.Allocate(8);
+        }
+        HOpaqueHandle opaque_handle = container.Put((uintptr_t*) asset);
+        HAssetHandle asset_handle   = MakeAssetHandle(opaque_handle, type);
+        return asset_handle;
+    }
+
+    template <typename T>
+    static inline T* GetAssetFromContainer(dmOpaqueHandleContainer<uintptr_t>& container, HAssetHandle asset_handle)
+    {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
+        HOpaqueHandle opaque_handle = GetOpaqueHandle(asset_handle);
+        return (T*) container.Get(opaque_handle);
+    }
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

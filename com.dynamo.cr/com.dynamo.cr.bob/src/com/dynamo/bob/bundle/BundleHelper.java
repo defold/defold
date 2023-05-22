@@ -38,8 +38,6 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.apache.commons.io.FileUtils;
@@ -93,8 +91,6 @@ public class BundleHelper {
         "game.dmanifest",
         "game.public.der"
     };
-
-    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public static void throwIfCanceled(ICanceled canceled) {
         if(canceled.isCanceled()) {
@@ -159,7 +155,7 @@ public class BundleHelper {
             return "";
         }
         String s = new String(data);
-        Template template = Mustache.compiler().compile(s);
+        Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         template.execute(propertiesMap, properties, sw);
         sw.flush();

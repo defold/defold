@@ -14,12 +14,14 @@
 /lib/luajit-share.zip
 /lib/dlib.jar
 /lib/modelimporter.jar
+/lib/texturecompiler.jar
 /libexec/*/*.js
 /libexec/*/*.swf
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
 /libexec/*/glslc*
 /libexec/*/spirv-cross*
+/libexec/*/spirv-opt*
 /libexec/*/luac-32*
 /share/luajit
 /res

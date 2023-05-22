@@ -29,6 +29,12 @@
  */
 namespace dmGui
 {
+    /*#
+     * A handle to a gui context
+     * @name HContext
+     * @type typedef
+     */
+     typedef struct Context* HContext;
 
     /*#
      * A handle to a gui scene
@@ -43,6 +49,13 @@ namespace dmGui
      * @type typedef
      */
     typedef uint32_t HNode;
+
+    /*#
+     * A handle to a gui script
+     * @name HScript
+     * @type typedef
+     */
+    typedef struct Script* HScript;
 
     /*#
      * Invalid node handle

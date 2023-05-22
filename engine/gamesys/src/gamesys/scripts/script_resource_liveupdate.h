@@ -23,20 +23,20 @@ extern "C"
 
 namespace dmLiveUpdate
 {
-    /*# Resource API documentation
+    /*# LiveUpdate API documentation
      *
      * Functions and constants to access resources.
      *
      * @document
-     * @name Resource
-     * @namespace resource
+     * @name LiveUpdate
+     * @namespace liveupdate
      */
 
     /*# return a reference to the Manifest that is currently loaded
      *
      * Return a reference to the Manifest that is currently loaded.
      *
-     * @name resource.get_current_manifest
+     * @name liveupdate.get_current_manifest
      * @return manifest_reference [type:number] reference to the Manifest that is currently loaded
      */
     int Resource_GetCurrentManifest(lua_State* L);
@@ -46,7 +46,7 @@ namespace dmLiveUpdate
      * add a resource to the data archive and runtime index. The resource will be verified
      * internally before being added to the data archive.
      *
-     * @name resource.store_resource
+     * @name liveupdate.store_resource
      * @param manifest_reference [type:number] The manifest to check against.
      * @param data [type:string] The resource data that should be stored.
      * @param hexdigest [type:string] The expected hash for the resource,
@@ -68,7 +68,7 @@ namespace dmLiveUpdate
      *
      * ```lua
      * function init(self)
-     *     self.manifest = resource.get_current_manifest()
+     *     self.manifest = liveupdate.get_current_manifest()
      * end
      *
      * local function callback_store_resource(self, hexdigest, status)
@@ -85,7 +85,7 @@ namespace dmLiveUpdate
      *           local baseurl = "http://example.defold.com:8000/"
      *           http.request(baseurl .. resource_hash, "GET", function(self, id, response)
      *                if response.status == 200 then
-     *                     resource.store_resource(self.manifest, response.response, resource_hash, callback_store_resource)
+     *                     liveupdate.store_resource(self.manifest, response.response, resource_hash, callback_store_resource)
      *                else
      *                     print("Failed to download resource: " .. resource_hash)
      *                end
@@ -107,7 +107,7 @@ namespace dmLiveUpdate
      * developer to update the game, modify existing resources, or add new
      * resources to the game through LiveUpdate.
      *
-     * @name resource.store_manifest
+     * @name liveupdate.store_manifest
      * @param manifest_buffer [type:string] the binary data that represents the manifest
      * @param callback [type:function(self, status)] the callback function
      * executed once the engine has attempted to store the manifest.
@@ -118,13 +118,13 @@ namespace dmLiveUpdate
      * `status`
      * : [type:constant] the status of the store operation:
      *
-     * - `resource.LIVEUPATE_OK`
-     * - `resource.LIVEUPATE_INVALID_RESOURCE`
-     * - `resource.LIVEUPATE_VERSION_MISMATCH`
-     * - `resource.LIVEUPATE_ENGINE_VERSION_MISMATCH`
-     * - `resource.LIVEUPATE_SIGNATURE_MISMATCH`
-     * - `resource.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH`
-     * - `resource.LIVEUPDATE_FORMAT_ERROR`
+     * - `liveupdate.LIVEUPDATE_OK`
+     * - `liveupdate.LIVEUPDATE_INVALID_RESOURCE`
+     * - `liveupdate.LIVEUPDATE_VERSION_MISMATCH`
+     * - `liveupdate.LIVEUPDATE_ENGINE_VERSION_MISMATCH`
+     * - `liveupdate.LIVEUPDATE_SIGNATURE_MISMATCH`
+     * - `liveupdate.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH`
+     * - `liveupdate.LIVEUPDATE_FORMAT_ERROR`
      *
      * @examples
      *
@@ -132,7 +132,7 @@ namespace dmLiveUpdate
      *
      * ```lua
      * local function store_manifest_cb(self, status)
-     *   if status == resource.LIVEUPATE_OK then
+     *   if status == liveupdate.LIVEUPATE_OK then
      *     pprint("Successfully stored manifest. This manifest will be loaded instead of the bundled manifest the next time the engine starts.")
      *   else
      *     pprint("Failed to store manifest")
@@ -142,7 +142,7 @@ namespace dmLiveUpdate
      * local function download_and_store_manifest(self)
      *   http.request(MANIFEST_URL, "GET", function(self, id, response)
      *       if response.status == 200 then
-     *         resource.store_manifest(response.response, store_manifest_cb)
+     *         liveupdate.store_manifest(response.response, store_manifest_cb)
      *       end
      *     end)
      * end
@@ -159,7 +159,7 @@ namespace dmLiveUpdate
      * to this function.
      * The path is stored in the (internal) live update location.
      *
-     * @name resource.store_archive
+     * @name liveupdate.store_archive
      * @param path [type:string] the path to the original file on disc
      * @param callback [type:function(self, status)] the callback function
      * executed after the storage has completed
@@ -168,7 +168,7 @@ namespace dmLiveUpdate
      * : [type:object] The current object.
      *
      * `status`
-     * : [type:constant] the status of the store operation (See resource.store_manifest)
+     * : [type:constant] the status of the store operation (See liveupdate.store_manifest)
      *
      * @param [options] [type:table] optional table with extra parameters. Supported entries:
      *
@@ -189,7 +189,7 @@ namespace dmLiveUpdate
      * function init(self)
      *     self.proxy = "levels#level1"
      *
-     *     print("INIT: is_using_liveupdate_data:", resource.is_using_liveupdate_data())
+     *     print("INIT: is_using_liveupdate_data:", liveupdate.is_using_liveupdate_data())
      *     -- let's download the archive
      *     msg.post("#", "attempt_download_archive")
      * end
@@ -236,7 +236,7 @@ namespace dmLiveUpdate
      *         -- by supplying the ETag, we don't have to redownload the file again
      *         -- if we already have downloaded it.
      *         local headers = get_http_request_headers(ZIP_FILENAME .. '.json')
-     *         if not resource.is_using_liveupdate_data() then
+     *         if not liveupdate.is_using_liveupdate_data() then
      *             headers = {} -- live update data has been purged, and we need do a fresh download
      *         end
      *
@@ -253,7 +253,7 @@ namespace dmLiveUpdate
      *                 print(string.format("%d: Archive zip file up-to-date", response.status))
      *             elseif response.status == 200 and response.error == nil then
      *                 -- register the path to the live update system
-     *                 resource.store_archive(response.path, store_archive_cb)
+     *                 liveupdate.store_archive(response.path, store_archive_cb)
      *                 -- at this point, the "path" has been moved internally to a different location
      *
      *                 -- save the ETag for the next run
@@ -265,7 +265,7 @@ namespace dmLiveUpdate
      *             -- If we got a 200, we would call store_archive_cb() then reboot
      *             -- Second time, if we get here, it should be after a 304, and then
      *             -- we can load the missing resources from the liveupdate archive
-     *             if resource.is_using_liveupdate_data() then
+     *             if liveupdate.is_using_liveupdate_data() then
      *                 msg.post(self.proxy, "load")
      *             end
      *         end,
@@ -281,7 +281,7 @@ namespace dmLiveUpdate
      * Is any liveupdate data mounted and currently in use?
      * This can be used to determine if a new manifest or zip file should be downloaded.
      *
-     * @name resource.is_using_liveupdate_data
+     * @name liveupdate.is_using_liveupdate_data
      * @return bool [type:bool] true if a liveupdate archive (any format) has been loaded
      * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
      */

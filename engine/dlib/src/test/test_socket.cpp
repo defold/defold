@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <stdlib.h> // free
 #include <string.h>
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
@@ -41,32 +42,31 @@ struct ServerThreadInfo
     {
         port = 0;
         domain = dmSocket::DOMAIN_MISSING;
-        listening = false;
-        sent = false;
+        dmAtomicStore32(&listening, 0);
+        dmAtomicStore32(&sent, 0);
     }
 
     uint16_t port;
     dmSocket::Domain domain;
-    bool listening;
-    bool sent;
+    int32_atomic_t listening;
+    int32_atomic_t sent;
 };
 
-void WaitForBool(bool* lock)
+void WaitForBool(int32_atomic_t* lock, uint32_t maximum_wait_ms)
 {
-    const uint32_t maximum_wait = 5000; // milliseconds
     const uint32_t wait_timeout = 100;  // milliseconds
     uint32_t wait_count = 0;
-    for (uint32_t i = 0; i < (maximum_wait / wait_timeout); ++i)
+    for (uint32_t i = 0; i < (maximum_wait_ms / wait_timeout); ++i)
     {
-        if (!(*lock))
+        if (dmAtomicGet32(lock)==0)
         {
             wait_count += 1;
             dmTime::Sleep(wait_timeout * 1000); // nanoseconds
         }
     }
 
-    printf("Waited for %d/%d counts (%d ms each)\n", wait_count, (maximum_wait / wait_timeout), wait_timeout);
-    ASSERT_TRUE(*lock);
+    printf("Waited for %d/%d counts (%d ms each)\n", wait_count, (maximum_wait_ms / wait_timeout), wait_timeout);
+    ASSERT_TRUE(dmAtomicGet32(lock) == 1);
     dmTime::Sleep(5 * wait_timeout * 1000); // nanoseconds
 }
 
@@ -79,44 +79,50 @@ static void ServerThread(void* arg)
     dmSocket::Socket client_sock = -1;
     dmSocket::Address client_addr;
 
+#define T_ASSERT_EQ(_A, _B) \
+    if ( (_A) != (_B) ) { \
+        printf("%s:%d: ASSERT: %s != %s: %d != %d", __FILE__, __LINE__, #_A, #_B, (_A), (_B)); \
+    } \
+    assert( (_A) == (_B) );
+
     // Setup server socket and listen for a client to connect
     result = dmSocket::New(info->domain, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_sock);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::SetReuseAddress(server_sock, true);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     const char* hostname = dmSocket::IsSocketIPv4(server_sock) ? DM_LOOPBACK_ADDRESS_IPV4 : DM_LOOPBACK_ADDRESS_IPV6;
     result = dmSocket::GetHostByName(hostname, &server_addr, dmSocket::IsSocketIPv4(server_sock), dmSocket::IsSocketIPv6(server_sock));
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::Bind(server_sock, server_addr, info->port);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::Listen(server_sock, 1000); // Backlog = 1000
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     // Wait for a client to connect
-    info->listening = true;
+    dmAtomicStore32(&info->listening, 1);
     result = dmSocket::Accept(server_sock, &client_addr, &client_sock);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     // Send data to the client for verification
     int value = 0x00def01d;
     int written = 0;
 
     result = dmSocket::Send(client_sock, &value, sizeof(value), &written);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
-    ASSERT_EQ((int) sizeof(value), written);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ((int) sizeof(value), written);
 
-    info->sent = true;
+    dmAtomicStore32(&info->sent, 1);
 
     // Teardown
     result = dmSocket::Delete(client_sock);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 
     result = dmSocket::Delete(server_sock);
-    ASSERT_EQ(dmSocket::RESULT_OK, result);
+    T_ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
 inline dmSocket::Socket GetSocket(dmSocket::Domain domain)
@@ -417,7 +423,6 @@ TEST(Socket, Connect_IPv4_ThreadServer)
 {
     // Setup server thread
     struct ServerThreadInfo info;
-    info.listening = false;
     info.port = CONST_TEST_PORT;
     info.domain = dmSocket::DOMAIN_IPV4;
     const char* hostname = DM_LOOPBACK_ADDRESS_IPV4;
@@ -432,12 +437,12 @@ TEST(Socket, Connect_IPv4_ThreadServer)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(socket), dmSocket::IsSocketIPv6(socket));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.listening);
+    WaitForBool(&info.listening, 5000);
 
     result = dmSocket::Connect(socket, address, CONST_TEST_PORT);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.sent);
+    WaitForBool(&info.sent, 5000);
 
     // Receive data from the server
     int value = 0;
@@ -458,7 +463,6 @@ TEST(Socket, Connect_IPv6_ThreadServer)
 {
     // Setup server thread
     struct ServerThreadInfo info;
-    info.listening = false;
     info.port = CONST_TEST_PORT;
     info.domain = dmSocket::DOMAIN_IPV6;
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
@@ -473,12 +477,12 @@ TEST(Socket, Connect_IPv6_ThreadServer)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(socket), dmSocket::IsSocketIPv6(socket));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.listening);
+    WaitForBool(&info.listening, 5000);
 
     result = dmSocket::Connect(socket, address, CONST_TEST_PORT);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.sent);
+    WaitForBool(&info.sent, 5000);
 
     // Receive data from the server
     int value = 0;
@@ -576,7 +580,6 @@ TEST(Socket, GetName_IPv4_Connected)
 {
     // Setup server thread
     struct ServerThreadInfo info;
-    info.listening = false;
     info.port = CONST_TEST_PORT;
     info.domain = dmSocket::DOMAIN_IPV4;
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
@@ -592,14 +595,10 @@ TEST(Socket, GetName_IPv4_Connected)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(instance), dmSocket::IsSocketIPv6(instance));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    for (int i = 0; i < 20; ++i) // Wait up to 2 seconds for the Server thread to kick in
-    {
-        if (!info.listening)
-            dmTime::Sleep(100000); // 100 ms
-    }
+    WaitForBool(&info.listening, 20000);
 
     dmTime::Sleep(500000);
-    ASSERT_TRUE(info.listening);
+    ASSERT_TRUE(dmAtomicGet32(&info.listening)==1);
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -623,7 +622,6 @@ TEST(Socket, GetName_IPv6_Connected)
 {
     // Setup server thread
     struct ServerThreadInfo info;
-    info.listening = false;
     info.port = CONST_TEST_PORT;
     info.domain = dmSocket::DOMAIN_IPV6;
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x80000, (void *) &info, "server");
@@ -639,14 +637,10 @@ TEST(Socket, GetName_IPv6_Connected)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(instance), dmSocket::IsSocketIPv6(instance));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    for (int i = 0; i < 20; ++i) // Wait up to 2 seconds for the Server thread to kick in
-    {
-        if (!info.listening)
-            dmTime::Sleep(100000); // 100 ms
-    }
+    WaitForBool(&info.listening, 20000);
 
     dmTime::Sleep(500000);
-    ASSERT_TRUE(info.listening);
+    ASSERT_TRUE(dmAtomicGet32(&info.listening)==1);
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_OK, result);

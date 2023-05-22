@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -105,11 +105,11 @@ PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.
 PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split()
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
@@ -981,6 +981,7 @@ class Configuration(object):
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
