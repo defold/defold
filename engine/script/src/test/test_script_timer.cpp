@@ -1028,6 +1028,18 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
     ASSERT_TRUE(RunString(L, check_4));
     ASSERT_EQ(top, lua_gettop(L));
 
+    // Test getting info on a cancelled timer
+    const char check_get_info_cancelled[] =
+        "handle_1 = timer.delay(1, true, function() end)\n"
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1 ~= nil)\n"
+        "timer.cancel(handle_1)\n"
+        "handle_2 = timer.delay(1, true, function() end)\n"
+        "local data2 = timer.get_info(handle_1)\n"
+        "assert(data2 == nil)\n";
+
+    ASSERT_TRUE(RunString(L, check_get_info_cancelled));
+    ASSERT_EQ(top, lua_gettop(L));
 
     FinalizeInstance(script_world);
 
