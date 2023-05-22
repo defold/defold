@@ -473,13 +473,13 @@
         root (-> project
                  (g/node-value :workspace evaluation-context)
                  (workspace/project-path evaluation-context))]
-    (doseq [[cmd & args :as cmd+args] commands]
+    (doseq [cmd+args commands]
       (if (can-execute? ui cmd+args)
-        (let [process (doto (process/start! cmd args {:directory root})
-                        (-> .getInputStream (input-stream->console ui :out))
-                        (-> .getErrorStream (input-stream->console ui :err)))
-              exit-code (.waitFor process)]
-          (when-not (zero? exit-code)
+        (let [process (doto (apply process/start {:dir root} cmd+args)
+                        (-> process/out (input-stream->console ui :out))
+                        (-> process/err (input-stream->console ui :err)))
+              exit-code (process/await-exit-code process)]
+          (when-not (process/exit-ok? exit-code)
             (throw (ex-info (str "Command \""
                                  (string/join " " cmd+args)
                                  "\" exited with code "
