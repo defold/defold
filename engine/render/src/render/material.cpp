@@ -182,12 +182,17 @@ namespace dmRender
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HProgram program          = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
+        if (!program)
+        {
+            return 0;
+        }
 
         Material* m            = new Material;
         m->m_RenderContext     = render_context;
         m->m_VertexProgram     = vertex_program;
         m->m_FragmentProgram   = fragment_program;
-        m->m_Program           = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
+        m->m_Program           = program;
         m->m_VertexDeclaration = 0;
 
         CreateAttributes(graphics_context, m);

@@ -256,10 +256,11 @@ message ShaderDesc
     message ResourceBinding
     {
         required string         name          = 1;
-        required ShaderDataType type          = 2;
-        optional uint32         element_count = 3 [default=1];
-        optional uint32         set           = 4 [default=0];
-        optional uint32         binding       = 5 [default=0];
+        required uint64         name_hash     = 2;
+        required ShaderDataType type          = 3;
+        optional uint32         element_count = 4 [default=1];
+        optional uint32         set           = 5 [default=0];
+        optional uint32         binding       = 6 [default=0];
     }
 
     message Shader
@@ -267,8 +268,9 @@ message ShaderDesc
         required Language        language              = 1;
         optional bytes           source                = 2;
         repeated ResourceBinding uniforms              = 4;
-        repeated ResourceBinding attributes            = 5;
-        optional bool            variant_texture_array = 6 [default = false];
+        repeated ResourceBinding inputs                = 5;
+        repeated ResourceBinding outputs               = 6;
+        optional bool            variant_texture_array = 7 [default = false];
     }
 
     repeated Shader shaders = 1;

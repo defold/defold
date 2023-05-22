@@ -17,6 +17,7 @@
 #define DM_MODELIMPORTER_H
 
 #include <dmsdk/dlib/align.h>
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/shared_library.h>
 #include <stdint.h>
@@ -75,6 +76,9 @@ namespace dmModelImporter
         struct Node*            m_Node;
         uint32_t                m_ParentIndex;  // Index into skin.bones. INVALID_INDEX if not set
         uint32_t                m_Index;        // Index into skin.bones
+
+        // internal
+        dmArray<Bone*>*         m_Children;
     };
 
     struct Skin

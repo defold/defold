@@ -18,6 +18,11 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/gameobject/gameobject.h>
 
+namespace dmResource
+{
+    typedef struct SResourceFactory* HFactory;
+}
+
 namespace dmGameSystem
 {
     struct PropVector3

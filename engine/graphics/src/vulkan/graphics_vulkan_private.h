@@ -257,11 +257,12 @@ namespace dmGraphics
         uint64_t               m_Hash;
         VkShaderModule         m_Module;
         ShaderResourceBinding* m_Uniforms;
-        ShaderResourceBinding* m_Attributes;
+        ShaderResourceBinding* m_Inputs;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformCount;
-        uint16_t               m_AttributeCount;
         uint16_t               m_UniformBufferCount;
+        uint16_t               m_InputCount;
+        uint16_t               m_TextureSamplerCount;
     };
 
     struct Program
