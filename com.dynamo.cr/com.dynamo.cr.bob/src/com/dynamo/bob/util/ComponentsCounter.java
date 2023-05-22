@@ -82,7 +82,7 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
-            if (count == DYNAMIC_VALUE) {
+            if (count < 0) {
                 components.put(componentName, DYNAMIC_VALUE);
             } 
             else if (currentValue != DYNAMIC_VALUE) {

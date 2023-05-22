@@ -642,7 +642,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
      * @throws Exception
      */
     @Test
-    public void testInstanceComponentCounterInFactory() throws Exception {
+    public void testEmbededInstanceComponentCounterInFactory() throws Exception {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
@@ -687,6 +687,81 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         for (ComponenTypeDesc type: types) {
             if (type.getNameHash() == MurmurHash.hash64("factoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
+            } else {
+                Assert.assertEquals(0xffffffff, type.getMaxCount());
+            }
+        }
+    }
+
+    /**
+     * Test that the component counter counts components right in factory
+     * Structure:
+     * - go [Instance tets1.go]
+     *   - factory
+     *      - collection
+     *          - sprite
+    * - go [Instance tets1.go]
+     *   - factory
+     *      - collection
+     *          - sprite
+     * @throws Exception
+     */
+    @Test
+    public void testInstanceComponentCounterInFactory() throws Exception {
+        addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
+
+        StringBuilder spriteSrc = new StringBuilder();
+        spriteSrc.append("tile_set: \"/test.atlas\"\n");
+        spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
+
+        StringBuilder goTestSrc = new StringBuilder();
+        goTestSrc.append("embedded_components {\n");
+        goTestSrc.append("  id: \"sprite\"\n");
+        goTestSrc.append("  type: \"sprite\"\n");
+        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
+        goTestSrc.append("}\n");
+
+        List<Message> testColmsg = build("/go.go", goTestSrc.toString());
+        addFile("/go.go", goTestSrc.toString());
+
+        StringBuilder goFactorySrc = new StringBuilder();
+        goFactorySrc.append("prototype: \"/go.go\"\n");
+        goFactorySrc.append("\"\"\n");
+
+        StringBuilder goSrc = new StringBuilder();
+        goSrc.append("embedded_components {\n");
+        goSrc.append("  id: \"factory\"\n");
+        goSrc.append("  type: \"factory\"\n");
+        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(goFactorySrc.toString())).append("\"\n");
+        goSrc.append("}\n");
+
+        addFile("/test1.go", goSrc.toString());
+        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
+        compStorage.add("factoryc", 1);
+        compStorage.add("sprite", -1);
+        addFile(ComponentsCounter.replaceExt("/build/test1.go"), compStorage.toByteArray());
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  prototype: \"/test1.go\"\n");
+        src.append("}\n");
+        src.append("instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  prototype: \"/test1.go\"\n");
+        src.append("}\n");
+
+        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+
+        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        List<ComponenTypeDesc> types = collection.getComponentTypesList();
+        Assert.assertEquals(2, types.size());
+        for (ComponenTypeDesc type: types) {
+            if (type.getNameHash() == MurmurHash.hash64("factoryc")) {
+                Assert.assertEquals(2, type.getMaxCount());
             } else {
                 Assert.assertEquals(0xffffffff, type.getMaxCount());
             }
