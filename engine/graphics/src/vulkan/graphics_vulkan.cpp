@@ -3465,6 +3465,61 @@ bail:
         }
     }
 
+    void VulkanDestroyResources(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
+
+        DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+
+        vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
+
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
+
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
+        {
+            vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
+        }
+
+        for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
+        {
+            DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
+        }
+
+        for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
+        {
+            DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
+        }
+
+        for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
+        {
+            DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
+        }
+
+        for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
+        {
+            FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
+        }
+
+        for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
+            FrameResource& frame_resource = context->m_FrameResources[i];
+            vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
+            vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
+            vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
+        }
+
+        DestroySwapChain(vk_device, context->m_SwapChain);
+        DestroyLogicalDevice(&context->m_LogicalDevice);
+        DestroyPhysicalDevice(&context->m_PhysicalDevice);
+    }
+
     static void VulkanSetTexture(HTexture texture, const TextureParams& params)
     {
         Texture* tex = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture);
