@@ -31,7 +31,7 @@
             [util.coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
-           [com.dynamo.graphics.proto Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
+           [com.dynamo.graphics.proto Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$CoordinateSpace]
            [com.dynamo.bob.pipeline ShaderProgramBuilder]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -198,7 +198,8 @@
           :label "Vertex Attributes"
           :type :table
           :columns (let [attribute-data-type-options (protobuf/enum-values Graphics$VertexAttribute$DataType)
-                         attribute-semantic-type-options (protobuf/enum-values Graphics$VertexAttribute$SemanticType)]
+                         attribute-semantic-type-options (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
+                         attribute-coordinate-space (protobuf/enum-values Graphics$CoordinateSpace)]
                      [{:path [:name]
                        :label "Name"
                        :type :string}
@@ -215,11 +216,17 @@
                       {:path [:element-count]
                        :label "Element Count"
                        :type :integer
-                       :default 4}                          ;; TODO: What's a good default for this?
+                       :default 3}
                       {:path [:normalize]
                        :label "Normalize"
                        :type :boolean
-                       :default false}])}
+                       :default false}
+                      {:path [:coordinate-space]
+                       :label "Coordinate Space"
+                       :type :choicebox
+                       :options (protobuf-forms/make-options attribute-coordinate-space)
+                       :default (ffirst attribute-coordinate-space)}
+                      {:path [:value] :label "Value" :type :vec4}])}
          {:path [:vertex-constants]
           :label "Vertex Constants"
           :type :table
@@ -284,18 +291,55 @@
           :type :integer
           :default 0}]}]}))
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
+(defn- update-vector-with-subvec [old new]
+  (let [first (vec (take (count old) new))
+        rest (if (> (count old) (count new))
+               (subvec old (count new))
+               [])]
+    (vec (concat first rest))))
+(defn- set-form-value-fn [property value attributes]
+  (if (= property :attributes)
+    (mapv (fn [attribute]
+            ;; TODO: How can this be simplified?
+            (let [attribute-current (first (filterv #(= (:name %) (:name attribute)) attributes))
+                  attribute-current-value (graphics/attribute->values attribute-current)
+                  attribute-form-value (:value attribute)
+                  attribute-current-value (cond (or (nil? attribute-current-value) (and (empty? attribute-form-value) (empty? attribute-current-value))) []
+                                                (empty? attribute-current-value) (vec (repeat (:element-count attribute-current) 0))
+                                                :else attribute-current-value)
+                  attribute-new-value (update-vector-with-subvec attribute-current-value (:value attribute))
+                  attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))]
+              (-> attribute
+                  (dissoc :float-values :uint-values :int-values)
+                  (assoc attribute-value-keyword {:v attribute-new-value}))))
+          value)
+    value))
+
+(defn- set-form-op [{:keys [node-id attributes]} [property] value]
+  (let [processed-value (set-form-value-fn property value attributes)]
+    (g/set-property! node-id property processed-value)))
 
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
+(defn- set-attribute-form-values [values]
+  (let [attributes (:attributes values)
+        attribute-with-values (mapv (fn [attribute]
+                                      (let [attribute-values (graphics/attribute->values attribute)
+                                            attribute-value (if (empty? attribute-values)
+                                                               nil
+                                                               attribute-values)]
+                                        (assoc attribute :value attribute-value)))
+                                    attributes)]
+    (assoc values :attributes attribute-with-values)))
+
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
   (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
+        values (set-attribute-form-values values)
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
-        (assoc :form-ops {:user-data {:node-id _node-id}
+        (assoc :form-ops {:user-data {:node-id _node-id :attributes attributes}
                           :set set-form-op
                           :clear clear-form-op}))))
 

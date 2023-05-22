@@ -2516,7 +2516,7 @@ bail:
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
         Program* program_ptr = (Program*) prog;
-        return program_ptr->m_VertexModule->m_AttributeCount;
+        return program_ptr->m_VertexModule->m_InputCount;
     }
 
     // TODO: Move to graphics.cpp
@@ -2546,8 +2546,8 @@ bail:
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
         Program* program_ptr = (Program*) prog;
-        assert(index < program_ptr->m_VertexModule->m_AttributeCount);
-        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Attributes[index];
+        assert(index < program_ptr->m_VertexModule->m_InputCount);
+        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
 
         *name_hash     = attr.m_NameHash;
         *type          = ShaderDataTypeToGraphicsType(attr.m_Type);

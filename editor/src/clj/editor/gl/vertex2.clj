@@ -87,11 +87,9 @@
 (defn attribute-name->key [^String name]
   (protobuf/field-name->key name))
 
-(defn attribute-key->semantic-type [attribute-key vertex-space]
+(defn attribute-key->semantic-type [attribute-key]
   (case attribute-key
-    :position (case vertex-space
-                :vertex-space-world :semantic-type-position-world
-                :vertex-space-local :semantic-type-position-local)
+    :position :semantic-type-position
     :normal :semantic-type-normal
     :tangent :semantic-type-tangent
     :binormal :semantic-type-binormal
@@ -427,7 +425,8 @@
      :type suffix
      :components num-components
      :normalize (true? normalize)
-     :semantic-type (attribute-key->semantic-type attribute-key :vertex-space-world)})) ; TODO: Typically determined by vertex-space setting of material.
+     :coordinate-space :coordinate-space-world
+     :semantic-type (attribute-key->semantic-type attribute-key)})) ; TODO: Typically determined by vertex-space setting of material.
 
 (defmacro defvertex
   [name & attribute-definitions]

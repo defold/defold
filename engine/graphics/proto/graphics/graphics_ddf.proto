@@ -17,6 +17,12 @@ message Cubemap
     required string back        = 6 [(resource)=true];
 }
 
+enum CoordinateSpace
+{
+    COORDINATE_SPACE_WORLD = 1;
+    COORDINATE_SPACE_LOCAL = 2;
+}
+
 message VertexAttribute
 {
     enum DataType
@@ -32,17 +38,11 @@ message VertexAttribute
 
     enum SemanticType
     {
-        SEMANTIC_TYPE_NONE           = 1;
-        SEMANTIC_TYPE_BINORMAL       = 2;
-        SEMANTIC_TYPE_BLEND_INDICES  = 3;
-        SEMANTIC_TYPE_BLEND_WEIGHTS  = 4;
-        SEMANTIC_TYPE_COLOR          = 5;
-        SEMANTIC_TYPE_NORMAL         = 6;
-        SEMANTIC_TYPE_POSITION_LOCAL = 7;
-        SEMANTIC_TYPE_POSITION_WORLD = 8;
-        SEMANTIC_TYPE_TANGENT        = 9;
-        SEMANTIC_TYPE_TEXCOORD       = 10;
-        SEMANTIC_TYPE_PAGE_INDEX     = 11;
+        SEMANTIC_TYPE_NONE       = 1;
+        SEMANTIC_TYPE_POSITION   = 2;
+        SEMANTIC_TYPE_TEXCOORD   = 3;
+        SEMANTIC_TYPE_PAGE_INDEX = 4;
+        SEMANTIC_TYPE_COLOR      = 5;
     }
 
     message IntValues
@@ -60,19 +60,20 @@ message VertexAttribute
         repeated float v = 1;
     }
 
-    required string       name          = 1;
-    optional uint64       name_hash     = 2;
-    optional SemanticType semantic_type = 3 [default = SEMANTIC_TYPE_NONE];
-    optional DataType     data_type     = 4 [default = TYPE_FLOAT];
-    optional int32        element_count = 5 [default = 3];
-    optional bool         normalize     = 6;
+    required string          name             = 1;
+    optional uint64          name_hash        = 2;
+    optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
+    optional DataType        data_type        = 4 [default = TYPE_FLOAT];
+    optional int32           element_count    = 5 [default = 3];
+    optional bool            normalize        = 6 [default = false];
+    optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_WORLD];
 
     oneof values
     {
-        IntValues   int_values    = 7;
-        UIntValues  uint_values   = 8;
-        FloatValues float_values  = 9;
-        bytes       binary_values = 10; // Packed binary representation of the input values (engine only)
+        IntValues   int_values    = 8;
+        UIntValues  uint_values   = 9;
+        FloatValues float_values  = 10;
+        bytes       binary_values = 11; // Packed binary representation of the input values (engine only)
     }
 }
 

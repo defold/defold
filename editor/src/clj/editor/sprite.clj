@@ -136,18 +136,16 @@
                     (fn put-attribute-numbers!
                       ^long [^long vertex-byte-offset vertices]
                       (put-numbers! vertex-byte-offset vtx-attribute-type normalize vertices))]
-
                 (case (:semantic-type attribute)
-                  :semantic-type-position-local
-                  (put-renderables! attribute-byte-offset :position-data put-attribute-numbers!)
-
-                  :semantic-type-position-world
-                  (put-renderables! attribute-byte-offset
-                                    (fn [renderable-data]
-                                      (let [local-positions (:position-data renderable-data)
-                                            world-transform (:world-transform renderable-data)]
-                                        (geom/transf-p4 world-transform local-positions)))
-                                    put-attribute-numbers!)
+                  :semantic-type-position
+                  (if (= (:coordinate-space attribute) :coordinate-space-local)
+                    (put-renderables! attribute-byte-offset :position-data put-attribute-numbers!)
+                    (put-renderables! attribute-byte-offset
+                                      (fn [renderable-data]
+                                        (let [local-positions (:position-data renderable-data)
+                                              world-transform (:world-transform renderable-data)]
+                                          (geom/transf-p4 world-transform local-positions)))
+                                      put-attribute-numbers!))
 
                   :semantic-type-texcoord
                   (put-renderables! attribute-byte-offset :uv-data put-attribute-numbers!)
@@ -290,7 +288,8 @@
                                             (not (declared-material-attribute-keyword? :position))
                                             (conj {:name "position"
                                                    :name-key :position
-                                                   :semantic-type :semantic-type-position-world
+                                                   :semantic-type :semantic-type-position
+                                                   :coordinate-space :coordinate-space-world
                                                    :data-type :type-float
                                                    :element-count 4})
 
@@ -499,20 +498,24 @@
                 (graphics/attribute->values attribute)]))
         attributes))
 
+(defn- attribute->outline-key [attribute-info]
+  (keyword (str "attribute_" (name (:name-key attribute-info)))))
+
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
-  (let [attribute-property-keys (map :name-key material-attribute-infos)
+  (let [attribute-property-keys (map attribute->outline-key material-attribute-infos)
         attribute-properties (map (fn [attribute]
                                     (let [attribute-values (get-attribute-values-from-node attribute vertex-attribute-overrides)
                                           attribute-type (get-attribute-property-type attribute)
                                           attribute-expected-value-count (get-attribute-expected-element-count attribute)
                                           attribute-edit-type (get-attribute-edit-type attribute attribute-type)
                                           attribute-key (:name-key attribute)
+                                          attribute-property-key (attribute->outline-key attribute)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
                                                           :value (fill-with-zeros attribute-values attribute-expected-value-count)
                                                           :label (properties/keyword->name attribute-key)}]
-                                      {attribute-key attribute-prop}))
+                                      {attribute-property-key attribute-prop}))
                                   material-attribute-infos)]
     (-> _declared-properties
         (update :properties into attribute-properties)

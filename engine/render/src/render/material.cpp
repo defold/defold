@@ -35,25 +35,11 @@ namespace dmRender
         dmGraphics::VertexAttribute::SemanticType m_SemanticType;
     };
 
-    /*
-    SEMANTIC_TYPE_NONE
-    SEMANTIC_TYPE_BINORMAL
-    SEMANTIC_TYPE_BLEND_INDICES
-    SEMANTIC_TYPE_BLEND_WEIGHTS
-    SEMANTIC_TYPE_COLOR
-    SEMANTIC_TYPE_NORMAL
-    SEMANTIC_TYPE_POSITION_LOCAL
-    SEMANTIC_TYPE_POSITION_WORLD
-    SEMANTIC_TYPE_TANGENT
-    SEMANTIC_TYPE_TEXCOORD
-    */
-
     static const HashToSemanticType g_DefaultAttributeHashToSemanticType[] = {
-        { dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_WORLD },
-        { dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD       },
-        { dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR          },
-        { dmHashString64("normal"),     dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL         },
-        { dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX     },
+        { dmHashString64("position"),   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION   },
+        { dmHashString64("texcoord0"),  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD   },
+        { dmHashString64("color"),      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR      },
+        { dmHashString64("page_index"), dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX },
     };
 
     static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
@@ -154,11 +140,12 @@ namespace dmRender
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
 
             dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
-            vertex_attribute.m_NameHash     = name_hash;
-            vertex_attribute.m_SemanticType = GetAttributeSemanticType(name_hash);
-            vertex_attribute.m_DataType     = GetAttributeDataType(type); // Convert from mat/vec to float if necessary
-            vertex_attribute.m_ElementCount = element_count;
-            vertex_attribute.m_Normalize    = false;
+            vertex_attribute.m_NameHash        = name_hash;
+            vertex_attribute.m_SemanticType    = GetAttributeSemanticType(name_hash);
+            vertex_attribute.m_DataType        = GetAttributeDataType(type); // Convert from mat/vec to float if necessary
+            vertex_attribute.m_ElementCount    = element_count;
+            vertex_attribute.m_Normalize       = false;
+            vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
 
             MaterialAttribute& material_attribute = m->m_Attributes[i];
             material_attribute.m_Type             = type;
@@ -672,6 +659,7 @@ namespace dmRender
             graphics_attribute.m_Normalize                  = graphics_attribute_in.m_Normalize;
             graphics_attribute.m_ElementCount               = graphics_attribute_in.m_ElementCount;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
+            graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
         }
 
         // Need to readjust value indices since the layout could have changed

@@ -552,15 +552,19 @@ namespace dmGameSystem
 
             switch(info->m_Attribute->m_SemanticType)
             {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_LOCAL:
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
+                {
+                    if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
                     {
                         memcpy(vertices_write_ptr, &p, info->m_ValueByteSize);
-                    } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION_WORLD:
+                    }
+                    else if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
                     {
                         Vector4 wp = w * p;
                         memcpy(vertices_write_ptr, &wp, info->m_ValueByteSize);
-                    } break;
+                    }
+                    else assert(0);
+                } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                     {
                         memcpy(vertices_write_ptr, uv, info->m_ValueByteSize);

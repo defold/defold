@@ -60,6 +60,7 @@
   {:name (:name attribute)
    :name-key (:name-key attribute)
    :semantic-type (:semantic-type attribute)
+   :coordinate-space (:coordinate-space attribute)
    :type (vtx/attribute-data-type->type (:data-type attribute))
    :components (:element-count attribute)
    :normalize (:normalize attribute false)})
