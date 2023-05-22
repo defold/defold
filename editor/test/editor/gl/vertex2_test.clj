@@ -87,7 +87,8 @@
            :type :byte
            :components 1
            :normalize false
-           :semantic-type :semantic-type-position}]
+           :semantic-type :semantic-type-position
+           :coordinate-space :coordinate-space-world}]
          (:attributes pos-1b))))
 
 (v/defvertex pos-4f-uv-2f
