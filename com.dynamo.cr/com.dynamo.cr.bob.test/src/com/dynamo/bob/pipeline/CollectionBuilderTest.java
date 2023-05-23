@@ -627,7 +627,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
             if (type.getNameHash() == MurmurHash.hash64("collectionfactoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
             } else {
-                Assert.assertEquals(0xffffffff, type.getMaxCount());
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
     }
@@ -688,7 +688,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
             if (type.getNameHash() == MurmurHash.hash64("factoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
             } else {
-                Assert.assertEquals(0xffffffff, type.getMaxCount());
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
     }
@@ -740,7 +740,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test1.go", goSrc.toString());
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         compStorage.add("factoryc", 1);
-        compStorage.add("sprite", -1);
+        compStorage.add("sprite", ComponentsCounter.DYNAMIC_VALUE);
         addFile(ComponentsCounter.replaceExt("/build/test1.go"), compStorage.toByteArray());
 
         StringBuilder src = new StringBuilder();
@@ -763,7 +763,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
             if (type.getNameHash() == MurmurHash.hash64("factoryc")) {
                 Assert.assertEquals(2, type.getMaxCount());
             } else {
-                Assert.assertEquals(0xffffffff, type.getMaxCount());
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
     }
@@ -902,7 +902,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
             if (type.getNameHash() == MurmurHash.hash64("collectionfactoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
             } else {
-                Assert.assertEquals(0xffffffff, type.getMaxCount());
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
     }

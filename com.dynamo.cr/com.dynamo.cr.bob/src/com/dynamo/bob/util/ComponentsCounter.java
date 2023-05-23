@@ -84,7 +84,7 @@ public class ComponentsCounter {
             Integer currentValue = components.getOrDefault(componentName, 0);
             Integer value = currentValue + count;
             // We can't multiply or sum DYNAMIC_VALUE, just set it
-            if (count == DYNAMIC_VALUE || currentValue == DYNAMIC_VALUE) {
+            if (count.equals(DYNAMIC_VALUE) || currentValue.equals(DYNAMIC_VALUE)) {
                 value = DYNAMIC_VALUE;
             }
             components.put(componentName, value);
@@ -104,10 +104,13 @@ public class ComponentsCounter {
         public void add(Storage storage, Integer count) {
             Map<String, Integer> comps = storage.get();
             for (Map.Entry<String,Integer> entry : comps.entrySet()) {
-                Integer value = entry.getValue() * count;
+                Integer value = entry.getValue();
                 // We can't multiply or sum DYNAMIC_VALUE, just set it
-                if (count == DYNAMIC_VALUE || entry.getValue() == DYNAMIC_VALUE) {
+                if (count.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
                     value = DYNAMIC_VALUE;
+                }
+                else {
+                    value *= count;
                 }
                 add(entry.getKey(), value);
             }
@@ -300,7 +303,7 @@ public class ComponentsCounter {
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 Integer value = entry.getValue();
-                if (mergedValue == DYNAMIC_VALUE || value == DYNAMIC_VALUE) {
+                if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
                     mergedComponents.put(name, DYNAMIC_VALUE);
                 } else {
                     mergedComponents.put(name, mergedValue + value);
