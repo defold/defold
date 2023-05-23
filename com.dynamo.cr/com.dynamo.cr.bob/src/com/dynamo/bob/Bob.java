@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -71,7 +71,7 @@ public class Bob {
 
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
-    
+
     public Bob() {
     }
 
@@ -107,7 +107,7 @@ public class Bob {
         }));
       }
 
-    private static void init() {
+    public static void init() {
         if (rootFolder != null) {
             return;
         }
@@ -147,38 +147,11 @@ public class Bob {
         }
     }
 
-    public static void initAndroid() {
-        init();
-        try {
-            // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
-            // aapt will find it later when AndroidBundler is run.
-            String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
-            URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
-            if (libc_url != null) {
-                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename);
-                atomicCopy(libc_url, f, false);
-            }
-
-            extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
-
-            // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
-            URL android_jar = Bob.class.getResource("/lib/android.jar");
-            if (android_jar != null) {
-                File f = new File(rootFolder, "lib/android.jar");
-                atomicCopy(android_jar, f, false);
-            }
-            URL classes_dex = Bob.class.getResource("/lib/classes.dex");
-            if (classes_dex != null) {
-                File f = new File(rootFolder, "lib/classes.dex");
-                atomicCopy(classes_dex, f, false);
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public static File getRootFolder() {
+        return rootFolder;
     }
 
-    private static void extract(final URL url, File toFolder) throws IOException {
+    public static void extract(final URL url, File toFolder) throws IOException {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
@@ -287,7 +260,7 @@ public class Bob {
         }
     }
 
-    private static void atomicCopy(URL source, File target, boolean executable) throws IOException {
+    public static void atomicCopy(URL source, File target, boolean executable) throws IOException {
         if (target.exists()) {
             return;
         }
@@ -379,22 +352,6 @@ public class Bob {
         List<File> binaryFiles = new ArrayList<File>();
         for (String path : binaryPaths) {
             binaryFiles.add(new File(path));
-        }
-        return binaryFiles;
-    }
-
-    public static List<File> getNativeExtensionEngineBinaries(Platform platform, String extenderExeDir) throws IOException
-    {
-        List<String> binaryNames = platform.formatBinaryName("dmengine");
-        List<File> binaryFiles = new ArrayList<File>();
-        for (String binaryName : binaryNames) {
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), binaryName)));
-
-            // All binaries must exist, otherwise return null
-            if (!extenderExe.exists()) {
-                return null;
-            }
-            binaryFiles.add(extenderExe);
         }
         return binaryFiles;
     }
@@ -646,7 +603,7 @@ public class Bob {
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
-        
+
         String cwd = new File(".").getAbsolutePath();
 
         CommandLine cmd = parse(args);

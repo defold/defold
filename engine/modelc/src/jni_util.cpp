@@ -75,7 +75,7 @@ LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS* ptr)
 {
     g_ExceptionPointers = ptr;
     g_UserCallback(0xDEAD, g_UserContext);
-    return EXCEPTION_CONTINUE_SEARCH;
+    return EXCEPTION_EXECUTE_HANDLER;
 }
 
 static void SetHandlers()
@@ -84,8 +84,6 @@ static void SetHandlers()
     g_SignalHandlers[SIGABRT] = signal(SIGABRT, DefaultSignalHandler);
     g_SignalHandlers[SIGFPE] = signal(SIGFPE, DefaultSignalHandler);
     g_SignalHandlers[SIGSEGV] = signal(SIGSEGV, DefaultSignalHandler);
-
-    ::SetUnhandledExceptionFilter(ExceptionHandler);
 }
 
 static void UnsetHandlers()
@@ -158,7 +156,6 @@ void AddContext(JNIEnv* env)
     if (g_AllowedContexts.Full())
         g_AllowedContexts.OffsetCapacity(4);
     g_AllowedContexts.Push(env);
-    printf("Added scope: %p\n", env);
 }
 
 void RemoveContext(JNIEnv* env)
@@ -168,7 +165,6 @@ void RemoveContext(JNIEnv* env)
         if (g_AllowedContexts[i] == env)
         {
             g_AllowedContexts.EraseSwap(i);
-            printf("Removed scope: %p\n", env);
             return;
         }
     }
