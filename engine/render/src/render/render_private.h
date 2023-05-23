@@ -65,10 +65,9 @@ namespace dmRender
 
     struct MaterialAttribute
     {
-        dmGraphics::Type m_Type;
-        int32_t          m_Location;
-        uint16_t         m_ValueIndex;
-        uint16_t         m_ValueCount;
+        int32_t  m_Location;
+        uint16_t m_ValueIndex;
+        uint16_t m_ValueCount;
     };
 
     struct Material
@@ -91,8 +90,8 @@ namespace dmRender
         dmGraphics::HVertexDeclaration          m_VertexDeclaration;
         dmHashTable64<int32_t>                  m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
-        dmArray<MaterialAttribute>              m_Attributes;
-        dmArray<uint8_t>                        m_AttributeValues;
+        dmArray<MaterialAttribute>              m_MaterialAttributes;
+        dmArray<uint8_t>                        m_MaterialAttributeValues;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()

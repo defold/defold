@@ -238,8 +238,8 @@ public class MaterialBuilder extends Builder<Void>  {
 
     private void buildVertexAttributes(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
         for (int i=0; i < materialBuilder.getAttributesCount(); i++) {
-            VertexAttribute attr = GraphicsUtil.buildVertexAttribute(materialBuilder.getAttributes(i));
-            materialBuilder.setAttributes(i, attr);
+            VertexAttribute materialAttribute = materialBuilder.getAttributes(i);
+            materialBuilder.setAttributes(i, GraphicsUtil.buildVertexAttribute(materialAttribute, materialAttribute.getDataType()));
         }
     }
 

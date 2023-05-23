@@ -674,6 +674,7 @@
     :label "Sprite"))
 
 ;; TODO(vertex-attr):
-;; * Edit the values in the material view
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
-;; * local vs world-space as flag rather than embedded in semantic type?
+;; * When loading a sprite, we need to take the material attributes into account.
+;;   Since we now don't save the data-type into the sprite, we can't deduce where to grab the data from..
+;; * Validation for the vertex attributes, right now we allow _any_ value which will crash the engine. Should probably limit to 1..4?

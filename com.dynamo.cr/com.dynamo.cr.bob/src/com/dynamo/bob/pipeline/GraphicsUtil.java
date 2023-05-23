@@ -26,34 +26,37 @@ import com.google.protobuf.ByteString;
 
 public class GraphicsUtil {
 
-	private static void validateAttribute(VertexAttribute attr) throws CompileExceptionError
+	private static void validateAttribute(VertexAttribute attr, VertexAttribute.DataType dataType) throws CompileExceptionError
     {
-        VertexAttribute.DataType dataType = attr.getDataType();
-
         if (dataType == VertexAttribute.DataType.TYPE_BYTE && !(attr.hasBinaryValues() || attr.hasIntValues()))
         {
             throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration, data type is %s but neither byte_values nor int_values has been set.", dataType));
+                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but neither byte_values nor int_values has been set.",
+                    attr.getName(), dataType));
         }
         else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !(attr.hasBinaryValues() || attr.hasUintValues()))
         {
             throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration, data type is %s but neither byte_values nor uint_values has been set.", dataType));
+                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but neither byte_values nor uint_values has been set.",
+                    attr.getName(), dataType));
         }
         else if ((dataType == VertexAttribute.DataType.TYPE_SHORT || dataType == VertexAttribute.DataType.TYPE_INT) && !attr.hasIntValues())
         {
             throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration, data type is %s but int_values has not been set.", dataType));
+                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but int_values has not been set.",
+                    attr.getName(), dataType));
         }
         else if ((dataType == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT || dataType == VertexAttribute.DataType.TYPE_UNSIGNED_INT) && !attr.hasUintValues())
         {
             throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration, data type is %s but uint_values has not been set.", dataType));
+                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but uint_values has not been set.",
+                attr.getName(), dataType));
         }
         else if (dataType == VertexAttribute.DataType.TYPE_FLOAT && !attr.hasFloatValues())
         {
             throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration, data type is %s but float_values has not been set.", dataType));
+                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but float_values has not been set.",
+                    attr.getName(), dataType));
         }
     }
 
@@ -94,12 +97,12 @@ public class GraphicsUtil {
         return bb.order(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static VertexAttribute buildVertexAttribute(VertexAttribute attr) throws CompileExceptionError {
+    public static VertexAttribute buildVertexAttribute(VertexAttribute attr, VertexAttribute.DataType dataType) throws CompileExceptionError {
         VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
 
-        validateAttribute(attr);
+        validateAttribute(attr, dataType);
 
-        if (attr.getDataType() == VertexAttribute.DataType.TYPE_BYTE && !attr.hasBinaryValues())
+        if (dataType == VertexAttribute.DataType.TYPE_BYTE && !attr.hasBinaryValues())
         {
             List<Integer> values = attr.getIntValues().getVList();
             ByteBuffer buffer = newByteBuffer(values.size());
@@ -107,7 +110,7 @@ public class GraphicsUtil {
             buffer.rewind();
             attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !attr.hasBinaryValues())
+        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !attr.hasBinaryValues())
         {
         	List<Integer> values = attr.getUintValues().getVList();
         	ByteBuffer buffer = newByteBuffer(values.size());
@@ -115,7 +118,7 @@ public class GraphicsUtil {
         	buffer.rewind();
             attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_SHORT)
+        else if (dataType == VertexAttribute.DataType.TYPE_SHORT)
         {
         	List<Integer> values = attr.getIntValues().getVList();
         	ByteBuffer buffer = newByteBuffer(values.size() * 2);
@@ -123,7 +126,7 @@ public class GraphicsUtil {
         	buffer.rewind();
             attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT)
+        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT)
         {
             List<Integer> values = attr.getUintValues().getVList();
             ByteBuffer buffer = newByteBuffer(values.size() * 2);
@@ -131,7 +134,7 @@ public class GraphicsUtil {
             buffer.rewind();
             attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_FLOAT)
+        else if (dataType == VertexAttribute.DataType.TYPE_FLOAT)
         {
             List<Float> values = attr.getFloatValues().getVList();
             ByteBuffer buffer = newByteBuffer(values.size() * 4);
@@ -139,7 +142,7 @@ public class GraphicsUtil {
             buffer.rewind();
             attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_INT)
+        else if (dataType == VertexAttribute.DataType.TYPE_INT)
         {
             List<Integer> values = attr.getIntValues().getVList();
             ByteBuffer buffer = newByteBuffer(values.size() * 4);
@@ -147,7 +150,7 @@ public class GraphicsUtil {
             buffer.rewind();
             attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
         }
-        else if (attr.getDataType() == VertexAttribute.DataType.TYPE_UNSIGNED_INT)
+        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_INT)
         {
             List<Integer> values = attr.getUintValues().getVList();
             ByteBuffer buffer = newByteBuffer(values.size() * 4);

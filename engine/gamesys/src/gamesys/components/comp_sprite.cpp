@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -357,78 +357,6 @@ namespace dmGameSystem
         dmRender::HMaterial material   = GetMaterial(component, component->m_Resource);
         component->m_VertexDeclaration = dmRender::GetVertexDeclaration(material);
         component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(component->m_VertexDeclaration);
-
-        const dmGraphics::VertexAttribute* sprite_attributes = component->m_Resource->m_DDF->m_Attributes.m_Data;
-        uint32_t sprite_attribute_count                      = component->m_Resource->m_DDF->m_Attributes.m_Count;
-
-        if (sprite_attribute_count > 0)
-        {
-            const dmGraphics::VertexAttribute* render_attributes;
-            uint32_t render_attributes_count;
-            dmRender::GetMaterialProgramAttributes(material, &render_attributes, &render_attributes_count);
-
-            HashState32 attributes_state;
-            dmHashInit32(&attributes_state, false);
-
-            // Create a hash of all specified attributes of the combination of material and sprite attributes
-            for (int i = 0; i < render_attributes_count; ++i)
-            {
-                const dmGraphics::VertexAttribute* attr;
-                int32_t sprite_attribute_index = FindSpriteAttributeIndex(sprite_attributes, sprite_attribute_count, render_attributes[i].m_NameHash);
-                if (sprite_attribute_index >= 0)
-                {
-                    attr = sprite_attributes + sprite_attribute_index;
-                }
-                else
-                {
-                    attr = render_attributes + i;
-                }
-
-                dmHashUpdateBuffer32(&attributes_state, attr, sizeof(dmGraphics::VertexAttribute));
-            }
-
-            uint32_t attributes_hash = dmHashFinal32(&attributes_state);
-            dmGraphics::HVertexDeclaration* vx_decl_ptr = sprite_world->m_VertexDeclarations.Get(attributes_hash);
-            dmGraphics::HVertexDeclaration vx_decl;
-
-            if (vx_decl_ptr)
-            {
-                vx_decl = *vx_decl_ptr;
-            }
-            else
-            {
-                // Create a new vertex declaration if needed
-                dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-                for (int i = 0; i < render_attributes_count; ++i)
-                {
-                    int32_t sprite_attribute_index = FindSpriteAttributeIndex(sprite_attributes, sprite_attribute_count, render_attributes[i].m_NameHash);
-                    if (sprite_attribute_index >= 0)
-                    {
-                        dmGraphics::AddVertexStream(stream_declaration,
-                            sprite_attributes[sprite_attribute_index].m_NameHash,
-                            sprite_attributes[sprite_attribute_index].m_ElementCount,
-                            dmGraphics::GetGraphicsType(sprite_attributes[sprite_attribute_index].m_DataType),
-                            sprite_attributes[sprite_attribute_index].m_Normalize);
-                    }
-                    else
-                    {
-                        dmGraphics::AddVertexStream(stream_declaration,
-                            render_attributes[i].m_NameHash,
-                            render_attributes[i].m_ElementCount,
-                            dmGraphics::GetGraphicsType(render_attributes[i].m_DataType),
-                            render_attributes[i].m_Normalize);
-                    }
-                }
-
-                vx_decl = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-                sprite_world->m_VertexDeclarations.SetCapacity(16, dmMath::Max((uint32_t) 8, sprite_world->m_VertexDeclarations.Size() * 2));
-                sprite_world->m_VertexDeclarations.Put(attributes_hash, vx_decl);
-                dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
-            }
-
-            component->m_VertexDeclaration = vx_decl;
-            component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(vx_decl);
-        }
     }
 
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
@@ -503,17 +431,14 @@ namespace dmGameSystem
         sprite_infos->m_NumInfos = material_infos->m_NumInfos;
         for (int i = 0; i < material_infos->m_NumInfos; ++i)
         {
-            int sprite_attribute_index = FindSpriteAttributeIndex(sprite_attributes, sprite_attribute_count, material_infos->m_Infos[i].m_Attribute->m_NameHash);
+            int sprite_attribute_index             = FindSpriteAttributeIndex(sprite_attributes, sprite_attribute_count, material_infos->m_Infos[i].m_Attribute->m_NameHash);
             SpriteAttributeInfo::Info& sprite_info = sprite_infos->m_Infos[i];
+            sprite_info.m_Attribute                = 0;
 
             if (sprite_attribute_index >= 0)
             {
                 sprite_info.m_Attribute = sprite_attributes + sprite_attribute_index;
                 dmGraphics::GetAttributeValues(sprite_attributes[sprite_attribute_index], &sprite_info.m_ValuePtr, &sprite_info.m_ValueByteSize);
-            }
-            else
-            {
-                sprite_info.m_Attribute = 0;
             }
         }
     }
@@ -545,39 +470,45 @@ namespace dmGameSystem
         for (int i = 0; i < material_infos->m_NumInfos; ++i)
         {
             SpriteAttributeInfo::Info* info = material_infos->m_Infos + i;
+            const uint8_t* value_ptr        = info->m_ValuePtr;
+            uint32_t value_byte_size        = info->m_ValueByteSize;
+
             if (sprite_infos != 0x0 && sprite_infos->m_Infos[i].m_Attribute != 0)
             {
-                info = sprite_infos->m_Infos + i;
+                value_ptr       = sprite_infos->m_Infos[i].m_ValuePtr;
+                value_byte_size = sprite_infos->m_Infos[i].m_ValueByteSize;
             }
 
             switch(info->m_Attribute->m_SemanticType)
             {
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
                 {
-                    if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
-                    {
-                        memcpy(vertices_write_ptr, &p, info->m_ValueByteSize);
-                    }
-                    else if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
+                    if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
                     {
                         Vector4 wp = w * p;
-                        memcpy(vertices_write_ptr, &wp, info->m_ValueByteSize);
+                        memcpy(vertices_write_ptr, &wp, value_byte_size);
+                    }
+                    else if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
+                    {
+                        memcpy(vertices_write_ptr, &p, value_byte_size);
                     }
                     else assert(0);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                    {
-                        memcpy(vertices_write_ptr, uv, info->m_ValueByteSize);
-                    } break;
+                {
+                    memcpy(vertices_write_ptr, uv, value_byte_size);
+                } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                    {
-                        memcpy(vertices_write_ptr, &page_index, info->m_ValueByteSize);
-                    } break;
+                {
+                    memcpy(vertices_write_ptr, &page_index, value_byte_size);
+                } break;
                 default:
-                    memcpy(vertices_write_ptr, info->m_ValuePtr, info->m_ValueByteSize);
+                    memcpy(vertices_write_ptr, value_ptr, value_byte_size);
             }
 
-            vertices_write_ptr += sizeof(float) * info->m_Attribute->m_ElementCount;
+            uint32_t attribute_data_size_bytes = dmGraphics::GetTypeSize(dmGraphics::GetGraphicsType(info->m_Attribute->m_DataType));
+
+            vertices_write_ptr += attribute_data_size_bytes * info->m_Attribute->m_ElementCount;
         }
     }
 

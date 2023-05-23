@@ -304,13 +304,19 @@
             (let [attribute-current (first (filterv #(= (:name %) (:name attribute)) attributes))
                   attribute-current-value (graphics/attribute->values attribute-current)
                   attribute-form-value (:value attribute)
-                  attribute-current-value (cond (or (nil? attribute-current-value) (and (empty? attribute-form-value) (empty? attribute-current-value))) []
-                                                (empty? attribute-current-value) (vec (repeat (:element-count attribute-current) 0))
+                  attribute-current-value (cond (or (nil? attribute-current-value)
+                                                    (and (empty? attribute-form-value) (empty? attribute-current-value)))
+                                                []
+
+                                                (empty? attribute-current-value)
+                                                (vec (repeat (:element-count attribute-current) 0))
+
                                                 :else attribute-current-value)
                   attribute-new-value (update-vector-with-subvec attribute-current-value (:value attribute))
                   attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))]
+              (println (:name attribute) attribute-value-keyword attribute-new-value)
               (-> attribute
-                  (dissoc :float-values :uint-values :int-values)
+                  (dissoc :float-values :uint-values :int-values :binary-values)
                   (assoc attribute-value-keyword {:v attribute-new-value}))))
           value)
     value))

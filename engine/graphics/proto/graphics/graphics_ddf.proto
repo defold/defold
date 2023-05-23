@@ -63,10 +63,12 @@ message VertexAttribute
     required string          name             = 1;
     optional uint64          name_hash        = 2;
     optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
-    optional DataType        data_type        = 4 [default = TYPE_FLOAT];
-    optional int32           element_count    = 5 [default = 3];
-    optional bool            normalize        = 6 [default = false];
-    optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_WORLD];
+    optional int32           element_count    = 4 [default = 0];
+    optional bool            normalize        = 5 [default = false];
+    optional DataType        data_type        = 6 [default = TYPE_FLOAT];
+    optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
+
+    // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 
     oneof values
     {
