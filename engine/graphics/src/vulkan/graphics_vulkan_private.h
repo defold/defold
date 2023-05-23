@@ -468,7 +468,7 @@ namespace dmGraphics
         const PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
     // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    // Destroy funcions
+    // Destroy functions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
     void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
@@ -539,6 +539,7 @@ namespace dmGraphics
 
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
     void         VulkanCloseWindow(HContext context);
+    void         VulkanDestroyResources(HContext context);
     uint32_t     VulkanGetDisplayDpi(HContext context);
     uint32_t     VulkanGetWidth(HContext context);
     uint32_t     VulkanGetHeight(HContext context);
