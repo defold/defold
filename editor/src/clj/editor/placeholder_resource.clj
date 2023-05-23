@@ -36,3 +36,5 @@
   (workspace/get-view-type workspace :code))
 
 (def search-fn r/search-fn)
+
+(def search-value-fn r/search-value-fn)

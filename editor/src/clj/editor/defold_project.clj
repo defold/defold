@@ -930,6 +930,7 @@
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature, so we pull
   ;; it in the background here to cache it.
+  ;; TODO(save-value): We shouldn't need to do this anymore once we're done.
   (let [evaluation-context (g/make-evaluation-context)]
     (future
       (error-reporting/catch-all!

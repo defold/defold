@@ -369,3 +369,16 @@
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))
+
+(defn raw-settings-search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([raw-settings re-pattern]
+   (into []
+         (keep (fn [raw-setting]
+                 (when-some [value (:value raw-setting)]
+                   (when (text-util/includes-re-pattern? value re-pattern)
+                     {:match-type :match-type-setting
+                      :value value
+                      :path (:path raw-setting)}))))
+         raw-settings)))

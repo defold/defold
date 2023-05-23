@@ -211,26 +211,24 @@
                          :error-value sha256-or-error}))))))
 
 (defn default-ddf-resource-search-fn
-  ([^String search-string]
-   (protobuf/make-search-match-fn search-string))
-  ([save-data match-fn]
-   (let [pb-map (:save-value save-data)]
-     (mapv (fn [value]
-             {:match-type :match-type-pb
-              :value value})
-           (coll/search pb-map match-fn)))))
+  ([search-string]
+   (protobuf/make-map-search-match-fn search-string))
+  ([pb-map match-fn]
+   (mapv (fn [value]
+           {:match-type :match-type-protobuf
+            :value value})
+         (coll/search pb-map match-fn))))
 
 (defn make-ddf-resource-search-fn [init-path path-fn]
   (defn search-fn
-    ([^String search-string]
-     (protobuf/make-search-match-fn search-string))
-    ([save-data match-fn]
-     (let [pb-map (:save-value save-data)]
-       (mapv (fn [[value path]]
-               {:match-type :match-type-pb
-                :value value
-                :path (path-fn pb-map path)})
-             (coll/search-with-path pb-map init-path match-fn))))))
+    ([search-string]
+     (protobuf/make-map-search-match-fn search-string))
+    ([pb-map match-fn]
+     (mapv (fn [[value path]]
+             {:match-type :match-type-protobuf
+              :value value
+              :path (path-fn pb-map path)})
+           (coll/search-with-path pb-map init-path match-fn)))))
 
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
   (let [read-defaults (if (nil? read-defaults) true read-defaults)
@@ -257,9 +255,11 @@
   (let [read-fn (fn [resource]
                   (with-open [setting-reader (io/reader resource)]
                     (settings-core/parse-settings setting-reader)))
+        write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
+                       settings-core/settings-with-value)
         args (assoc args
                :textual? true
                :read-fn read-fn
-               :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
-                               settings-core/settings-with-value))]
+               :write-fn write-fn
+               :search-fn settings-core/raw-settings-search-fn)]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

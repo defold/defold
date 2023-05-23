@@ -28,26 +28,37 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- save-data-sort-key [entry]
+(defn- search-data-sort-key [entry]
   (some-> entry :resource resource/proj-path))
 
-(defn make-file-resource-save-data-future [report-error! project]
+(defn make-search-data-future [report-error! project]
   (let [evaluation-context (g/make-evaluation-context)]
     (future
       (try
-        (let [save-data (->> (into []
-                                   (keep (fn [node-id]
-                                           (let [save-data (g/node-value node-id :save-data evaluation-context)
-                                                 resource (:resource save-data)]
-                                             (when (and (some? resource)
-                                                        (not (resource/internal? resource))
-                                                        (= :file (resource/source-type resource)))
-                                               save-data))))
-                                   (g/node-value project :nodes evaluation-context))
-                             (sort-by save-data-sort-key))]
+        (let [search-data
+              (->> (into []
+                         (keep (fn [node-id]
+                                 (let [resource (g/node-value node-id :resource evaluation-context)]
+                                   (when (and (some? resource)
+                                              (not (resource/internal? resource))
+                                              (= :file (resource/source-type resource)))
+                                     (let [resource-type (resource/resource-type resource)
+                                           search-value-fn (cond
+                                                             (nil? resource-type)
+                                                             placeholder-resource/search-value-fn
+
+                                                             (some? (:search-fn resource-type))
+                                                             (:search-value-fn resource-type))]
+                                       (when search-value-fn
+                                         (let [search-value (search-value-fn node-id resource evaluation-context)]
+                                           (when-not (g/error? search-value)
+                                             {:resource resource
+                                              :search-value search-value}))))))))
+                         (g/node-value project :nodes evaluation-context))
+                   (sort-by search-data-sort-key))]
           (ui/run-later
             (project/update-system-cache-save-data! evaluation-context))
-          save-data)
+          search-data)
         (catch Throwable error
           (report-error! error)
           nil)))))
@@ -83,7 +94,7 @@
     (fn resource-type->matches-fn [resource-type]
       (if (nil? resource-type)
         (deref placeholder-resource-matches-fn)
-        (search-fn->matches-fn (:search-fn resource-type))))))
+        (some-> (:search-fn resource-type) search-fn->matches-fn)))))
 
 (defn- make-search-resource? [searched-exts search-libraries]
   {:pre [(boolean? search-libraries)]}
@@ -99,22 +110,22 @@
       (and (resource-matches-library-setting? resource search-libraries)
            (resource-matches-file-ext? resource file-ext-patterns)))))
 
-(defn- start-search-thread [report-error! file-resource-save-data-future resource-type->matches-fn search-resource? produce-fn]
+(defn- start-search-thread [report-error! search-data-future resource-type->matches-fn search-resource? produce-fn]
   {:pre [(ifn? search-resource?)]}
   (future
     (try
-      (let [xform (keep (fn [save-data]
+      (let [xform (keep (fn [search-data]
                           (thread-util/throw-if-interrupted!)
-                          (let [resource (:resource save-data)]
+                          (let [resource (:resource search-data)]
                             (when (search-resource? resource)
                               (let [resource-type (resource/resource-type resource)
                                     matches-fn (resource-type->matches-fn resource-type)
                                     matches (when matches-fn
-                                              (matches-fn save-data))]
+                                              (matches-fn (:search-value search-data)))]
                                 (when-not (coll/empty? matches)
                                   {:resource resource
                                    :matches matches}))))))]
-        (run! produce-fn (sequence xform (deref file-resource-save-data-future)))
+        (run! produce-fn (sequence xform (deref search-data-future)))
         (produce-fn ::done))
       (catch InterruptedException _
         ;; future-cancel was invoked from another thread.
@@ -126,25 +137,27 @@
 (defn make-file-searcher
   "Returns a map of two functions, start-search! and abort-search! that can be
   used to perform asynchronous search queries against an ordered sequence of
-  file resource save data. The save data is expected to be sorted in the order
+  search data. The search data is expected to be sorted in the order
   it should appear in the search results list, and entries are expected to have
-  :resource (Resource) and :content (String) fields.
+  :resource (Resource) and :search-value (anything) fields.
   When start-search! is called, it will cancel any pending search and start a
-  new search using the provided term and exts String arguments. It will call
-  stop-consumer! with the value returned from the last call to start-consumer!,
-  then start-consumer! will be called with a poll function as its sole argument.
-  The value returned by start-consumer! will be stored and used as the argument
-  to stop-consumer! when a search is aborted. The consumer is expected to
-  periodically call the supplied poll function to consume search results.
-  It will either return nil if there is no result currently available, the
-  namespaced keyword :defold-project-search/done if the search has completed
+  new search using the provided search-string and searched-exts arguments. It
+  will call stop-consumer! with the value returned from the last call to
+  start-consumer!, then start-consumer! will be called with a poll function as
+  its sole argument. The value returned by start-consumer! will be stored and
+  used as the argument to stop-consumer! when a search is aborted. The consumer
+  is expected to periodically call the supplied poll function to consume search
+  results. It will either return nil if there is no result currently available,
+  the namespaced keyword :defold-project-search/done if the search has completed
   and there will be no more results, or a single match consisting of
-  [Resource, [{:line String :row long, :start-col long, :end-col long}, ...]].
+  [Resource, [match-info, ...]], where match-info is a map of view-specific data
+  that can be used to highlight the specific match. For example, the match-info
+  for code editor resources contain the matched :row, :start-col and :end-col.
   When abort-search! is called, any spawned background threads will terminate,
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be
   called with the Throwable in the event of an error."
-  [workspace file-resource-save-data-future start-consumer! stop-consumer! report-error!]
+  [workspace search-data-future start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
@@ -161,7 +174,7 @@
                                               (seq results))
                                 resource-type->matches-fn (make-resource-type->matches-fn workspace search-string)
                                 search-resource? (make-search-resource? searched-exts search-libraries)
-                                thread (start-search-thread report-error! file-resource-save-data-future resource-type->matches-fn search-resource? produce-fn)
+                                thread (start-search-thread report-error! search-data-future resource-type->matches-fn search-resource? produce-fn)
                                 consumer (start-consumer! consume-fn)]
                             {:thread thread
                              :consumer consumer})

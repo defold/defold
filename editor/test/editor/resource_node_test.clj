@@ -18,13 +18,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- make-search-result-fn [search-fn save-value]
-  (let [save-data {:node-id 12345
-                   :dirty false
-                   :save-value save-value}]
-    (fn search-result-fn [search-string]
-      (let [match-fn (search-fn search-string)]
-        (search-fn save-data match-fn)))))
+(defn- make-search-result-fn [search-fn pb-map]
+  (fn search-result-fn [search-string]
+    (let [match-fn (search-fn search-string)]
+      (search-fn pb-map match-fn))))
 
 (deftest default-ddf-resource-search-fn-test
   (let [save-value

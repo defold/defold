@@ -165,7 +165,7 @@
             (when (resource/file-resource? resource)
               ;; Only connect to the script-intelligence build errors if this is
               ;; a file resource. The assumption is that if it is a file
-              ;; resource then it is being actively worked on. Otherwise it
+              ;; resource then it is being actively worked on. Otherwise, it
               ;; belongs to an external dependency and should not stop the build
               ;; on errors.
               (concat (g/connect self :build-errors si :build-errors)
@@ -174,15 +174,16 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
-                                    :ext "script_api"
-                                    :label "Script API"
-                                    :icon "icons/32/Icons_29-AT-Unknown.png"
-                                    :view-types [:code :default]
-                                    :view-opts nil
-                                    :node-type ScriptApiNode
-                                    :load-fn load-script-api
-                                    :write-fn r/write-fn
-                                    :textual? true
-                                    :language "yaml"
-                                    :auto-connect-save-data? false))
-
+    :ext "script_api"
+    :label "Script API"
+    :icon "icons/32/Icons_29-AT-Unknown.png"
+    :view-types [:code :default]
+    :view-opts nil
+    :node-type ScriptApiNode
+    :load-fn load-script-api
+    :write-fn r/write-fn
+    :search-fn r/search-fn
+    :search-value-fn r/search-value-fn
+    :textual? true
+    :language "yaml"
+    :auto-connect-save-data? false))

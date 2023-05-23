@@ -930,11 +930,11 @@ Macros currently mean no foreseeable performance gain, however."
        pb-map
        (assign-repeated pb-map field-kw (some->> items (mapv sanitize-item-fn)))))))
 
-(defn make-search-match-fn
+(defn make-map-search-match-fn
   "Returns a function that takes a value and returns it if its protobuf-text
   representation matches the provided search-string. This function is suitable
-  for use with coll/search and its ilk."
-  [^String search-string]
+  for use with coll/search and its ilk on a protobuf message in map format."
+  [search-string]
   (let [enum-search-string (enum-name->keyword-name search-string)
         text-re-pattern (text-util/search-string->re-pattern search-string :case-insensitive)
         enum-re-pattern (text-util/search-string->re-pattern enum-search-string :case-insensitive)

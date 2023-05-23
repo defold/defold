@@ -67,13 +67,20 @@
 (defn write-fn [lines]
   (string/join "\n" lines))
 
+(defn search-value-fn [node-id resource evaluation-context]
+  (let [loaded-lines (g/node-value node-id :save-value evaluation-context)]
+    (if (g/error-value? loaded-lines)
+      loaded-lines
+      {:resource resource
+       :loaded-lines loaded-lines})))
+
 (defn search-fn
-  ([^String search-string]
+  ([search-string]
    (text-util/search-string->re-pattern search-string :case-insensitive))
-  ([save-data re-pattern]
-  (if-some [loaded-lines (:save-value save-data)]
-    (text-util/lines->text-matches loaded-lines re-pattern)
-    (resource/resource->text-matches (:resource save-data) re-pattern))))
+  ([search-value re-pattern]
+   (if-some [loaded-lines (:loaded-lines search-value)]
+     (text-util/lines->text-matches loaded-lines re-pattern)
+     (resource/resource->text-matches (:resource search-value) re-pattern))))
 
 ;; To save memory, we defer loading the file contents until it has been modified
 ;; and read directly from disk up to that point. Once the file is edited we need
@@ -194,5 +201,6 @@
                  (assoc :load-fn load-fn
                         :write-fn write-fn
                         :search-fn search-fn
+                        :search-value-fn search-value-fn
                         :textual? true))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
