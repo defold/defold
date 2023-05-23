@@ -29,7 +29,7 @@
     :discard ProcessBuilder$Redirect/DISCARD
     x))
 
-(defn ^{:arglists '([& command+args] [opts & command+args])} start
+(defn ^{:arglists '([& command+args] [opts & command+args])} start!
   "Start a process
 
   Optional leading opts map:
@@ -85,7 +85,7 @@
   (.getErrorStream process))
 
 (defn ^{:arglists '([^InputStream in & {:keys [buffer-size encoding] :or {buffer-size 1024 encoding "UTF-8"}}])}
-  capture
+  capture!
   "Given an InputStream such as process's out or err, consume it into a string
 
   Returns a non-empty string with trimmed new lines or nil if it's empty
@@ -100,7 +100,7 @@
       (when (pos? (.length s))
         s))))
 
-(defn pipe
+(defn pipe!
   "Pipe data from the InputStream (e.g. [[out]] or [[err]]) to OutputStream
 
   Similar to io/copy and InputStream::transferTo, but flushes on write"
@@ -114,17 +114,13 @@
               (recur)))))))
 
 (defn await-exit-code
-  "Blocks until process exits and returns the exit code"
-  [^Process process]
+  "Blocks until process exits and returns the exit code
+
+  Zero exit code indicates success, any other number indicates failure"
+  ^long [^Process process]
   (.waitFor process))
 
-(defn exit-ok?
-  "Checks if the exit code of the process indicates success"
-  [exit-code]
-  {:pre [(int? exit-code)]}
-  (zero? exit-code))
-
-(defn exec
+(defn exec!
   "Execute command and return the output on successful exit or throw otherwise
 
   Returns a non-empty string with trimmed new lines or nil if it's empty
@@ -149,10 +145,10 @@
   (let [has-opts (map? (first opts+args))
         opts (if has-opts (first opts+args) {})
         command (if has-opts (rest opts+args) opts+args)
-        ^Process process (apply start (into {:err :inherit} opts) command)
-        output (future (capture (out process)))
+        ^Process process (apply start! (into {:err :inherit} opts) command)
+        output (future (capture! (out process)))
         exit-code (await-exit-code process)]
-    (if (exit-ok? exit-code)
+    (if (zero? exit-code)
       @output
       (throw (ex-info (format "Non-zero exit code for command '%s': %s"
                               (string/join " " command)
@@ -162,7 +158,7 @@
                        :opts opts
                        :process process})))))
 
-(defn on-exit
+(defn on-exit!
   "Invoke a Runnable (e.g. a 0-arg function) when process exits"
   [^Process process on-exit]
   (.thenRun (.onExit process) ^Runnable on-exit)

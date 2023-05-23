@@ -278,7 +278,7 @@
 (defn restart! [updater]
   (let [{:keys [launcher-path install-dir]} updater]
     (log/info :message "Restarting editor")
-    (apply process/start {:dir install-dir} launcher-path *command-line-args*)
+    (apply process/start! {:dir install-dir} launcher-path *command-line-args*)
     (javafx.application.Platform/exit)))
 
 (defn delete-backup-files!

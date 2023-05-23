@@ -53,18 +53,18 @@
   (case (util/os)
     :macos (or
              (some-> (evaluate-path "$ANDROID_HOME/platform-tools/adb") existing-path)
-             (some-> (attempt (process/exec "which" "adb")) existing-path)
+             (some-> (attempt (process/exec! "which" "adb")) existing-path)
              (some-> (evaluate-path "~/Library/Android/sdk/platform-tools/adb") existing-path)
              (existing-path "/opt/homebrew/bin/adb"))
     :linux (or
              (some-> (evaluate-path "$ANDROID_HOME/platform-tools/adb") existing-path)
-             (some-> (attempt (process/exec "which" "adb")) existing-path)
+             (some-> (attempt (process/exec! "which" "adb")) existing-path)
              (some-> (evaluate-path "~/Android/Sdk/platform-tools/adb") existing-path)
              (existing-path "/usr/bin/adb")
              (existing-path "/usr/lib/android-sdk/platform-tools/adb"))
     :win32 (or
              (some-> (evaluate-path "$ANDROID_HOME\\platform-tools\\adb.exe") existing-path)
-             (some-> (attempt (process/exec "where" "adb.exe")) existing-path)
+             (some-> (attempt (process/exec! "where" "adb.exe")) existing-path)
              (some-> (evaluate-path "~\\AppData\\Local\\Android\\sdk\\platform-tools\\adb.exe") existing-path)
              (existing-path "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe"))))
 
@@ -86,7 +86,7 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
 
   Might block for seconds while ADB is starting up its daemon"
   [adb-path]
-  (let [output (process/exec adb-path "devices" "-l")]
+  (let [output (process/exec! adb-path "devices" "-l")]
     (into []
           (keep (fn [line]
                   (when-let [[_ id kvs] (re-matches #"^([^\s]+)\s+device\s(.+)" line)]
@@ -115,9 +115,9 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
   [adb-path device apk-path out]
   {:pre [(string? (:id device))
          (existing-path apk-path)]}
-  (let [process (process/start {:err :stdout} adb-path "-s" (:id device) "install" "-r" (str apk-path))]
-    (process/pipe (process/out process) out)
-    (when-not (process/exit-ok? (process/await-exit-code process))
+  (let [process (process/start! {:err :stdout} adb-path "-s" (:id device) "install" "-r" (str apk-path))]
+    (process/pipe! (process/out process) out)
+    (when-not (zero? (process/await-exit-code process))
       (throw (ex-info "Failed to install APK" {:adb adb-path :device device :apk apk-path})))))
 
 (defn launch!
@@ -133,12 +133,12 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
                 closed after use"
   [adb-path device package out]
   {:pre [(string? (:id device))]}
-  (let [process (process/start {:err :stdout}
-                               adb-path
-                               "-s" (:id device)
-                               "shell" "monkey"
-                               "-p" package
-                               "-c" "android.intent.category.LAUNCHER" "1")]
-    (process/pipe (process/out process) out)
-    (when-not (process/exit-ok? (process/await-exit-code process))
+  (let [process (process/start! {:err :stdout}
+                                adb-path
+                                "-s" (:id device)
+                                "shell" "monkey"
+                                "-p" package
+                                "-c" "android.intent.category.LAUNCHER" "1")]
+    (process/pipe! (process/out process) out)
+    (when-not (zero? (process/await-exit-code process))
       (throw (ex-info "Failed to launch the app" {:adb adb-path :device device :app package})))))

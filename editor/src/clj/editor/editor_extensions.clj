@@ -475,11 +475,11 @@
                  (workspace/project-path evaluation-context))]
     (doseq [cmd+args commands]
       (if (can-execute? ui cmd+args)
-        (let [process (doto (apply process/start {:dir root} cmd+args)
+        (let [process (doto (apply process/start! {:dir root} cmd+args)
                         (-> process/out (input-stream->console ui :out))
                         (-> process/err (input-stream->console ui :err)))
               exit-code (process/await-exit-code process)]
-          (when-not (process/exit-ok? exit-code)
+          (when-not (zero? exit-code)
             (throw (ex-info (str "Command \""
                                  (string/join " " cmd+args)
                                  "\" exited with code "

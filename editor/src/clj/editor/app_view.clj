@@ -730,7 +730,7 @@
     (future
       (error-reporting/catch-all!
         (extensions/execute-hook! project :on-target-launched hook-options)
-        (process/on-exit process #(extensions/execute-hook! project :on-target-terminated hook-options))))))
+        (process/on-exit! process #(extensions/execute-hook! project :on-target-terminated hook-options))))))
 
 (defn- target-cannot-swap-engine? [target]
   (and (some? target)
@@ -1490,7 +1490,7 @@ If you do not specifically require different script states, consider changing th
                               (case (.getOs (Platform/getHostPlatform))
                                 "macos" (io/file resources-path "../../")
                                 ("linux" "win32") (io/file resources-path)))]
-            (process/start {:dir install-dir} (system/defold-launcherpath)))))
+            (process/start! {:dir install-dir} (system/defold-launcherpath)))))
 
 (handler/register-menu! ::menubar
   [{:label "File"
@@ -2308,23 +2308,24 @@ If you do not specifically require different script states, consider changing th
           apk-path (io/file output-directory project-title (str project-title ".apk"))]
       ;; Do the actual work asynchronously because adb commands are blocking.
       (future
-        ;; We should close the out when we are done here
-        (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
-          (try
-            (.println writer (format "Resolving ADB location..." apk-path))
-            (let [adb-path (adb/get-adb-path prefs)
-                  _ (.println writer (format "Resolved to '%s'" adb-path))
-                  _ (.println writer "Listing devices...")
-                  device (or (first (adb/list-devices! adb-path))
-                             (throw (ex-info "No devices are connected" {:adb adb-path})))]
-              (.println writer (format "Installing on '%s'..." (:label device)))
-              (adb/install! adb-path device apk-path out)
-              (when launch
-                (.println writer (format "Launching %s..." package))
-                (adb/launch! adb-path device package out))
-              (.println writer (format "Install%s done." (if launch " and launch" ""))))
-            (catch Throwable e
-              (.println writer (.getMessage e)))))))))
+        (error-reporting/catch-all!
+          ;; We should close the out when we are done here
+          (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
+            (try
+              (.println writer (format "Resolving ADB location..." apk-path))
+              (let [adb-path (adb/get-adb-path prefs)
+                    _ (.println writer (format "Resolved to '%s'" adb-path))
+                    _ (.println writer "Listing devices...")
+                    device (or (first (adb/list-devices! adb-path))
+                               (throw (ex-info "No devices are connected" {:adb adb-path})))]
+                (.println writer (format "Installing on '%s'..." (:label device)))
+                (adb/install! adb-path device apk-path out)
+                (when launch
+                  (.println writer (format "Launching %s..." package))
+                  (adb/launch! adb-path device package out))
+                (.println writer (format "Install%s done." (if launch " and launch" ""))))
+              (catch Throwable e
+                (.println writer (.getMessage e))))))))))
 
 (defn- bundle! [main-stage tool-tab-pane changes-view build-errors-view project prefs platform bundle-options]
   (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))

@@ -428,8 +428,8 @@
     (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
     (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))
     (ui/value! bundle-format-choice-box (prefs/get-prefs prefs "bundle-android-bundle-format" "apk"))
-    (ui/value! adb-install-check-box (prefs/get-prefs prefs "adb-install" false))
-    (ui/value! adb-launch-check-box (prefs/get-prefs prefs "adb-launch" false))))
+    (ui/value! adb-install-check-box (prefs/get-prefs prefs "bundle-android-adb-install" false))
+    (ui/value! adb-launch-check-box (prefs/get-prefs prefs "bundle-android-adb-launch" false))))
 
 (defn- save-android-prefs! [prefs view]
   (ui/with-controls view [keystore-text-field
@@ -446,8 +446,8 @@
     (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
     (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))
     (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))
-    (prefs/set-prefs prefs "adb-install" (ui/value adb-install-check-box))
-    (prefs/set-prefs prefs "adb-launch" (ui/value adb-launch-check-box))))
+    (prefs/set-prefs prefs "bundle-android-adb-install" (ui/value adb-install-check-box))
+    (prefs/set-prefs prefs "bundle-android-adb-launch" (ui/value adb-launch-check-box))))
 
 (defn- get-android-options [view]
   (ui/with-controls view [architecture-32bit-check-box

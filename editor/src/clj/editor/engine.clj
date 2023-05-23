@@ -288,7 +288,7 @@
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-    (let [p (apply process/start opts command args)]
+    (let [p (apply process/start! opts command args)]
       {:process p
        :name (.getName engine)
        :log-stream (process/out p)})))
