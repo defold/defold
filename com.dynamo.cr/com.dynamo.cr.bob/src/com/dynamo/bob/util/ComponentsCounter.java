@@ -82,7 +82,7 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
-            if (count < 0) {
+            if (count == DYNAMIC_VALUE) {
                 components.put(componentName, DYNAMIC_VALUE);
             } 
             else if (currentValue != DYNAMIC_VALUE) {
@@ -104,7 +104,12 @@ public class ComponentsCounter {
         public void add(Storage storage, Integer count) {
             Map<String, Integer> comps = storage.get();
             for (Map.Entry<String,Integer> entry : comps.entrySet()) {
-                add(entry.getKey(), count == DYNAMIC_VALUE ? DYNAMIC_VALUE : entry.getValue() * count);
+                Integer value = entry.getValue() * count;
+                // We can't multiply or sum DYNAMIC_VALUE, just set it
+                if (count == DYNAMIC_VALUE || entry.getValue() == DYNAMIC_VALUE) {
+                    value = DYNAMIC_VALUE;
+                }
+                add(entry.getKey(), value);
             }
         }
 
