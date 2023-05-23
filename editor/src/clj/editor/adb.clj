@@ -133,6 +133,8 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
                 closed after use"
   [adb-path device package out]
   {:pre [(string? (:id device))]}
+  ;; Using monkey is a convenient way to launch an Android app using only its
+  ;; package name. See also: https://stackoverflow.com/a/25398877
   (let [process (process/start! {:err :stdout}
                                 adb-path
                                 "-s" (:id device)
