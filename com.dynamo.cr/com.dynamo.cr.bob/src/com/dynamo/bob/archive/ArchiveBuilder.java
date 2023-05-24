@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,6 +41,10 @@ import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
+
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -319,6 +323,7 @@ public class ArchiveBuilder {
         File filepathPublicKey      = new File(args[1] + ".public");
         File filepathPrivateKey     = new File(args[1] + ".private");
         File filepathManifestHash   = new File(args[1] + ".manifest_hash");
+        File filepathZipArchive     = new File(args[1] + ".zip");
 
         if (!dirpathRoot.isDirectory()) {
             printUsageAndTerminate("root does not exist: " + dirpathRoot.getAbsolutePath());
@@ -414,6 +419,25 @@ public class ArchiveBuilder {
                 manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
                 manifestHashOutoutStream.close();
             }
+
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+
+            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            publisher.setPlatform("generic"); // do we need a proper platform?
+            publisher.setUseTemFilename(false);
+            for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
+                if (fhandle.isFile()) {
+                    publisher.AddEntry(fhandle.getName(), fhandle);
+                }
+            }
+
+            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+            File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
+            FileUtils.copyFile(filepathManifest, luManifestFile);
+            publisher.AddEntry(liveupdateManifestFilename, luManifestFile);
+            publisher.Publish();
+
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {
