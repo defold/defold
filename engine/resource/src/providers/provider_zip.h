@@ -15,8 +15,4 @@
 #ifndef DM_RESOURCE_PROVIDER_ZIP_H
 #define DM_RESOURCE_PROVIDER_ZIP_H
 
-namespace dmResourceProviderZip
-{
-}
-
 #endif

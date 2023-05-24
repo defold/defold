@@ -95,8 +95,6 @@ namespace dmResourceProviderArchive
             dmResourceArchive::Result result = dmResourceArchive::FindEntry(archive->m_ArchiveIndex, entry->m_Hash.m_Data.m_Data, hash_len, &info.m_ArchiveInfo);
             if (result != dmResourceArchive::RESULT_OK)
             {
-// TODO: Don't complain about live update resources
-                dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
                 continue;
             }
             archive->m_EntryMap.Put(entry->m_UrlHash, info);
@@ -205,7 +203,6 @@ namespace dmResourceProviderArchive
 
     static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
     {
-        (void)buffer_len;
         GameArchiveFile* archive = (GameArchiveFile*)internal;
         EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
         if (entry)

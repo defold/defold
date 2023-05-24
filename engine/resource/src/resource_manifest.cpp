@@ -176,7 +176,12 @@ void DebugPrintManifest(dmResource::Manifest* manifest)
         printf("entry: hash: ");
         uint8_t* h = entry->m_Hash.m_Data.m_Data;
         PrintHash(h, entry->m_Hash.m_Data.m_Count);
-        printf("  flags: %u url: %llx  %s\n", entry->m_Flags, entry->m_UrlHash, entry->m_Url);
+        printf("  b/l/e/c: %u%u%u%u url: %llx  %s  sz: %u  csz: %u\n",
+                (entry->m_Flags & dmLiveUpdateDDF::BUNDLED) != 0,
+                (entry->m_Flags & dmLiveUpdateDDF::EXCLUDED) != 0,
+                (entry->m_Flags & dmLiveUpdateDDF::ENCRYPTED) != 0,
+                (entry->m_Flags & dmLiveUpdateDDF::COMPRESSED) != 0,
+                entry->m_UrlHash, entry->m_Url, entry->m_Size, entry->m_CompressedSize);
     }
 }
 

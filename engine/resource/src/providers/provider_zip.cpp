@@ -1,267 +1,279 @@
 #include "provider.h"
-// #include "provider_archive.h"
-// #include "../resource_archive.h"
+#include "provider_private.h"
+#include "../resource_archive.h"
+#include "../resource_util.h"
+#include "../resource_manifest.h"
 
-// #include <dlib/dstrings.h>
-// #include <dlib/endian.h>
-// #include <dlib/log.h>
-// #include <dlib/lz4.h>
-// #include <dlib/memory.h>
-// #include <dlib/sys.h>
+#include <dlib/dstrings.h>
+#include <dlib/endian.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
+#include <dlib/log.h>
+#include <dlib/lz4.h>
+#include <dlib/math.h>
+#include <dlib/zip.h>
+#include <dlib/memory.h>
 
 namespace dmResourceProviderZip
 {
-    // dmResourceArchive::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out)
-    // {
-    //     dmResource::Manifest* manifest = new dmResource::Manifest();
-    //     dmResource::Result result = ManifestLoadMessage(buffer, buffer_len, manifest);
 
-    //     if (dmResource::RESULT_OK == result)
-    //         *out = manifest;
-    //     else
-    //     {
-    //         dmResource::DeleteManifest(manifest);
-    //     }
+const char* LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME = "liveupdate.game.dmanifest";
 
-    //     return dmResource::RESULT_OK == result ? dmResourceArchive::RESULT_OK : dmResourceArchive::RESULT_IO_ERROR;
-    // }
+struct EntryInfo
+{
+    dmLiveUpdateDDF::ResourceEntry* m_ManifestEntry; // If it's a resource provided by the manifest
+    uint32_t                        m_Size;          // Used when there is no resource entry
+    uint32_t                        m_EntryIndex;
+};
 
-    // dmResourceArchive::Result LoadManifest(const char* path, dmResource::Manifest** out)
-    // {
-    //     uint32_t manifest_length = 0;
-    //     uint8_t* manifest_buffer = 0x0;
+struct ZipProviderContext
+{
+    dmURI::Parts                m_BaseUri;
+    dmZip::HZip                 m_Zip;
+    dmResource::Manifest*       m_Manifest;
+    dmHashTable64<EntryInfo>    m_EntryMap; // url hash -> entry in the manifest
+};
 
-    //     uint32_t dummy_file_size = 0;
-    //     dmSys::ResourceSize(path, &manifest_length);
-    //     dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
-    //     assert(manifest_buffer);
-    //     dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
 
-    //     if (sys_result != dmSys::RESULT_OK)
-    //     {
-    //         dmLogError("Failed to read manifest %s (%i)", path, sys_result);
-    //         dmMemory::AlignedFree(manifest_buffer);
-    //         return dmResourceArchive::RESULT_IO_ERROR;
-    //     }
+static bool MatchesUri(const dmURI::Parts* uri)
+{
+    if (strcmp(uri->m_Scheme, "zip") == 0)
+        return true;
 
-    //     dmResourceArchive::Result result = LoadManifestFromBuffer(manifest_buffer, manifest_length, out);
-    //     dmMemory::AlignedFree(manifest_buffer);
-    //     return result;
-    // }
+    const char* ext = strrchr(uri->m_Path, '.');
+    if (!ext)
+        return false;
+    return strcmp(ext, ".zip") == 0;
+}
 
-    // static dmResourceArchive::Result ResourceArchiveDefaultLoadManifest(const char* archive_name, const char* app_path, const char* app_support_path,
-    //                                                                     const dmResource::Manifest* previous, dmResource::Manifest** out)
-    // {
-    //     // This function should be called first, so there should be no prior manifest
-    //     assert(previous == 0);
+static void DeleteZipArchiveInternal(dmResourceProvider::HArchiveInternal _archive)
+{
+    ZipProviderContext* archive = (ZipProviderContext*)_archive;
+    if (archive->m_Manifest)
+        dmResourceManifest::DeleteManifest(archive->m_Manifest);
+    if (archive->m_Zip)
+        dmZip::Close(archive->m_Zip);
+    delete archive;
+}
 
-    //     char manifest_path[DMPATH_MAX_PATH];
-    //     dmPath::Concat(app_path, archive_name, manifest_path, sizeof(manifest_path));
-    //     dmStrlCat(manifest_path, ".dmanifest", sizeof(manifest_path));
+static void CreateEntryMap(ZipProviderContext* archive)
+{
+    uint32_t count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
+    archive->m_EntryMap.SetCapacity(dmMath::Max(1U, (count*2)/3), count);
 
-    //     return LoadManifest(manifest_path, out);
-    // }
+    dmLiveUpdateDDF::HashAlgorithm algorithm = archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+    uint32_t hash_len = dmResource::HashLength(algorithm);
 
-    // static dmResourceArchive::Result ResourceArchiveDefaultLoad(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path,
-    //                                                             dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out)
-    // {
-    //     char archive_index_path[DMPATH_MAX_PATH];
-    //     char archive_data_path[DMPATH_MAX_PATH];
-    //     dmPath::Concat(app_path, archive_name, archive_index_path, sizeof(archive_index_path));
-    //     dmPath::Concat(app_path, archive_name, archive_data_path, sizeof(archive_index_path));
-    //     dmStrlCat(archive_index_path, ".arci", sizeof(archive_index_path));
-    //     dmStrlCat(archive_data_path, ".arcd", sizeof(archive_data_path));
+    dmZip::HZip zip = archive->m_Zip;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* entry = &archive->m_Manifest->m_DDFData->m_Resources.m_Data[i];
 
-    //     void* mount_info = 0;
-    //     dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
-    //     if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
-    //     {
-    //         (*out)->m_UserData = mount_info;
-    //     }
-    //     return dmResourceArchive::RESULT_OK;
-    // }
+        char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
+        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
+        hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
 
-    // static dmResourceArchive::Result ResourceArchiveDefaultUnload(dmResourceArchive::HArchiveIndexContainer archive)
-    // {
-    //     dmResource::UnmountArchiveInternal(archive, archive->m_UserData);
-    //     return dmResourceArchive::RESULT_OK;
-    // }
+        dmZip::Result zr = dmZip::OpenEntry(archive->m_Zip, hash_buffer);
+        if (dmZip::RESULT_OK != zr)
+        {
+            continue;
+        }
 
-    // dmResourceArchive::Result FindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry)
-    // {
-    //     uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-    //     uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-    //     uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-    //     uint8_t* hashes = 0;
-    //     dmResourceArchive::EntryData* entries = 0;
+        EntryInfo info;
+        info.m_ManifestEntry = entry;
+        info.m_Size = entry->m_Size;
+        dmZip::GetEntryIndex(zip, &info.m_EntryIndex);
 
-    //     // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-    //     if (!archive->m_IsMemMapped)
-    //     {
-    //         hashes = archive->m_ArchiveFileIndex->m_Hashes;
-    //         entries = archive->m_ArchiveFileIndex->m_Entries;
-    //     }
-    //     else
-    //     {
-    //         hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-    //         entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-    //     }
+        // For live update resources, we account for the header size
+        dmZip::CloseEntry(archive->m_Zip);
 
-    //     // Search for hash with binary search (entries are sorted on hash)
-    //     int first = 0;
-    //     int last = (int)entry_count-1;
-    //     while (first <= last)
-    //     {
-    //         int mid = first + (last - first) / 2;
-    //         uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * mid);
+dmLogWarning("Added '%s' for '%s' to file list. %u -> %u", entry->m_Url, hash_buffer, entry->m_Size, info.m_Size);
 
-    //         int cmp = memcmp(hash, h, hash_len);
-    //         if (cmp == 0)
-    //         {
-    //             if (entry != 0)
-    //             {
-    //                 dmResourceArchive::EntryData* e = &entries[mid];
-    //                 entry->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
-    //                 entry->m_ResourceSize = dmEndian::ToNetwork(e->m_ResourceSize);
-    //                 entry->m_ResourceCompressedSize = dmEndian::ToNetwork(e->m_ResourceCompressedSize);
-    //                 entry->m_Flags = dmEndian::ToNetwork(e->m_Flags);
-    //             }
-    //             return dmResourceArchive::RESULT_OK;
-    //         }
-    //         else if (cmp > 0)
-    //         {
-    //             first = mid+1;
-    //         }
-    //         else if (cmp < 0)
-    //         {
-    //             last = mid-1;
-    //         }
-    //     }
+        archive->m_EntryMap.Put(entry->m_UrlHash, info);
+    }
 
-    //     return dmResourceArchive::RESULT_NOT_FOUND;
-    // }
+    // Also add any other files that the developer might have added to the zip archive
+    uint32_t entry_count = dmZip::GetNumEntries(zip);
+    for (uint32_t i = 0; i < entry_count; ++i)
+    {
+        dmZip::Result zr = dmZip::OpenEntry(zip, i);
+        if (dmZip::RESULT_OK != zr)
+        {
+            dmLogError("Failed to list entry in zip file %s%s", archive->m_BaseUri.m_Location, archive->m_BaseUri.m_Path);
+            continue;
+        }
 
-    // dmResourceArchive::Result ReadEntryFromArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len,
-    //                                                 const dmResourceArchive::EntryData* entry, void* buffer)
-    // {
-    //     (void)hash;
-    //     (void)hash_len;
-    //     uint32_t size = entry->m_ResourceSize;
-    //     uint32_t compressed_size = entry->m_ResourceCompressedSize;
+        const char* name  = dmZip::GetEntryName(zip);
+        dmhash_t name_hash = dmHashString64(name);
 
-    //     bool encrypted = (entry->m_Flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
-    //     bool compressed = compressed_size != 0xFFFFFFFF;
+dmLogWarning("Added extra '%s' to file list", name?name:"null");
 
-    //     const dmResourceArchive::ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
-    //     bool resource_memmapped = afi->m_IsMemMapped;
+        EntryInfo info;
+        info.m_ManifestEntry = 0;
+        dmZip::GetEntrySize(zip, &info.m_Size);
+        dmZip::GetEntryIndex(zip, &info.m_EntryIndex);
+        dmZip::CloseEntry(zip);
 
-    //     // We have multiple combinations for regular archives:
-    //     // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
-    //     // Decryption can be done into a buffer of the same size, although not into a read only array
-    //     // We do this is to avoid unnecessary memory allocations
+        archive->m_EntryMap.Put(name_hash, info);
+    }
+}
 
-    //     //  compressed +  encrypted +  memmapped = need malloc (encrypt cannot modify memmapped file, decompress cannot use same src/dst)
-    //     //  compressed +  encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-    //     //  compressed + !encrypted +  memmapped = doesn't need malloc (can decompress because src != dst)
-    //     //  compressed + !encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-    //     // !compressed +  encrypted +  memmapped = doesn't need malloc
-    //     // !compressed +  encrypted + !memmapped = doesn't need malloc
-    //     // !compressed + !encrypted +  memmapped = doesn't need malloc
-    //     // !compressed + !encrypted + !memmapped = doesn't need malloc
+static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path, dmResource::Manifest** manifest)
+{
+    dmZip::Result zr = dmZip::OpenEntry(zip, path);
+    if (dmZip::RESULT_OK != zr)
+    {
+        dmLogError("Failed to find entry '%s'", path);
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
 
-    //     void* compressed_buf = 0;
-    //     bool temp_buffer = false;
 
-    //     if (compressed && !( !encrypted && resource_memmapped))
-    //     {
-    //         compressed_buf = malloc(compressed_size);
-    //         temp_buffer = true;
-    //     } else {
-    //         // For uncompressed data, use the destination buffer
-    //         compressed_buf = buffer;
-    //         memset(buffer, 0, size);
-    //         compressed_size = compressed ? compressed_size : size;
-    //     }
+    uint32_t manifest_len;
+    dmZip::GetEntrySize(zip, &manifest_len);
+    uint8_t* manifest_data = new uint8_t[manifest_len];
+    dmZip::GetEntryData(zip, (void*)manifest_data, manifest_len);
+    dmZip::CloseEntry(zip);
 
-    //     assert(compressed_buf);
+    dmResourceProvider::Result result = dmResourceProvider::RESULT_OK;
+    dmResource::Result r = dmResourceManifest::LoadManifestFromBuffer(manifest_data, manifest_len, manifest);
+    if (dmResource::RESULT_OK != r)
+    {
+        dmLogError("Could not read manifest '%s' from archive", path);
+        result = dmResourceProvider::RESULT_INVAL_ERROR;
+    }
 
-    //     if (!resource_memmapped)
-    //     {
-    //         FILE* resource_file = afi->m_FileResourceData;
+    delete[] manifest_data;
+    return result;
+}
 
-    //         assert(temp_buffer || compressed_buf == buffer);
+static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
+{
+    if (!MatchesUri(uri))
+        return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
-    //         fseek(resource_file, entry->m_ResourceDataOffset, SEEK_SET);
-    //         if (fread(compressed_buf, 1, compressed_size, resource_file) != compressed_size)
-    //         {
-    //             if (temp_buffer)
-    //                 free(compressed_buf);
-    //             return dmResourceArchive::RESULT_IO_ERROR;
-    //         }
-    //     } else {
-    //         void* r = (void*) (((uintptr_t)afi->m_ResourceData + entry->m_ResourceDataOffset));
+    ZipProviderContext* archive = new ZipProviderContext;
+    memset(archive, 0, sizeof(ZipProviderContext));
+    memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
 
-    //         if (compressed && !encrypted)
-    //         {
-    //             compressed_buf = r;
-    //         } else {
-    //             memcpy(compressed_buf, r, compressed_size);
-    //         }
-    //     }
+    char path[1024];
+    dmSnPrintf(path, sizeof(path), "%s", uri->m_Path);
+    dmPath::Normalize(path, path, sizeof(path));
 
-    //     // Design wish: If we switch the order of operations (and thus the file format)
-    //     // we can simplify the code and save a temporary allocation
-    //     //
-    //     // Currently, we need to decrypt into a new buffer (since the input is read only):
-    //     // input:[Encrypted + LZ4] ->   temp:[  LZ4      ] -> output:[   data   ]
-    //     //
-    //     // We could instead have:
-    //     // input:[Encrypted + LZ4] -> output:[ Encrypted ] -> output:[   data   ]
+    dmZip::Result zr = dmZip::Open(path, &archive->m_Zip);
+    if (dmZip::RESULT_OK != zr)
+    {
+        dmLogError("Could not open zip file '%s'", path);
+        DeleteZipArchiveInternal(archive);
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
 
-    //     if(encrypted)
-    //     {
-    //         assert(temp_buffer || compressed_buf == buffer);
+    LoadManifest(archive->m_Zip, LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, &archive->m_Manifest);
 
-    //         dmResourceArchive::Result r = dmResourceArchive::DecryptBuffer(compressed_buf, compressed_size);
-    //         if (r != dmResourceArchive::RESULT_OK)
-    //         {
-    //             if (temp_buffer)
-    //                 free(compressed_buf);
-    //             return r;
-    //         }
-    //     }
+    CreateEntryMap(archive);
 
-    //     if (compressed)
-    //     {
-    //         assert(compressed_buf != buffer);
-    //         int decompressed_size;
-    //         dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
-    //         if (dmLZ4::RESULT_OK != r)
-    //         {
-    //             if (temp_buffer)
-    //                 free(compressed_buf);
-    //             return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
-    //         }
-    //     } else {
-    //         if (buffer != compressed_buf)
-    //             memcpy(buffer, compressed_buf, size);
-    //     }
+    *out_archive = (dmResourceProvider::HArchiveInternal)archive;
+    return dmResourceProvider::RESULT_OK;
+}
 
-    //     if (temp_buffer)
-    //         free(compressed_buf);
+static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal archive)
+{
+    DeleteZipArchiveInternal((ZipProviderContext*)archive);
+    return dmResourceProvider::RESULT_OK;
+}
 
-    //     return dmResourceArchive::RESULT_OK;
-    // }
+static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint32_t* file_size)
+{
+    ZipProviderContext* archive = (ZipProviderContext*)_archive;
+    EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+    if (entry)
+    {
+        *file_size = entry->m_Size;
+        return dmResourceProvider::RESULT_OK;
+    }
 
-    // static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
-    // {
-    //     dmResourceArchive::ArchiveLoader loader;
-    //     loader.m_NameHash = dmHashString64("zip");
-    //     loader.m_LoadManifest = ResourceArchiveDefaultLoadManifest;
-    //     loader.m_Load = ResourceArchiveDefaultLoad;
-    //     loader.m_Unload = ResourceArchiveDefaultUnload;
-    //     loader.m_FindEntry = FindEntryInArchive;
-    //     loader.m_Read = ReadEntryFromArchive;
-    // }
-    //DM_DECLARE_ARCHIVE_LOADER(ResourceProviderZip, dmHashString64("zip"), SetupArchiveLoader);
+    return dmResourceProvider::RESULT_NOT_FOUND;
+}
+
+static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, const uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
+{
+    dmResourceArchive::LiveUpdateResource resource(raw_resource, raw_resource_size);
+
+    uint32_t flags = entry->m_Flags;
+    bool encrypted = flags & dmLiveUpdateDDF::ENCRYPTED;
+    bool compressed = flags & dmLiveUpdateDDF::COMPRESSED;
+    uint32_t compressed_size = compressed ? entry->m_CompressedSize : entry->m_Size;
+    uint32_t resource_size = entry->m_Size;
+
+    if (encrypted)
+    {
+        dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)resource.m_Data, resource.m_Count);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to decrypt resource: '%s", path);
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+    }
+
+    if (compressed)
+    {
+        int decompressed_size;
+        dmLZ4::Result r = dmLZ4::DecompressBuffer((const uint8_t*)resource.m_Data, compressed_size, (uint8_t*)out_buffer, resource_size, &decompressed_size);
+        if (dmLZ4::RESULT_OK != r)
+        {
+            dmLogError("Failed to decompress resource: '%s", path);
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+    }
+    else
+    {
+        memcpy(out_buffer, resource.m_Data, resource.m_Count);
+    }
+
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
+{
+    ZipProviderContext* archive = (ZipProviderContext*)_archive;
+    EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+    if (!entry)
+        return dmResourceProvider::RESULT_NOT_FOUND;
+
+    if (buffer_len < entry->m_Size)
+        return dmResourceProvider::RESULT_INVAL_ERROR;
+
+    dmZip::Result zr = dmZip::OpenEntry(archive->m_Zip, entry->m_EntryIndex);
+    if (dmZip::RESULT_OK != zr)
+        return dmResourceProvider::RESULT_IO_ERROR;
+
+    dmResourceProvider::Result result = dmResourceProvider::RESULT_OK;
+    if (entry->m_ManifestEntry)
+    {
+        uint32_t raw_data_size;
+        dmZip::GetEntrySize(archive->m_Zip, &raw_data_size);
+        uint8_t* raw_data = new uint8_t[raw_data_size];
+        dmZip::GetEntryData(archive->m_Zip, (void*)raw_data, raw_data_size);
+        result = UnpackData(path, entry->m_ManifestEntry, raw_data, raw_data_size, buffer);
+        delete[] raw_data;
+    } else
+    {
+        // Uncompressed, regular files
+        dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
+    }
+
+    dmZip::CloseEntry(archive->m_Zip);
+
+    return result;
+}
+
+static void SetupArchiveLoaderHttpZip(dmResourceProvider::ArchiveLoader* loader)
+{
+    loader->m_CanMount      = MatchesUri;
+    loader->m_Mount         = Mount;
+    loader->m_Unmount       = Unmount;
+    loader->m_GetFileSize   = GetFileSize;
+    loader->m_ReadFile      = ReadFile;
+}
+
+DM_DECLARE_ARCHIVE_LOADER(ResourceProviderZip, "zip", SetupArchiveLoaderHttpZip);
 }
