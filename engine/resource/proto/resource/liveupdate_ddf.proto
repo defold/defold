@@ -43,6 +43,8 @@ enum SignAlgorithm {
 enum ResourceEntryFlag {
     BUNDLED    = 1;
     EXCLUDED   = 2;
+    ENCRYPTED  = 4;
+    COMPRESSED = 8;
 }
 
 /*
@@ -97,11 +99,13 @@ message ManifestHeader {
  *                              to be in the bundle or not.
  */
 message ResourceEntry {
-    required string             url = 1;
-    required uint64             url_hash = 2;
-    required HashDigest         hash = 3;
-    repeated uint32             dependants = 4;
-    required uint32             flags = 5 [default = 0]; // ResourceEntryFlag
+    required HashDigest         hash = 1;
+    required string             url = 2;
+    required uint64             url_hash = 3;
+    required uint32             size = 4;
+    required uint32             compressed_size = 5;
+    required uint32             flags = 6 [default = 0]; // ResourceEntryFlag
+    repeated uint32             dependants = 7;
 }
 
 /*
@@ -131,4 +135,5 @@ message ManifestFile {
     required bytes              data = 1;
     required bytes              signature = 2;
     required bytes              archive_identifier = 3;
+    optional uint32             version = 4 [default = 0]; // dmResourceManifest::MANIFEST_VERSION
 }

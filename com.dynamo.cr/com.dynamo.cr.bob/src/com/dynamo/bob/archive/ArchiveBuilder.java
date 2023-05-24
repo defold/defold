@@ -202,14 +202,20 @@ public class ArchiveBuilder {
                     archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
+
+                    resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
                 } else {
                     entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
                 }
+            }
+            else {
+                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
             }
 
             // Encrypt data
             if ((archiveEntryFlags & ArchiveEntry.FLAG_ENCRYPTED) != 0) {
                 buffer = this.encryptResourceData(buffer);
+                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
             }
 
             // Add entry to manifest
@@ -228,7 +234,8 @@ public class ArchiveBuilder {
 
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
-                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
+                resourceEntryFlags &= ~ResourceEntryFlag.BUNDLED.getNumber();
+                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
                 this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
                 entries.remove(i);
             } else {
@@ -237,7 +244,7 @@ public class ArchiveBuilder {
                 archiveData.write(buffer, 0, buffer.length);
             }
 
-            manifestBuilder.addResourceEntry(normalisedPath, buffer, resourceEntryFlags);
+            manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.size, entry.compressedSize, resourceEntryFlags);
         }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash
