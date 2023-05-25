@@ -64,6 +64,9 @@ static void CreateEntryMap(ZipProviderContext* archive)
     dmLiveUpdateDDF::HashAlgorithm algorithm = archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     uint32_t hash_len = dmResource::HashLength(algorithm);
 
+    dmHashTable32<bool> added;
+    added.SetCapacity(dmMath::Max(1U, (count*2)/3), archive->m_EntryMap.Capacity());
+
     dmZip::HZip zip = archive->m_Zip;
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -87,15 +90,18 @@ static void CreateEntryMap(ZipProviderContext* archive)
         // For live update resources, we account for the header size
         dmZip::CloseEntry(archive->m_Zip);
 
-dmLogWarning("Added '%s' for '%s' to file list. %u -> %u", entry->m_Url, hash_buffer, entry->m_Size, info.m_Size);
-
         archive->m_EntryMap.Put(entry->m_UrlHash, info);
+        added.Put(info.m_EntryIndex, true);
     }
 
     // Also add any other files that the developer might have added to the zip archive
     uint32_t entry_count = dmZip::GetNumEntries(zip);
     for (uint32_t i = 0; i < entry_count; ++i)
     {
+        bool* was_added = added.Get(i);
+        if (was_added) // no need to check the value. The presence of the value is enough
+            continue;
+
         dmZip::Result zr = dmZip::OpenEntry(zip, i);
         if (dmZip::RESULT_OK != zr)
         {
@@ -105,8 +111,6 @@ dmLogWarning("Added '%s' for '%s' to file list. %u -> %u", entry->m_Url, hash_bu
 
         const char* name  = dmZip::GetEntryName(zip);
         dmhash_t name_hash = dmHashString64(name);
-
-dmLogWarning("Added extra '%s' to file list", name?name:"null");
 
         EntryInfo info;
         info.m_ManifestEntry = 0;
@@ -203,20 +207,10 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     uint32_t compressed_size = compressed ? entry->m_CompressedSize : entry->m_Size;
     uint32_t resource_size = entry->m_Size;
 
-    if (encrypted)
-    {
-        dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)resource.m_Data, resource.m_Count);
-        if (dmResource::RESULT_OK != r)
-        {
-            dmLogError("Failed to decrypt resource: '%s", path);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
-    }
-
     if (compressed)
     {
         int decompressed_size;
-        dmLZ4::Result r = dmLZ4::DecompressBuffer((const uint8_t*)resource.m_Data, compressed_size, (uint8_t*)out_buffer, resource_size, &decompressed_size);
+        dmLZ4::Result r = dmLZ4::DecompressBuffer((const uint8_t*)resource.m_Data, compressed_size, out_buffer, resource_size, &decompressed_size);
         if (dmLZ4::RESULT_OK != r)
         {
             dmLogError("Failed to decompress resource: '%s", path);
@@ -226,6 +220,17 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     else
     {
         memcpy(out_buffer, resource.m_Data, resource.m_Count);
+    }
+
+    if (encrypted)
+    {
+        //dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)resource.m_Data, resource.m_Count);
+        dmResource::Result r = dmResource::DecryptBuffer(out_buffer, resource_size);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to decrypt resource: '%s", path);
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
     }
 
     return dmResourceProvider::RESULT_OK;

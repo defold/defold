@@ -99,17 +99,23 @@ TEST(ArchiveProviderBasic, CanMount)
 
 // ****************************************************************************************************************
 
-class ArchiveProviderZip : public jc_test_base_class
+struct ZipParams
+{
+    const char* m_Path;
+};
+
+class ArchiveProviderZip : public jc_test_params_class<ZipParams>
 {
 protected:
     virtual void SetUp()
     {
+        const ZipParams& params = GetParam();
+
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
 
         dmURI::Parts uri;
-        dmURI::Parse("zip:build/src/test/defold.resourcepack_generic.zip", &uri);
-
+        dmURI::Parse(params.m_Path, &uri);
 
         dmResourceProvider::Result result = dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
@@ -125,7 +131,7 @@ protected:
     dmResourceProvider::ArchiveLoader* m_Loader;
 };
 
-TEST_F(ArchiveProviderZip, GetSize)
+TEST_P(ArchiveProviderZip, GetSize)
 {
     dmResourceProvider::Result result;
     uint32_t file_size;
@@ -146,29 +152,9 @@ TEST_F(ArchiveProviderZip, GetSize)
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
 }
 
-// Wrap the file as expected
-static uint8_t* CreateLiveupdateResource(const uint8_t* src, uint32_t src_len, bool encrypted, bool compressed, uint32_t* out_len)
-{
-    uint8_t* out = (uint8_t*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader) + src_len);
-    dmResourceArchive::LiveUpdateResourceHeader* header = (dmResourceArchive::LiveUpdateResourceHeader*)out;
-    memset(header, 0xED, sizeof(dmResourceArchive::LiveUpdateResourceHeader)); // same as in archive builder
-    header->m_Size = dmEndian::ToHost(src_len);
-
-    header->m_Flags = dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
-    if (compressed)
-        header->m_Flags |= dmResourceArchive::ENTRY_FLAG_COMPRESSED;
-    if (encrypted)
-        header->m_Flags |= dmResourceArchive::ENTRY_FLAG_ENCRYPTED;
-
-    memcpy(out + sizeof(dmResourceArchive::LiveUpdateResourceHeader), src, src_len);
-    *out_len = sizeof(dmResourceArchive::LiveUpdateResourceHeader) + src_len;
-    return out;
-}
-
-
 // * Test that the files exist
 // * Test that the content is the same as on disc
-TEST_F(ArchiveProviderZip, ReadFile)
+TEST_P(ArchiveProviderZip, ReadFile)
 {
     uint8_t short_buffer[4] = {0};
 
@@ -199,13 +185,19 @@ TEST_F(ArchiveProviderZip, ReadFile)
         result = dmResourceProvider::ReadFile(m_Archive, path_hash, path, buffer, file_size);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
-printf("file_size: %u\n", file_size);
         ASSERT_ARRAY_EQ_LEN(expected_file, buffer, file_size);
 
         delete[] buffer;
         dmMemory::AlignedFree((void*)expected_file);
     }
 }
+
+ZipParams params_zip_archives[] = {
+    {"zip:build/src/test/luresources.zip"},
+    {"zip:build/src/test/luresources_compressed.zip"},
+};
+
+INSTANTIATE_TEST_CASE_P(ArchiveProviderZipTest, ArchiveProviderZip, jc_test_values_in(params_zip_archives));
 
 int main(int argc, char **argv)
 {

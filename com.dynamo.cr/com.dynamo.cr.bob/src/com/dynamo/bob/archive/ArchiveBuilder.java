@@ -63,6 +63,7 @@ public class ArchiveBuilder {
     private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
+    private boolean forceCompression = false; // for building unit tests to create test content
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding) {
         this.root = new File(root).getAbsolutePath();
@@ -113,6 +114,14 @@ public class ArchiveBuilder {
         byte[] compressedContent = new byte[maximumCompressedSize];
         int compressedSize = lz4Compressor.compress(buffer, compressedContent);
         return Arrays.copyOfRange(compressedContent, 0, compressedSize);
+    }
+
+    public void setForceCompression(boolean forceCompression) {
+        this.forceCompression = forceCompression;
+    }
+
+    public boolean getForceCompression() {
+        return forceCompression;
     }
 
     public boolean shouldUseCompressedResourceData(byte[] original, byte[] compressed) {
@@ -195,27 +204,28 @@ public class ArchiveBuilder {
             byte[] buffer = this.loadResourceData(entry.fileName);
             byte archiveEntryFlags = (byte) entry.flags;
             int resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
+
+            // Encrypt data
+            if ((archiveEntryFlags & ArchiveEntry.FLAG_ENCRYPTED) != 0) {
+                buffer = this.encryptResourceData(buffer);
+                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            }
+
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
-                if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                if (this.shouldUseCompressedResourceData(buffer, compressed) || this.getForceCompression()) {
                     archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
-
                     resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
                 } else {
                     entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
                 }
             }
             else {
+                resourceEntryFlags &= ~ResourceEntryFlag.BUNDLED.getNumber();
                 resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
-            }
-
-            // Encrypt data
-            if ((archiveEntryFlags & ArchiveEntry.FLAG_ENCRYPTED) != 0) {
-                buffer = this.encryptResourceData(buffer);
-                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
             }
 
             // Add entry to manifest
@@ -380,9 +390,13 @@ public class ArchiveBuilder {
         int archivedEntries = 0;
         String dirpathRootString = dirpathRoot.toString();
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
+        archiveBuilder.setForceCompression(doCompress);
         for (File currentInput : inputs) {
             String absolutePath = currentInput.getAbsolutePath();
-            boolean encrypt = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
+            boolean encrypt = ( absolutePath.endsWith("luac") ||
+                                absolutePath.endsWith("scriptc") ||
+                                absolutePath.endsWith("gui_scriptc") ||
+                                absolutePath.endsWith("render_scriptc"));
             if (currentInput.getName().startsWith("liveupdate.")){
                 archiveBuilder.add(absolutePath, doCompress, encrypt, true);
 
@@ -431,8 +445,7 @@ public class ArchiveBuilder {
             settings.setZipFilepath(dirpathRoot.getAbsolutePath());
 
             ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
-            publisher.setPlatform("generic"); // do we need a proper platform?
-            publisher.setUseTemFilename(false);
+            publisher.setFilename(filepathZipArchive.getName());
             for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
                 if (fhandle.isFile()) {
                     publisher.AddEntry(fhandle.getName(), fhandle);

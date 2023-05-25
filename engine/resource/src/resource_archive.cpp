@@ -332,40 +332,6 @@ namespace dmResourceArchive
         return GetInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, out_index);
     }
 
-    void DebugArchiveIndex(HArchiveIndexContainer archive)
-    {
-        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-        uint8_t* hashes = 0;
-        dmResourceArchive::EntryData* entries = 0;
-
-        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (!archive->m_IsMemMapped)
-        {
-            hashes = archive->m_ArchiveFileIndex->m_Hashes;
-            entries = archive->m_ArchiveFileIndex->m_Entries;
-        }
-        else
-        {
-            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        }
-
-        for (uint32_t i = 0; i < entry_count; ++i)
-        {
-            uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
-            dmResourceArchive::EntryData* e = &entries[i];
-            uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
-
-            printf("entry e/c/l: %d%d%d  sz: %u  csz: %u  off: %u\n",
-                (e->m_Flags & ENTRY_FLAG_ENCRYPTED) != 0,
-                (e->m_Flags & ENTRY_FLAG_COMPRESSED) != 0,
-                (e->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA) != 0,
-                e->m_ResourceSize, e->m_ResourceCompressedSize, e->m_ResourceDataOffset);
-        }
-    }
-
     dmResource::Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
     {
         for(uint32_t i = 0; i < num_entries; ++i)
@@ -615,99 +581,84 @@ namespace dmResourceArchive
         const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
         bool resource_memmapped = afi->m_IsMemMapped;
 
-        // We have multiple combinations for regular archives:
-        // memory mapped (yes/no) * compressed (yes/no) * encrypted (yes/no)
-        // Decryption can be done into a buffer of the same size, although not into a read only array
-        // We do this is to avoid unnecessary memory allocations
+        uint8_t* temp_data = 0;
+        uint8_t* source_data = 0;
+        uint32_t source_data_size = 0;
 
-        //  compressed +  encrypted +  memmapped = need malloc (encrypt cannot modify memmapped file, decompress cannot use same src/dst)
-        //  compressed +  encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-        //  compressed + !encrypted +  memmapped = doesn't need malloc (can decompress because src != dst)
-        //  compressed + !encrypted + !memmapped = need malloc (decompress cannot use same src/dst)
-        // !compressed +  encrypted +  memmapped = doesn't need malloc
-        // !compressed +  encrypted + !memmapped = doesn't need malloc
-        // !compressed + !encrypted +  memmapped = doesn't need malloc
-        // !compressed + !encrypted + !memmapped = doesn't need malloc
-
-        void* compressed_buf = 0;
-        bool temp_buffer = false;
-
-        if (compressed && !( !encrypted && resource_memmapped))
-        {
-            compressed_buf = malloc(compressed_size);
-            temp_buffer = true;
-        } else {
-            // For uncompressed data, use the destination buffer
-            compressed_buf = buffer;
-            memset(buffer, 0, size);
-            compressed_size = compressed ? compressed_size : size;
-        }
-
-        assert(compressed_buf);
         if (!resource_memmapped)
         {
+            // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-
-            assert(temp_buffer || compressed_buf == buffer);
-
             fseek(resource_file, resource_offset, SEEK_SET);
-            if (fread(compressed_buf, 1, compressed_size, resource_file) != compressed_size)
+
+            Result result = dmResourceArchive::RESULT_OK;
+            if (!compressed)
             {
-                if (temp_buffer)
-                    free(compressed_buf);
-                return dmResourceArchive::RESULT_IO_ERROR;
+                // we can read directly to the output buffer
+                if (fread(buffer, 1, size, resource_file) != size)
+                {
+                    result = dmResourceArchive::RESULT_IO_ERROR;
+                }
+                source_data = (uint8_t*)buffer;
+                source_data_size = size;
             }
-        } else {
-            void* r = (void*) (((uintptr_t)afi->m_ResourceData + resource_offset));
-            if (compressed && !encrypted)
+            else
             {
-                compressed_buf = r;
-            } else {
-                memcpy(compressed_buf, r, compressed_size);
+                // We need a temp buffer to read to, since we can't decompress to the same folder
+                temp_data = new uint8_t[compressed_size];
+                if (fread(temp_data, 1, compressed_size, resource_file) != compressed_size)
+                {
+                    result = RESULT_IO_ERROR;
+                }
+                source_data = temp_data;
+                source_data_size = compressed_size;
+            }
+
+            if (result != dmResourceArchive::RESULT_OK)
+            {
+                delete[] temp_data;
+                return result;
+            }
+        }
+        else
+        {
+            source_data = (uint8_t*) (((uintptr_t)afi->m_ResourceData + resource_offset));
+            source_data_size = compressed ? compressed_size : size;
+
+            if (!compressed)
+            {
+                // we can copy it directly to the output buffer
+                memcpy(buffer, source_data, source_data_size);
             }
         }
 
-        // Design wish: If we switch the order of operations (and thus the file format)
-        // we can simplify the code and save a temporary allocation
-        //
-        // Currently, we need to decrypt into a new buffer (since the input is read only):
-        // input:[LZ4 then Encrypted] -> Decrypt ->   temp:[  LZ4      ] -> Deflate -> output:[   data   ]
-        //
-        // We could instead have:
-        // input:[Encrypted then LZ4] -> Deflate -> output:[ Encrypted ] -> Decrypt -> output:[   data   ]
+        // At this point the source_data is the file "stored on disc"
+        // and will be treated as the input
 
+        if (compressed)
+        {
+            int decompressed_size;
+            dmLZ4::Result r = dmLZ4::DecompressBuffer(source_data, source_data_size, buffer, size, &decompressed_size);
+            if (dmLZ4::RESULT_OK != r)
+            {
+                delete[] temp_data;
+                return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
+            }
+        }
+
+        // Encryption can be done in-place
         if(encrypted)
         {
-            assert(temp_buffer || compressed_buf == buffer);
-
-            dmResource::Result r = dmResource::DecryptBuffer(compressed_buf, compressed_size);
+            dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)buffer, size);
             if (dmResource::RESULT_OK != r)
             {
-                if (temp_buffer)
-                    free(compressed_buf);
+                delete[] temp_data;
                 return dmResourceArchive::RESULT_UNKNOWN;
             }
         }
 
-        if (compressed)
-        {
-            assert(compressed_buf != buffer);
-            int decompressed_size;
-            dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
-            if (dmLZ4::RESULT_OK != r)
-            {
-                if (temp_buffer)
-                    free(compressed_buf);
-                return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
-            }
-        } else {
-            if (buffer != compressed_buf)
-                memcpy(buffer, compressed_buf, size);
-        }
 
-        if (temp_buffer)
-            free(compressed_buf);
-
+        delete[] temp_data;
         return dmResourceArchive::RESULT_OK;
     }
 

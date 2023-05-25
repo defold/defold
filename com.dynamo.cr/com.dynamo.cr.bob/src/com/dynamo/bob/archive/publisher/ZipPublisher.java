@@ -37,16 +37,16 @@ public class ZipPublisher extends Publisher {
 
     private File resourcePackZip = null;
     private String projectRoot = null;
-    private boolean useTempFilename = true;
+    private String filename = null;
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
         this.projectRoot = projectRoot;
     }
 
-    public void setUseTemFilename(boolean enable)
+    public void setFilename(String filename)
     {
-        this.useTempFilename = enable;
+        this.filename = filename;
     }
 
     @Override
@@ -56,8 +56,9 @@ public class ZipPublisher extends Publisher {
             this.resourcePackZip = File.createTempFile(tempFilePrefix, ".zip");
 
             String outputName = this.resourcePackZip.getName();
-            if (!this.useTempFilename)
-                 outputName = "defold.resourcepack_" + this.platform + ".zip";
+            if (this.filename != null) {
+                outputName = this.filename;
+            }
 
             FileOutputStream resourcePackOutputStream = new FileOutputStream(this.resourcePackZip);
             ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);

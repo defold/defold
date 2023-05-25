@@ -200,7 +200,6 @@ struct InMemoryParams
     uint32_t m_ArcdDataSize;
 };
 
-//class ArchiveProviderArchiveInMemory : public jc_test_base_class
 class ArchiveProviderArchiveInMemory : public jc_test_params_class<InMemoryParams>
 {
 protected:
