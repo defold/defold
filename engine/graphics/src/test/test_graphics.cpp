@@ -569,8 +569,8 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
         params[i].m_Height = HEIGHT;
     }
 
-    // 4 color buffers + depth + stencil buffers == 6
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
+    // 4 color buffers + depth + stencil buffers + depth + stencil texture == 8
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 8);
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format  = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
@@ -666,8 +666,8 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
     }
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 8);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format  = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
@@ -698,6 +698,63 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     memset(data, 1, data_size);
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
+
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::DeleteRenderTarget(target);
+}
+
+TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
+{
+    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
+    {
+        creation_params[i].m_Width = WIDTH;
+        creation_params[i].m_Height = HEIGHT;
+        params[i].m_Width = WIDTH;
+        params[i].m_Height = HEIGHT;
+    }
+
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT | dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
+
+    float depth_value = 0.5f;
+    uint32_t stencil_value = 127;
+
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, depth_value, stencil_value);
+
+    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, depth_texture));
+    {
+        float* texture_data = 0x0;
+        dmGraphics::HandleResult res = dmGraphics::GetTextureHandle(depth_texture, (void**) &texture_data);
+        ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
+        ASSERT_NE((float*)0x0, texture_data);
+
+        const float EPSILON = 0.000001f;
+        for (int i = 0; i < WIDTH * HEIGHT; ++i)
+        {
+            ASSERT_NEAR(depth_value, texture_data[i], EPSILON);
+        }
+    }
+
+    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, stencil_texture));
+    {
+        uint32_t* texture_data = 0x0;
+        dmGraphics::HandleResult res = dmGraphics::GetTextureHandle(stencil_texture, (void**)&texture_data);
+        ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
+        ASSERT_NE((uint32_t*)0x0, texture_data);
+        for (int i = 0; i < WIDTH * HEIGHT; ++i)
+        {
+            ASSERT_EQ(stencil_value, texture_data[i]);
+        }
+    }
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
