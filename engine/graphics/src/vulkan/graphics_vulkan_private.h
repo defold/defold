@@ -167,7 +167,7 @@ namespace dmGraphics
     {
     	RenderTarget(const uint32_t rtId);
         HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        Texture*       m_TextureDepthStencil;
+        HTexture       m_TextureDepthStencil;
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         VkRenderPass   m_RenderPass;

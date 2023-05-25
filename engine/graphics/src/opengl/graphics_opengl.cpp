@@ -2335,6 +2335,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
+        // TODO: Maybe this is needed for depth/stencil textures as well..
         if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
         {
             if(!(buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
@@ -2438,7 +2439,30 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
+        if (buffer_type_flags & (dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT | dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT))
+        {
+            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT)
+            {
+                uint8_t depth_texture_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_TEXTURE_BIT);
+                rt->m_DepthTexture = NewTexture(context, creation_params[depth_texture_index]);
+                SetTexture(rt->m_DepthTexture, params[depth_texture_index]);
+
+                OpenGLTexture* depth_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthTexture);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex->m_TextureIds[0], 0);
+                CHECK_GL_ERROR;
+            }
+            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT)
+            {
+                uint8_t stencil_texture_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_TEXTURE_BIT);
+                rt->m_StencilTexture          = NewTexture(context, creation_params[stencil_texture_index]);
+                SetTexture(rt->m_StencilTexture, params[stencil_texture_index]);
+
+                OpenGLTexture* stencil_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_StencilTexture);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, stencil_tex->m_TextureIds[0], 0);
+                CHECK_GL_ERROR;
+            }
+        }
+        else if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
         {
             if(!(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT))
             {
@@ -2500,11 +2524,29 @@ static void LogFrameBufferError(GLenum status)
         }
 
         if (rt->m_DepthStencilBuffer)
+        {
             glDeleteRenderbuffers(1, &rt->m_DepthStencilBuffer);
-        if (rt->m_DepthBuffer)
+        }
+
+        // Depth attachment
+        if (rt->m_DepthBuffer && rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
+        {
             glDeleteRenderbuffers(1, &rt->m_DepthBuffer);
-        if (rt->m_StencilBuffer)
+        }
+        else if (rt->m_DepthTexture && rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_TEXTURE_BIT)
+        {
+            DeleteTexture(rt->m_DepthTexture);
+        }
+
+        // Stencil attachment
+        if (rt->m_StencilBuffer && rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
+        {
             glDeleteRenderbuffers(1, &rt->m_StencilBuffer);
+        }
+        else if (rt->m_StencilTexture && rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_TEXTURE_BIT)
+        {
+            DeleteTexture(rt->m_StencilTexture);
+        }
 
         g_Context->m_AssetHandleContainer.Release(render_target);
 
@@ -2594,17 +2636,24 @@ static void LogFrameBufferError(GLenum status)
 
     static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT  ||
-           buffer_type == BUFFER_TYPE_COLOR0_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR1_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR2_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR3_BIT))
-        {
-            return 0;
-        }
-
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
-        return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
+
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:
+            case BUFFER_TYPE_COLOR1_BIT:
+            case BUFFER_TYPE_COLOR2_BIT:
+            case BUFFER_TYPE_COLOR3_BIT:
+                return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
+            case BUFFER_TYPE_DEPTH_TEXTURE_BIT:
+                return rt->m_DepthTexture;
+            case BUFFER_TYPE_STENCIL_TEXTURE_BIT:
+                return rt->m_StencilTexture;
+            case BUFFER_TYPE_DEPTH_BIT:
+            case BUFFER_TYPE_STENCIL_BIT:
+                break;
+        }
+        return 0;
     }
 
     static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -2886,6 +2935,13 @@ static void LogFrameBufferError(GLenum status)
         return HANDLE_RESULT_OK;
     }
 
+    static inline GLint GetDepthBufferInternalFormat(OpenGLContext* context)
+    {
+         return context->m_DepthBufferBits == 16 ?
+            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 :
+            DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
+    }
+
     static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
     {
         #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
@@ -2993,6 +3049,11 @@ static void LogFrameBufferError(GLenum status)
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
+        case TEXTURE_FORMAT_DEPTH:
+            gl_type            = GL_FLOAT;
+            gl_format          = GL_DEPTH_COMPONENT;
+            gl_internal_format = GetDepthBufferInternalFormat(context);
+            break;
 
         default:
             assert(0);
@@ -3008,19 +3069,6 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
         DM_PROFILE(__FUNCTION__);
-
-        // validate write accessibility for format. Some format are not garuanteed to be writeable
-        switch (params.m_Format)
-        {
-            case TEXTURE_FORMAT_DEPTH:
-                dmLogError("TEXTURE_FORMAT_DEPTH is not a valid argument for SetTexture");
-                return;
-            case TEXTURE_FORMAT_STENCIL:
-                dmLogError("TEXTURE_FORMAT_STENCIL is not a valid argument for SetTexture");
-                return;
-            default:
-                break;
-        }
 
         // Responsibility is on caller to not send in too big textures.
         assert(params.m_Width <= g_Context->m_MaxTextureSize);
@@ -3091,6 +3139,8 @@ static void LogFrameBufferError(GLenum status)
             {
             case TEXTURE_FORMAT_LUMINANCE:
             case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            case TEXTURE_FORMAT_DEPTH:
+            case TEXTURE_FORMAT_STENCIL:
             case TEXTURE_FORMAT_RGB:
             case TEXTURE_FORMAT_RGBA:
             case TEXTURE_FORMAT_RGB_16BPP:

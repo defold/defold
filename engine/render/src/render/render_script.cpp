@@ -1015,14 +1015,14 @@ namespace dmRender
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int) luaL_checkinteger(L, -1);
-                    if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                    if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT)
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
                         {
                             return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
                         }
                     }
-                    if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT)
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_STENCIL)
                         {
@@ -1372,11 +1372,11 @@ namespace dmRender
      * @name render.enable_texture
      * @param unit [type:number] texture unit to enable texture for
      * @param render_target [type:handle] render target or texture from which to enable the specified texture unit
-     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to render.BUFFER_COLOR_BIT
+     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
-     * - `render.BUFFER_DEPTH_BIT`
-     * - `render.BUFFER_STENCIL_BIT`
+     * - `render.BUFFER_DEPTH_TEXTURE_BIT`
+     * - `render.BUFFER_STENCIL_TEXTURE_BIT`
      *
      * If the render target has been created with multiple color attachments, these buffer types can be used
      * to enable those textures as well. Currently 4 color attachments are supported:
@@ -3021,6 +3021,8 @@ namespace dmRender
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 
+        REGISTER_BUFFER_CONSTANT(DEPTH_TEXTURE_BIT,   DEPTH_TEXTURE_BIT);
+        REGISTER_BUFFER_CONSTANT(STENCIL_TEXTURE_BIT, STENCIL_TEXTURE_BIT);
 #undef REGISTER_BUFFER_CONSTANT
 
         lua_pop(L, 1);

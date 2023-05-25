@@ -89,16 +89,18 @@ namespace dmGraphics
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
     {
-        BUFFER_TYPE_COLOR0_BIT  = 0x01,
-        BUFFER_TYPE_COLOR1_BIT  = 0x02,
-        BUFFER_TYPE_COLOR2_BIT  = 0x04,
-        BUFFER_TYPE_COLOR3_BIT  = 0x08,
-        BUFFER_TYPE_DEPTH_BIT   = 0x10,
-        BUFFER_TYPE_STENCIL_BIT = 0x20,
+        BUFFER_TYPE_COLOR0_BIT          = 0x01,
+        BUFFER_TYPE_COLOR1_BIT          = 0x02,
+        BUFFER_TYPE_COLOR2_BIT          = 0x04,
+        BUFFER_TYPE_COLOR3_BIT          = 0x08,
+        BUFFER_TYPE_DEPTH_BIT           = 0x10,
+        BUFFER_TYPE_STENCIL_BIT         = 0x20,
+        BUFFER_TYPE_DEPTH_TEXTURE_BIT   = 0x40,
+        BUFFER_TYPE_STENCIL_TEXTURE_BIT = 0x80,
     };
 
     static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
-    static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    static const uint8_t MAX_BUFFER_TYPE_COUNT        = 4 + MAX_BUFFER_COLOR_ATTACHMENTS;
 
     // render states
     enum State

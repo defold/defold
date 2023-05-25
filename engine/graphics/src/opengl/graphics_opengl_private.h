@@ -45,8 +45,19 @@ namespace dmGraphics
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
-        GLuint          m_DepthBuffer;
-        GLuint          m_StencilBuffer;
+
+        union
+        {
+            GLuint   m_DepthBuffer;
+            HTexture m_DepthTexture;
+        };
+
+        union
+        {
+            GLuint   m_StencilBuffer;
+            HTexture m_StencilTexture;
+        };
+
         GLuint          m_DepthStencilBuffer;
         GLuint          m_Id;
         uint32_t        m_BufferTypeFlags;
