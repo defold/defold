@@ -47,8 +47,6 @@ void DeleteManifest(dmResource::Manifest* manifest)
 
 static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
 {
-    printf("ManifestLoadMessage: %u\n", size);
-
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
     if (result != dmDDF::RESULT_OK)

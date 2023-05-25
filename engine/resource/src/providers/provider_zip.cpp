@@ -127,7 +127,6 @@ static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
-
     uint32_t manifest_len;
     dmZip::GetEntrySize(zip, &manifest_len);
     uint8_t* manifest_data = new uint8_t[manifest_len];

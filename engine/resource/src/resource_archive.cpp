@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -358,6 +358,11 @@ namespace dmResourceArchive
             dmResourceArchive::EntryData* e = &entries[i];
             uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
 
+            printf("entry e/c/l: %d%d%d  sz: %u  csz: %u  off: %u\n",
+                (e->m_Flags & ENTRY_FLAG_ENCRYPTED) != 0,
+                (e->m_Flags & ENTRY_FLAG_COMPRESSED) != 0,
+                (e->m_Flags & ENTRY_FLAG_LIVEUPDATE_DATA) != 0,
+                e->m_ResourceSize, e->m_ResourceCompressedSize, e->m_ResourceDataOffset);
         }
     }
 
