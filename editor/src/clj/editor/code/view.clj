@@ -1329,11 +1329,29 @@
         cursor-ranges-empty? (every? data/cursor-range-empty? cursor-ranges)
         single-character-backspace? (and cursor-ranges-empty? (= :delete-before delete-type))
         undo-grouping (when cursor-ranges-empty? :typing)
+
         delete-fn (case delete-type
-                    :delete-before data/delete-character-before-cursor
-                    :delete-word-before data/delete-word-before-cursor
-                    :delete-after data/delete-character-after-cursor
-                    :delete-word-after data/delete-word-after-cursor)]
+                    :delete-before
+                    (if cursor-ranges-empty?
+                      data/delete-character-before-cursor
+                      data/delete-range)
+
+                    :delete-word-before
+                    (if cursor-ranges-empty?
+                      data/delete-word-before-cursor
+                      data/delete-range)
+
+                    :delete-after
+                    (if cursor-ranges-empty?
+                      data/delete-character-after-cursor
+                      data/delete-range)
+
+                    :delete-word-after
+                    (if cursor-ranges-empty?
+                      data/delete-word-after-cursor
+                      data/delete-range)
+
+                    :delete-to-beginning-of-line data/delete-to-beginning-of-line)]
     (when-not single-character-backspace?
       (hide-suggestions! view-node))
     (set-properties! view-node undo-grouping
@@ -1729,6 +1747,9 @@
 
 (handler/defhandler :delete-next-word :code-view
   (run [view-node] (delete! view-node :delete-word-after)))
+
+(handler/defhandler :delete-to-beginning-of-line :code-view
+  (run [view-node] (delete! view-node :delete-to-beginning-of-line)))
 
 (handler/defhandler :select-next-occurrence :code-view
   (run [view-node] (select-next-occurrence! view-node)))

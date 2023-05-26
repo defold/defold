@@ -2063,7 +2063,12 @@
         to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn- delete-range [lines cursor-range]
+(defn delete-to-beginning-of-line [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-line-start lines from)]
+    [(->CursorRange from to) [""]]))
+
+(defn delete-range [lines cursor-range]
   [(adjust-cursor-range lines cursor-range) [""]])
 
 (defn- put-selection-on-clipboard! [lines cursor-ranges clipboard]
@@ -2527,9 +2532,7 @@
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
 (defn delete [lines cursor-ranges regions ^LayoutInfo layout delete-fn]
-  (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines regions (map (partial delete-fn lines) cursor-ranges))
-        (splice lines regions (map (partial delete-range lines) cursor-ranges)))
+  (-> (splice lines regions (map (partial delete-fn lines) cursor-ranges))
       (frame-cursor layout)))
 
 (defn- apply-move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]

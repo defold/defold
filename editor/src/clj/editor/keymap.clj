@@ -74,6 +74,7 @@
            ["Meta+'-'" :zoom-out]
            ["Meta+A" :select-all]
            ["Meta+B" :build]
+           ["Meta+Backspace" :delete-to-beginning-of-line]
            ["Meta+C" :copy]
            ["Meta+Comma" :preferences]
            ["Meta+D" :select-next-occurrence]
