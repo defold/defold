@@ -1246,7 +1246,7 @@ namespace dmGameSystem
 
     static inline float GetAnimationFrameCount(SpriteComponent* component)
     {
-        TextureSetResource* texture_set                     = GetTextureSet(component, component->m_Resource);
+        TextureSetResource* texture_set                     = GetTextureSet(component);
         dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
         dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
         return (float)(animation_ddf->m_End - animation_ddf->m_Start);
