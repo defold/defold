@@ -424,6 +424,8 @@
 
 (def ^:private default-pb-read-v4 [(float 0.0) (float 0.0) (float 0.0) (float 0.0)])
 
+(def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
+
 (defn- sanitize-sprite [sprite]
   (cond-> sprite
 
@@ -434,7 +436,10 @@
           (dissoc :size)
 
           (= default-pb-read-v4 (:slice9 sprite))
-          (dissoc :slice9)))
+          (dissoc :slice9)
+
+          (nil? (:material sprite))
+          (assoc :material default-material-proj-path)))
 
 (defn- load-sprite [project self resource sprite]
   (let [resolve-resource #(workspace/resolve-resource resource %)]
@@ -442,7 +447,7 @@
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-map self sprite
         default-animation :default-animation
-        material (resolve-resource (:material :or (protobuf/default Sprite$SpriteDesc :material)))
+        material (resolve-resource (:material :or default-material-proj-path))
         blend-mode :blend-mode
         size-mode :size-mode
         manual-size (v4->v3 :size)

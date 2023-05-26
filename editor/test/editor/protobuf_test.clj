@@ -15,7 +15,7 @@
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$ResourceFields TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
 
@@ -159,7 +159,9 @@
                              :optional-bool true}}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults)))
   (is (= {:optional-message {}} ; TODO(save-value): Should this be here? It contains required fields.
-         (protobuf/make-map-with-defaults TestDdf$NestedRequireds))))
+         (protobuf/make-map-with-defaults TestDdf$NestedRequireds)))
+  (is (= {:optional-resource "/default"}
+         (protobuf/make-map-with-defaults TestDdf$ResourceFields))))
 
 (deftest make-map-with-defaults-specified-overrides-defaults-test
   (is (= {:required-string "overridden required_string"
@@ -224,7 +226,10 @@
                               (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string "overridden required_string"
                                 :required-quat [1.0 2.0 3.0 4.0]
-                                :required-enum :enum-val1)]))))
+                                :required-enum :enum-val1)])))
+  (is (= {:optional-resource "/overridden optional_resource"}
+         (protobuf/make-map-with-defaults TestDdf$ResourceFields
+           :optional-resource "/overridden optional_resource"))))
 
 (deftest make-map-with-defaults-specified-equals-defaults-test
   (is (= {:required-string ""
@@ -285,7 +290,10 @@
                               (protobuf/make-map-with-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string ""
                                 :required-quat [0.0 0.0 0.0 1.0]
-                                :required-enum :enum-val0)]))))
+                                :required-enum :enum-val0)])))
+  (is (= {:optional-resource "/default"}
+         (protobuf/make-map-with-defaults TestDdf$ResourceFields
+           :optional-resource "/default"))))
 
 ;; -----------------------------------------------------------------------------
 ;; read-map-with-defaults
@@ -316,7 +324,9 @@ required_message {
   required_string: ''
   required_quat {}
   required_enum: ENUM_VAL0
-}"))))
+}")))
+  (is (= {:optional-resource "/default"}
+         (read-map-with-defaults TestDdf$ResourceFields ""))))
 
 (deftest read-map-with-defaults-specified-overrides-defaults-test
   (is (= {:required-string "overridden required_string"
@@ -423,7 +433,9 @@ repeated_message {
     w: 4.0
   }
   required_enum: ENUM_VAL1
-}"))))
+}")))
+  (is (= {:optional-resource "/overridden optional_resource"}
+         (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/overridden optional_resource'"))))
 
 (deftest read-map-with-defaults-specified-equals-defaults-test
   (is (= {:required-string ""
@@ -530,7 +542,9 @@ repeated_message {
     w: 1.0
   }
   required_enum: ENUM_VAL0
-}"))))
+}")))
+  (is (= {:optional-resource "/default"}
+         (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-without-defaults
@@ -540,7 +554,9 @@ repeated_message {
   (is (= {}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults)))
   (is (= {}
-         (protobuf/make-map-without-defaults TestDdf$NestedRequireds))))
+         (protobuf/make-map-without-defaults TestDdf$NestedRequireds)))
+  (is (= {}
+         (protobuf/make-map-without-defaults TestDdf$ResourceFields))))
 
 (deftest make-map-without-defaults-specified-overrides-defaults-test
   (is (= {:required-string "overridden required_string"
@@ -601,7 +617,10 @@ repeated_message {
                               (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string "overridden required_string"
                                 :required-quat [1.0 2.0 3.0 4.0]
-                                :required-enum :enum-val1)]))))
+                                :required-enum :enum-val1)])))
+  (is (= {:optional-resource "/overridden optional_resource"}
+         (protobuf/make-map-without-defaults TestDdf$ResourceFields
+           :optional-resource "/overridden optional_resource"))))
 
 (deftest make-map-without-defaults-specified-equals-defaults-test
   (is (= {:required-string ""
@@ -651,7 +670,10 @@ repeated_message {
                               (protobuf/make-map-without-defaults TestDdf$NestedRequiredsSubMsg
                                 :required-string ""
                                 :required-quat [0.0 0.0 0.0 1.0]
-                                :required-enum :enum-val0)]))))
+                                :required-enum :enum-val0)])))
+  (is (= {:optional-resource "/default"}
+         (protobuf/make-map-without-defaults TestDdf$ResourceFields
+           :optional-resource "/default"))))
 
 ;; -----------------------------------------------------------------------------
 ;; read-map-without-defaults
@@ -672,7 +694,9 @@ required_message {
   required_string: ''
   required_quat {}
   required_enum: ENUM_VAL0
-}"))))
+}")))
+  (is (= {}
+         (read-map-without-defaults TestDdf$ResourceFields ""))))
 
 (deftest read-map-without-defaults-specified-overrides-defaults-test
   (is (= {:required-string "overridden required_string"
@@ -775,7 +799,9 @@ repeated_message {
     w: 4.0
   }
   required_enum: ENUM_VAL1
-}"))))
+}")))
+  (is (= {:optional-resource "/overridden optional_resource"}
+         (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/overridden optional_resource'"))))
 
 (deftest read-map-without-defaults-specified-equals-defaults-test
   (is (= {:required-string ""
@@ -864,4 +890,6 @@ repeated_message {
     w: 1.0
   }
   required_enum: ENUM_VAL0
-}"))))
+}")))
+  (is (= {:optional-resource "/default"}
+         (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))

@@ -233,6 +233,13 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def ^:private field-infos (memoize field-infos-raw))
 
+(defn resource-field? [field-info]
+  (and (= :string (:field-type-key field-info))
+       (true? (:resource (:options field-info)))))
+
+(defn message-field? [field-info]
+  (= :message (:field-type-key field-info)))
+
 (def field-key-set
   "Returns the set of field keywords applicable to the supplied protobuf Class."
   (memoize (comp set keys field-infos)))
@@ -286,29 +293,27 @@ Macros currently mean no foreseeable performance gain, however."
   (resource-field-paths-raw SimpleRepeatedlyNested) -> [ [[:simples] :image] ]
   (resource-field-paths-raw RepeatedRepeatedlyNested) -> [ [[:repeateds] [:images]] ]"
   [^Class class]
-  (let [resource-field? (fn [field] (and (= (:type field) String) (:resource (:options field))))
-        message-field? (fn [field] (= (:field-type-key field) :message))]
-    (into []
-          (comp
-            (map (fn [[key field-info]]
-                   (cond
-                     (resource-field? field-info)
-                     (if (= :repeated (:field-rule field-info))
-                       [ [[key]] ]
-                       (if-some [field-default (default class key nil)]
-                         [ [{key field-default}] ]
-                         [ [key] ]))
+  (into []
+        (comp
+          (map (fn [[key field-info]]
+                 (cond
+                   (resource-field? field-info)
+                   (if (= :repeated (:field-rule field-info))
+                     [ [[key]] ]
+                     (if-some [field-default (default class key nil)]
+                       [ [{key field-default}] ]
+                       [ [key] ]))
 
-                     (message-field? field-info)
-                     (let [sub-paths (resource-field-paths (:type field-info))]
-                       (when (seq sub-paths)
-                         (let [prefix (if (= :repeated (:field-rule field-info))
-                                        [[key]]
-                                        [key])]
-                           (mapv (partial into prefix) sub-paths)))))))
-            cat
-            (remove nil?))
-          (field-infos class))))
+                   (message-field? field-info)
+                   (let [sub-paths (resource-field-paths (:type field-info))]
+                     (when (seq sub-paths)
+                       (let [prefix (if (= :repeated (:field-rule field-info))
+                                      [[key]]
+                                      [key])]
+                         (mapv (partial into prefix) sub-paths)))))))
+          cat
+          (remove nil?))
+        (field-infos class)))
 
 (def resource-field-paths (memoize resource-field-paths-raw))
 
@@ -377,7 +382,7 @@ Macros currently mean no foreseeable performance gain, however."
                     (cond
                       (and include-defaults
                            (= :optional field-rule)
-                           (= :message (:field-type-key field-info)))
+                           (message-field? field-info))
                       (let [field-has-value? (field-has-value-fn class java-name repeated)
                             default-field-value (default-message (:type field-info) default-included-field-rules)]
                         (fn pb->field-clj-value [pb]
@@ -448,7 +453,8 @@ Macros currently mean no foreseeable performance gain, however."
                   (not (.hasField builder field-desc))
                   is-default
 
-                  (= (.getDefaultValue field-desc) (.getField builder field-desc))
+                  (and (= (.getDefaultValue field-desc) (.getField builder field-desc))
+                       (not (-> field-desc (.getOptions) (.getField resource-desc))))
                   (do
                     (.clearField builder field-desc)
                     is-default)
@@ -851,9 +857,10 @@ Macros currently mean no foreseeable performance gain, however."
                           (let [field-info (key->field-info key)]
                             (case (:field-rule field-info)
                               :optional
-                              (when-not (or (and (= :message (:field-type-key field-info))
-                                                 (coll/empty? value))
-                                            (= (key->default key) value))
+                              (when (or (resource-field? field-info)
+                                        (not (or (and (message-field? field-info)
+                                                      (coll/empty? value))
+                                                 (= (key->default key) value))))
                                 (pair key value))
 
                               :repeated
@@ -862,7 +869,7 @@ Macros currently mean no foreseeable performance gain, however."
                                 (pair key (vec value)))
 
                               :required
-                              (when-not (and (= :message (:field-type-key field-info))
+                              (when-not (and (message-field? field-info)
                                              (coll/empty? value))
                                 (pair key value))
 

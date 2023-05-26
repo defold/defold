@@ -79,6 +79,11 @@ message NestedRequireds
     repeated NestedRequiredsSubMsg repeated_message = 3;
 }
 
+message ResourceFields
+{
+    optional string optional_resource = 1 [ (resource) = true, default = "/default" ];
+}
+
 message OptionalNoDefaultValue
 {
     optional uint32 uint_value = 1;
@@ -106,17 +111,17 @@ message RepeatedUints
 
 message NestedMessages
 {
-	message NestedEnum
-	{
+    message NestedEnum
+    {
         enum Enum
         {
             ENUM_VAL0     = 0 [(displayName) = "Enum Val0"];
             ENUM_VAL1     = 1 [(displayName) = "Enum Val1"];
         }
         required Enum enum = 1;
-	}
-	required NestedEnum msg = 1;
-	repeated NestedEnum multi_msgs = 2;
+    }
+    required NestedEnum msg = 1;
+    repeated NestedEnum multi_msgs = 2;
 }
 
 message BooleanMsg
@@ -131,5 +136,5 @@ message BytesMsg
 
 message JavaCasingMsg
 {
-	required string javaCasing = 1;
+    required string javaCasing = 1;
 }

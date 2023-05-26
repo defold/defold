@@ -2731,6 +2731,8 @@
                                prop-value))))))
         (:overridden-fields node-properties)))
 
+(def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
+
 (defn load-gui-scene [project self resource scene]
   (let [graph-id           (g/node-id->graph-id self)
         node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
@@ -2759,7 +2761,7 @@
     (concat
       (gu/set-properties-from-map self scene
         script (resolve-resource :script)
-        material (resolve-resource (:material :or (protobuf/default Gui$SceneDesc :material)))
+        material (resolve-resource (:material :or default-material-proj-path))
         adjust-reference :adjust-reference
         background-color :background-color
         max-nodes :max-nodes)
@@ -3002,7 +3004,8 @@
 (defn- sanitize-scene [scene]
   (-> scene
       (protobuf/sanitize-repeated :nodes sanitize-node)
-      (protobuf/sanitize-repeated :layouts sanitize-layout)))
+      (protobuf/sanitize-repeated :layouts sanitize-layout)
+      (update :material #(or % default-material-proj-path))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

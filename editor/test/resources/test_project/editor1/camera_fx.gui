@@ -33,3 +33,4 @@ nodes {
   type: TYPE_BOX
   id: "curtain"
 }
+material: "/builtins/materials/gui.material"
