@@ -86,6 +86,7 @@ static void DestroyNode(Node* node)
 
 static void DestroyBone(Bone* bone)
 {
+    delete bone->m_Children;
     free((void*)bone->m_Name);
 }
 
@@ -95,6 +96,7 @@ static void DestroySkin(Skin* skin)
     for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
         DestroyBone(&skin->m_Bones[i]);
     delete[] skin->m_Bones;
+    delete[] skin->m_BoneRemap;
 }
 
 static void DestroyNodeAnimation(NodeAnimation* node_animation)
@@ -164,7 +166,6 @@ void DestroyScene(Scene* scene)
         DestroyAnimation(&scene->m_Animations[i]);
     scene->m_AnimationsCount = 0;
     delete[] scene->m_Animations;
-
 
     scene->m_BuffersCount = 0;
     delete[] scene->m_Buffers;

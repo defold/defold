@@ -111,25 +111,9 @@ public class MacOSBundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-
         BundleHelper.throwIfCanceled(canceled);
 
-        List<File> binaries = new ArrayList<File>();
-        for (Platform architecture : architectures) {
-            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
-            if (bins == null) {
-                bins = Bob.getDefaultDmengineFiles(architecture, variant);
-            } else {
-                logger.info("Using extender binary for " + architecture.getPair());
-            }
-
-            File binary = bins.get(0);
-            logger.info(architecture.getPair() + " exe: " + IOSBundler.getFileDescription(binary));
-            binaries.add(binary);
-
-            BundleHelper.throwIfCanceled(canceled);
-        }
+        List<File> binaries = IOSBundler.getBinariesFromArchitectures(project, architectures, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -192,7 +176,8 @@ public class MacOSBundler implements IBundler {
 
         // Copy debug symbols
         // Create list of dSYM binaries
-        List<File> symbolDirectories = IOSBundler.getSymbolDirsFromArchitectures(buildDir, architectures);
+        File extenderBuildDir = new File(project.getRootDirectory(), "build");
+        List<File> symbolDirectories = IOSBundler.getSymbolDirsFromArchitectures(extenderBuildDir, architectures);
         if (symbolDirectories.size() > 0)
         {
             File bundleSymbolsDir = new File(bundleDir, String.format("%s.dSYM", title));

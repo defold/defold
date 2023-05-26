@@ -49,12 +49,6 @@ cp -v $DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross libexec/arm64-macos/spirv-cro
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross libexec/x86_64-linux/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spirv-cross.exe
 
-# luac
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luac-32 libexec/x86_64-linux/luac-32
-cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luac-32 libexec/x86_64-macos/luac-32
-cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luac-32 libexec/arm64-macos/luac-32
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luac-32.exe libexec/x86_64-win32/luac-32.exe
-
 #
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 

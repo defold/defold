@@ -126,7 +126,6 @@
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
                 <include name="spirv-opt"/>
-                <include name="luac-32"/>
                 <include name="luajit-32"/>
                 <include name="luajit-64"/>
             </fileset>
@@ -145,7 +144,6 @@
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
                 <include name="spirv-opt"/>
-                <include name="luac-32"/>
                 <include name="luajit-32"/>
                 <include name="luajit-64"/>
             </fileset>
@@ -155,7 +153,6 @@
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
                 <include name="spirv-opt.exe"/>
-                <include name="luac-32.exe"/>
                 <include name="luajit-64.exe"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
@@ -354,7 +351,6 @@
                 <include name="libexec/**/spirv-cross*"/>
                 <include name="libexec/**/spirv-opt*"/>
                 <include name="libexec/**/luajit*"/>
-                <include name="libexec/**/luac-32*"/>
             </fileset>
             <zipfileset src="${bob.dir}/tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>

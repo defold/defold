@@ -237,6 +237,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return chunkName;
     }
 
+    /* We currently prefer source code over plain lua byte code due to the smaller size
     public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
@@ -290,6 +291,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         baos.close();
         return bytecode;
     }
+    */
 
     public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 

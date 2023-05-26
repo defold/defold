@@ -16,7 +16,7 @@
 #define DM_SPINLOCKTYPES_ATOMIC_H
 
 #include <stdint.h>
-#include <dlib/atomic.h>
+#include <dmsdk/dlib/atomic.h>
 
 namespace dmSpinlock
 {

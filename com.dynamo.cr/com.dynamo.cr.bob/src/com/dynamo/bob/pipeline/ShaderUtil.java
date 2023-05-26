@@ -291,6 +291,27 @@ public class ShaderUtil {
 
             return inputs;
         }
+
+        public static ArrayList<Resource> getOutputs() {
+            ArrayList<Resource> outputs = new ArrayList<Resource>();
+
+            JsonNode outputsNode = root.get("outputs");
+
+            if (outputsNode == null) {
+                return outputs;
+            }
+
+            for (Iterator<JsonNode> iter = outputsNode.getElements(); iter.hasNext();) {
+                JsonNode outputNode = iter.next();
+                Resource res = new Resource();
+                res.name     = outputNode.get("name").asText();
+                res.type     = outputNode.get("type").asText();
+                res.binding  = outputNode.get("location").asInt();
+                outputs.add(res);
+            }
+
+            return outputs;
+        }
     }
 
     public static class ES2ToES3Converter {

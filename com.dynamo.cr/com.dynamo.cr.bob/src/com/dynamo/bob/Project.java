@@ -180,7 +180,7 @@ public class Project {
     }
 
     public String getPluginsDirectory() {
-        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
+        return FilenameUtils.concat(rootDirectory, PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -188,11 +188,11 @@ public class Project {
     }
 
     public String getLibPath() {
-        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+        return FilenameUtils.concat(rootDirectory, LIB_DIR);
     }
 
     public String getBuildCachePath() {
-        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+        return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
     public String getLocalResourceCacheDirectory() {
@@ -1281,16 +1281,24 @@ public class Project {
 
                     if (this.hasOption("build-report")) {
                         String resourceReportJSONPath = this.option("build-report", "report.json");
+
                         File resourceReportJSONFile = new File(resourceReportJSONPath);
+                        File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
                         resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-                        File excludedResourceReportJSONFile = new File("excluded_" + resourceReportJSONPath);
+
+                        String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
+                        File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
                         excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
                     }
                     if (this.hasOption("build-report-html")) {
                         String resourceReportHTMLPath = this.option("build-report-html", "report.html");
                         File resourceReportHTMLFile = new File(resourceReportHTMLPath);
+
+                        File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
                         resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-                        File excludedResourceReportHTMLFile = new File("excluded_" + resourceReportHTMLPath);
+
+                        String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
+                        File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
                         excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
                     }
 

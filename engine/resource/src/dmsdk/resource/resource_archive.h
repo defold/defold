@@ -15,6 +15,8 @@
 #ifndef DMSDK_RESOURCE_ARCHIVE_H
 #define DMSDK_RESOURCE_ARCHIVE_H
 
+#include <stdint.h>
+
 /*# Resource
  *
  * Functions for working with the resource archive.

@@ -28,6 +28,7 @@
   (workspace/register-resource-type workspace
                                     :ext "html"
                                     :label "HTML"
+                                    :textual? true
                                     :node-type HtmlNode
                                     :view-types [:html]
                                     :view-opts nil))
