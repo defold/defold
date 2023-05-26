@@ -30,7 +30,6 @@ namespace dmURI
 
 namespace dmResourceManifest
 {
-    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
     const static uint32_t MANIFEST_VERSION = 0x05; // also dictates version over live update data (e.g. LiveUpdateResourceHeader)
     //const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 

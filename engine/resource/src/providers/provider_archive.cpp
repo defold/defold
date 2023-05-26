@@ -43,6 +43,11 @@ namespace dmResourceProviderArchive
         dmResource::Manifest*                       m_Manifest;
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
         dmHashTable64<EntryInfo>                    m_EntryMap; // url hash -> entry in the manifest
+
+        GameArchiveFile()
+        : m_Manifest(0)
+        , m_ArchiveIndex(0)
+        {}
     };
 
     static dmResourceProvider::Result MountArchive(const dmURI::Parts* uri, dmResourceArchive::HArchiveIndexContainer* out)

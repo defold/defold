@@ -514,8 +514,6 @@ public class ManifestBuilder {
         }
 
         ManifestHeader.Builder builder = ManifestHeader.newBuilder();
-        builder.setMagicNumber(ManifestBuilder.CONST_MAGIC_NUMBER);
-        builder.setVersion(ManifestBuilder.CONST_VERSION);
         builder.setProjectIdentifier(projectIdentifierHash);
         builder.setResourceHashAlgorithm(this.resourceHashAlgorithm);
         builder.setSignatureHashAlgorithm(this.signatureHashAlgorithm);
@@ -583,9 +581,7 @@ public class ManifestBuilder {
                             continue;
                         }
 
-
-                        int index = resourceToIndex.get(dependant);
-                        resourceEntryBuilder.addDependants(index);
+                        resourceEntryBuilder.addDependants(resource.getUrlHash());
                     }
                 }
             }
@@ -605,6 +601,7 @@ public class ManifestBuilder {
         ManifestData manifestData = this.buildManifestData();
         builder.setData(ByteString.copyFrom(manifestData.toByteArray()));
         builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
+        builder.setVersion(ManifestBuilder.CONST_VERSION);
         PrivateKey privateKey = null;
         try {
             privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);

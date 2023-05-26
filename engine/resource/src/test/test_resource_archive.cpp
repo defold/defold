@@ -431,11 +431,9 @@ TEST(dmResourceArchive, ManifestHeader)
     dmLiveUpdateDDF::ManifestData* manifest_data;
     dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResourceManifest::MANIFEST_VERSION, manifest->m_DDF->m_Version);
 
     manifest_data = manifest->m_DDFData;
-
-    ASSERT_EQ(dmResourceManifest::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
-    ASSERT_EQ(dmResourceManifest::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);

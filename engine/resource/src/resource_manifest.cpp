@@ -40,8 +40,6 @@ void DeleteManifest(dmResource::Manifest* manifest)
         dmDDF::FreeMessage(manifest->m_DDF);
     if (manifest->m_DDFData)
         dmDDF::FreeMessage(manifest->m_DDFData);
-    manifest->m_DDF = 0x0;
-    manifest->m_DDFData = 0x0;
     delete manifest;
 }
 
@@ -55,6 +53,14 @@ static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, u
         return dmResource::RESULT_DDF_ERROR;
     }
 
+    if (out_manifest->m_DDF->m_Version != MANIFEST_VERSION)
+    {
+        dmLogError("Manifest file version mismatch (expected '%i', actual '%i')", MANIFEST_VERSION, out_manifest->m_DDF->m_Version);
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDF = 0x0;
+        return dmResource::RESULT_VERSION_MISMATCH;
+    }
+
     // Read data blob from ManifestFile into ManifestData message
     result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
     if (result != dmDDF::RESULT_OK)
@@ -63,25 +69,6 @@ static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, u
         dmDDF::FreeMessage(out_manifest->m_DDF);
         out_manifest->m_DDF = 0x0;
         return dmResource::RESULT_DDF_ERROR;
-    }
-    if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
-    {
-        dmLogError("Manifest format mismatch (expected '%x', actual '%x')", MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
-        dmDDF::FreeMessage(out_manifest->m_DDFData);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDFData = 0x0;
-        out_manifest->m_DDF = 0x0;
-        return dmResource::RESULT_FORMAT_ERROR;
-    }
-
-    if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
-    {
-        dmLogError("Manifest version mismatch (expected '%i', actual '%i')", MANIFEST_VERSION, out_manifest->m_DDFData->m_Header.m_Version);
-        dmDDF::FreeMessage(out_manifest->m_DDFData);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDFData = 0x0;
-        out_manifest->m_DDF = 0x0;
-        return dmResource::RESULT_VERSION_MISMATCH;
     }
 
     return dmResource::RESULT_OK;

@@ -57,8 +57,6 @@ message HashDigest {
 /*
  * The manifest header specifies general information about the manifest.
  *
- * - magic_number             : An identifier used to uniquely a manifest
- * - version                  : The version of the manifest format
  * - resource_hash_algorithm  : The algorithm that should be used when hashing
  *                              resources
  * - signature_hash_algorithm : The algorithm that should be used when hashing
@@ -72,31 +70,31 @@ message HashDigest {
  *                              SHA-1 hash of the project title
  */
 message ManifestHeader {
-    required int32              magic_number = 1                [default = 0];
-    required int32              version = 2                     [default = 0];
-    required HashAlgorithm      resource_hash_algorithm = 3     [default = HASH_SHA256];
-    required HashAlgorithm      signature_hash_algorithm = 4    [default = HASH_SHA256];
-    required SignAlgorithm      signature_sign_algorithm = 5    [default = SIGN_RSA];
-    required HashDigest         project_identifier = 6;
+    required HashAlgorithm      resource_hash_algorithm = 1     [default = HASH_SHA256];
+    required HashAlgorithm      signature_hash_algorithm = 2    [default = HASH_SHA256];
+    required SignAlgorithm      signature_sign_algorithm = 3    [default = SIGN_RSA];
+    required HashDigest         project_identifier = 4;
 }
 
 /*
  * An entry that is produced for each resource that is part of the manifest.
  *
- * - url                      : The URL that is used by the engine to identify
- *                              a resource
  * - hash                     : The hash of the resource data. This is used to
  *                              index each resource in the archive with their
  *                              actual hash.
- * - dependants               : A list of resources (hashes) that are required
+ * - url                      : The URL that is used by the engine to identify a resource
+ * - url_hash                 : The URL in hashed for, for faster lookups and efficient storage
+ * - size                     : The size of the uncompressed resource
+ * - compressed_size          : The size of the compressed resource. 0xFFFFFFFF if it's uncompressed
+ * - flags                    : A set of bit flasg or type ResourceEntryFlag. E.g. Is used for manifest
+ *                              verification to determine if a resource is expected
+ *                              to be in the bundle or not.
+ * - dependants               : A list of resources (url hashes) that are required
  *                              to load the current resource. A Collection that
  *                              is childed to a CollectionProxy is not
  *                              considered a dependant since it is not required
  *                              to load the parent Collection of the
  *                              CollectionProxy.
- * - flags                    : How this resources is stored. Is used for manifest
- *                              verification to determine if a resource is expected
- *                              to be in the bundle or not.
  */
 message ResourceEntry {
     required HashDigest         hash = 1;
@@ -105,7 +103,7 @@ message ResourceEntry {
     required uint32             size = 4;
     required uint32             compressed_size = 5;
     required uint32             flags = 6 [default = 0]; // ResourceEntryFlag
-    repeated uint32             dependants = 7;
+    repeated uint64             dependants = 7;
 }
 
 /*
@@ -130,6 +128,10 @@ message ManifestData {
  * The Manifest. This is separate from ManifestData to easily create a
  * signature of the manifest content. Nothing other than a single ManifestData
  * entry and a single signature should be part of this entity.
+ * - data               : A data blob, which is in fact a ManifestData message
+ * - signature          : A cryptographic signature of the data byte array
+ * - archive_identifier :
+ * - version            : A version number to quickly identify if we can read/support the file
  */
 message ManifestFile {
     required bytes              data = 1;
