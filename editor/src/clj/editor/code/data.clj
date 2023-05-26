@@ -2068,6 +2068,12 @@
         to (cursor-line-start lines from)]
     [(->CursorRange from to) [""]]))
 
+(defn delete-line [lines cursor-range]
+  (let [cursor (CursorRange->Cursor cursor-range)
+        from (cursor-line-end lines cursor)
+        to (cursor-line-start lines from)]
+    [(->CursorRange from to) [""]]))
+
 (defn delete-range [lines cursor-range]
   [(adjust-cursor-range lines cursor-range) [""]])
 

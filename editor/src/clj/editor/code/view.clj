@@ -1351,7 +1351,8 @@
                       data/delete-word-after-cursor
                       data/delete-range)
 
-                    :delete-to-beginning-of-line data/delete-to-beginning-of-line)]
+                    :delete-to-beginning-of-line data/delete-to-beginning-of-line
+                    :delete-line data/delete-line)]
     (when-not single-character-backspace?
       (hide-suggestions! view-node))
     (set-properties! view-node undo-grouping
@@ -1750,6 +1751,9 @@
 
 (handler/defhandler :delete-to-beginning-of-line :code-view
   (run [view-node] (delete! view-node :delete-to-beginning-of-line)))
+
+(handler/defhandler :delete-line :code-view
+  (run [view-node] (delete! view-node :delete-line)))
 
 (handler/defhandler :select-next-occurrence :code-view
   (run [view-node] (select-next-occurrence! view-node)))
