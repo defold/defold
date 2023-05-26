@@ -97,6 +97,10 @@ public class ProtoBuilders {
     }
 
     private static MaterialDesc.Builder getMaterialBuilderFromResource(IResource res) throws IOException {
+        if (res.getPath().isEmpty()) {
+            return null;
+        }
+
         IResource materialBuildResource      = res.changeExt(".materialc");
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         materialBuilder.mergeFrom(materialBuildResource.getContent());
@@ -343,20 +347,22 @@ public class ProtoBuilders {
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
 
-            List<VertexAttribute> materialAttributes       = materialBuilder.getAttributesList();
-            List<VertexAttribute> spriteAttributeOverrides = new ArrayList<VertexAttribute>();
+            if (materialBuilder != null) {
+                List<VertexAttribute> materialAttributes       = materialBuilder.getAttributesList();
+                List<VertexAttribute> spriteAttributeOverrides = new ArrayList<VertexAttribute>();
 
-            for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
-                VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                VertexAttribute materialAttribute = FindMaterialAttribute(materialAttributes, spriteAttribute.getName());
+                for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
+                    VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
+                    VertexAttribute materialAttribute = FindMaterialAttribute(materialAttributes, spriteAttribute.getName());
 
-                if (materialAttribute != null) {
-                    spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute.getDataType()));
+                    if (materialAttribute != null) {
+                        spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute.getDataType()));
+                    }
                 }
-            }
 
-            messageBuilder.clearAttributes();
-            messageBuilder.addAllAttributes(spriteAttributeOverrides);
+                messageBuilder.clearAttributes();
+                messageBuilder.addAllAttributes(spriteAttributeOverrides);
+            }
 
             return messageBuilder;
         }
