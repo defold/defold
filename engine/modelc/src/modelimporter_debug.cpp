@@ -80,10 +80,10 @@ static void OutputMatrix(const dmTransform::Transform& transform)
     printf("    "); OutputVector4(mat.getRow(3));
 }
 
-static void OutputBone(Bone* bone, int indent)
+static void OutputBone(int i, Bone* bone, int indent)
 {
     OutputIndent(indent);
-    printf("%s  idx: %u parent: %u node: %s inv_bind_pose:\n", bone->m_Name, bone->m_Index, bone->m_ParentIndex, bone->m_Node?bone->m_Node->m_Name:"null");
+    printf("#%d: %s  idx: %u parent: %u node: %s inv_bind_pose:\n", i, bone->m_Name, bone->m_Index, bone->m_ParentIndex, bone->m_Node?bone->m_Node->m_Name:"null");
     OutputMatrix(bone->m_InvBindPose);
     printf("\n");
 }
@@ -96,7 +96,7 @@ static void OutputSkin(Skin* skin, int indent)
     printf("  Bones: count: %u\n", skin->m_BonesCount);
     for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
     {
-        OutputBone(&skin->m_Bones[i], indent+1);
+        OutputBone(i, &skin->m_Bones[i], indent+1);
     }
 }
 

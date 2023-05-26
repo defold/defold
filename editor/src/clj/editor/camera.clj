@@ -60,26 +60,22 @@
     (.setColumn m 3 (.x pos) (.y pos) (.z pos) 1.0)
     m))
 
-(s/defn camera-perspective-projection-matrix :- Matrix4d
-  [camera :- Camera]
-  (let [near   (.z-near camera)
-        far    (.z-far camera)
-        fov-x  (.fov-x camera)
-        fov-y  (.fov-y camera)
-        aspect (/ fov-x fov-y)
+(defn simple-perspective-projection-matrix
+  ^Matrix4d [^double near ^double far ^double fov-deg-x ^double fov-deg-y]
+  (let [aspect (/ fov-deg-x fov-deg-y)
 
-        ymax (* near (Math/tan (/ (* fov-y Math/PI) 360.0)))
+        ymax (* near (Math/tan (/ (* fov-deg-y Math/PI) 360.0)))
         ymin (- ymax)
         xmin (* ymin aspect)
         xmax (* ymax aspect)
 
-        x    (/ (* 2.0 near) (- xmax xmin))
-        y    (/ (* 2.0 near) (- ymax ymin))
-        a    (/ (+ xmin xmax) (- xmax xmin))
-        b    (/ (+ ymin ymax) (- ymax ymin))
-        c    (/ (- (+     near far)) (- far near))
-        d    (/ (- (* 2.0 near far)) (- far near))
-        m    (Matrix4d.)]
+        x (/ (* 2.0 near) (- xmax xmin))
+        y (/ (* 2.0 near) (- ymax ymin))
+        a (/ (+ xmin xmax) (- xmax xmin))
+        b (/ (+ ymin ymax) (- ymax ymin))
+        c (/ (- (+ near far)) (- far near))
+        d (/ (- (* 2.0 near far)) (- far near))
+        m (Matrix4d.)]
     (set! (. m m00) x)
     (set! (. m m01) 0.0)
     (set! (. m m02) a)
@@ -100,6 +96,10 @@
     (set! (. m m32) -1.0)
     (set! (. m m33) 0.0)
     m))
+
+(s/defn camera-perspective-projection-matrix :- Matrix4d
+  [camera :- Camera]
+  (simple-perspective-projection-matrix (.z-near camera) (.z-far camera) (.fov-x camera) (.fov-y camera)))
 
 (defn region-orthographic-projection-matrix
   ^Matrix4d [^Region viewport ^double near ^double far]
@@ -129,15 +129,13 @@
     (set! (. m m33) 1.0)
     m))
 
-(s/defn camera-orthographic-projection-matrix :- Matrix4d
-  [camera :- Camera]
-  (let [near   (.z-near camera)
-        far    (.z-far camera)
-        right  (/ (.fov-x camera) 2.0)
-        left   (- right)
-        top    (/ (.fov-y camera) 2.0)
+(defn simple-orthographic-projection-matrix
+  ^Matrix4d [^double near ^double far ^double fov-deg-x ^double fov-deg-y]
+  (let [right (/ fov-deg-x 2.0)
+        left (- right)
+        top (/ fov-deg-y 2.0)
         bottom (- top)
-        m      (Matrix4d.)]
+        m (Matrix4d.)]
     (set! (. m m00) (/ 2.0 (- right left)))
     (set! (. m m01) 0.0)
     (set! (. m m02) 0.0)
@@ -158,6 +156,10 @@
     (set! (. m m32) 0.0)
     (set! (. m m33) 1.0)
     m))
+
+(s/defn camera-orthographic-projection-matrix :- Matrix4d
+  [camera :- Camera]
+  (simple-orthographic-projection-matrix (.z-near camera) (.z-far camera) (.fov-x camera) (.fov-y camera)))
 
 (s/defn camera-projection-matrix :- Matrix4d
   [camera :- Camera]

@@ -47,6 +47,7 @@ import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -60,6 +61,9 @@ import com.sun.jna.Pointer;
 
 
 public class TextureGenerator {
+
+    // specify what is maximum of threads TextureGenerator may use
+    public static int maxThreads = Project.getDefaultMaxCpuThreads();
 
     private static HashMap<TextureFormatAlternative.CompressionLevel, Integer> compressionLevelLUT = new HashMap<TextureFormatAlternative.CompressionLevel, Integer>();
     static {
@@ -341,9 +345,7 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
             }
-
-            int max_threads = 8;
-            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, max_threads)) {
+            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads)) {
                 throw new TextureGeneratorException("could not encode");
             }
 

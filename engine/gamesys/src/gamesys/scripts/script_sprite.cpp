@@ -200,6 +200,24 @@ namespace dmGameSystem
     * ```
     */
 
+    /*# [type:hash] sprite frame_count
+    *
+    * [mark:READ ONLY] The frame count of the currently playing animation.
+    *
+    * @name frame_count
+    * @property
+    *
+    * @examples
+    *
+    * How to get the `frame_count` on component "sprite":
+    *
+    * ```lua
+    * function init(self)
+    *   local frame_count = go.get("#sprite", "frame_count")
+    * end
+    * ```
+    */
+
     /*# set horizontal flipping on a sprite's animations
      * Sets horizontal flipping of the provided sprite's animations.
      * The sprite is identified by its URL.

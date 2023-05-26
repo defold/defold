@@ -376,7 +376,7 @@ namespace dmRig
         return t;
     }
 
-    static void ApplyAnimation(RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
+    static void ApplyAnimation(RigInstance* instance, RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (!animation)
@@ -388,16 +388,17 @@ namespace dmRig
         uint32_t sample = (uint32_t)fraction;
         fraction -= sample;
         // Sample animation tracks
+        const dmHashTable64<uint32_t>* bone_indices = instance->m_BoneIndices;
         uint32_t track_count = animation->m_Tracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti)
         {
             const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
-            uint32_t bone_index = track->m_BoneIndex;
-            if (bone_index >= pose.Size()) {
+
+            const uint32_t* bone_index = bone_indices->Get(track->m_BoneId);
+            if (!bone_index || *bone_index >= pose.Size()) {
                 continue;
             }
-
-            dmTransform::Transform& transform = pose[bone_index].m_Local;
+            dmTransform::Transform& transform = pose[*bone_index].m_Local;
 
             if (track->m_Positions.m_Count > 0)
             {
@@ -519,7 +520,7 @@ namespace dmRig
                 }
 
                 UpdatePlayer(instance, p, dt, blend_weight);
-                ApplyAnimation(p, pose, ik_animation, alpha);
+                ApplyAnimation(instance, p, pose, ik_animation, alpha);
                 if (player == p)
                 {
                     alpha = 1.0f - fade_rate;
@@ -533,7 +534,7 @@ namespace dmRig
         else
         {
             UpdatePlayer(instance, player, dt, 1.0f);
-            ApplyAnimation(player, pose, ik_animation, 1.0f);
+            ApplyAnimation(instance, player, pose, ik_animation, 1.0f);
         }
 
         // Normalize quaternions while we blend
@@ -1182,9 +1183,9 @@ namespace dmRig
         }
 
         RigInstance* instance = new RigInstance;
+        memset(instance, 0, sizeof(RigInstance));
 
         uint32_t index = context->m_Instances.Alloc();
-        memset(instance, 0, sizeof(RigInstance));
         instance->m_Index = index;
         context->m_Instances.Set(index, instance);
         instance->m_ModelId = params.m_ModelId;
@@ -1197,6 +1198,7 @@ namespace dmRig
         instance->m_EventCBUserData2 = params.m_EventCBUserData2;
 
         instance->m_BindPose           = params.m_BindPose;
+        instance->m_BoneIndices        = params.m_BoneIndices;
         instance->m_Skeleton           = params.m_Skeleton;
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;

@@ -177,6 +177,30 @@ TEST(ModelGLTF, ExternalBuffer)
     dmModelImporter::DestroyScene(scene);
 }
 
+// Some tests are simply loading the file to make sure it doesn't crash
+
+static dmModelImporter::Scene* TestLoading(const char* path)
+{
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+    return scene;
+}
+
+// #7369 Find skin crash
+TEST(ModelCrashtest, FindSkinCrash)
+{
+    dmModelImporter::Scene* scene = TestLoading("./src/test/assets/findskin/findskin_crash.glb");
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+
+    ASSERT_EQ(1, scene->m_BuffersCount);
+    ASSERT_STREQ("buffer_0", scene->m_Buffers[0].m_Uri);
+
+    ASSERT_EQ(1, scene->m_SkinsCount);
+    ASSERT_STREQ("skin_0", scene->m_Skins[0].m_Name);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 
 static int TestStandalone(const char* path)
 {

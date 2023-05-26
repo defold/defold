@@ -109,17 +109,97 @@ namespace dmGraphics
         return true;
     }
 
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
     static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
-            case ADAPTER_TYPE_NULL:   return "null";
-            case ADAPTER_TYPE_OPENGL: return "opengl";
-            case ADAPTER_TYPE_VULKAN: return "vulkan";
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
             default: break;
         }
         return "<unknown adapter type>";
     }
+
+    const char* GetTextureTypeLiteral(TextureType texture_type)
+    {
+        switch(texture_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            default:break;
+        }
+        return "<unknown texture type>";
+    }
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR0_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR1_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR2_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR3_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_DEPTH_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
+            default:break;
+        }
+        return "<unknown buffer type>";
+    }
+
+    const char* GetAssetTypeLiteral(AssetType type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_TEXTURE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
+            default:break;
+        }
+        return "<unknown asset type>";
+    }
+
+    const char* GetTextureFormatLiteral(TextureFormat format)
+    {
+        switch(format)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_LUMINANCE);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_LUMINANCE_ALPHA);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_16BPP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_16BPP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_DEPTH);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_STENCIL);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_ETC1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ETC2);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_BC1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC3);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R_BC4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG_BC5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC7);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            default:break;
+        }
+        return "<unknown texture format>";
+    }
+
+    #undef GRAPHICS_ENUM_TO_STR_CASE
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -201,33 +281,6 @@ namespace dmGraphics
         }
         assert(selected_shader);
         return selected_shader;
-    }
-
-    const char* GetTextureTypeLiteral(TextureType texture_type)
-    {
-        switch(texture_type)
-        {
-            case TEXTURE_TYPE_2D:       return "TEXTURE_TYPE_2D";
-            case TEXTURE_TYPE_2D_ARRAY: return "TEXTURE_TYPE_2D_ARRAY";
-            case TEXTURE_TYPE_CUBE_MAP: return "TEXTURE_TYPE_CUBE_MAP";
-            default:break;
-        }
-        return "<unknown texture type>";
-    }
-
-    const char* GetBufferTypeLiteral(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
-            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
-            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
-            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default:break;
-        }
-        return "<unknown buffer type>";
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
@@ -913,6 +966,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHeight(texture);
     }
+    uint16_t GetTextureDepth(HTexture texture)
+    {
+        return g_functions.m_GetTextureDepth(texture);
+    }
     uint16_t GetOriginalTextureWidth(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureWidth(texture);
@@ -920,6 +977,10 @@ namespace dmGraphics
     uint16_t GetOriginalTextureHeight(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureHeight(texture);
+    }
+    uint8_t GetTextureMipmapCount(HTexture texture)
+    {
+        return g_functions.m_GetTextureMipmapCount(texture);
     }
     TextureType GetTextureType(HTexture texture)
     {
@@ -976,6 +1037,11 @@ namespace dmGraphics
     uint8_t GetNumTextureHandles(HTexture texture)
     {
         return g_functions.m_GetNumTextureHandles(texture);
+    }
+    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
+    {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
+        return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))

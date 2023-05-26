@@ -1,0 +1,40 @@
+.tree-table-view {
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+    & > .column-header-background {
+        -fx-border-width: 0 0 1 0;
+        -fx-border-color: -df-background-lighter;
+        -fx-background-color: -df-background-light;
+        & > .nested-column-header > .column-header {
+                -fx-background-insets: 0;
+                -fx-border-width: 0 1 0 0;
+                -fx-border-color: -df-background-lighter;
+        }
+    }
+    .table-column {
+        -fx-background-insets: 0;
+        -fx-border-width: 0 1 0 0;
+        -fx-border-color: -df-background-lighter;
+        -fx-background-color: -df-background-light;
+    }
+    .filler {
+        -fx-background-insets: 0;
+        -fx-background-color: -df-background-light;
+    }
+    & > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell {
+      -fx-background-color: -df-background-light;
+      & > .tree-table-cell {
+        -fx-background-insets: 0;
+        -fx-border-width: 0 1 0 0;
+        -fx-border-color: -df-background-lighter;
+        -fx-background-color: transparent;
+      }
+      &:selected {
+        -fx-background-color: -df-background-lighter;
+        & > .tree-table-cell {
+           -fx-text-fill: -df-text-selected;
+         }
+      }
+    }
+}
