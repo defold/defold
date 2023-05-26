@@ -875,7 +875,7 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 }
 
 // Test that go.delete() does not influence other sprite animations in progress
-TEST_F(SpriteAnimTest, GoDeletion)
+TEST_F(SpriteTest, GoDeletion)
 {
     // Spawn 3 dumy game objects with one sprite in each
     dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -914,7 +914,7 @@ TEST_F(SpriteAnimTest, GoDeletion)
 }
 
 // Test that animation done event reaches either callback or onmessage
-TEST_F(SpriteAnimTest, FlipbookAnim)
+TEST_F(SpriteTest, FlipbookAnim)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -952,6 +952,22 @@ TEST_F(SpriteAnimTest, FlipbookAnim)
 
     ASSERT_EQ(2, num_finished);
     ASSERT_EQ(1, num_messages);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, FrameCount)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
