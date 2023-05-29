@@ -2069,10 +2069,16 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-line [lines cursor-range]
-  (let [cursor (CursorRange->Cursor cursor-range)
-        from (cursor-line-end lines cursor)
-        to (cursor-line-start lines from)]
-    [(->CursorRange from to) [""]]))
+  (let [cursor-rows (first (cursor-ranges->row-runs lines [cursor-range]))
+        row-start (get cursor-rows 0)
+        row-end (get cursor-rows 1)
+        row-ranges-to-delete (mapv (fn [row]
+                                     (let [from (->Cursor row 0)
+                                           to (cursor-line-end lines from)]
+                                       [(->CursorRange from to) [""]]))
+                                   (range row-start row-end))]
+    ;; TODO-JG: I don't know exactly what to do with these..
+    (first row-ranges-to-delete)))
 
 (defn delete-range [lines cursor-range]
   [(adjust-cursor-range lines cursor-range) [""]])
