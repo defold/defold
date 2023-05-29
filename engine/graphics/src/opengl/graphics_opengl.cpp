@@ -2311,7 +2311,7 @@ static void LogFrameBufferError(GLenum status)
 
 #if __EMSCRIPTEN__
     
-    static bool WebGLValidateFramebufferAttachmentsDepthStencil(uint32_t buffer_type_flags, uint32_t attachment_width, uint32_t attachment_height, uint32_t depth_bit, uint32_t stencil_bit, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    static bool WebGLValidateFramebufferAttachmentsDepthStencil(uint32_t buffer_type_flags, uint32_t attachment_width, uint32_t attachment_height, BufferType depth_bit, BufferType stencil_bit, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
     {
         if(!(buffer_type_flags & stencil_bit))
         {
