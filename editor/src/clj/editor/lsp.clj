@@ -658,7 +658,7 @@
           servers))
       state)))
 
-(defn- send-requests! [state responses-ch requests-fn & {:keys [capabilities-pred timeout-ms]
+(defn- send-requests! [state responses-ch requests-fn & {:keys [capabilities-pred language timeout-ms]
                                                          :or {capabilities-pred any?}}]
   {:pre [(pos-int? timeout-ms)
          (not (contains? (:requests state) responses-ch))]}
@@ -666,8 +666,10 @@
                               :server->server-state
                               (eduction
                                 (mapcat
-                                  (fn [[server {:keys [status capabilities] :as server-state}]]
-                                    (when (and (= :running status) (capabilities-pred capabilities))
+                                  (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
+                                    (when (and (= :running status)
+                                               (capabilities-pred capabilities)
+                                               (or (nil? language) (contains? languages language)))
                                       (eduction
                                         (map #(pair server %))
                                         (requests-fn server server-state))))))
@@ -740,6 +742,19 @@
                                          (:languages server))))
                     :timeout-ms timeout-ms
                     :capabilities-pred #(not= :none (:pull-diagnostics %)))))))
+
+(defn goto-definition! [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                               :or {timeout-ms 15000}}]
+  ;; bound-fn only needed for tests to pick up the test system
+  (a/put! lsp (bound-fn [state]
+                (let [ch (a/chan 1 cat)]
+                  (a/go (result-callback (<! (a/into [] ch))))
+                  (send-requests! state ch
+                                  (fn [_ _]
+                                    [(lsp.server/goto-definition resource cursor)])
+                                  :capabilities-pred :goto-definition
+                                  :language (resource/language resource)
+                                  :timeout-ms timeout-ms)))))
 
 (comment
   ;; Restart all servers:
