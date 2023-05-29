@@ -744,7 +744,7 @@
                     :capabilities-pred #(not= :none (:pull-diagnostics %)))))))
 
 (defn goto-definition! [lsp resource cursor result-callback & {:keys [timeout-ms]
-                                                               :or {timeout-ms 15000}}]
+                                                               :or {timeout-ms 3000}}]
   ;; bound-fn only needed for tests to pick up the test system
   (a/put! lsp (bound-fn [state]
                 (let [ch (a/chan 1 cat)]
