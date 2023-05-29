@@ -144,7 +144,11 @@
 (s/def ::text-document-sync (s/keys :req-un [::open-close ::change]))
 (s/def ::pull-diagnostics #{:none :text-document :workspace})
 (s/def ::goto-definition boolean?)
-(s/def ::capabilities (s/keys :req-un [::text-document-sync ::pull-diagnostics ::goto-definition]))
+(s/def ::find-references boolean?)
+(s/def ::capabilities (s/keys :req-un [::text-document-sync
+                                       ::pull-diagnostics
+                                       ::goto-definition
+                                       ::find-references]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
   (data/->Cursor line character))
@@ -192,7 +196,10 @@
     lsp-text-document-sync-kind-full :full
     lsp-text-document-sync-kind-incremental :incremental))
 
-(defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync diagnosticProvider definitionProvider]}]
+(defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync
+                                                      diagnosticProvider
+                                                      definitionProvider
+                                                      referencesProvider]}]
   {:text-document-sync (cond
                          (nil? textDocumentSync)
                          {:change :none :open-close false}
@@ -214,6 +221,10 @@
    :goto-definition (cond
                       (boolean? definitionProvider) definitionProvider
                       (map? definitionProvider) true
+                      :else false)
+   :find-references (cond
+                      (boolean? referencesProvider) referencesProvider
+                      (map? referencesProvider) true
                       :else false)})
 
 (defn- configuration-handler [project]
@@ -254,7 +265,8 @@
          :rootUri uri
          :capabilities {:workspace {:diagnostics {}}
                         :textDocument {:definition {:dynamicRegistration false
-                                                    :linkSupport true}}}
+                                                    :linkSupport true}
+                                       :references {:dynamicRegistration false}}}
          :workspaceFolders [{:uri uri :name title}]}))
     (* 60 1000)))
 
@@ -422,6 +434,25 @@
             (into []
                   (keep #(lsp-location-or-location-link->editor-location % project evaluation-context))
                   result)))))))
+
+(defn find-references
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_references"
+  [resource cursor]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/references"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)
+       :context {:includeDeclaration true}})
+    (bound-fn [result project]
+      (lsp.async/with-auto-evaluation-context evaluation-context
+        (into []
+              (keep (fn [{:keys [uri range]}]
+                      (when-let [resource (maybe-resource project uri evaluation-context)]
+                        {:resource resource
+                         :cursor-range (lsp-range->editor-cursor-range range)})))
+              result)))))
 
 (defn open-text-document
   "See also:
