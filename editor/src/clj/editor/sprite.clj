@@ -498,6 +498,15 @@
                 (graphics/attribute->values attribute)]))
         attributes))
 
+(defn- produce-attributes-intermediate-backing [attributes material-attribute-infos]
+  (into {}
+        (map (fn [attribute]
+               (let [material-attribute (first (filterv #(= (:name attribute) (:name %)) material-attribute-infos))
+                     attribute+correct-data-type (assoc attribute :data-type (:data-type material-attribute))]
+                 [(vtx/attribute-name->key (:name attribute+correct-data-type))
+                  (graphics/attribute->values attribute+correct-data-type)])))
+        attributes))
+
 (defn- attribute->outline-key [attribute-info]
   (keyword (str "attribute_" (name (:name-key attribute-info)))))
 
@@ -613,6 +622,10 @@
             (default {})
             (dynamic visible (g/constantly false)))
 
+  (property attributes g/Any
+            (default [])
+            (dynamic visible (g/constantly false)))
+
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any)
@@ -624,8 +637,12 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
   (input material-max-page-count g/Int)
-  (input material-attribute-infos g/Any)
+  (input material-attribute-infos g/Any (g/fnk []))
   (input default-tex-params g/Any)
+
+  (output vertex-attribute-overrides-output g/Any (g/fnk [_node-id attributes material-attribute-infos]
+                                                    (let [overridden-attributes (produce-attributes-intermediate-backing attributes material-attribute-infos)]
+                                                      (g/set-property _node-id :vertex-attribute-overrides overridden-attributes))))
 
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
@@ -659,7 +676,7 @@
       (g/set-property self :image image)
       (g/set-property self :offset (:offset sprite))
       (g/set-property self :playback-rate (:playback-rate sprite))
-      (g/set-property self :vertex-attribute-overrides (attributes->intermediate-backing (:attributes sprite))))))
+      (g/set-property self :attributes (:attributes sprite)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
