@@ -637,12 +637,15 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
   (input material-max-page-count g/Int)
-  (input material-attribute-infos g/Any (g/fnk []))
+  (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
 
-  (output vertex-attribute-overrides-output g/Any (g/fnk [_node-id attributes material-attribute-infos]
-                                                    (let [overridden-attributes (produce-attributes-intermediate-backing attributes material-attribute-infos)]
-                                                      (g/set-property _node-id :vertex-attribute-overrides overridden-attributes))))
+  (output vertex-attribute-overrides-output g/Any (g/fnk [attributes material-attribute-infos]
+                                                    ;; Why isn't this getting called!!
+                                                   (produce-attributes-intermediate-backing attributes material-attribute-infos)
+                                                    #_(let [overridden-attributes (produce-attributes-intermediate-backing attributes material-attribute-infos)]
+                                                      (g/set-property _node-id :vertex-attribute-overrides overridden-attributes)
+                                                      overridden-attributes)))
 
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
