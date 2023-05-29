@@ -369,7 +369,7 @@
 
 (defn- sanitize-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
 
 (defn- load-non-editable-game-object [_project self resource prototype-desc]
   ;; Validate the prototype-desc.

@@ -80,54 +80,43 @@
       (sanitize-component-property-desc)
       (strip-default-scale-from-component-desc)))
 
-(defn- sanitize-embedded-component-data [embedded-component-desc ext->embedded-component-resource-type embed-data-handling]
+(defn- sanitize-embedded-component-data [embedded-component-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedComponentDesc in map format.
   (let [component-ext (:type embedded-component-desc)
         resource-type (ext->embedded-component-resource-type component-ext)
         tag-opts (:tag-opts resource-type)
-        sanitize-fn (:sanitize-fn resource-type)
-        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
+        read-fn (:read-fn resource-type)
+        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
+        unsanitized-data-string (:data embedded-component-desc)]
     (try
-      (let [unsanitized-data (when (or sanitize-fn
-                                       sanitize-embedded-component-fn
-                                       (= :embed-data-as-maps embed-data-handling))
-                               (let [read-raw-fn (:read-raw-fn resource-type)
-                                     unsanitized-data-string (:data embedded-component-desc)]
-                                 (with-open [reader (StringReader. unsanitized-data-string)]
-                                   (read-raw-fn reader))))
-            sanitized-data (if sanitize-fn
-                             (sanitize-fn unsanitized-data)
-                             unsanitized-data)
-            [embedded-component-desc sanitized-data] (if sanitize-embedded-component-fn
-                                                       (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
-                                                       [embedded-component-desc sanitized-data])]
-        (case embed-data-handling
-          :embed-data-as-maps (assoc embedded-component-desc :data sanitized-data)
-          :embed-data-as-strings (if (= unsanitized-data sanitized-data)
-                                   embedded-component-desc ; No change after sanitization - we can use the original string.
-                                   (let [write-fn (:write-fn resource-type)
-                                         sanitized-data-string (write-fn sanitized-data)]
-                                     (assoc embedded-component-desc :data sanitized-data-string)))))
+      (let [sanitized-data
+            (with-open [reader (StringReader. unsanitized-data-string)]
+              (read-fn reader))
+
+            [embedded-component-desc sanitized-data]
+            (if sanitize-embedded-component-fn
+              (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
+              [embedded-component-desc sanitized-data])]
+        (assoc embedded-component-desc :data sanitized-data))
       (catch Exception error
         ;; Leave unsanitized.
         (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception error)
         embedded-component-desc))))
 
-(defn- sanitize-embedded-component-desc [embedded-component-desc ext->embedded-component-resource-type embed-data-handling]
+(defn- sanitize-embedded-component-desc [embedded-component-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedComponentDesc in map format.
   (-> embedded-component-desc
-      (sanitize-embedded-component-data ext->embedded-component-resource-type embed-data-handling)
+      (sanitize-embedded-component-data ext->embedded-component-resource-type)
       (strip-default-scale-from-component-desc)))
 
-(defn sanitize-prototype-desc [prototype-desc ext->embedded-component-resource-type embed-data-handling]
+(defn sanitize-prototype-desc [prototype-desc ext->embedded-component-resource-type]
   {:pre [(map? prototype-desc)
-         (ifn? ext->embedded-component-resource-type)
-         (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
+         (ifn? ext->embedded-component-resource-type)]}
   ;; GameObject$PrototypeDesc in map format.
   (-> prototype-desc
       (dissoc :property-resources)
       (protobuf/sanitize-repeated :components sanitize-component-desc)
-      (protobuf/sanitize-repeated :embedded-components #(sanitize-embedded-component-desc % ext->embedded-component-resource-type embed-data-handling))))
+      (protobuf/sanitize-repeated :embedded-components #(sanitize-embedded-component-desc % ext->embedded-component-resource-type))))
 
 (defn any-descs->duplicate-ids [any-instance-descs]
   ;; GameObject$ComponentDesc, GameObject$EmbeddedComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.

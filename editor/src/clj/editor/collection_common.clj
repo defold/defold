@@ -72,15 +72,13 @@
       (protobuf/sanitize-repeated :children)
       (game-object-common/sanitize-component-property-descs-at-key component-property-descs-key)))
 
-(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (try
     (let [unsanitized-prototype-desc (protobuf/str->map-without-defaults GameObject$PrototypeDesc (:data embedded-instance-desc))
-          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type embed-data-handling)]
+          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
       (assoc embedded-instance-desc
-        :data (case embed-data-handling
-                :embed-data-as-maps sanitized-prototype-desc
-                :embed-data-as-strings (protobuf/map->str GameObject$PrototypeDesc sanitized-prototype-desc false))))
+        :data sanitized-prototype-desc))
     (catch Exception error
       ;; Leave unsanitized.
       (log/warn :msg "Failed to sanitize embedded game object" :exception error)
@@ -91,10 +89,10 @@
   (-> instance-desc
       (sanitize-any-instance-desc :component-properties)))
 
-(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
+(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type embed-data-handling)))
+          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
@@ -102,16 +100,15 @@
       (sanitize-any-instance-desc-scale)
       (protobuf/sanitize-repeated :instance-properties #(game-object-common/sanitize-component-property-descs-at-key % :properties))))
 
-(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type embed-data-handling]
+(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type]
   {:pre [(map? collection-desc)
-         (ifn? ext->embedded-component-resource-type)
-         (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
+         (ifn? ext->embedded-component-resource-type)]}
   ;; GameObject$CollectionDesc in map format.
   (-> collection-desc
       (update :scale-along-z #(or % 0)) ; Keep this field around even though it is optional - we may want to change its default.
       (dissoc :component-types :property-resources)
       (protobuf/sanitize-repeated :instances sanitize-instance-desc)
-      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type embed-data-handling))
+      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type))
       (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
 (defn make-collection-dependencies-fn [game-object-resource-type-fn]

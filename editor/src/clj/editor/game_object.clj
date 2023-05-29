@@ -594,7 +594,7 @@
 (defn- sanitize-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
 
 (defn- string-encode-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.

@@ -416,7 +416,7 @@
 
 (defn- sanitize-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
 
 (defn- load-non-editable-collection [_project self resource collection-desc]
   ;; Validate the collection-desc.

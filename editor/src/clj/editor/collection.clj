@@ -796,7 +796,7 @@
 
 (defn- sanitize-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
 
 (defn- string-encode-collection [workspace collection-desc]
   ;; GameObject$CollectionDesc in map format.
