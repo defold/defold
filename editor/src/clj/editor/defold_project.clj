@@ -125,13 +125,13 @@
   paths which are the in-memory/current dependencies for nodes not
   being reloaded."
 
-  [node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
+  [node-id resource loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
   (let [dependency-paths (if (contains? loaded-nodes node-id)
                            (try
-                             (resource-node/resource-node-dependencies node-id evaluation-context)
+                             (resource-node/resource-node-dependencies node-id resource evaluation-context)
                              (catch Exception e
                                (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
-                                                      (resource/proj-path (g/node-value node-id :resource evaluation-context)))
+                                                      (resource/proj-path resource))
                                          :exception e)
                                nil))
                            (resource-node-dependencies node-id))
@@ -175,8 +175,9 @@
         nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
         loaded-nodes (set node-ids)
         load-deps (fn [node-id]
-                    (du/measuring resource-metrics (resource/proj-path (g/node-value node-id :resource evaluation-context)) :find-new-reload-dependencies
-                      (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context)))
+                    (let [resource (node-id->resource node-id)]
+                      (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
+                        (node-load-dependencies node-id resource loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))))
         node-ids (sort-nodes-for-loading loaded-nodes load-deps)
         basis (:basis evaluation-context)
         render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4)

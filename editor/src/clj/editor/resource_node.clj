@@ -32,15 +32,11 @@
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn resource-node-dependencies [resource-node-id evaluation-context]
-  (let [resource (g/node-value resource-node-id :resource evaluation-context)]
-    (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-      (when-some [source-value (g/node-value resource-node-id :source-value evaluation-context)]
-        (if (g/error? source-value)
-          (throw (ex-info (str "Error reading resource: " (resource/proj-path resource))
-                          {:resource resource
-                           :error-value source-value}))
-          (dependencies-fn source-value))))))
+(defn resource-node-dependencies [resource-node-id resource evaluation-context]
+  (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+    (some-> (g/node-value resource-node-id :source-value evaluation-context)
+            (resource-io/with-translated-error-thrown!)
+            (dependencies-fn))))
 
 (defn make-save-data [node-id resource save-value dirty]
   {:pre [(g/node-id? node-id)
@@ -66,7 +62,7 @@
   (if (nil? save-value)
     (resource-io/with-error-translation resource _node-id :sha256
       (with-open [input-stream (io/input-stream resource)]
-        (DigestUtils/sha256Hex ^java.io.InputStream input-stream)))
+        (DigestUtils/sha256Hex input-stream)))
     (let [resource-type (resource/resource-type resource)
           write-fn (:write-fn resource-type)
           ^String content (write-fn save-value)]

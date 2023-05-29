@@ -161,15 +161,18 @@
           project (project/make-project proj-graph workspace extensions)]
       (with-bindings {#'project/*load-cache* (atom #{})}
         (let [nodes (#'project/make-nodes! project (g/node-value project :resources))
-              loaded-nodes-by-resource-path (into {} (map (fn [node-id]
-                                                            [(resource/proj-path (g/node-value node-id :resource)) node-id]))
-                                                  nodes)
               evaluation-context (g/make-evaluation-context)
-              node-deps (fn [node-id] (#'project/node-load-dependencies node-id (set nodes) loaded-nodes-by-resource-path {} evaluation-context))
-              load-order (into {} (map-indexed
-                                    (fn [ix node-id]
-                                      [(resource/resource->proj-path (g/node-value node-id :resource)) ix])
-                                    (#'project/sort-nodes-for-loading nodes node-deps)))]
+              loaded-nodes-by-resource-path (into {}
+                                                  (map (fn [node-id]
+                                                         [(resource/proj-path (g/node-value node-id :resource evaluation-context)) node-id]))
+                                                  nodes)
+              node-deps (fn [node-id]
+                          (let [resource (g/node-value node-id :resource evaluation-context)]
+                            (#'project/node-load-dependencies node-id resource (set nodes) loaded-nodes-by-resource-path {} evaluation-context)))
+              load-order (into {}
+                               (map-indexed (fn [index node-id]
+                                              [(resource/resource->proj-path (g/node-value node-id :resource evaluation-context)) index]))
+                               (#'project/sort-nodes-for-loading nodes node-deps))]
           (doseq [[resource-path dependencies] expected-dependencies
                   dependency dependencies]
             (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))))
