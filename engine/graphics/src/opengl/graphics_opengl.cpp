@@ -2310,8 +2310,47 @@ static void LogFrameBufferError(GLenum status)
     }
 
 #if __EMSCRIPTEN__
-    // Only used for webgl currently
-    static bool ValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    
+    static bool WebGLValidateFramebufferAttachmentsDepthStencil(uint32_t buffer_type_flags, uint32_t depth_bit, uint32_t stencil_bit, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    {
+        if(!(buffer_type_flags & stencil_bit))
+        {
+            uint32_t depth_param_index = GetBufferTypeIndex(depth_bit);
+
+            if (attachment_width != -1)
+            {
+                return attachment_width  == creation_params[depth_param_index].m_Width &&
+                       attachment_height == creation_params[depth_param_index].m_Height;
+            }
+        }
+        else if(!(buffer_type_flags & depth_bit))
+        {
+            uint32_t stencil_param_index = GetBufferTypeIndex(stencil_bit);
+            if (attachment_width != -1)
+            {
+                return attachment_width  == creation_params[stencil_param_index].m_Width &&
+                       attachment_height == creation_params[stencil_param_index].m_Height;
+            }
+        }
+        else
+        {
+            uint32_t depth_param_index   = GetBufferTypeIndex(depth_bit);
+            uint32_t stencil_param_index = GetBufferTypeIndex(stencil_bit);
+
+            if (attachment_width == -1)
+            {
+                return creation_params[depth_param_index].m_Width == creation_params[stencil_param_index].m_Width &&
+                       creation_params[depth_param_index].m_Height == creation_params[stencil_param_index].m_Height;
+            }
+
+            return attachment_width  == creation_params[depth_param_index].m_Width &&
+                   attachment_height == creation_params[depth_param_index].m_Height &&
+                   attachment_width  == creation_params[stencil_param_index].m_Width &&
+                   attachment_height == creation_params[stencil_param_index].m_Height;
+        }
+    }
+
+    static bool WebGLValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
     {
         uint32_t attachment_width  = -1;
         uint32_t attachment_height = -1;
@@ -2335,44 +2374,13 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        // TODO: Maybe this is needed for depth/stencil textures as well..
         if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
         {
-            if(!(buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
-            {
-                uint32_t depth_param_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
-
-                if (attachment_width != -1)
-                {
-                    return attachment_width  == creation_params[depth_param_index].m_Width &&
-                           attachment_height == creation_params[depth_param_index].m_Height;
-                }
-            }
-            else if(!(buffer_type_flags & BUFFER_TYPE_DEPTH_BIT))
-            {
-                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
-                if (attachment_width != -1)
-                {
-                    return attachment_width  == creation_params[stencil_param_index].m_Width &&
-                           attachment_height == creation_params[stencil_param_index].m_Height;
-                }
-            }
-            else
-            {
-                uint32_t depth_param_index   = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
-                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
-
-                if (attachment_width == -1)
-                {
-                    return creation_params[depth_param_index].m_Width == creation_params[stencil_param_index].m_Width &&
-                           creation_params[depth_param_index].m_Height == creation_params[stencil_param_index].m_Height;
-                }
-
-                return attachment_width  == creation_params[depth_param_index].m_Width &&
-                       attachment_height == creation_params[depth_param_index].m_Height &&
-                       attachment_width  == creation_params[stencil_param_index].m_Width &&
-                       attachment_height == creation_params[stencil_param_index].m_Height;
-            }
+            return WebGLValidateFramebufferAttachmentsDepthStencil(BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT, creation_params);
+        }
+        else if (buffer_type_flags & (BUFFER_TYPE_STENCIL_TEXTURE_BIT | BUFFER_TYPE_DEPTH_TEXTURE_BIT))
+        {
+            return WebGLValidateFramebufferAttachmentsDepthStencil(BUFFER_TYPE_DEPTH_TEXTURE_BIT, BUFFER_TYPE_STENCIL_TEXTURE_BIT, creation_params);
         }
 
         return true;
@@ -2416,7 +2424,7 @@ static void LogFrameBufferError(GLenum status)
         {
             max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
 
-            if (!ValidateFramebufferAttachments(max_color_attachments, buffer_type_flags, color_buffer_flags, creation_params))
+            if (!WebGLValidateFramebufferAttachments(max_color_attachments, buffer_type_flags, color_buffer_flags, creation_params))
             {
                 dmLogError("All attachments must have the same size!");
                 return 0;
