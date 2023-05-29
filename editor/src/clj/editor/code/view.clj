@@ -53,7 +53,7 @@
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
-           [javafx.event EventHandler]
+           [javafx.event Event EventHandler]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
@@ -62,7 +62,7 @@
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
-           [javafx.scene.text Font FontSmoothingType TextAlignment]
+           [javafx.scene.text Font FontSmoothingType Text TextAlignment]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -1773,6 +1773,70 @@
                                                   (get-property view-node :cursor-ranges)
                                                   (get-property view-node :regions)))))
 
+(defn- show-goto-popup! [view-node open-resource-fn results]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges evaluation-context)))
+          ^Canvas canvas (get-property view-node :canvas evaluation-context)
+          ^LayoutInfo layout (get-property view-node :layout evaluation-context)
+          lines (get-property view-node :lines evaluation-context)
+          cursor-bottom (cursor-bottom layout lines cursor)
+          font-name (get-property view-node :font-name evaluation-context)
+          font-size (get-property view-node :font-size evaluation-context)
+          list-view (popup/make-choices-list-view
+                      (data/line-height (.-glyph layout))
+                      (fn [{:keys [resource cursor-range]}]
+                        {:graphic
+                         (doto (Text.
+                                 (str (resource/proj-path resource)
+                                      ":"
+                                      (data/CursorRange->line-number cursor-range)))
+                           (.setFont (Font/font font-name font-size)))}))
+          [width height] (popup/update-list-view! list-view 200.0 results 0)
+          anchor (pref-suggestions-popup-position canvas width height cursor-bottom)
+          popup (doto (popup/make-choices-popup canvas list-view)
+                  (.addEventHandler Event/ANY (ui/event-handler event (.consume event))))
+          accept! (fn [{:keys [resource cursor-range]}]
+                    (.hide popup)
+                    (open-resource-fn resource {:cursor-range cursor-range}))]
+      (hide-suggestions! view-node)
+      (doto list-view
+        ui/apply-css!
+        (.setOnMouseClicked
+          (ui/event-handler event
+            (when-let [item (ui/cell-item-under-mouse event)]
+              (accept! item))))
+        (.setOnKeyPressed
+          (ui/event-handler event
+            (let [^KeyEvent event event]
+              (when (and (= KeyEvent/KEY_PRESSED (.getEventType event)))
+                (condp = (.getCode event)
+                  KeyCode/ENTER (accept! (first (ui/selection list-view)))
+                  KeyCode/ESCAPE (.hide popup)
+                  nil))))))
+      (.show popup (.getWindow (.getScene canvas)) (.getX anchor) (.getY anchor)))))
+
+(handler/defhandler :goto-definition :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node user-data open-resource-fn]
+    (let [resource-node (get-property view-node :resource-node)
+          resource (g/node-value resource-node :resource)
+          cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
+      (lsp/goto-definition!
+        (lsp/get-node-lsp resource-node)
+        resource
+        cursor
+        (fn [results]
+          (fx/on-fx-thread
+            (case (count results)
+              0 nil
+              1 (open-resource-fn
+                  (:resource (first results))
+                  {:cursor-range (:cursor-range (first results))})
+              (show-goto-popup! view-node open-resource-fn results))))))))
+
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
 ;; -----------------------------------------------------------------------------
@@ -2540,8 +2604,7 @@
       (reset! state nil))))
 
 (defn- make-view! [graph parent resource-node opts]
-  (let [^Tab tab (:tab opts)
-        app-view (:app-view opts)
+  (let [{:keys [^Tab tab app-view grammar open-resource-fn]} opts
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
@@ -2555,7 +2618,7 @@
                                              :color-scheme code-color-scheme
                                              :font-size (.getValue font-size-property)
                                              :font-name  (.getValue font-name-property)
-                                             :grammar (:grammar opts)
+                                             :grammar grammar
                                              :gutter-view (CodeEditorGutterView.)
                                              :highlighted-find-term (.getValue highlighted-find-term-property)
                                              :line-height-factor 1.2
@@ -2578,7 +2641,8 @@
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
                      :replace-bar replace-bar
-                     :view-node view-node}]
+                     :view-node view-node
+                     :open-resource-fn open-resource-fn}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
     (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))

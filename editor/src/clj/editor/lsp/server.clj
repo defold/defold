@@ -143,7 +143,8 @@
 (s/def ::change #{:none :full :incremental})
 (s/def ::text-document-sync (s/keys :req-un [::open-close ::change]))
 (s/def ::pull-diagnostics #{:none :text-document :workspace})
-(s/def ::capabilities (s/keys :req-un [::text-document-sync ::pull-diagnostics]))
+(s/def ::goto-definition boolean?)
+(s/def ::capabilities (s/keys :req-un [::text-document-sync ::pull-diagnostics ::goto-definition]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
   (data/->Cursor line character))
@@ -191,7 +192,7 @@
     lsp-text-document-sync-kind-full :full
     lsp-text-document-sync-kind-incremental :incremental))
 
-(defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync diagnosticProvider]}]
+(defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync diagnosticProvider definitionProvider]}]
   {:text-document-sync (cond
                          (nil? textDocumentSync)
                          {:change :none :open-close false}
@@ -209,7 +210,11 @@
    :pull-diagnostics (cond
                        (nil? diagnosticProvider) :none
                        (:workspaceDiagnostics diagnosticProvider) :workspace
-                       :else :text-document)})
+                       :else :text-document)
+   :goto-definition (cond
+                      (boolean? definitionProvider) definitionProvider
+                      (map? definitionProvider) true
+                      :else false)})
 
 (defn- configuration-handler [project]
   (fn [{:keys [items]}]
@@ -247,7 +252,9 @@
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
-         :capabilities {:workspace {:diagnostics {}}}
+         :capabilities {:workspace {:diagnostics {}}
+                        :textDocument {:definition {:dynamicRegistration false
+                                                    :linkSupport true}}}
          :workspaceFolders [{:uri uri :name title}]}))
     (* 60 1000)))
 
@@ -381,6 +388,40 @@
               (assoc :previousResultId previous-result-id)))
     (fn convert-result [result _]
       (result-converter (full-or-unchanged-diagnostic-result:lsp->editor result)))))
+
+(defn- lsp-location-or-location-link->editor-location
+  [location-or-location-link project evaluation-context]
+  ;; Location: uri and range keys
+  ;; LocationLink: targetUri and targetSelectionRange
+  (let [lsp-uri (or (:uri location-or-location-link)
+                    (:targetUri location-or-location-link))
+        lsp-range (or (:range location-or-location-link)
+                      (:targetSelectionRange location-or-location-link))]
+    (when-let [resource (maybe-resource project lsp-uri evaluation-context)]
+      {:resource resource
+       :cursor-range (lsp-range->editor-cursor-range lsp-range)})))
+
+(defn goto-definition
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_definition"
+  [resource cursor]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/definition"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)})
+    ;; bound-fn only needed for tests to pick up the test system
+    (bound-fn [result project]
+      (if (nil? result)
+        []
+        (lsp.async/with-auto-evaluation-context evaluation-context
+          (if (map? result)
+            (if-let [location (lsp-location-or-location-link->editor-location result project evaluation-context)]
+              [location]
+              [])
+            (into []
+                  (keep #(lsp-location-or-location-link->editor-location % project evaluation-context))
+                  result)))))))
 
 (defn open-text-document
   "See also:

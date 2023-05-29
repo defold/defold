@@ -1844,7 +1844,8 @@ If you do not specifically require different script states, consider changing th
       app-view)))
 
 (defn- make-tab! [app-view prefs workspace project resource resource-node
-                  resource-type view-type make-view-fn ^ObservableList tabs opts]
+                  resource-type view-type make-view-fn ^ObservableList tabs
+                  open-resource opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (tab-title resource false))
                      (.setContent parent)
@@ -1854,12 +1855,13 @@ If you do not specifically require different script states, consider changing th
         select-fn  (partial select app-view)
         opts       (merge opts
                           (get (:view-opts resource-type) (:id view-type))
-                          {:app-view  app-view
+                          {:app-view app-view
                            :select-fn select-fn
-                           :prefs     prefs
-                           :project   project
+                           :open-resource-fn (partial open-resource app-view prefs workspace project)
+                           :prefs prefs
+                           :project project
                            :workspace workspace
-                           :tab       tab})
+                           :tab tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs workspace resource view-type)
@@ -1949,7 +1951,8 @@ If you do not specifically require different script states, consider changing th
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
                                 (make-tab! app-view prefs workspace project resource resource-node
-                                           resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
+                                           resource-type view-type make-view-fn active-tab-pane-tabs
+                                           open-resource opts)))]
              (when (or (nil? existing-tab) (:select-node opts))
                (g/transact
                  (select app-view resource-node [(:select-node opts resource-node)])))
