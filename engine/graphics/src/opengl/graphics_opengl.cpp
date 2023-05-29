@@ -2376,11 +2376,11 @@ static void LogFrameBufferError(GLenum status)
 
         if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
         {
-            return WebGLValidateFramebufferAttachmentsDepthStencil(BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT, creation_params);
+            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT, creation_params);
         }
         else if (buffer_type_flags & (BUFFER_TYPE_STENCIL_TEXTURE_BIT | BUFFER_TYPE_DEPTH_TEXTURE_BIT))
         {
-            return WebGLValidateFramebufferAttachmentsDepthStencil(BUFFER_TYPE_DEPTH_TEXTURE_BIT, BUFFER_TYPE_STENCIL_TEXTURE_BIT, creation_params);
+            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, BUFFER_TYPE_DEPTH_TEXTURE_BIT, BUFFER_TYPE_STENCIL_TEXTURE_BIT, creation_params);
         }
 
         return true;
