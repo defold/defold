@@ -28,6 +28,7 @@
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
+            [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -1815,6 +1816,17 @@
                   nil))))))
       (.show popup (.getWindow (.getScene canvas)) (.getX anchor) (.getY anchor)))))
 
+(defn- show-no-language-server-for-resource-language-notification! [resource]
+  (let [language (resource/language resource)]
+    (notifications/show!
+      (workspace/notifications (resource/workspace resource))
+      {:type :warning
+       :id [::no-lsp language]
+       :text (format "Cannot perform this action because there is no LSP Language Server running for the '%s' language"
+                     language)
+       :actions [{:text "About LSP in Defold"
+                  :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
+
 (handler/defhandler :goto-definition :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -1823,19 +1835,41 @@
   (run [view-node user-data open-resource-fn]
     (let [resource-node (get-property view-node :resource-node)
           resource (g/node-value resource-node :resource)
-          cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
-      (lsp/goto-definition!
-        (lsp/get-node-lsp resource-node)
-        resource
-        cursor
-        (fn [results]
-          (fx/on-fx-thread
-            (case (count results)
-              0 nil
-              1 (open-resource-fn
-                  (:resource (first results))
-                  {:cursor-range (:cursor-range (first results))})
-              (show-goto-popup! view-node open-resource-fn results))))))))
+          lsp (lsp/get-node-lsp resource-node)]
+      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (lsp/goto-definition!
+          lsp
+          resource
+          (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+          (fn [results]
+            (fx/on-fx-thread
+              (case (count results)
+                0 nil
+                1 (open-resource-fn
+                    (:resource (first results))
+                    {:cursor-range (:cursor-range (first results))})
+                (show-goto-popup! view-node open-resource-fn results)))))
+        (show-no-language-server-for-resource-language-notification! resource)))))
+
+(handler/defhandler :find-references :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node user-data open-resource-fn]
+    (let [resource-node (get-property view-node :resource-node)
+          lsp (lsp/get-node-lsp resource-node)
+          resource (g/node-value resource-node :resource)]
+      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (lsp/find-references!
+          lsp
+          resource
+          (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+          (fn [results]
+            (when (pos? (count results))
+              (fx/on-fx-thread
+                (show-goto-popup! view-node open-resource-fn results)))))
+        (show-no-language-server-for-resource-language-notification! resource)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
@@ -2235,6 +2269,9 @@
    {:label :separator}
    {:command :select-next-occurrence :label "Select Next Occurrence"}
    {:command :split-selection-into-lines :label "Split Selection Into Lines"}
+   {:label :separator}
+   {:command :goto-definition :label "Go to Definition"}
+   {:command :find-references :label "Find References"}
    {:label :separator}
    {:command :toggle-breakpoint :label "Toggle Breakpoint"}])
 
