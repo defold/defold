@@ -2311,7 +2311,7 @@ static void LogFrameBufferError(GLenum status)
 
 #if __EMSCRIPTEN__
     
-    static bool WebGLValidateFramebufferAttachmentsDepthStencil(uint32_t buffer_type_flags, uint32_t depth_bit, uint32_t stencil_bit, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    static bool WebGLValidateFramebufferAttachmentsDepthStencil(uint32_t buffer_type_flags, uint32_t attachment_width, uint32_t attachment_height, uint32_t depth_bit, uint32_t stencil_bit, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
     {
         if(!(buffer_type_flags & stencil_bit))
         {
@@ -2376,11 +2376,11 @@ static void LogFrameBufferError(GLenum status)
 
         if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
         {
-            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT, creation_params);
+            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, attachment_width, attachment_height, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT, creation_params);
         }
         else if (buffer_type_flags & (BUFFER_TYPE_STENCIL_TEXTURE_BIT | BUFFER_TYPE_DEPTH_TEXTURE_BIT))
         {
-            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, BUFFER_TYPE_DEPTH_TEXTURE_BIT, BUFFER_TYPE_STENCIL_TEXTURE_BIT, creation_params);
+            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, attachment_width, attachment_height, BUFFER_TYPE_DEPTH_TEXTURE_BIT, BUFFER_TYPE_STENCIL_TEXTURE_BIT, creation_params);
         }
 
         return true;
