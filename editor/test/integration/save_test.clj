@@ -153,12 +153,12 @@
                                        (prn 'save save-line))))]
             (is (not (g/error? save-data)))
             (when-not (is (= disk-string save-string))
-              (if-some [read-raw-fn (:read-raw-fn (resource/resource-type resource))]
+              (if-some [read-fn (:read-fn (resource/resource-type resource))]
 
                 ;; We have a read-fn. Compare the read data representations.
-                (let [disk-pb-msg (read-raw-fn resource)
+                (let [disk-pb-msg (read-fn resource)
                       save-pb-msg (with-open [reader (StringReader. save-string)]
-                                    (read-raw-fn reader))
+                                    (read-fn reader))
                       [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
                   (is (nil? only-in-disk-pb-msg))
                   (is (nil? only-in-save-pb-msg))

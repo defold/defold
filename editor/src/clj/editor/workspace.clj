@@ -199,8 +199,6 @@ ordinary paths."
   (g/node-value node-id :save-value evaluation-context))
 
 (defn register-resource-type
-  ;; TODO(save-value): Add documentation for :search-fn and :search-value-fn.
-  ;; TODO(save-value): Make sure every :textual? resource type that needs it has a :search-fn.
   "Register new resource type to be handled by the editor
 
   Required kv-args:
@@ -228,12 +226,23 @@ ordinary paths."
     :read-fn            a fn from clojure.java.io/reader-able object (e.g.
                         a resource or a Reader) to a data structure
                         representation of the resource (a source value)
-    :read-raw-fn        similar to :read-fn, but used during sanitization
-    :sanitize-fn        if present, will be applied to read data (from
-                        :read-raw-fn or, if absent, from :read-fn) on loading to
-                        transform the loaded data
     :write-fn           a fn from a data representation of the resource
                         (a save value) to string
+    :search-value-fn    a fn from node-id, resource and an evaluation-context to
+                        a search-value that can be accepted by the :search-fn in
+                        order to find a matching substring inside the resource.
+                        If not provided, the nodes :save-value will be used.
+    :search-fn          a multi-arity fn used to search the resource for a
+                        matching substring. The first arity should accept a
+                        search string and return a value that can be used by the
+                        second arity to perform the search (typically a regex
+                        Pattern). The second arity should accept a search-value
+                        returned from the :search-value-fn and the value
+                        returned by the first arity, and return a sequence of
+                        match-infos. Each match-info should have a :match-type
+                        and details about the match unique to that :match-type.
+                        This can be used to select the matching sub-region when
+                        the match is opened in an editor view.
     :icon               classpath path to an icon image or project resource path
                         string; default \"icons/32/Icons_29-AT-Unknown.png\"
     :view-types         vector of alternative views that can be used for
@@ -255,7 +264,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn search-fn search-value-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
@@ -268,8 +277,6 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
-                       :read-raw-fn (or read-raw-fn read-fn)
-                       :sanitize-fn sanitize-fn
                        :search-fn search-fn
                        :search-value-fn (or search-value-fn default-search-value-fn)
                        :icon icon
