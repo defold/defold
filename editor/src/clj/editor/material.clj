@@ -300,12 +300,13 @@
 (defn- set-form-value-fn [property value attributes]
   (if (= property :attributes)
     (mapv (fn [attribute]
-            ;; TODO: How can this be simplified?
+            ;; TODO(vertex-attr): How can this be simplified?
             (let [attribute-current (first (filterv #(= (:name %) (:name attribute)) attributes))
                   attribute-current-value (graphics/attribute->values attribute-current)
                   attribute-form-value (:value attribute)
                   attribute-current-value (cond (or (nil? attribute-current-value)
-                                                    (and (empty? attribute-form-value) (empty? attribute-current-value)))
+                                                    (and (empty? attribute-form-value)
+                                                         (empty? attribute-current-value)))
                                                 []
 
                                                 (empty? attribute-current-value)
@@ -314,7 +315,7 @@
                                                 :else attribute-current-value)
                   attribute-new-value (update-vector-with-subvec attribute-current-value (:value attribute))
                   attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))]
-              (println (:name attribute) attribute-value-keyword attribute-new-value)
+              ;; Clean the old values in case the type has changed
               (-> attribute
                   (dissoc :float-values :uint-values :int-values :binary-values)
                   (assoc attribute-value-keyword {:v attribute-new-value}))))
@@ -455,6 +456,13 @@
   ;; Material$MaterialDesc$Sampler in map format.
   (dissoc sampler :name-indirections)) ; Only used in built data by the runtime.
 
+(defn- sanitize-attribute [attribute]
+  (let [attribute-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))
+        attribute-values (graphics/attribute->values attribute)]
+    (-> attribute
+        (dissoc :float-values :uint-values :int-values :binary-values)
+        (assoc attribute-keyword {:v attribute-values}))))
+
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
   :samplers if we encounter them. Ignores :textures that already have
@@ -467,9 +475,11 @@
         samplers (into []
                        (util/distinct-by :name)
                        (concat existing-samplers
-                               samplers-created-from-textures))]
+                               samplers-created-from-textures))
+        attributes (map sanitize-attribute (:attributes material-desc))]
     (-> material-desc
         (assoc :samplers samplers)
+        (assoc :attributes attributes)
         (dissoc :textures))))
 
 (defn register-resource-types [workspace]
