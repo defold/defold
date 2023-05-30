@@ -88,11 +88,11 @@
     (swap! launched-targets conj launched-target)
     (clear-selected-target-hint!)
     (invalidate-target-menu!)
-    (process/watchdog! (:process launched-target)
-                       (fn []
-                         (swap! launched-targets (partial remove #(= (:id %) (:id launched-target))))
-                         (clear-selected-target-hint!)
-                         (invalidate-target-menu!)))
+    (process/on-exit! (:process launched-target)
+                      (fn []
+                        (swap! launched-targets (partial remove #(= (:id %) (:id launched-target))))
+                        (clear-selected-target-hint!)
+                        (invalidate-target-menu!)))
     launched-target))
 
 (defn- find-by-id [targets id]
