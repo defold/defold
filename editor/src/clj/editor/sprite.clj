@@ -479,7 +479,6 @@
   (assoc current-property-value (:name-key attribute) new-value))
 
 (defn- attribute-clear-property [current-property-value attribute]
-  (println "CLEARING ATTRIBUTE!!" (:name-key attribute))
   (dissoc current-property-value (:name-key attribute)))
 
 (defn- get-attribute-edit-type [attribute prop-type]
@@ -493,7 +492,6 @@
        :ignore-alpha? false
        :set-fn attribute-update-fn
        :clear-fn attribute-clear-fn}
-      ;; Add clear fn
       {:type prop-type
        :set-fn attribute-update-fn
        :clear-fn attribute-clear-fn})))
@@ -516,15 +514,16 @@
                                           attribute-expected-value-count (get-attribute-expected-element-count attribute)
                                           attribute-edit-type (get-attribute-edit-type attribute attribute-type)
                                           attribute-key (:name-key attribute)
-                                          attribute-values-original (:values attribute)
                                           attribute-property-key (attribute->outline-key attribute)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
                                                           :value (fill-with-zeros attribute-values attribute-expected-value-count)
-                                                          :original-value attribute-values-original
                                                           :label (properties/keyword->name attribute-key)}]
-                                      {attribute-property-key attribute-prop}))
+                                      ;; Insert the original material values as original-value if there is a vertex override
+                                      (if (contains? vertex-attribute-overrides attribute-key)
+                                        {attribute-property-key (assoc attribute-prop :original-value (:values attribute))}
+                                        {attribute-property-key attribute-prop})))
                                   material-attribute-infos)]
     (-> _declared-properties
         (update :properties into attribute-properties)
@@ -688,6 +687,4 @@
 
 ;; TODO(vertex-attr):
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
-;; * When loading a sprite, we need to take the material attributes into account.
-;;   Since we now don't save the data-type into the sprite, we can't deduce where to grab the data from..
 ;; * Validation for the vertex attributes, right now we allow _any_ value which will crash the engine. Should probably limit to 1..4?
