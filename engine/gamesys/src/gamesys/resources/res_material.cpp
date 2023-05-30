@@ -208,23 +208,6 @@ namespace dmGameSystem
                 (dmVMath::Vector4*) vertex_constant[i].m_Value.m_Data, vertex_constant[i].m_Value.m_Count);
         }
 
-        // Deprecated
-        const char** textures = ddf->m_Textures.m_Data;
-        uint32_t texture_count = ddf->m_Textures.m_Count;
-        if (texture_count > 0)
-        {
-            for (uint32_t i = 0; i < texture_count; i++)
-            {
-                dmhash_t name_hash = dmHashString64(textures[i]);
-                dmRender::SetMaterialSampler(material, name_hash, i,
-                    dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                    dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                    dmGraphics::TEXTURE_FILTER_DEFAULT,
-                    dmGraphics::TEXTURE_FILTER_DEFAULT, 1.0f);
-            }
-        }
-        // End deprecated
-
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
 
         uint32_t sampler_unit = 0;

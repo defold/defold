@@ -458,9 +458,6 @@ namespace dmGameSystem
             item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             component->m_RenderItems.Push(item);
-
-            // printf("AABB: (%f, %f, %f)  (%f, %f, %f)\n", item.m_AabbMin.getX(), item.m_AabbMin.getY(), item.m_AabbMin.getZ(),
-            //         item.m_AabbMax.getX(), item.m_AabbMax.getY(), item.m_AabbMax.getZ());
         }
     }
 

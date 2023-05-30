@@ -113,7 +113,7 @@ static void DestroyAnimation(Animation* animation)
 
 static void DestroyMaterial(Material* material)
 {
-    (void)material;
+    free((void*)material->m_Name);
 }
 
 bool Validate(Scene* scene)
