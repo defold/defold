@@ -34,7 +34,7 @@
     [com.dynamo.bob.logging LogHelper]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
-    [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
+    [java.io File InputStream OutputStream PrintStream PrintWriter]
     [java.net URI URL]
     [java.nio.charset StandardCharsets]
     [org.apache.commons.io FilenameUtils]
@@ -177,27 +177,27 @@
       (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
       (PrintStream. true StandardCharsets/UTF_8)))
 
-(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! show-build-log-stream! task-cancelled?]
+(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! log-output-stream task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
          (map? bob-args)
          (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
          (ifn? render-progress!)
-         (ifn? show-build-log-stream!)
+         (instance? OutputStream log-output-stream)
          (ifn? task-cancelled?)]}
   (reset! build-in-progress-atom true)
   (let [prev-out System/out
-        prev-err System/err]
-    (with-open [log-stream (PipedInputStream.)
-                log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
-                build-out (PrintStream-on
+        prev-err System/err
+        ;; Don't close the writer because we don't own the log output stream,
+        ;; hence we must not close it. Instead, we will only flush it in the end
+        log-stream-writer (PrintWriter. log-output-stream true StandardCharsets/UTF_8)]
+    (with-open [build-out (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))
                 build-err (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))]
       (try
-        (show-build-log-stream! log-stream)
         (System/setOut build-out)
         (System/setErr build-err)
         (if (and (some #(= "build" %) bob-commands)
@@ -229,6 +229,7 @@
         (finally
           (System/setOut prev-out)
           (System/setErr prev-err)
+          (.flush log-stream-writer)
           (reset! build-in-progress-atom false))))))
 
 ;; -----------------------------------------------------------------------------
