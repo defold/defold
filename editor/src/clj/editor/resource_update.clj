@@ -23,13 +23,10 @@
   * mark-deleted - a list of resource nodes to be marked as deleted
   * invalidate-outputs - a list of resource nodes (stateless) whose outputs should be invalidated
   * redirect - a list of [resource node, new resource] pairs, the resource nodes :resource will be reset to new resource."
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.resource :as resource])
-  (:import [editor.resource ZipResource]
-           [java.io InputStream]
-           [org.apache.commons.codec.digest DigestUtils]))
+  (:import [editor.resource ZipResource]))
 
 (defn print-plan [plan]
   (let [resource-info (fn [r] (pr-str r))
@@ -69,38 +66,19 @@
 (defn- keep-existing-node?
   "Check if we can safely keep the existing node in the graph. Every time a file
   has an updated timestamp it will be reported as changed, but if the contents
-  are unchanged we don't need to reload the node."
+  are unchanged we don't need to reload the node. The :disk-sha256 output must
+  produce a non-nil value for the existing node to potentially be kept. Resource
+  nodes will typically assign the :disk-sha256 property at load time to achieve
+  this, but lazy-loaded resource nodes can use other methods."
   [old-node new-resource evaluation-context]
-  (let [resource-type (resource/resource-type new-resource)]
-    ;; Determine if the file contents have changed by comparing the sha256
-    ;; value of the in-memory state of the old-node to the calculated sha256 of
-    ;; the on-disk state of the new-resource.
-    (if (:stateless? resource-type)
-      ;; Stateless resources do not have an in-memory state, so their sha256
-      ;; output will return the sha256 of their on-disk state. Thus, we cannot
-      ;; determine if the file has changed compared to their in-memory state,
-      ;; and must assume it is unsafe to keep the existing node in the graph.
-      false
-
-      ;; This is a stateful resource. Compare the sha256 of the in-memory state
-      ;; to the sha256 of the on-disk state of the new-resource.
-      (let [read-fn (:read-fn resource-type)
-            write-fn (:write-fn resource-type)
-            old-sha256 (try
-                         (g/node-value old-node :sha256 evaluation-context)
-                         (catch Exception _
-                           nil))
-            new-sha256 (try
-                         (when (and read-fn write-fn)
-                           (let [source-value (read-fn new-resource)
-                                 sanitized-content (write-fn source-value)]
-                             (DigestUtils/sha256Hex ^String sanitized-content)))
-                         (catch Exception _
-                           nil))]
-        (and (some? old-sha256)
-             (some? new-sha256)
-             (not (g/error? old-sha256))
-             (= old-sha256 new-sha256))))))
+  (if-some [old-disk-sha256 (g/node-value old-node :disk-sha256 evaluation-context)]
+    (if-some [new-disk-sha256 (try
+                                (resource/resource->sha256-hex new-resource)
+                                (catch Exception _
+                                  nil))]
+      (= old-disk-sha256 new-disk-sha256)
+      false)
+    false))
 
 (defn- replace-resources-plan [{:keys [resource->old-node]} resources force-replacement]
   ;; Creates new resource nodes for all resources, transfers overrides and outgoing arcs

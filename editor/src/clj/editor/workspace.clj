@@ -245,8 +245,11 @@ ordinary paths."
                         for a new resource file creation; defaults to
                         \"templates/template.{ext}\"
     :label              label for a resource type when shown in the editor
-    :stateless?         whether the resource can be modified in the editor, by
-                        default true if there is no :load-fn and false otherwise
+    :stateless?         whether or not the node stores any state that needs to
+                        be reloaded if the resource is modified externally. When
+                        true, we can simply invalidate its outputs without
+                        replacing the node in the graph. Defaults to true if
+                        there is no :load-fn.
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"

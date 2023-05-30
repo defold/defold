@@ -39,6 +39,7 @@
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
+            [editor.settings :as settings]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -109,18 +110,41 @@
 (defn make-test-prefs []
   (prefs/load-prefs "test/resources/test_prefs.json"))
 
-(declare prop prop!)
+(declare resolve-prop)
 
-(defn code-editor-source [script-id]
-  (string/join "\n" (prop script-id :modified-lines)))
+(defn code-editor-lines [script-id]
+  (let [[node-id] (resolve-prop script-id :modified-lines)]
+    (g/node-value node-id :lines)))
 
-(defn code-editor-source! [script-id source]
+(defn code-editor-text
+  ^String [script-id]
+  (code.data/lines->string (code-editor-lines script-id)))
+
+(defn set-code-editor-lines [script-id lines]
+  (let [[node-id label] (resolve-prop script-id :modified-lines)]
+    (g/set-property node-id label lines)))
+
+(defn set-code-editor-lines! [script-id lines]
+  (g/transact (set-code-editor-lines script-id lines)))
+
+(defn update-code-editor-lines [script-id f & args]
+  (let [old-lines (code-editor-lines script-id)
+        new-lines (apply f old-lines args)]
+    (set-code-editor-lines script-id new-lines)))
+
+(defn update-code-editor-lines! [script-id f & args]
+  (g/transact (apply update-code-editor-lines script-id f args)))
+
+(defn set-code-editor-source [script-id source]
   (let [lines (cond
                 (string? source) (code.data/string->lines source)
                 (vector? source) source
                 :else (throw (ex-info "source must be a string or a vector of lines."
                                       {:source source})))]
-    (prop! script-id :modified-lines lines)))
+    (set-code-editor-lines script-id lines)))
+
+(defn set-code-editor-source! [script-id source]
+  (g/transact (set-code-editor-source script-id source)))
 
 (defn setup-workspace!
   ([graph]
@@ -877,7 +901,7 @@
 
 (defn make-code-resource-node! [project proj-path source]
   (doto (make-resource-node! project proj-path)
-    (code-editor-source! source)))
+    (set-code-editor-source! source)))
 
 (defn move-file!
   "Moves or renames a file in the workspace, then performs a resource sync."
@@ -998,3 +1022,42 @@
                            [key (values index)])
                          entries))))
         (vals properties/type->entry-keys)))
+
+(defn first-subnode-of-type
+  ([resource-node-id subnode-type]
+   (g/with-auto-evaluation-context evaluation-context
+     (first-subnode-of-type resource-node-id subnode-type evaluation-context)))
+  ([resource-node-id subnode-type {:keys [basis] :as evaluation-context}]
+   (or (some (fn [{:keys [node-id]}]
+               (when (g/node-instance? basis subnode-type node-id)
+                 node-id))
+             (tree-seq :children :children
+                       (test-support/valid-node-value resource-node-id :node-outline evaluation-context)))
+       (throw (ex-info "No subnode matches the specified node type."
+                       {:subnode-type (:k subnode-type)
+                        :node-type (g/node-type-kw basis resource-node-id)
+                        :proj-path (resource/resource->proj-path (resource-node/as-resource-original basis resource-node-id))})))))
+
+(defn set-setting
+  ([settings-resource-node-id setting-path value]
+   (g/with-auto-evaluation-context evaluation-context
+     (set-setting settings-resource-node-id setting-path value evaluation-context)))
+  ([settings-resource-node-id setting-path value evaluation-context]
+   (let [form-data (test-support/valid-node-value settings-resource-node-id :form-data evaluation-context)
+         meta-settings (:meta-settings form-data)
+         user-data (:user-data (:form-ops form-data))]
+     (if (or (some #(= setting-path (:path %)) meta-settings))
+       (settings/set-tx-data user-data setting-path value)
+       (throw (ex-info "Invalid setting path."
+                       {:setting-path setting-path
+                        :candidates (into (sorted-set)
+                                          (map :path)
+                                          meta-settings)}))))))
+
+(defn set-setting!
+  ([settings-resource-node-id setting-path value]
+   (g/with-auto-evaluation-context evaluation-context
+     (set-setting! settings-resource-node-id setting-path value evaluation-context)))
+  ([settings-resource-node-id setting-path value evaluation-context]
+   (g/transact
+     (set-setting settings-resource-node-id setting-path value evaluation-context))))

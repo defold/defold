@@ -61,12 +61,13 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-registered-resource-node [load-fn project node-id resource]
+(defn- load-registered-resource-node [resource-type project node-id resource]
   (concat
-    (load-fn project node-id resource)
+    (when-some [load-fn (:load-fn resource-type)]
+      (load-fn project node-id resource))
     (when (and (resource/file-resource? resource)
                (resource/editable? resource)
-               (:auto-connect-save-data? (resource/resource-type resource)))
+               (:auto-connect-save-data? resource-type))
       (g/connect node-id :save-data project :save-data))))
 
 (defn load-node [project node-id node-type resource]
@@ -75,8 +76,7 @@
   ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [resource-type (some-> resource resource/resource-type)
-          loaded? (and *load-cache* (contains? @*load-cache* node-id))
-          load-fn (:load-fn resource-type)]
+          loaded? (and *load-cache* (contains? @*load-cache* node-id))]
       (when-not loaded?
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
@@ -84,9 +84,9 @@
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (if (nil? load-fn)
+            (if (nil? resource-type)
               (placeholder-resource/load-node project node-id resource)
-              (load-registered-resource-node load-fn project node-id resource))
+              (load-registered-resource-node resource-type project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
@@ -349,7 +349,17 @@
         (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
 
 (defn invalidate-save-data-source-values! [save-data]
-  (g/invalidate-outputs! (mapv (fn [sd] (g/endpoint (:node-id sd) :source-value)) save-data)))
+  (g/invalidate-outputs!
+    (into []
+          (mapcat (fn [{:keys [node-id]}]
+                    ;; While disk-sha256 is a property on the base ResourceNode,
+                    ;; lazy-loaded resources such as the CodeEditorResourceNode
+                    ;; may cover it with a custom output.
+
+                    ;; TODO: disk-sha256 cannot be a property, because we need to update it when saving (add a test for this!). And saving would then be "undoable".
+                    (pair (g/endpoint node-id :disk-sha256)
+                          (g/endpoint node-id :source-value))))
+          save-data)))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]

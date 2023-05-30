@@ -176,7 +176,7 @@
       (tu/make-atlas-resource-node! project atlas-proj-path))
     (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
           script (doto (tu/make-resource-node! project "/assets/script.script")
-                   (tu/code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
+                   (tu/set-code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
           chair (tu/make-resource-node! project "/assets/chair.go")
           chair-referenced-script (tu/add-referenced-component! chair (resource-node/resource script))
           chair-embedded-sprite (tu/add-embedded-component! chair sprite-resource-type)

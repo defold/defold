@@ -165,11 +165,15 @@
             (when (resource/file-resource? resource)
               ;; Only connect to the script-intelligence build errors if this is
               ;; a file resource. The assumption is that if it is a file
-              ;; resource then it is being actively worked on. Otherwise it
+              ;; resource then it is being actively worked on. Otherwise, it
               ;; belongs to an external dependency and should not stop the build
               ;; on errors.
-              (concat (g/connect self :build-errors si :build-errors)
-                      (g/connect self :save-data project :save-data))))))
+              (concat
+                (g/connect self :build-errors si :build-errors)
+
+                ;; Don't connect to save-data when under a non-editable path.
+                (when (resource/editable? resource)
+                  (g/connect self :save-data project :save-data)))))))
 
 (defn register-resource-types
   [workspace]
