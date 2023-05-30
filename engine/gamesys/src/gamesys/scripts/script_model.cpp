@@ -416,22 +416,15 @@ namespace dmGameSystem
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmRigDDF::Skeleton* skeleton = resource->m_RigScene->m_SkeletonRes->m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        uint32_t bone_index = ~0u;
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            if (skeleton->m_Bones[i].m_Id == bone_id)
-            {
-                bone_index = i;
-                break;
-            }
-        }
-        if (bone_index == ~0u)
+        const dmHashTable64<uint32_t>& bone_indices = resource->m_RigScene->m_SkeletonRes->m_BoneIndices;
+        const uint32_t* bone_index = bone_indices.Get(bone_id);
+
+        if (!bone_index)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, bone_index);
+
+        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, *bone_index);
         if (instance == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));

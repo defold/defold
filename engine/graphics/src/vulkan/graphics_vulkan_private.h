@@ -257,11 +257,12 @@ namespace dmGraphics
         uint64_t               m_Hash;
         VkShaderModule         m_Module;
         ShaderResourceBinding* m_Uniforms;
-        ShaderResourceBinding* m_Attributes;
+        ShaderResourceBinding* m_Inputs;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformCount;
-        uint16_t               m_AttributeCount;
         uint16_t               m_UniformBufferCount;
+        uint16_t               m_InputCount;
+        uint16_t               m_TextureSamplerCount;
     };
 
     struct Program
@@ -388,6 +389,7 @@ namespace dmGraphics
         DeviceBuffer*                   m_CurrentVertexBuffer;
         VertexDeclaration*              m_CurrentVertexDeclaration;
         Program*                        m_CurrentProgram;
+        Pipeline*                       m_CurrentPipeline;
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
@@ -463,11 +465,10 @@ namespace dmGraphics
     VkResult CreateShaderModule(VkDevice vk_device,
         const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
+        const PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
     // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    // Destroy funcions
+    // Destroy functions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
     void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
@@ -538,6 +539,7 @@ namespace dmGraphics
 
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
     void         VulkanCloseWindow(HContext context);
+    void         VulkanDestroyResources(HContext context);
     uint32_t     VulkanGetDisplayDpi(HContext context);
     uint32_t     VulkanGetWidth(HContext context);
     uint32_t     VulkanGetHeight(HContext context);

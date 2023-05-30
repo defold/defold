@@ -55,10 +55,28 @@ Links:
 
 /* Overrides */
 
+.override-inspector-hyperlink {
+  -fx-text-fill: -df-text;
+  &:hover {
+    -fx-underline: true;
+  }
+}
+
 .overridden {
   -fx-text-inner-color: -df-defold-blue-lighter;
   -fx-text-color-base: -df-defold-blue-lighter;
   -fx-text-fill: -df-defold-blue-lighter; }
+
+&.override-inspector-check-box {
+    -fx-opacity: 1;
+    -fx-padding: -2 0 0 0;
+    & > .box {
+      -fx-background-color: transparent !important;
+    }
+    &.overridden > .box > .mark {
+      -fx-background-color: -df-defold-blue-lighter;
+    }
+}
 
 .copyable-label, .copyable-label:focused {
   -fx-background-color: transparent;

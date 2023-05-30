@@ -89,7 +89,11 @@
 (defn- gen-mipmaps [texture]
   (TexcLibrary/TEXC_GenMipMaps texture))
 
-(def num-texc-threads 8)
+(defn num-texc-threads []
+  (let [count (.availableProcessors (Runtime/getRuntime))]
+    (cond (> count 4) (- count 2)
+          (> count 1) (- count 1)
+          :else 1)))
 
 (defn- transcode [texture pixel-format color-model compression-level compression-type mipmaps]
   (TexcLibrary/TEXC_Encode texture pixel-format color-model compression-level compression-type mipmaps (num-texc-threads)))

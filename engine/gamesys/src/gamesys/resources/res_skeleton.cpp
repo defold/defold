@@ -14,11 +14,24 @@
 
 #include "res_skeleton.h"
 
-#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/hashtable.h>
+#include <dmsdk/dlib/math.h>
 
 namespace dmGameSystem
 {
-    using namespace dmVMath;
+    static void CreateBoneIndexMap(dmRigDDF::Skeleton* skeleton, dmHashTable64<uint32_t>* indices)
+    {
+        uint32_t size = skeleton->m_Bones.m_Count;
+
+        if (indices->Capacity() < size)
+            indices->SetCapacity( dmMath::Max((size*2)/3, 1U), size );
+
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
+            indices->Put(bone->m_Id, i);
+        }
+    }
 
     static void ReleaseResources(dmResource::HFactory factory, SkeletonResource* resource)
     {
@@ -44,6 +57,7 @@ namespace dmGameSystem
         SkeletonResource* ss_resource = new SkeletonResource();
         ss_resource->m_Skeleton = (dmRigDDF::Skeleton*) params.m_PreloadData;
         params.m_Resource->m_Resource = (void*) ss_resource;
+        CreateBoneIndexMap(ss_resource->m_Skeleton, &ss_resource->m_BoneIndices);
         return dmResource::RESULT_OK;
     }
 
@@ -67,6 +81,8 @@ namespace dmGameSystem
         SkeletonResource* ss_resource = (SkeletonResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_Skeleton = spine_scene;
+        ss_resource->m_BoneIndices.Clear();
+        CreateBoneIndexMap(ss_resource->m_Skeleton, &ss_resource->m_BoneIndices);
         return dmResource::RESULT_OK;
     }
 }

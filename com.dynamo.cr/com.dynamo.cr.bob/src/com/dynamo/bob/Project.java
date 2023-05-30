@@ -80,6 +80,9 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.IShaderCompiler;
+import com.dynamo.bob.pipeline.ShaderCompilers;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -135,6 +138,8 @@ public class Project {
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private ClassLoader classLoader = null;
 
+    private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
+
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
@@ -175,7 +180,7 @@ public class Project {
     }
 
     public String getPluginsDirectory() {
-        return FilenameUtils.concat(getRootDirectory(), PLUGINS_DIR);
+        return FilenameUtils.concat(rootDirectory, PLUGINS_DIR);
     }
 
     public String getBinaryOutputDirectory() {
@@ -183,11 +188,11 @@ public class Project {
     }
 
     public String getLibPath() {
-        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+        return FilenameUtils.concat(rootDirectory, LIB_DIR);
     }
 
     public String getBuildCachePath() {
-        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+        return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
     public String getLocalResourceCacheDirectory() {
@@ -204,6 +209,14 @@ public class Project {
 
     public String getRemoteResourceCachePass() {
         return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+    }
+
+    public int getMaxCpuThreads() {
+        String maxThreadsOpt = option("max-cpu-threads", null);
+        if (maxThreadsOpt == null) {
+            return getDefaultMaxCpuThreads();
+        }
+        return Integer.parseInt(maxThreadsOpt);
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -322,6 +335,14 @@ public class Project {
                             bundlerClasses.add( (Class<? extends IBundler>) klass);
                         }
                     }
+
+                    if (IShaderCompiler.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IShaderCompiler.class)) {
+                            shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -821,6 +842,40 @@ public class Project {
         m.done();
     }
 
+    private Class<? extends IShaderCompiler> getShaderCompilerClass(Platform platform) {
+        for (Class<? extends IShaderCompiler> klass : shaderCompilerClasses) {
+            BundlerParams bundlerParams = klass.getAnnotation(BundlerParams.class);
+            if (bundlerParams == null) {
+                continue;
+            }
+            for (Platform supportedPlatform : bundlerParams.platforms()) {
+                if (supportedPlatform == platform)
+                    return klass;
+            }
+        }
+        return null;
+    }
+
+    public IShaderCompiler getShaderCompiler(Platform platform) throws CompileExceptionError {
+        // Look for a shader compiler plugin for this platform
+        Class<? extends IShaderCompiler> shaderCompilerClass = getShaderCompilerClass(platform);
+        if (shaderCompilerClass != null) {
+            try {
+                return shaderCompilerClass.newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        // If not found, try to get a built-in shader compiler for this platform
+        IShaderCompiler commonShaderCompiler = ShaderCompilers.getCommonShaderCompiler(platform);
+        if (commonShaderCompiler != null) {
+            return commonShaderCompiler;
+        }
+
+        throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
+    }
+
     private static boolean anyFailing(Collection<TaskResult> results) {
         for (TaskResult taskResult : results) {
             if (!taskResult.isOk()) {
@@ -1126,6 +1181,14 @@ public class Project {
         return shouldBuildArtifact("plugins");
     }
 
+    public void scanJavaClasses() throws IOException, CompileExceptionError {
+        createClassLoaderScanner();
+        registerPipelinePlugins();
+        scan(scanner, "com.dynamo.bob");
+        scan(scanner, "com.dynamo.bob.pipeline");
+        scan(scanner, "com.defold.extension.pipeline");
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
@@ -1142,11 +1205,7 @@ public class Project {
         {
             IProgress mrep = monitor.subProgress(1);
             mrep.beginTask("Reading classes...", 1);
-            createClassLoaderScanner();
-            registerPipelinePlugins();
-            scan(scanner, "com.dynamo.bob");
-            scan(scanner, "com.dynamo.bob.pipeline");
-            scan(scanner, "com.defold.extension.pipeline");
+            scanJavaClasses();
             mrep.done();
         }
 
@@ -1222,16 +1281,24 @@ public class Project {
 
                     if (this.hasOption("build-report")) {
                         String resourceReportJSONPath = this.option("build-report", "report.json");
+
                         File resourceReportJSONFile = new File(resourceReportJSONPath);
+                        File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
                         resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-                        File excludedResourceReportJSONFile = new File("excluded_" + resourceReportJSONPath);
+
+                        String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
+                        File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
                         excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
                     }
                     if (this.hasOption("build-report-html")) {
                         String resourceReportHTMLPath = this.option("build-report-html", "report.html");
                         File resourceReportHTMLFile = new File(resourceReportHTMLPath);
+
+                        File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
                         resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-                        File excludedResourceReportHTMLFile = new File("excluded_" + resourceReportHTMLPath);
+
+                        String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
+                        File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
                         excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
                     }
 
@@ -1356,6 +1423,8 @@ public class Project {
             allOutputs.addAll(task.getOutputs());
         }
         tasks.clear();
+
+        TextureGenerator.maxThreads = getMaxCpuThreads();
 
         // Keep track of the paths for all outputs
         outputs = new HashMap<>(allOutputs.size());
@@ -1900,6 +1969,18 @@ run:
             path = path.substring(1);
         }
         return path;
+    }
+
+    public static int getDefaultMaxCpuThreads() {
+        int maxThreads = 1;
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        if (availableProcessors > 4) {
+            maxThreads = availableProcessors - 2;
+        }
+        else if (availableProcessors > 1) {
+            maxThreads = availableProcessors - 1;
+        }
+        return maxThreads;
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {

@@ -38,7 +38,7 @@ def build(bld):
             'resource/*',
             'script/*',
             'sound/*',
-            'sprite/*',
+            'sprite/**',
             'tile/*',
             'texture/*',
             'textureset/*',

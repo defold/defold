@@ -156,7 +156,7 @@
   (reduce
    (fn [result snapshot]
      (if-let [collisions (seq (clojure.set/intersection (resource-paths result) (resource-paths snapshot)))]
-       (update result :errors conj {:collisions (select-keys (:status-map snapshot) collisions)})
+       (update result :errors conj {:type :collision :collisions (select-keys (:status-map snapshot) collisions)})
        (-> result
            (update :resources concat (:resources snapshot))
            (update :status-map merge (:status-map snapshot)))))

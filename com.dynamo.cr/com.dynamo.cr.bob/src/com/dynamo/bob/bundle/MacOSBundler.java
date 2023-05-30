@@ -110,11 +110,9 @@ public class MacOSBundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-
         BundleHelper.throwIfCanceled(canceled);
 
-        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        List<File> bundleExes = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (bundleExes == null) {
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
@@ -167,7 +165,7 @@ public class MacOSBundler implements IBundler {
         exeOut.setExecutable(true);
 
         // Copy debug symbols
-        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
         File buildSymbols = new File(zipDir, "dmengine.dSYM");
         if (buildSymbols.exists()) {
             String symbolsDir = String.format("%s.dSYM", title);

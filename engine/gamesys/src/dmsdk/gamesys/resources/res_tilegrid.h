@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #include <gamesys/tile_ddf.h>
-#include <physics/physics.h>
+#include <dmsdk/physics/physics.h>
 #include <dmsdk/render/render.h>
 
 namespace dmGameSystem

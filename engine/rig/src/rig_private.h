@@ -56,10 +56,11 @@ namespace dmRig
         RigPlayer                     m_Players[2];
         uint32_t                      m_Index;
         /// Rig input data
-        const dmArray<RigBone>*       m_BindPose;
-        const dmRigDDF::Skeleton*     m_Skeleton;
-        const dmRigDDF::MeshSet*      m_MeshSet;
-        const dmRigDDF::AnimationSet* m_AnimationSet;
+        const dmArray<RigBone>*         m_BindPose;
+        const dmHashTable64<uint32_t>*  m_BoneIndices;   // Map of bone name hash -> bone index
+        const dmRigDDF::Skeleton*       m_Skeleton;
+        const dmRigDDF::MeshSet*        m_MeshSet;
+        const dmRigDDF::AnimationSet*   m_AnimationSet;
 
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;

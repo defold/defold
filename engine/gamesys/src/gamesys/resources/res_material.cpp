@@ -254,6 +254,12 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+            if (!material)
+            {
+                dmResource::Release(params.m_Factory, (void*)resources.m_VertexProgram);
+                dmResource::Release(params.m_Factory, (void*)resources.m_FragmentProgram);
+                return dmResource::RESULT_DDF_ERROR;
+            }
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;

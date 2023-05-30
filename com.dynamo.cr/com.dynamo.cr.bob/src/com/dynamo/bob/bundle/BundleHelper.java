@@ -155,7 +155,7 @@ public class BundleHelper {
             return "";
         }
         String s = new String(data);
-        Template template = Mustache.compiler().compile(s);
+        Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         template.execute(propertiesMap, properties, sw);
         sw.flush();

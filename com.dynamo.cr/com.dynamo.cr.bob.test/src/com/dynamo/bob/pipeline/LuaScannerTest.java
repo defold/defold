@@ -214,7 +214,7 @@ public class LuaScannerTest {
     public void testPropsVec3() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_vec3.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(4, properties.size());
         assertProperty(properties, "prop1", new Vector3d(), 0);
         assertProperty(properties, "prop2", new Vector3d(1, 2, 3), 1);
         assertProperty(properties, "prop4", new Vector3d(2, 2, 2), 3);
@@ -224,7 +224,7 @@ public class LuaScannerTest {
     public void testPropsVec4() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_vec4.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(4, properties.size());
         assertProperty(properties, "prop1", new Vector4d(), 0);
         assertProperty(properties, "prop2", new Vector4d(1, 2, 3, 4), 1);
         assertProperty(properties, "prop4", new Vector4d(2, 2, 2, 2), 3);
@@ -234,7 +234,7 @@ public class LuaScannerTest {
     public void testPropsQuat() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_quat.lua");
 
-        assertEquals(2, properties.size());
+        assertEquals(3, properties.size());
         assertProperty(properties, "prop1", new Quat4d(), 0);
         Quat4d q = new Quat4d();
         q.set(1, 2, 3, 4);
