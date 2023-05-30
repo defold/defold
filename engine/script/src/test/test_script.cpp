@@ -1090,6 +1090,8 @@ TEST_F(ScriptTest, LuaBooleanFunctions)
     // Test checking something that isn't boolean
     /////////////////////////////////////////////
 
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
     {
         static int count = 0;
         int jmpval;
@@ -1102,9 +1104,22 @@ TEST_F(ScriptTest, LuaBooleanFunctions)
             dmScript::CheckBoolean(L, -1);
         }
 
-        ASSERT_TRUE(g_panic_function_called);
         ASSERT_EQ(2, count);
     }
+#else
+    try {
+
+        lua_pushnumber(L, 123);
+        dmScript::CheckBoolean(L, -1);
+
+    } catch (...)
+    {
+        g_panic_function_called = true;
+    }
+#endif
+    printf("<-- Expected error end\n");
+
+    ASSERT_TRUE(g_panic_function_called);
 
     lua_pop(L, 3);
 
