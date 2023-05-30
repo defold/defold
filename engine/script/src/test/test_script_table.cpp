@@ -514,6 +514,8 @@ static void SetupCyclicTable(lua_State* L)
     // -1: x1
 }
 
+#if !defined(_WIN32) // It currently doesn't work on Win32, due to LuaJIT's exception handling
+
 TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
 {
     g_CustomPanicFunctionCalled = 0;
@@ -573,6 +575,7 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
     lua_pop(L, 1);
 }
 
+#endif
 
 // TODO!!
 // TEST_F(LuaTableTest, ReadTruncatedFile)

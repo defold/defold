@@ -1294,9 +1294,14 @@ def run_tests(ctx, valgrind = False, configfile = None):
             if 'TEST_LAUNCH_PATTERN' in t.env:
                 launch_pattern = t.env.TEST_LAUNCH_PATTERN
 
+            task = None
             for task in t.tasks:
                 if task in ['link_task']:
                     break
+
+            if task is None:
+                print("Skipping", t.name)
+                continue
 
             program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
 
