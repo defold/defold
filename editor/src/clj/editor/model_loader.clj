@@ -53,7 +53,7 @@
         path (resource/path resource)
         options nil
         data-resolver (ModelUtil/createFileDataResolver project-path)
-        scene (ModelUtil/loadScene stream path options data-resolver)
+        scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ArrayList.)]
@@ -80,6 +80,6 @@
   (try
     (load-scene-internal resource)
     (catch Exception e
-      (let [msg (format "The file '%s' contains invalid data, likely produced by a buggy exporter." (resource/proj-path resource))]
+      (let [msg (format "The file '%s' failed to load:\n%s" (resource/proj-path resource) (.getMessage e))]
         (log/error :message msg :exception e)
         (g/->error node-id nil :fatal nil msg {:type :invalid-content :resource resource})))))

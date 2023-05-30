@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.ByteArrayOutputStream;
 import java.awt.image.BufferedImage;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -27,6 +26,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
@@ -39,6 +39,8 @@ import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
 public class AtlasBuilder extends Builder<TextureImage.Type>  {
+
+    private static Logger logger = Logger.getLogger(AtlasBuilder.class.getName());
 
     @Override
     public Task<TextureImage.Type> create(IResource input) throws IOException, CompileExceptionError {
@@ -90,7 +92,7 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         TextureSet textureSet   = result.builder.setPageCount(numPages).setTexture(texturePath).build();
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
         TextureImage textureImages[] = new TextureImage[numImages];
 
         for (int i = 0; i < numImages; i++)

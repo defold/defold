@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,6 +27,7 @@ import sdk
 import release_to_github
 import BuildUtility
 import http_cache
+from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
 from threading import Thread, Event
@@ -100,15 +101,15 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.1 vulkan-1.1.108".split()
 PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split()
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
@@ -796,8 +797,7 @@ class Configuration(object):
 
                 # Android Jars (external)
                 external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar",
-                                 "android.jar")
+                                 "androidx-multidex.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -980,6 +980,7 @@ class Configuration(object):
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
@@ -1490,7 +1491,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    def _get_tag_name(self, version, channel):
+    def compose_tag_name(self, version, channel):
         if channel and channel != 'stable':
             channel = '-' + channel
         else:
@@ -1511,7 +1512,7 @@ class Configuration(object):
         channel = '' if is_stable else self.channel
         msg = 'Release %s%s%s' % (self.version, '' if is_stable else ' - ', channel)
 
-        tag_name = self._get_tag_name(self.version, self.channel)
+        tag_name = self.compose_tag_name(self.version, self.channel)
 
         cmd = 'git tag -f -a %s -m "%s"' % (tag_name, msg)
 
@@ -1526,13 +1527,6 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _release_web_pages(self, releases):
-        model = {'releases': releases,
-                 'has_releases': True}
-
-        model['release'] = { 'channel': "Unknown", 'version': self.version }
-        if self.channel:
-            model['release']['channel'] = self.channel.capitalize()
-
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         editor_channel = None
@@ -1549,19 +1543,13 @@ class Configuration(object):
 
         release_sha1 = releases[0]['sha1']
 
-        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-macos.dmg'),
-                                        dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
-
-        page = None;
+        html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
-            page = file.read()
+            html = file.read()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
-        html = page % {'model': json.dumps(model)}
 
         key = bucket.new_key('%s/index.html' % self.channel)
         key.content_type = 'text/html'
@@ -1590,6 +1578,49 @@ class Configuration(object):
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
+    def _get_tag_pattern_from_tag_name(self, channel, tag_name):
+        # NOTE: Each of the main branches has a channel (stable, beta and alpha)
+        #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
+        channel_pattern = ''
+        if channel != 'stable':
+            channel_pattern = '-' + channel
+        platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
+        if platform_pattern:
+            platform_pattern = '-' + platform_pattern
+
+        # Example tags:
+        #   1.2.184, 1.2.184-alpha, 1.2.184-beta
+        #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
+        return r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
+
+    def _get_github_release_body(self):
+        engine_channel = None
+        editor_channel = None
+        engine_sha1 = None
+        editor_sha1 = None
+        if self.channel in ('stable','beta'):
+            engine_sha1 = self._git_sha1()
+
+        elif self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            editor_sha1 = self._git_sha1()
+            engine_sha1 = self._git_sha1(self.version) # engine version
+
+        else:
+            engine_sha1 = self._git_sha1()
+            engine_channel = self.channel
+            editor_channel = self.channel
+
+        if not editor_sha1:
+            editor_sha1 = engine_sha1
+
+        body  = "Defold version %s\n" % self.version
+        body += "Engine channel=%s sha1: %s\n" % (engine_channel, engine_sha1)
+        body += "Editor channel=%s sha1: %s\n" % (editor_channel, editor_sha1)
+        body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return body
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -1608,26 +1639,28 @@ class Configuration(object):
 
         # Create or update the tag for engine releases
         tag_name = None
+        is_editor_branch = False
+        engine_channel = None
+        editor_channel = None
+        prerelease = True
         if self.channel in ('stable', 'beta', 'alpha'):
+            engine_channel = self.channel
+            editor_channel = self.channel
+            prerelease = self.channel in ('alpha',)
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        if tag_name is not None:
-            # NOTE: Each of the main branches has a channel (stable, beta and alpha)
-            #       and each of them have their separate tag patterns ("1.2.183" vs "1.2.183-beta"/"1.2.183-alpha")
-            channel_pattern = ''
-            if self.channel != 'stable':
-                channel_pattern = '-' + self.channel
-            platform_pattern = build_private.get_tag_suffix() # E.g. '' or 'switch'
-            if platform_pattern:
-                platform_pattern = '-' + platform_pattern
+        elif self.channel in ('editor-alpha',):
+            # We update the stable release with new editor builds
+            engine_channel = 'stable'
+            editor_channel = self.channel
+            prerelease = False
+            tag_name = self.compose_tag_name(self.version, engine_channel)
+            is_editor_branch = True
 
-            # Example tags:
-            #   1.2.184, 1.2.184-alpha, 1.2.184-beta
-            #   1.2.184-switch, 1.2.184-alpha-switch, 1.2.184-beta-switch
-            pattern = r"(\d+\.\d+\.\d+%s)$" % (channel_pattern + platform_pattern)
-
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern)
+        if tag_name is not None and not is_editor_branch:
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
             # e.g. editor-dev releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
@@ -1652,17 +1685,44 @@ class Configuration(object):
         # Release to github as well
         if tag_name:
             # only allowed anyways with a github token
-            release_to_github.release(self, tag_name, release_sha1, releases[0])
+            body = self._get_github_release_body()
+            release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+            release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+
+    # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
+    # on a branch with the correct sha1 (e.g. beta or editor-dev)
+    def release_to_github(self):
+        engine_channel = None
+        release_sha1 = None
+        is_editor_branch = False
+        prerelease = True
+        if self.channel in ('editor-alpha',):
+            engine_channel = 'stable'
+            is_editor_branch = True
+            prerelease = False
+            release_sha1 = self._git_sha1()
+        else:
+            release_sha1 = self._git_sha1(self.version) # engine version
+            if self.channel in ('stable', 'beta'):
+                prerelease = False
+
+        tag_name = self.compose_tag_name(self.version, engine_channel or self.channel)
+
+        if tag_name is not None and not is_editor_branch:
+            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
+            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
+        else:
+            # e.g. editor-dev releases
+            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+
+        body = self._get_github_release_body()
+        release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
+
+        release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
 
 #
 # END: RELEASE
 # ------------------------------------------------------------
-
-    def release_to_github(self):
-        tag_name = self._get_tag_name(self.version, self.channel)
-        release_sha1 = self._git_sha1(self.version)
-        releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
-        release_to_github.release(self, tag_name, release_sha1, releases[0])
 
     def sync_archive(self):
         u = urlparse(self.get_archive_path())

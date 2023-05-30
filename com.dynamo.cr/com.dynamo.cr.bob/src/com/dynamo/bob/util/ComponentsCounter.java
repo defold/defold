@@ -82,12 +82,12 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
-            if (count == DYNAMIC_VALUE) {
-                components.put(componentName, DYNAMIC_VALUE);
-            } 
-            else if (currentValue != DYNAMIC_VALUE) {
-                components.put(componentName, currentValue + count);
+            Integer value = currentValue + count;
+            // We can't multiply or sum DYNAMIC_VALUE, just set it
+            if (count.equals(DYNAMIC_VALUE) || currentValue.equals(DYNAMIC_VALUE)) {
+                value = DYNAMIC_VALUE;
             }
+            components.put(componentName, value);
         }
 
         public void add(String componentName) {
@@ -104,7 +104,15 @@ public class ComponentsCounter {
         public void add(Storage storage, Integer count) {
             Map<String, Integer> comps = storage.get();
             for (Map.Entry<String,Integer> entry : comps.entrySet()) {
-                add(entry.getKey(), count == DYNAMIC_VALUE ? DYNAMIC_VALUE : entry.getValue() * count);
+                Integer value = entry.getValue();
+                // We can't multiply or sum DYNAMIC_VALUE, just set it
+                if (count.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
+                    value = DYNAMIC_VALUE;
+                }
+                else {
+                    value *= count;
+                }
+                add(entry.getKey(), value);
             }
         }
 
@@ -295,7 +303,7 @@ public class ComponentsCounter {
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 Integer value = entry.getValue();
-                if (mergedValue == DYNAMIC_VALUE || value == DYNAMIC_VALUE) {
+                if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
                     mergedComponents.put(name, DYNAMIC_VALUE);
                 } else {
                     mergedComponents.put(name, mergedValue + value);

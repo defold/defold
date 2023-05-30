@@ -33,6 +33,7 @@
 
 (def ^:private renderable-tag-toggles-info
   (cond-> [{:label "Collision Shapes" :tag :collision-shape}
+           {:label "Camera" :tag :camera}
            #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
            {:label "GUI Bounds" :tag :gui-bounds}
            {:label "GUI Shapes" :tag :gui-shape}
@@ -372,7 +373,7 @@
     (let [[^Region toggles update-fn] (make-visibility-toggles-list scene-visibility)
           popup (popup/make-popup owner toggles)
           anchor (pref-popup-position owner (.getMinWidth toggles) -5)
-          refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _] (update-fn)))]
+          refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
       (update-fn)
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))

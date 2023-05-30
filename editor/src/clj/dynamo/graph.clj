@@ -160,8 +160,9 @@
          basis (is/basis system)
          id-generators (is/id-generators system)
          override-id-generator (is/override-id-generator system)
+         tx-data-context-map (or (:tx-data-context-map opts) {})
          metrics-collector (:metrics opts)
-         transaction-context (it/new-transaction-context basis id-generators override-id-generator metrics-collector)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector)
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))

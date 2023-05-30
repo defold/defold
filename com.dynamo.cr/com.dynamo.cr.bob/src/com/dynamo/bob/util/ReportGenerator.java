@@ -30,6 +30,8 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ArchiveEntry;
 
+import com.dynamo.bob.archive.publisher.Publisher;
+
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.JsonFactory;
@@ -56,22 +58,26 @@ public class ReportGenerator {
         long size;
         long compressedSize;
         boolean encrypted;
-        public ResourceEntry(String path, long size) {
-            this.path = path;
-            this.size = size;
-            this.compressedSize = size;
-            this.encrypted = false;
-        }
-        public ResourceEntry(String path, long size, long compressedSize, boolean encrypted) {
+        boolean excluded;
+
+        public ResourceEntry(String path, long size, long compressedSize, boolean encrypted, boolean excluded) {
             this.path = path;
             this.size = size;
             this.compressedSize = compressedSize;
             this.encrypted = encrypted;
+            this.excluded = excluded;
+        }
+        public ResourceEntry(String path, long size, long compressedSize, boolean encrypted) {
+            this(path, size, compressedSize, encrypted, false);
+        }
+        public ResourceEntry(String path, long size) {
+            this(path, size, size, false, false);
         }
     }
 
     private Project project = null;
     private HashMap<String, ResourceEntry> resources;
+    private HashMap<String, ResourceEntry> excludedResources;
 
     /**
      * Creates a ReportGenerator that looks into the supplied project instance
@@ -83,12 +89,15 @@ public class ReportGenerator {
     public ReportGenerator(Project project) throws IOException {
         this.project = project;
         this.resources = new HashMap<String, ResourceEntry>();
+        this.excludedResources = new HashMap<String, ResourceEntry>();
 
         if (project.option("archive", "false").equals("true")) {
             parseFromDarc();
         } else {
             parseFromDisk();
         }
+
+        parseFromPublisher(project.getPublisher());
     }
 
     /**
@@ -135,21 +144,21 @@ public class ReportGenerator {
         List<ArchiveEntry> archiveEntries = ar.getEntries();
         for (int i = 0; i < archiveEntries.size(); i++) {
             ArchiveEntry archiveEntry = archiveEntries.get(i);
-            long compressedSize = archiveEntry.compressedSize != -1 ? archiveEntry.compressedSize : archiveEntry.size;
-            boolean encrypted = (archiveEntry.flags & ArchiveEntry.FLAG_ENCRYPTED) == ArchiveEntry.FLAG_ENCRYPTED;
+            long compressedSize = archiveEntry.getCompressedSize() != -1 ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            boolean encrypted = archiveEntry.isEncrypted();
 
-            if (this.resources.containsKey(archiveEntry.fileName)) {
-                ResourceEntry resEntry = this.resources.get(archiveEntry.fileName);
+            if (this.resources.containsKey(archiveEntry.getFilename())) {
+                ResourceEntry resEntry = this.resources.get(archiveEntry.getFilename());
                 resEntry.compressedSize = compressedSize;
-                resEntry.size = archiveEntry.size;
+                resEntry.size = archiveEntry.getSize();
                 resEntry.encrypted = encrypted;
             } else {
-                ResourceEntry resEntry = new ResourceEntry(archiveEntry.fileName,
-                        archiveEntry.size,
+                ResourceEntry resEntry = new ResourceEntry(archiveEntry.getFilename(),
+                        archiveEntry.getSize(),
                         compressedSize,
                         encrypted);
 
-                this.resources.put(archiveEntry.fileName, resEntry);
+                this.resources.put(archiveEntry.getFilename(), resEntry);
             }
 
         }
@@ -157,12 +166,26 @@ public class ReportGenerator {
         ar.close();
     }
 
-    /**
-     * Generates and returns JSON, serialised as a string,
-     * from previously gathered report information.
-     */
-    public String generateJSON() throws IOException {
 
+    private void parseFromPublisher(Publisher p) {
+        Map<File, ArchiveEntry> entries = p.getEntries();
+        for (File file : entries.keySet()) {
+            ArchiveEntry archiveEntry = entries.get(file);
+            long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            boolean encrypted = archiveEntry.isEncrypted();
+            boolean excluded = true;
+
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
+                        archiveEntry.getSize(),
+                        compressedSize,
+                        encrypted,
+                        excluded);
+
+            this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
+        }
+    }
+
+    private String generateJSON(HashMap<String, ResourceEntry> resources) throws IOException {
         StringWriter strWriter = new StringWriter();
         BufferedWriter writer = null;
         JsonGenerator generator = null;
@@ -225,8 +248,24 @@ public class ReportGenerator {
             }
             IOUtils.closeQuietly(writer);
         }
-
         return strWriter.toString();
+    }
+
+
+    /**
+     * Generates and returns JSON, serialised as a string,
+     * from previously gathered resource information.
+     */
+    public String generateResourceReportJSON() throws IOException {
+        return generateJSON(resources);
+    }
+
+    /**
+     * Generates and returns JSON, serialised as a string,
+     * from previously gathered excluded resource information.
+     */
+    public String generateExcludedResourceReportJSON() throws IOException {
+        return generateJSON(excludedResources);
     }
 
     /**

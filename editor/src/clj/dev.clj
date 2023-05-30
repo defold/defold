@@ -164,6 +164,14 @@
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
 
+(defn node-values [node-id & labels]
+  (g/with-auto-evaluation-context evaluation-context
+    (into {}
+          (map (fn [label]
+                 (let [value (g/node-value node-id label evaluation-context)]
+                   (pair label value))))
+          labels)))
+
 (def node-type-key (comp :k g/node-type*))
 
 (defn- class-symbol [^Class class]

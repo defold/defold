@@ -88,11 +88,14 @@
           :on-initialized #(vector :on-initialized %))
         (is (= [[:on-initialized
                  {:text-document-sync {:open-close true
-                                       :change :incremental}}]
+                                       :change :incremental}
+                  :pull-diagnostics :none
+                  :goto-definition false
+                  :find-references false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
-                 [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
-                    :message "It's a bad start!" :severity :error)]]]
+                 {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
+                            :message "It's a bad start!" :severity :error)]}]]
                (async-support/eventually
                  (a/go
                    (>! in (lsp.server/open-text-document (tu/resource workspace "/foo.json") ["{\"a\": 1}"]))
@@ -380,3 +383,129 @@
             _ (is (= #{} @server-opened-docs))]
         (test-support/spit-until-new-mtime foo-resource old-foo-content)
         (workspace/resource-sync! workspace)))))
+
+(deftest workspace-diagnostics-test
+  (testing "Workspace diagnostics with different pull diagnostics kinds"
+    (tu/with-loaded-project "test/resources/lsp_project"
+      (with-redefs [ui/do-run-later (fn [f] (f))]
+        (let [lsp (lsp/get-node-lsp project)
+              _ (lsp/set-servers!
+                  lsp
+                  #{;; full workspace lint
+                    {:languages #{"json"}
+                     :launcher
+                     (make-test-server-launcher
+                       {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
+                        "workspace/diagnostic" (fn [_ _]
+                                                 {:items [{:uri (lsp.server/resource-uri (workspace/find-resource workspace "/foo.json"))
+                                                           :kind "full"
+                                                           :items [{:range {:start {:line 0 :character 0}
+                                                                            :end {:line 0 :character 1}}
+                                                                    :message "Workspace diagnostics error"
+                                                                    :severity 1}]}]})
+                        "initialized" (constantly nil)
+                        "shutdown" (constantly nil)
+                        "exit" (constantly nil)})}
+                    ;; document lint
+                    {:languages #{"json"}
+                     :launcher
+                     (make-test-server-launcher
+                       {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics false}}})
+                        "textDocument/diagnostic" (fn [_ _]
+                                                    {:kind "full"
+                                                     :items [{:range {:start {:line 0 :character 1}
+                                                                      :end {:line 0 :character 2}}
+                                                              :message "Text document diagnostics error"
+                                                              :severity 1}]})
+                        "initialized" (constantly nil)
+                        "shutdown" (constantly nil)
+                        "exit" (constantly nil)})}
+                    ;; no lint at all
+                    {:languages #{"json"}
+                     :launcher
+                     (make-test-server-launcher
+                       {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-none}})
+                        "initialized" (constantly nil)
+                        "shutdown" (constantly nil)
+                        "exit" (constantly nil)})}})
+              _ (Thread/sleep 100)
+              ret (promise)
+              _ (lsp/pull-workspace-diagnostics! lsp ret)]
+          (is
+            (= {(workspace/find-resource workspace "/foo.json")
+                (sorted-set
+                  (data/map->CursorRange
+                    {:from (data/->Cursor 0 0)
+                     :to (data/->Cursor 0 1)
+                     :message "Workspace diagnostics error"
+                     :severity :error})
+                  (data/map->CursorRange
+                    {:from (data/->Cursor 0 1)
+                     :to (data/->Cursor 0 2)
+                     :message "Text document diagnostics error"
+                     :severity :error}))}
+               @ret))))))
+  (testing "Failing server does not block workspace diagnostics"
+    (tu/with-loaded-project "test/resources/lsp_project"
+      (with-redefs [ui/do-run-later (fn [f] (f))]
+        (let [lsp (lsp/get-node-lsp project)
+              _ (lsp/set-servers!
+                  lsp
+                  #{;; working lint
+                    {:languages #{"json"}
+                     :launcher
+                     (make-test-server-launcher
+                       {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
+                        "workspace/diagnostic" (fn [_ _]
+                                                 {:items [{:uri (lsp.server/resource-uri (workspace/find-resource workspace "/foo.json"))
+                                                           :kind "full"
+                                                           :items [{:range {:start {:line 0 :character 0}
+                                                                            :end {:line 0 :character 1}}
+                                                                    :message "It's a bad start!"
+                                                                    :severity 1}]}]})
+                        "initialized" (constantly nil)
+                        "shutdown" (constantly nil)
+                        "exit" (constantly nil)})}
+                    ;; broken: fails on diagnostic request
+                    {:languages #{"json"}
+                     :launcher
+                     (make-test-server-launcher
+                       {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
+                        "initialized" (constantly nil)
+                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "Fail!" {})))
+                        "shutdown" (constantly nil)
+                        "exit" (constantly nil)})}})
+              _ (Thread/sleep 100)
+              ret (promise)
+              _ (lsp/pull-workspace-diagnostics! lsp ret)]
+          (is (= {(workspace/find-resource workspace "/foo.json")
+                  (sorted-set (data/map->CursorRange
+                                {:from (data/->Cursor 0 0)
+                                 :to (data/->Cursor 0 1)
+                                 :message "It's a bad start!"
+                                 :severity :error}))}
+                 @ret))))))
+  (testing "the LSP client only waits up to a timeout"
+    (tu/with-loaded-project "test/resources/lsp_project"
+      (with-redefs [ui/do-run-later (fn [f] (f))]
+        (let [lsp (lsp/get-node-lsp project)
+              _ (lsp/set-servers!
+                  lsp
+                  #{{:languages #{"json"}
+                     :launcher (make-test-server-launcher
+                                 {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
+                                  "initialized" (constantly nil)
+                                  "workspace/diagnostic" (fn [_ _]
+                                                           (Thread/sleep 1000)
+                                                           {:items [{:uri (lsp.server/resource-uri (workspace/find-resource workspace "/foo.json"))
+                                                                     :kind "full"
+                                                                     :items [{:range {:start {:line 0 :character 0}
+                                                                                      :end {:line 0 :character 1}}
+                                                                              :message "It's a bad start!"
+                                                                              :severity 1}]}]})
+                                  "shutdown" (constantly nil)
+                                  "exit" (constantly nil)})}})
+              _ (Thread/sleep 100)
+              ret (promise)
+              _ (lsp/pull-workspace-diagnostics! lsp ret :timeout-ms 500)]
+          (is (nil? @ret)))))))

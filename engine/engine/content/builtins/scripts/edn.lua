@@ -124,13 +124,13 @@ local type_to_primitive_encoder = {
 
 local has_data_in_registry = {
   [GOScriptInstance] = true,
-  -- [GuiScriptInstance] = true, (it doesn't work for *.gui_script)
+  [GuiScriptInstance] = true,
   [RenderScriptInstance] = true,
 }
 
 local metatable_to_primitive_encoder = {
   [GOScriptInstance] = encode_script,
-  -- [GuiScriptInstance] = encode_script, (it doesn't work for *.gui_script)
+  [GuiScriptInstance] = encode_script,
   [RenderScriptInstance] = encode_script,
   [NodeProxy] = encode_node
 }
@@ -168,13 +168,6 @@ local function encode_refs(refs, keys)
 end
 
 local registry
-local function find_variables_in_registry(val)
-  for i = 1, #registry do
-    if registry[i] == val then
-      return registry[i+1]
-    end
-  end
-end
 
 local function collect_refs(depth, val, refs, keys)
   local val_type = type(val)
@@ -191,7 +184,7 @@ local function collect_refs(depth, val, refs, keys)
   elseif val_type == "userdata" then
     local mt = debug.getmetatable(val)
     if mt and has_data_in_registry[mt.__metatable] then
-      local script_val = find_variables_in_registry(val)
+      local script_val = registry[mt.__get_instance_data_table_ref(val)]
       if script_val then
         if depth < 100 and not keys[val] then
           keys[val] = script_val

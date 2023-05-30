@@ -473,12 +473,12 @@
         root (-> project
                  (g/node-value :workspace evaluation-context)
                  (workspace/project-path evaluation-context))]
-    (doseq [[cmd & args :as cmd+args] commands]
+    (doseq [cmd+args commands]
       (if (can-execute? ui cmd+args)
-        (let [process (doto (process/start! cmd args {:directory root})
-                        (-> .getInputStream (input-stream->console ui :out))
-                        (-> .getErrorStream (input-stream->console ui :err)))
-              exit-code (.waitFor process)]
+        (let [process (doto (apply process/start! {:dir root} cmd+args)
+                        (-> process/out (input-stream->console ui :out))
+                        (-> process/err (input-stream->console ui :err)))
+              exit-code (process/await-exit-code process)]
           (when-not (zero? exit-code)
             (throw (ex-info (str "Command \""
                                  (string/join " " cmd+args)
@@ -631,11 +631,10 @@
       (when-let [res (or (some-> selection
                                  (handler/adapt-every
                                    resource/ResourceNode
-                                   #(and (some? %)
-                                         (-> %
-                                             (g/node-value :resource evaluation-context)
-                                             resource/proj-path
-                                             some?)))
+                                   #(-> %
+                                        (g/node-value :resource evaluation-context)
+                                        resource/proj-path
+                                        some?))
                                  (node-ids->lua-selection q))
                          (some-> selection
                                  (handler/adapt-every resource/Resource)

@@ -15,11 +15,12 @@
 (ns editor.game-object-non-editable
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
-            [editor.math :as math]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -158,10 +159,14 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- any-component-desc->transform-matrix
-  ^Matrix4d [{:keys [position rotation scale]}]
+(defn- any-component-desc->pose [{:keys [position rotation scale]}]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
-  (math/clj->mat4 position rotation (or scale 1.0)))
+  (pose/make position rotation scale))
+
+(defn- any-component-desc->transform-matrix
+  ^Matrix4d [any-component-desc]
+  ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
+  (pose/to-mat4 (any-component-desc->pose any-component-desc)))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
@@ -217,21 +222,21 @@
 (defn- component-desc->component-instance-data [component-desc proj-path->build-target]
   {:pre [(map? component-desc)]} ; GameObject$ComponentDesc in map format.
   (let [build-resource (-> component-desc :component proj-path->build-target :resource)
-        transform-matrix (any-component-desc->transform-matrix component-desc)
+        pose (any-component-desc->pose component-desc)
         proj-path->source-resource (comp :resource :resource proj-path->build-target)
         go-props-with-source-resources (mapv #(properties/property-desc->go-prop % proj-path->source-resource) (:properties component-desc))
         component-desc (-> component-desc
                            (assoc :properties go-props-with-source-resources)
                            (game-object-common/add-default-scale-to-component-desc))]
-    (game-object-common/referenced-component-instance-data build-resource component-desc transform-matrix proj-path->build-target)))
+    (game-object-common/referenced-component-instance-data build-resource component-desc pose proj-path->build-target)))
 
 (defn- embedded-component-desc->component-instance-data [embedded-component-desc embedded-component-desc->build-resource]
   {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
          (map? (:data embedded-component-desc))]} ; We must be in our unaltered sanitized state for the build resource lookup to work.
   (let [build-resource (embedded-component-desc->build-resource embedded-component-desc)
-        transform-matrix (any-component-desc->transform-matrix embedded-component-desc)
+        pose (any-component-desc->pose embedded-component-desc)
         embedded-component-desc (game-object-common/add-default-scale-to-component-desc embedded-component-desc)]
-    (game-object-common/embedded-component-instance-data build-resource embedded-component-desc transform-matrix)))
+    (game-object-common/embedded-component-instance-data build-resource embedded-component-desc pose)))
 
 (defn prototype-desc->component-instance-datas [prototype-desc embedded-component-desc->build-resource proj-path->build-target]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
@@ -274,12 +279,12 @@
   {:pre [(ifn? any-component-desc->source-scene)]}
   (fn any-component-desc->component-scene [any-component-desc node-id]
     (let [node-outline-key (:id any-component-desc)
-          transform (any-component-desc->transform-matrix any-component-desc)
+          transform-matrix (any-component-desc->transform-matrix any-component-desc)
           source-scene (any-component-desc->source-scene any-component-desc)]
       ;; TODO: Currently we return an empty scene for components that do not
       ;; have a scene output. Can we exclude these or is it necessary for
       ;; selection to work, or something like that?
-      (game-object-common/component-scene node-id node-outline-key transform source-scene))))
+      (game-object-common/component-scene node-id node-outline-key transform-matrix source-scene))))
 
 (defn make-prototype-desc->scene [embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes]
   (let [any-component-desc->source-scene
@@ -373,7 +378,13 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
-(defn- load-non-editable-game-object [_project self _resource prototype-desc]
+(defn- load-non-editable-game-object [_project self resource prototype-desc]
+  ;; Validate the prototype-desc.
+  ;; We want to throw an exception if we encounter corrupt data to ensure our
+  ;; node gets marked defective at load-time.
+  (doseq [embedded-component-desc (:embedded-components prototype-desc)]
+    (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))
+
   (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]

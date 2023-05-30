@@ -273,7 +273,7 @@
         web-view      (make-web-view project)
         web-engine    (.getEngine web-view)
         view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _] (update-web-view! view-id project)))]
+        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _ _] (update-web-view! view-id project)))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))

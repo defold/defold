@@ -32,8 +32,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -45,6 +43,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -116,7 +116,7 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
         properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
 
-        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
+        String scaleMode = StringUtil.toUpperCase(projectProperties.getStringValue("html5", "scale_mode", "downscale_fit"));
         properties.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
 
         /// Legacy properties for backwards compatibility
@@ -246,7 +246,6 @@ public class HTML5Bundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         List<File> binsAsmjs = null;
         List<File> binsWasm = null;
@@ -255,12 +254,12 @@ public class HTML5Bundler implements IBundler {
         // asmjs binaries
         {
             Platform targetPlatform = Platform.JsWeb;
-            binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            binsAsmjs = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsAsmjs == null) {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for Asm.js");
+                logger.info("Using extender binary for Asm.js");
             }
             ;
         }
@@ -269,12 +268,12 @@ public class HTML5Bundler implements IBundler {
         // wasm binaries
         {
             Platform targetPlatform = Platform.WasmWeb;
-            binsWasm = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsWasm == null) {
                 binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for WASM");
+                logger.info("Using extender binary for WASM");
             }
         }
 
@@ -305,14 +304,18 @@ public class HTML5Bundler implements IBundler {
         }
 
         // Copy debug symbols if they were generated
-        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
-        File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        String symbolsName = "dmengine.js.symbols";
+        if (variant.equals(Bob.VARIANT_RELEASE)) {
+            symbolsName = "dmengine_release.js.symbols";
+        }
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.JsWeb.getExtenderPair());
+        File bundleSymbols = new File(zipDir, symbolsName);
         if (!bundleSymbols.exists()) {
-            zipDir = FilenameUtils.concat(extenderExeDir, Platform.WasmWeb.getExtenderPair());
-            bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+            zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            bundleSymbols = new File(zipDir, symbolsName);
         }
         if (bundleSymbols.exists()) {
-            File symbolsOut = new File(appDir, enginePrefix + ".symbols");
+            File symbolsOut = new File(appDir.getParentFile(), enginePrefix + ".symbols");
             FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 

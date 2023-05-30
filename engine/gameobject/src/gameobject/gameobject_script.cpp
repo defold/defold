@@ -350,6 +350,16 @@ namespace dmGameObject
         return 1;
     }
 
+    static int ScriptGetInstanceDataTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
+        lua_pushnumber(L, i ? i->m_ScriptDataReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}
@@ -365,6 +375,7 @@ namespace dmGameObject
         {dmScript::META_TABLE_RESOLVE_PATH,             ScriptInstanceResolvePath},
         {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
+        {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    ScriptGetInstanceDataTableRef},
         {0, 0}
     };
 

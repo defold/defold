@@ -23,8 +23,12 @@
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
 
+#include <dlib/atomic.h>
+#include <dlib/thread.h>
+#include <dlib/mutex.h>
+#include <dlib/condition_variable.h>
+#include <dlib/array.h>
 #include <dmsdk/dlib/profile.h>
-
 
 namespace dmLiveUpdate
 {
@@ -101,7 +105,7 @@ namespace dmLiveUpdate
                 dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
                 while(m_ThreadJobQueue.Empty())
                     dmConditionVariable::Wait(m_ConsumerThreadCondition, m_ConsumerThreadMutex);
-                if( dmAtomicGet32(&m_ThreadJobComplete) || !dmAtomicGet32(&m_Active))
+                if(dmAtomicGet32(&m_ThreadJobComplete) || !dmAtomicGet32(&m_Active))
                     continue;
                 request = m_ThreadJobQueue.Back();
                 m_ThreadJobQueue.Pop();
@@ -174,6 +178,7 @@ namespace dmLiveUpdate
         {
             // When shutting down, discard any complete jobs as they are going to be mounted at boot time in any case
             dmAtomicStore32(&m_Active, 0);
+
             {
                 DM_MUTEX_SCOPED_LOCK(m_ConsumerThreadMutex);
                 m_JobQueue.SetSize(0);

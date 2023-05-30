@@ -219,7 +219,7 @@
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9]
+(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9 offset playback-rate]
   (cond-> {:tile-set (resource/resource->proj-path image)
            :default-animation default-animation
            :material (resource/resource->proj-path material)
@@ -227,6 +227,12 @@
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
+
+          (not= 0.0 offset)
+          (assoc :offset offset)
+
+          (not= 1.0 playback-rate)
+          (assoc :playback-rate playback-rate)
 
           (not= :size-mode-auto size-mode)
           (cond-> :always
@@ -293,7 +299,7 @@
         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -309,7 +315,9 @@
                                              :blend-mode        blend-mode
                                              :size-mode         size-mode
                                              :size              (v3->v4 manual-size)
-                                             :slice9            slice9}
+                                             :slice9            slice9
+                                             :offset            offset
+                                             :playback-rate     playback-rate}
                                             [:tile-set :material])]))
 
 (defn- sort-anim-ids
@@ -362,6 +370,15 @@
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default :size-mode-auto)
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; Use the texture size for the :manual-size when the user switches
+                   ;; from :size-mode-auto to :size-mode-manual.
+                   (when (and (= :size-mode-auto old-value)
+                              (= :size-mode-manual new-value)
+                              (properties/user-edit? self :size-mode evaluation-context))
+                     (when-some [animation (g/node-value self :animation evaluation-context)]
+                       (let [texture-size [(double (:width animation)) (double (:height animation)) 0.0]]
+                         (g/set-property self :manual-size texture-size))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
   (property manual-size types/Vec3 (default [0.0 0.0 0.0])
             (dynamic visible (g/constantly false)))
@@ -378,6 +395,12 @@
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
+  (property playback-rate g/Num (default 1.0))
+  (property offset g/Num (default 0.0)
+            (dynamic edit-type (g/constantly {:type :slider
+                                              :min 0.0
+                                              :max 1.0
+                                              :precision 0.01})))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
@@ -397,12 +420,13 @@
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
-  (output aabb AABB (g/fnk [animation] (if animation
-                                         (let [animation-width (* 0.5 (:width animation))
-                                               animation-height (* 0.5 (:height animation))]
-                                           (geom/make-aabb (Point3d. (- animation-width) (- animation-height) 0)
-                                                           (Point3d. animation-width animation-height 0)))
-                                         geom/empty-bounding-box)))
+  (output aabb AABB (g/fnk [size]
+                      (let [[^double width ^double height ^double depth] size
+                            half-width (* 0.5 width)
+                            half-height (* 0.5 height)
+                            half-depth (* 0.5 depth)]
+                        (geom/make-aabb (Point3d. (- half-width) (- half-height) (- half-depth))
+                                        (Point3d. half-width half-height half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
@@ -418,7 +442,9 @@
       (g/set-property self :size-mode (:size-mode sprite))
       (g/set-property self :manual-size (v4->v3 (:size sprite)))
       (g/set-property self :slice9 (:slice9 sprite))
-      (g/set-property self :image image))))
+      (g/set-property self :image image)
+      (g/set-property self :offset (:offset sprite))
+      (g/set-property self :playback-rate (:playback-rate sprite)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

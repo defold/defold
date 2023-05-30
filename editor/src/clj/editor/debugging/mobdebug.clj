@@ -495,7 +495,7 @@
       (send-command! out "STACK")
       (let [[status rest] (read-status in)]
         (case status
-          "200" (when-let [[stack] (re-match #"^OK\s+(.*)$" rest)]
+          "200" (when-let [[stack] (re-match #"^OK\s+" rest)]
                   {:stack (stack-data (decode-serialized-data stack))})
           "401" (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
                   (let [n (Integer/parseInt size)]
