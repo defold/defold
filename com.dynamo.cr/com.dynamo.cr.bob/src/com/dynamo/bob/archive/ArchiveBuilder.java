@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,6 +42,10 @@ import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
+
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 
@@ -60,6 +64,7 @@ public class ArchiveBuilder {
     private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
+    private boolean forceCompression = false; // for building unit tests to create test content
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding) {
         this.root = new File(root).getAbsolutePath();
@@ -110,6 +115,14 @@ public class ArchiveBuilder {
         byte[] compressedContent = new byte[maximumCompressedSize];
         int compressedSize = lz4Compressor.compress(buffer, compressedContent);
         return Arrays.copyOfRange(compressedContent, 0, compressedSize);
+    }
+
+    public void setForceCompression(boolean forceCompression) {
+        this.forceCompression = forceCompression;
+    }
+
+    public boolean getForceCompression() {
+        return forceCompression;
     }
 
     public boolean shouldUseCompressedResourceData(byte[] original, byte[] compressed) {
@@ -193,6 +206,7 @@ public class ArchiveBuilder {
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
+
             byte[] buffer = this.loadResourceData(entry.getFilename());
             if (entry.isCompressed()) {
                 // Compress data
@@ -209,6 +223,24 @@ public class ArchiveBuilder {
             // Encrypt data
             if (entry.isEncrypted()) {
                 buffer = this.encryptResourceData(buffer);
+                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            }
+
+            if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+                // Compress data
+                byte[] compressed = this.compressResourceData(buffer);
+                if (this.shouldUseCompressedResourceData(buffer, compressed) || this.getForceCompression()) {
+                    archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
+                    buffer = compressed;
+                    entry.compressedSize = compressed.length;
+                    resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
+                } else {
+                    entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+                }
+            }
+            else {
+                resourceEntryFlags &= ~ResourceEntryFlag.BUNDLED.getNumber();
+                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
             }
 
             // Add entry to manifest
@@ -325,6 +357,7 @@ public class ArchiveBuilder {
         File filepathPublicKey      = new File(args[1] + ".public");
         File filepathPrivateKey     = new File(args[1] + ".private");
         File filepathManifestHash   = new File(args[1] + ".manifest_hash");
+        File filepathZipArchive     = new File(args[1] + ".zip");
 
         if (!dirpathRoot.isDirectory()) {
             printUsageAndTerminate("root does not exist: " + dirpathRoot.getAbsolutePath());
@@ -374,9 +407,13 @@ public class ArchiveBuilder {
         int archivedEntries = 0;
         String dirpathRootString = dirpathRoot.toString();
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
+        archiveBuilder.setForceCompression(doCompress);
         for (File currentInput : inputs) {
             String absolutePath = currentInput.getAbsolutePath();
-            boolean encrypt = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
+            boolean encrypt = ( absolutePath.endsWith("luac") ||
+                                absolutePath.endsWith("scriptc") ||
+                                absolutePath.endsWith("gui_scriptc") ||
+                                absolutePath.endsWith("render_scriptc"));
             if (currentInput.getName().startsWith("liveupdate.")){
                 archiveBuilder.add(absolutePath, doCompress, encrypt, true);
 
@@ -420,6 +457,24 @@ public class ArchiveBuilder {
                 manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
                 manifestHashOutoutStream.close();
             }
+
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+
+            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            publisher.setFilename(filepathZipArchive.getName());
+            for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
+                if (fhandle.isFile()) {
+                    publisher.AddEntry(fhandle.getName(), fhandle);
+                }
+            }
+
+            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+            File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
+            FileUtils.copyFile(filepathManifest, luManifestFile);
+            publisher.AddEntry(liveupdateManifestFilename, luManifestFile);
+            publisher.Publish();
+
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {

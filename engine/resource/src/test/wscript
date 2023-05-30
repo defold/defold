@@ -14,7 +14,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
     cmd = 'protoc --encode=%s -I ../src/test -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension(ext)(create)
- 
+
 create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='c cxx')
 create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='c cxx')
 
@@ -34,19 +34,28 @@ def build(bld):
 
     bld.add_group()
 
-    archive_liveupdate = bld(features='barchive',
-                              source_root='src/test',
-                              resource_name='luresources',
-                              use_compression=False,
-                              source=' '.join(sources))
-
-    bld.add_group()
-
     archive_compressed = bld(features='barchive',
                              source_root='src/test',
                              resource_name='resources_compressed',
                              use_compression=True,
                              source=' '.join(sources))
+
+    bld.add_group()
+
+    bld(features='barchive',
+        source_root='src/test',
+        resource_name='luresources',
+        use_compression=False,
+        source=' '.join(sources))
+
+    bld.add_group()
+
+
+    bld(features='barchive',
+        source_root='src/test',
+        resource_name='luresources_compressed',
+        use_compression=True,
+        source=' '.join(sources))
 
     bld.add_group()
 
@@ -73,10 +82,9 @@ def build(bld):
     # ******************************************************************************************************************************
     # Resource providers
 
-    test_provider_file = bld.program(features     = 'cxx embed test',
+    test_provider_file = bld.program(features     = 'cxx test',
                                         includes     = '.. ../../proto',
                                         use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
-                                        proto_gen_py = True,
                                         exported_symbols = ['ResourceProviderFile'],
                                         target       = 'test_provider_file',
                                         source       = 'test_provider_file.cpp',)
@@ -84,7 +92,6 @@ def build(bld):
     test_provider_archive = bld.program(features     = 'cxx embed test',
                                         includes     = '.. ../../proto',
                                         use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
-                                        proto_gen_py = True,
                                         exported_symbols = ['ResourceProviderArchive'],
                                         target       = 'test_provider_archive',
                                         source       = 'test_provider_archive.cpp',
@@ -93,21 +100,25 @@ def build(bld):
     test_provider_archive_mutable = bld.program(features = 'cxx embed test',
                                         includes     = '.. ../../proto',
                                         use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
-                                        proto_gen_py = True,
                                         exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
                                         target       = 'test_provider_archive_mutable',
                                         source       = 'test_provider_archive_mutable.cpp',
                                         embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
 
-    test_provider_http = bld.program(features     = 'cxx embed test',
+    test_provider_http = bld.program(features     = 'cxx test',
                                         includes     = '.. ../../proto',
                                         defines      = defines,
                                         use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
-                                        proto_gen_py = True,
                                         exported_symbols = ['ResourceProviderHttp'],
                                         target       = 'test_provider_http',
-                                        source       = 'test_provider_http.cpp',
-                                        embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+                                        source       = 'test_provider_http.cpp')
+
+    test_provider_zip = bld.program(features     = 'cxx test',
+                                        includes     = '.. ../../proto',
+                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                        exported_symbols = ['ResourceProviderZip'],
+                                        target       = 'test_provider_zip',
+                                        source       = 'test_provider_zip.cpp',)
 
     # ******************************************************************************************************************************
     # Integration tests
@@ -130,5 +141,3 @@ def build(bld):
                                 target       = 'test_resource',
                                 source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
                                 embed_source = 'resources.arci resources.arcd resources.dmanifest')
-
-

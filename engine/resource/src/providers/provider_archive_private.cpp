@@ -77,7 +77,13 @@ namespace dmResourceProviderArchivePrivate
             uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
             dmResourceArchive::EntryData* e = &entries[i];
 
-            printf("entry: off: %4u  sz: %4u  csz: %4u flags: %2u hash: ", dmEndian::ToNetwork(e->m_ResourceDataOffset), dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize), dmEndian::ToNetwork(e->m_Flags));
+            uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
+            printf("entry e/c/l: %d%d%d sz: %u csz: %u off: %u hash: ",
+                (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED) != 0,
+                (flags & dmResourceArchive::ENTRY_FLAG_COMPRESSED) != 0,
+                (flags & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA) != 0,
+                dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize), dmEndian::ToNetwork(e->m_ResourceDataOffset));
+
             PrintHash(h, 20);
             printf("\n");
         }

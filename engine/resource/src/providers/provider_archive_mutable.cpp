@@ -95,6 +95,7 @@ namespace dmResourceProviderArchiveMutable
     {
         uint32_t count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
         archive->m_EntryMap.SetCapacity(dmMath::Max(1U, (count*2)/3), count);
+        archive->m_EntryMap.Clear();
 
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -121,21 +122,6 @@ namespace dmResourceProviderArchiveMutable
         }
 
     }
-
-    // static void UpdateEntryMap(GameArchiveFile* archive, dmhash_t url_hash)
-    // {
-    //     if (!archive->m_ArchiveContainer)
-    //         return;
-
-    //     EntryInfo* info = archive->m_EntryMap.Get(url_hash);
-
-    //     dmLiveUpdateDDF::ResourceEntry* entry = info->m_ManifestEntry;
-    //     dmResourceArchive::Result result = dmResourceProviderArchive::FindEntry(archive->m_ArchiveContainer, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count, &info->m_ArchiveInfo);
-    //     if (result != dmResourceArchive::RESULT_OK)
-    //     {
-    //         dmLogError("Failed to find data entry for %s in archive", entry->m_Url);
-    //     }
-    // }
 
     static bool ArchiveFilesExist(const dmURI::Parts* uri)
     {
@@ -184,41 +170,6 @@ namespace dmResourceProviderArchiveMutable
         dmDDF::CopyMessage(base_manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&manifest->m_DDF);
         dmDDF::CopyMessage(base_manifest->m_DDFData, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&manifest->m_DDFData);
 
-        // manifest->m_ArchiveIndex = new dmResourceArchive::ArchiveIndexContainer;
-        // manifest->m_ArchiveIndex->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
-        // manifest->m_ArchiveIndex->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-        // // Even though it isn't technically true, it will allow us to use the correct ArchiveIndex struct
-        // manifest->m_ArchiveIndex->m_IsMemMapped = 1;
-
-        // manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
-        // manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
-        // memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
-
-        // char app_support_path[DMPATH_MAX_PATH];
-        // if (dmResource::RESULT_OK != dmResource::GetApplicationSupportPath(base_manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-        // {
-        //     return 0;
-        // }
-
-        // // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-        // char lu_data_path[DMPATH_MAX_PATH];
-        // dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
-
-        // FILE* f_lu_data = fopen(lu_data_path, "wb+");
-        // if (!f_lu_data)
-        // {
-        //     dmLogError("Failed to create/load liveupdate resource file");
-        // }
-
-        // dmStrlCpy(manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path, lu_data_path, DMPATH_MAX_PATH);
-        // dmLogInfo("Live Update archive: %s", manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path);
-
-        // manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_FileResourceData = f_lu_data;
-
-        // manifest->m_ArchiveIndex->m_Loader.m_Unload = LUUnloadArchive_Regular;
-        // manifest->m_ArchiveIndex->m_Loader.m_FindEntry = LUFindEntryInArchive_Regular;
-        // manifest->m_ArchiveIndex->m_Loader.m_Read = LUReadEntryFromArchive_Regular;
-
         return manifest;
     }
 
@@ -236,10 +187,6 @@ namespace dmResourceProviderArchiveMutable
         manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
         manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
         memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
-
-        // manifest->m_ArchiveIndex->m_Loader.m_Unload = LUUnloadArchive_Regular;
-        // manifest->m_ArchiveIndex->m_Loader.m_FindEntry = LUFindEntryInArchive_Regular;
-        // manifest->m_ArchiveIndex->m_Loader.m_Read = LUReadEntryFromArchive_Regular;
     }
 
     static void OpenDynamicArchiveFile(dmURI::Parts* uri, dmResource::Manifest* manifest)

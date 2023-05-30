@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -67,7 +67,13 @@ extern unsigned char RESOURCES_COMPRESSED_DMANIFEST[];
 extern uint32_t RESOURCES_COMPRESSED_DMANIFEST_SIZE;
 
 static const uint64_t path_hash[]       = { 0x1db7f0530911b1ce, 0x68b7e06402ee965c, 0x731d3cc48697dfe4, 0x8417331f14a42e4b,  0xb4870d43513879ba,  0xe1f97b41134ff4a6, 0xe7b921ca4d761083 };
-static const char* path_name[]          = { "/archive_data/file4.adc", "/archive_data/liveupdate.file6.scriptc", "/archive_data/file5.scriptc", "/archive_data/file1.adc", "/archive_data/file3.adc",  "/archive_data/file2.adc", "/archive_data/liveupdate.file7.adc" };
+static const char* path_name[]          = { "/archive_data/file4.adc",
+                                            "/archive_data/liveupdate.file6.scriptc",
+                                            "/archive_data/file5.scriptc",
+                                            "/archive_data/file1.adc",
+                                            "/archive_data/file3.adc",
+                                            "/archive_data/file2.adc",
+                                            "/archive_data/liveupdate.file7.adc" };
 static const char* content[]            = {
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "this script was loaded sometime in runtime with liveupdate",
@@ -99,9 +105,9 @@ static const uint8_t content_hash[][20] = {
 static const uint8_t compressed_content_hash[][20] = {
     { 206U, 246U, 241U, 188U, 170U, 142U,  34U, 244U, 115U,  87U,  65U,  38U,  88U,  34U, 188U,  33U, 144U,  44U,  18U,  46U },
     { 205U,  82U, 220U, 208U,  16U, 146U, 230U, 113U, 118U,  43U,   6U,  77U,  19U,  47U, 181U, 219U, 201U,  63U,  81U, 143U },
-    {  95U, 158U,  27U, 108U, 112U,  93U, 159U, 220U, 188U,  65U, 128U,  98U, 243U, 234U,  63U, 106U,  51U, 100U,   9U,  20U },
+    { 0xCF, 0xB8, 0xF5, 0x39, 0xFC, 0x28, 0xF7, 0xF5, 0x92, 0xB1, 0xED, 0x93, 0x61, 0x54, 0xC7, 0x42, 0x9A, 0x9F, 0x04, 0xDF },
     { 110U, 207U, 167U,  68U,  57U, 224U,  20U,  24U, 135U, 248U, 166U, 192U, 197U, 173U,  48U, 150U,   3U,  64U, 180U,  88U },
-    {   3U,  86U, 172U, 159U, 110U, 187U, 139U, 211U, 219U,   5U, 203U, 115U, 150U,  43U, 182U, 252U, 136U, 228U, 122U, 181U },
+    { 0x42, 0x31, 0xB3, 0xD1, 0x76, 0x31, 0xC4, 0x64, 0xAE, 0x92, 0xAA, 0xC0, 0x7C, 0xA8, 0x05, 0xA7, 0xF4, 0x84, 0xB5, 0x7C },
     {  16U, 184U, 254U, 147U, 172U,  48U,  89U, 214U,  29U,  90U, 128U, 156U,  37U,  60U, 100U,  69U, 246U, 252U, 122U,  99U },
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
@@ -425,11 +431,9 @@ TEST(dmResourceArchive, ManifestHeader)
     dmLiveUpdateDDF::ManifestData* manifest_data;
     dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(dmResourceManifest::MANIFEST_VERSION, manifest->m_DDF->m_Version);
 
     manifest_data = manifest->m_DDFData;
-
-    ASSERT_EQ(dmResourceManifest::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
-    ASSERT_EQ(dmResourceManifest::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);
@@ -679,6 +683,11 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 
         ASSERT_STREQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
+
+        printf("path_name[%u]: %s\n", i, path_name[i]);
+dmResourceManifest::DebugPrintManifest(manifest);
+        // dmLiveUpdateDDF::HashDigest* digest = &manifest_data->m_Resources.m_Data[i].m_Hash;
+        // ASSERT_ARRAY_EQ_LEN(compressed_content_hash[i], digest->m_Data.m_Data, digest->m_Data.m_Count);
 
         for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
             uint8_t current_byte = manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];

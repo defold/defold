@@ -40,21 +40,25 @@ void DeleteManifest(dmResource::Manifest* manifest)
         dmDDF::FreeMessage(manifest->m_DDF);
     if (manifest->m_DDFData)
         dmDDF::FreeMessage(manifest->m_DDFData);
-    manifest->m_DDF = 0x0;
-    manifest->m_DDFData = 0x0;
     delete manifest;
 }
 
 static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
 {
-    printf("ManifestLoadMessage: %u\n", size);
-
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
         return dmResource::RESULT_DDF_ERROR;
+    }
+
+    if (out_manifest->m_DDF->m_Version != MANIFEST_VERSION)
+    {
+        dmLogError("Manifest file version mismatch (expected '%i', actual '%i')", MANIFEST_VERSION, out_manifest->m_DDF->m_Version);
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDF = 0x0;
+        return dmResource::RESULT_VERSION_MISMATCH;
     }
 
     // Read data blob from ManifestFile into ManifestData message
@@ -65,25 +69,6 @@ static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, u
         dmDDF::FreeMessage(out_manifest->m_DDF);
         out_manifest->m_DDF = 0x0;
         return dmResource::RESULT_DDF_ERROR;
-    }
-    if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
-    {
-        dmLogError("Manifest format mismatch (expected '%x', actual '%x')", MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
-        dmDDF::FreeMessage(out_manifest->m_DDFData);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDFData = 0x0;
-        out_manifest->m_DDF = 0x0;
-        return dmResource::RESULT_FORMAT_ERROR;
-    }
-
-    if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
-    {
-        dmLogError("Manifest version mismatch (expected '%i', actual '%i')", MANIFEST_VERSION, out_manifest->m_DDFData->m_Header.m_Version);
-        dmDDF::FreeMessage(out_manifest->m_DDFData);
-        dmDDF::FreeMessage(out_manifest->m_DDF);
-        out_manifest->m_DDFData = 0x0;
-        out_manifest->m_DDF = 0x0;
-        return dmResource::RESULT_VERSION_MISMATCH;
     }
 
     return dmResource::RESULT_OK;
@@ -176,7 +161,12 @@ void DebugPrintManifest(dmResource::Manifest* manifest)
         printf("entry: hash: ");
         uint8_t* h = entry->m_Hash.m_Data.m_Data;
         PrintHash(h, entry->m_Hash.m_Data.m_Count);
-        printf("  flags: %u url: %llx  %s\n", entry->m_Flags, entry->m_UrlHash, entry->m_Url);
+        printf("  b/l/e/c: %u%u%u%u url: %llx  %s  sz: %u  csz: %u\n",
+                (entry->m_Flags & dmLiveUpdateDDF::BUNDLED) != 0,
+                (entry->m_Flags & dmLiveUpdateDDF::EXCLUDED) != 0,
+                (entry->m_Flags & dmLiveUpdateDDF::ENCRYPTED) != 0,
+                (entry->m_Flags & dmLiveUpdateDDF::COMPRESSED) != 0,
+                entry->m_UrlHash, entry->m_Url, entry->m_Size, entry->m_CompressedSize);
     }
 }
 
