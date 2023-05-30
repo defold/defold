@@ -476,35 +476,33 @@
       attribute-element-count)))
 
 (defn- attribute-update-property [current-property-value attribute new-value]
-  (let [attribute-key (:name-key attribute)
-        attribute-tbl-updated (assoc current-property-value attribute-key new-value)]
-    attribute-tbl-updated))
+  (assoc current-property-value (:name-key attribute) new-value))
+
+(defn- attribute-clear-property [current-property-value attribute]
+  (println "CLEARING ATTRIBUTE!!" (:name-key attribute))
+  (dissoc current-property-value (:name-key attribute)))
 
 (defn- get-attribute-edit-type [attribute prop-type]
   (let [attribute-semantic-type (:semantic-type attribute)
         attribute-update-fn (fn [_evaluation-context self _old-value new-value]
-                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))]
+                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))
+        attribute-clear-fn (fn [self _property-label]
+                              (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
     (if (= attribute-semantic-type :semantic-type-color)
       {:type types/Color
        :ignore-alpha? false
-       :set-fn attribute-update-fn}
+       :set-fn attribute-update-fn
+       :clear-fn attribute-clear-fn}
+      ;; Add clear fn
       {:type prop-type
-       :set-fn attribute-update-fn})))
+       :set-fn attribute-update-fn
+       :clear-fn attribute-clear-fn})))
 
 (defn- attributes->intermediate-backing [attributes]
   (into {}
         (map (fn [attribute]
                [(vtx/attribute-name->key (:name attribute))
-                (graphics/attribute->values attribute)]))
-        attributes))
-
-(defn- produce-attributes-intermediate-backing [attributes material-attribute-infos]
-  (into {}
-        (map (fn [attribute]
-               (let [material-attribute (first (filterv #(= (:name attribute) (:name %)) material-attribute-infos))
-                     attribute+correct-data-type (assoc attribute :data-type (:data-type material-attribute))]
-                 [(vtx/attribute-name->key (:name attribute+correct-data-type))
-                  (graphics/attribute->values attribute+correct-data-type)])))
+                (graphics/attribute->any-values attribute)]))
         attributes))
 
 (defn- attribute->outline-key [attribute-info]
@@ -518,11 +516,13 @@
                                           attribute-expected-value-count (get-attribute-expected-element-count attribute)
                                           attribute-edit-type (get-attribute-edit-type attribute attribute-type)
                                           attribute-key (:name-key attribute)
+                                          attribute-values-original (:values attribute)
                                           attribute-property-key (attribute->outline-key attribute)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
                                                           :value (fill-with-zeros attribute-values attribute-expected-value-count)
+                                                          :original-value attribute-values-original
                                                           :label (properties/keyword->name attribute-key)}]
                                       {attribute-property-key attribute-prop}))
                                   material-attribute-infos)]
@@ -640,13 +640,6 @@
   (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
 
-  (output vertex-attribute-overrides-output g/Any (g/fnk [attributes material-attribute-infos]
-                                                    ;; Why isn't this getting called!!
-                                                   (produce-attributes-intermediate-backing attributes material-attribute-infos)
-                                                    #_(let [overridden-attributes (produce-attributes-intermediate-backing attributes material-attribute-infos)]
-                                                      (g/set-property _node-id :vertex-attribute-overrides overridden-attributes)
-                                                      overridden-attributes)))
-
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
@@ -679,7 +672,7 @@
       (g/set-property self :image image)
       (g/set-property self :offset (:offset sprite))
       (g/set-property self :playback-rate (:playback-rate sprite))
-      (g/set-property self :attributes (:attributes sprite)))))
+      (g/set-property self :vertex-attribute-overrides (attributes->intermediate-backing (:attributes sprite))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

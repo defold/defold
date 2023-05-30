@@ -50,6 +50,16 @@
   (let [attribute-value-keyword (attribute-data-type->attribute-value-keyword (:data-type attribute))]
     (:v (get attribute attribute-value-keyword))))
 
+(defn attribute->any-values [attribute]
+  (cond (not (empty? (get-in attribute [:float-values :v])))
+        (:v (get attribute :float-values))
+
+        (not (empty? (get-in attribute [:int-values :v])))
+        (:v (get attribute :int-values))
+
+        (not (empty? (get-in attribute [:uint-values :v])))
+        (:v (get attribute :uint-values))))
+
 (def attribute-data-type->byte-size
   (into {}
         (map (juxt :data-type :byte-size))
