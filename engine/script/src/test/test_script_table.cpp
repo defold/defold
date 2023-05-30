@@ -518,10 +518,12 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
 {
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
-    {
-        printf("\nExpected error begin -->\n");
-        int scope_top = lua_gettop(L);
 
+    int scope_top = lua_gettop(L);
+
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
         static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
@@ -533,13 +535,21 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
             ASSERT_FALSE(true && "We shouldn't get here");
         }
 
-        ASSERT_EQ(1, g_CustomPanicFunctionCalled);
         ASSERT_EQ(2, count);
-
-        lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
-        printf("<-- Expected error end\n");
     }
+#else
+    try {
+        dmScript::CheckTableSize(L, -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
 
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
     lua_pop(L, 1);
 }
 
@@ -548,10 +558,11 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
 
-    {
-        printf("\nExpected error begin -->\n");
-        int scope_top = lua_gettop(L);
+    int scope_top = lua_gettop(L);
 
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
         static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
@@ -563,13 +574,21 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
             ASSERT_FALSE(true && "We shouldn't get here");
         }
 
-        ASSERT_EQ(1, g_CustomPanicFunctionCalled);
         ASSERT_EQ(2, count);
-        lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
-
-        printf("<-- Expected error end\n");
     }
+#else
+    try {
+        dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
 
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
     lua_pop(L, 1);
 }
 
