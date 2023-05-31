@@ -54,11 +54,9 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         Model model = (Model)outputs.get(0);
         List<Material> materials = model.getMaterialsList();
 
-        assertEquals(2, materials.size());
-        assertEquals("_dm_default", materials.get(0).getName());
+        assertEquals(1, materials.size());
+        assertEquals("test2", materials.get(0).getName());
         assertEquals("/test.materialc", materials.get(0).getMaterial());
-        assertEquals("test2", materials.get(1).getName());
-        assertEquals("/test.materialc", materials.get(1).getMaterial());
         assertEquals("/test.rigscenec", model.getRigScene());
 
         assertEquals("test", model.getDefaultAnimation());
