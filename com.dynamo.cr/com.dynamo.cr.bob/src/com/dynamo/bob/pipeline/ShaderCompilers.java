@@ -30,6 +30,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 public class ShaderCompilers {
     public static IShaderCompiler getCommonShaderCompiler(Platform platform) {
         switch(platform) {
+            case Arm64MacOS:
             case X86_64MacOS:
                 return new MacOSShaderCompiler();
             case X86Win32:
@@ -154,4 +155,3 @@ public class ShaderCompilers {
         }
     }
 }
-
