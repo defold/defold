@@ -273,6 +273,7 @@ public class MaterialBuilder extends Builder<Void>  {
 
             MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
             samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
+            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
             materialBuilder.setSamplers(i, samplerBuilder.build());
         }
 

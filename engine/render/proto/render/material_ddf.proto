@@ -69,6 +69,7 @@ message MaterialDesc
         optional float max_anisotropy     = 6 [default = 1.0];
         repeated uint64 name_indirections = 7; // sampler name -> list of shader uniform hashes
         optional string texture           = 8 [(resource)=true];
+        optional uint64 name_hash         = 9; // Internal, for faster lookups
     }
 
     required string name = 1;

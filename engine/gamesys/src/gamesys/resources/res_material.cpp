@@ -125,11 +125,10 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
-            dmhash_t name_hash       = dmHashString64(sampler[i].m_Name);
             const char* texture_path = sampler[i].m_Texture;
             if (*texture_path != 0)
             {
-                resources->m_SamplerNames[i] = name_hash;
+                resources->m_SamplerNames[i] = sampler[i].m_NameHash;
                 factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[i]);
                 if ( factory_e != dmResource::RESULT_OK)
                 {
