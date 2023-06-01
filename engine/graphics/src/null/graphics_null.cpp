@@ -921,6 +921,7 @@ namespace dmGraphics
         {
             if (buffer_type_flags & color_buffer_flags[i])
             {
+                rt->m_ColorTextureParams[i] = params.m_ColorBufferParams[i];
                 ClearTextureParamsData(rt->m_ColorTextureParams[i]);
                 uint32_t buffer_size                    = GetBufferSize(params.m_ColorBufferParams[i]);
                 rt->m_ColorTextureParams[i].m_DataSize  = buffer_size;
@@ -934,6 +935,7 @@ namespace dmGraphics
 
         if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
         {
+            rt->m_DepthBufferParams = params.m_DepthBufferParams;
             ClearTextureParamsData(rt->m_DepthBufferParams);
             if (params.m_DepthStencilTexture)
             {
@@ -953,6 +955,7 @@ namespace dmGraphics
         }
         if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
         {
+            rt->m_StencilBufferParams = params.m_StencilBufferParams;
             ClearTextureParamsData(rt->m_StencilBufferParams);
             if (params.m_DepthStencilTexture)
             {
