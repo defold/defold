@@ -483,8 +483,17 @@ namespace dmGameSystem
                 vertices->x = p.getX();
                 vertices->y = p.getY();
                 vertices->z = p.getZ();
-                vertices->u = us[x];
-                vertices->v = vs[y];
+
+                if (uv_rotated)
+                {
+                    vertices->u = us[y];
+                    vertices->v = vs[x];
+                }
+                else
+                {
+                    vertices->u = us[x];
+                    vertices->v = vs[y];
+                }
                 vertices->p = (float) page_index;
                 vertices++;
             }

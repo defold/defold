@@ -22,7 +22,7 @@
 #include "sys_private.h"
 #include "dstrings.h"
 
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <SystemConfiguration/SystemConfiguration.h>
@@ -93,7 +93,7 @@ namespace dmSys
         }
     }
 
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
     static SCNetworkReachabilityRef reachability_ref = 0;
@@ -232,7 +232,7 @@ namespace dmSys
         return g_NetworkConnectivity;
     }
 
-#else // osx
+#else // macos
 
     void GetSystemInfo(SystemInfo* info)
     {
