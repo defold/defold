@@ -613,11 +613,28 @@
                      (labeled! "Provisioning profile" provisioning-profile-file-field)
                      (labeled! "Architectures" architecture-controls)]))))
 
+(defn- ios-post-bundle-controls [refresh!]
+  (doto (VBox.)
+    (ui/add-style! "settings")
+    (ui/add-style! "ios")
+    (ui/children!
+      [(Separator.)
+       (labeled! "On Bundled"
+                 (doto (VBox.)
+                   (ui/children!
+                     [(make-labeled-check-box "Install on connected device" "ios-deploy-install-check-box" false refresh!)
+                      (make-labeled-check-box "Launch installed app" "ios-deploy-launch-check-box" false refresh!)])))])))
 
 (defn- load-ios-prefs! [prefs view code-signing-identity-names]
   ;; This falls back on settings from the Sign iOS Application dialog if available,
   ;; but we will write to our own keys in the preference for these.
-  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-64bit-check-box architecture-simulator-check-box]
+  (ui/with-controls view [sign-app-check-box
+                          code-signing-identity-choice-box
+                          provisioning-profile-text-field
+                          architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          ios-deploy-install-check-box
+                          ios-deploy-launch-check-box]
     (ui/value! sign-app-check-box (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
     (ui/value! code-signing-identity-choice-box (or ((set code-signing-identity-names)
                                                      (or (get-string-pref prefs "bundle-ios-code-signing-identity")
@@ -626,26 +643,61 @@
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
                                                    (get-string-pref prefs "last-provisioning-profile")))
     (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-ios-architecture-64bit?" true))
-    (ui/value! architecture-simulator-check-box (prefs/get-prefs prefs "bundle-ios-architecture-simulator?" false))))
+    (ui/value! architecture-simulator-check-box (prefs/get-prefs prefs "bundle-ios-architecture-simulator?" false))
+    (ui/value! ios-deploy-install-check-box (prefs/get-prefs prefs "bundle-ios-ios-deploy-install" false))
+    (ui/value! ios-deploy-launch-check-box (prefs/get-prefs prefs "bundle-ios-ios-deploy-launch" false))))
 
 (defn- save-ios-prefs! [prefs view]
-  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-64bit-check-box architecture-simulator-check-box]
+  (ui/with-controls view [sign-app-check-box
+                          code-signing-identity-choice-box
+                          provisioning-profile-text-field
+                          architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          ios-deploy-install-check-box
+                          ios-deploy-launch-check-box]
     (prefs/set-prefs prefs "bundle-ios-sign-app?" (ui/value sign-app-check-box))
     (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
     (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))
     (prefs/set-prefs prefs "bundle-ios-architecture-64bit?" (ui/value architecture-64bit-check-box))
-    (prefs/set-prefs prefs "bundle-ios-architecture-simulator?" (ui/value architecture-simulator-check-box))))
+    (prefs/set-prefs prefs "bundle-ios-architecture-simulator?" (ui/value architecture-simulator-check-box))
+    (prefs/set-prefs prefs "bundle-ios-ios-deploy-install" (ui/value ios-deploy-install-check-box))
+    (prefs/set-prefs prefs "bundle-ios-ios-deploy-launch" (ui/value ios-deploy-launch-check-box))))
 
 (defn- get-ios-options [view]
-  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-64bit-check-box architecture-simulator-check-box]
+  (ui/with-controls view [sign-app-check-box
+                          code-signing-identity-choice-box
+                          provisioning-profile-text-field
+                          architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          ios-deploy-install-check-box
+                          ios-deploy-launch-check-box]
     {:architecture-64bit? (ui/value architecture-64bit-check-box)
      :architecture-simulator? (ui/value architecture-simulator-check-box)
      :code-signing-identity (ui/value code-signing-identity-choice-box)
      :provisioning-profile (get-file provisioning-profile-text-field)
-     :sign-app? (ui/value sign-app-check-box)}))
+     :sign-app? (ui/value sign-app-check-box)
+     :ios-deploy-install (ui/value ios-deploy-install-check-box)
+     :ios-deploy-launch (ui/value ios-deploy-launch-check-box)}))
 
-(defn- set-ios-options! [view {:keys [architecture-64bit? architecture-simulator? code-signing-identity provisioning-profile sign-app?] :as _options} issues code-signing-identity-names]
-  (ui/with-controls view [architecture-64bit-check-box architecture-simulator-check-box code-signing-identity-choice-box ok-button provisioning-profile-text-field sign-app-check-box]
+(defn- set-ios-options! [view
+                         {:keys [architecture-64bit?
+                                 architecture-simulator?
+                                 code-signing-identity
+                                 provisioning-profile
+                                 sign-app?
+                                 ios-deploy-install
+                                 ios-deploy-launch]
+                          :as _options}
+                         issues
+                         code-signing-identity-names]
+  (ui/with-controls view [architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          code-signing-identity-choice-box
+                          ok-button
+                          provisioning-profile-text-field
+                          sign-app-check-box
+                          ios-deploy-install-check-box
+                          ios-deploy-launch-check-box]
     (ui/value! sign-app-check-box sign-app?)
     (doto code-signing-identity-choice-box
       (set-choice! (into [nil] code-signing-identity-names) code-signing-identity)
@@ -661,6 +713,13 @@
     (doto architecture-simulator-check-box
       (ui/value! architecture-simulator?)
       (set-field-status! (:architecture issues)))
+    (doto ios-deploy-install-check-box
+      (ui/value! ios-deploy-install)
+      (set-field-status! (:ios-deploy-install issues)))
+    (doto ^CheckBox ios-deploy-launch-check-box
+      (ui/value! ios-deploy-launch)
+      (.setDisable (not ios-deploy-install))
+      (set-field-status! (:ios-deploy-launch issues)))
     (ui/enable! ok-button (and (nil? (:architecture issues))
                                (or (not sign-app?)
                                    (and (some? code-signing-identity)
@@ -688,9 +747,10 @@
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      (into [(make-generic-headers "Bundle iOS Application")
-             (make-ios-controls refresh! owner-window)]
-            (make-generic-controls refresh! variant-choices compression-choices))))
+      (-> [(make-generic-headers "Bundle iOS Application")
+           (make-ios-controls refresh! owner-window)]
+          (into (make-generic-controls refresh! variant-choices compression-choices))
+          (conj (ios-post-bundle-controls refresh!)))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-ios-prefs! prefs view (get-code-signing-identity-names)))
