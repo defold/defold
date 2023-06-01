@@ -145,8 +145,6 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR3_BIT);
             GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_DEPTH_BIT);
             GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
-            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_DEPTH_TEXTURE_BIT);
-            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_TEXTURE_BIT);
             default:break;
         }
         return "<unknown buffer type>";
@@ -289,14 +287,12 @@ namespace dmGraphics
     {
         switch(buffer_type)
         {
-            case BUFFER_TYPE_COLOR0_BIT:          return 0;
-            case BUFFER_TYPE_COLOR1_BIT:          return 1;
-            case BUFFER_TYPE_COLOR2_BIT:          return 2;
-            case BUFFER_TYPE_COLOR3_BIT:          return 3;
-            case BUFFER_TYPE_DEPTH_BIT:           return 4;
-            case BUFFER_TYPE_STENCIL_BIT:         return 5;
-            case BUFFER_TYPE_DEPTH_TEXTURE_BIT:   return 6;
-            case BUFFER_TYPE_STENCIL_TEXTURE_BIT: return 7;
+            case BUFFER_TYPE_COLOR0_BIT:  return 0;
+            case BUFFER_TYPE_COLOR1_BIT:  return 1;
+            case BUFFER_TYPE_COLOR2_BIT:  return 2;
+            case BUFFER_TYPE_COLOR3_BIT:  return 3;
+            case BUFFER_TYPE_DEPTH_BIT:   return 4;
+            case BUFFER_TYPE_STENCIL_BIT: return 5;
             default: break;
         }
         return ~0u;
@@ -910,9 +906,9 @@ namespace dmGraphics
     {
         g_functions.m_SetPolygonOffset(context, factor, units);
     }
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
     }
     void DeleteRenderTarget(HRenderTarget render_target)
     {

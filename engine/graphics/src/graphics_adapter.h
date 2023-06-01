@@ -132,7 +132,7 @@ namespace dmGraphics
     typedef void (*SetCullFaceFn)(HContext context, FaceType face_type);
     typedef void (*SetFaceWindingFn)(HContext context, FaceWinding face_winding);
     typedef void (*SetPolygonOffsetFn)(HContext context, float factor, float units);
-    typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
+    typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
     typedef void (*DeleteRenderTargetFn)(HRenderTarget render_target);
     typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     typedef HTexture (*GetRenderTargetTextureFn)(HRenderTarget render_target, BufferType buffer_type);

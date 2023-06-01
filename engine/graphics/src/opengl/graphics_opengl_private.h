@@ -43,25 +43,19 @@ namespace dmGraphics
 
     struct OpenGLRenderTarget
     {
-        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
-
-        union
-        {
-            GLuint   m_DepthBuffer;
-            HTexture m_DepthTexture;
-        };
-
-        union
-        {
-            GLuint   m_StencilBuffer;
-            HTexture m_StencilTexture;
-        };
-
-        GLuint          m_DepthStencilBuffer;
-        GLuint          m_Id;
-        uint32_t        m_BufferTypeFlags;
-        uint32_t        m_DepthBufferBits;
+        TextureParams m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams m_DepthBufferParams;
+        TextureParams m_StencilBufferParams;
+        HTexture      m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_DepthTexture;
+        HTexture      m_StencilTexture;
+        GLuint        m_DepthBuffer;
+        GLuint        m_StencilBuffer;
+        GLuint        m_DepthStencilBuffer;
+        GLuint        m_Id;
+        uint32_t      m_BufferTypeFlags;
+        uint32_t      m_DepthBufferBits;
+        uint8_t       m_DepthStencilTexture : 1;
     };
 
     struct OpenGLContext

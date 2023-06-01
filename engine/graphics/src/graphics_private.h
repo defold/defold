@@ -51,6 +51,12 @@ namespace dmGraphics
     bool  UnmapIndexBuffer(HIndexBuffer buffer);
     // <- end test functions
 
+    static inline void ClearTextureParamsData(TextureParams& params)
+    {
+        params.m_Data     = 0x0;
+        params.m_DataSize = 0;
+    }
+
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
     {

@@ -64,12 +64,15 @@ namespace dmRender
     #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
+    #define RENDER_SCRIPT_FLAGS_NAME "flags"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_PREDICATE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = 0;
+
+    static uint32_t RENDER_SCRIPT_FLAG_TEXTURE_BIT = 1;
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -851,15 +854,16 @@ namespace dmRender
      * with what parameters. Each buffer key should have a table value consisting
      * of parameters. The following parameter keys are available:
      *
-     * Key          | Values
-     * ------------ | ----------------------------
-     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
-     * `width`      | number
-     * `height`     | number
-     * `min_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
-     * `mag_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
-     * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
-     * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
+     * Key                     | Values
+     * ----------------------- | ----------------------------
+     * `format`                |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
+     * `width`                 | number
+     * `height`                | number
+     * `min_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
+     * `mag_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
+     * `u_wrap`     (optional) | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
+     * `v_wrap`     (optional) | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
+     * `flags`      (optional) | `render.TEXTURE_BIT` (only applicable to depth and stencil buffers)
      *
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
@@ -967,18 +971,39 @@ namespace dmRender
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, table_index, LUA_TTABLE);
-        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-        dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+
+        dmGraphics::RenderTargetCreationParams params = {};
+
         lua_pushnil(L);
         while (lua_next(L, table_index))
         {
-            bool required_found[]  = { false, false, false };
-            uint32_t buffer_type   = (uint32_t) luaL_checkinteger(L, -2);
-            buffer_type_flags     |= buffer_type;
+            bool required_found[]                 = { false, false, false };
+            dmGraphics::BufferType buffer_type    = (dmGraphics::BufferType) luaL_checkinteger(L, -2);
+            buffer_type_flags                    |= (uint32_t) buffer_type;
+            dmGraphics::TextureParams* p          = 0;
+            dmGraphics::TextureCreationParams* cp = 0;
 
-            uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
-            dmGraphics::TextureParams* p          = &params[index];
-            dmGraphics::TextureCreationParams* cp = &creation_params[index];
+            if (dmGraphics::IsColorBufferType(buffer_type))
+            {
+                uint32_t color_index = dmGraphics::GetBufferTypeIndex(buffer_type);
+                p  = &params.m_ColorBufferParams[color_index];
+                cp = &params.m_ColorBufferCreationParams[color_index];
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+            {
+                p  = &params.m_DepthBufferParams;
+                cp = &params.m_DepthBufferCreationParams;
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+            {
+                p  = &params.m_StencilBufferParams;
+                cp = &params.m_StencilBufferCreationParams;
+            }
+            else
+            {
+                return luaL_error(L, "Invalid buffer type supplied to %s.render_target: (%d)", RENDER_SCRIPT_LIB_NAME, (uint32_t) buffer_type);
+            }
+
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
 
@@ -1015,14 +1040,14 @@ namespace dmRender
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int) luaL_checkinteger(L, -1);
-                    if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT)
+                    if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
                         {
                             return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
                         }
                     }
-                    if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT)
+                    if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_STENCIL)
                         {
@@ -1056,11 +1081,16 @@ namespace dmRender
                 {
                     p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
                 }
+                else if (strncmp(key, RENDER_SCRIPT_FLAGS_NAME, strlen(RENDER_SCRIPT_FLAGS_NAME)) == 0)
+                {
+                    int flags = luaL_checkinteger(L, -1);
+                    params.m_DepthStencilTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
+                }
                 else
                 {
                     lua_pop(L, 2);
                     assert(top == lua_gettop(L));
-                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s.",
+                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
                         RENDER_SCRIPT_LIB_NAME, key,
                         RENDER_SCRIPT_FORMAT_NAME,
                         RENDER_SCRIPT_WIDTH_NAME,
@@ -1068,22 +1098,23 @@ namespace dmRender
                         RENDER_SCRIPT_MIN_FILTER_NAME,
                         RENDER_SCRIPT_MAG_FILTER_NAME,
                         RENDER_SCRIPT_U_WRAP_NAME,
-                        RENDER_SCRIPT_V_WRAP_NAME);
+                        RENDER_SCRIPT_V_WRAP_NAME,
+                        RENDER_SCRIPT_FLAGS_NAME);
                 }
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
 
-            if (creation_params[index].m_Width > max_tex_size || creation_params[index].m_Height > max_tex_size)
+            if (cp->m_Width > max_tex_size || cp->m_Height > max_tex_size)
             {
                 lua_pop(L, 1);
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
-                    dmGraphics::GetBufferTypeLiteral((dmGraphics::BufferType)buffer_type), creation_params[index].m_Width, creation_params[index].m_Height, max_tex_size);
+                    dmGraphics::GetBufferTypeLiteral(buffer_type), cp->m_Width, cp->m_Height, max_tex_size);
             }
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
         assert(dmGraphics::GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
 
         if (render_target == 0)
@@ -1375,8 +1406,11 @@ namespace dmRender
      * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
-     * - `render.BUFFER_DEPTH_TEXTURE_BIT`
-     * - `render.BUFFER_STENCIL_TEXTURE_BIT`
+     *
+     * If The render target has been created as depth and/or stencil textures, these buffer types can be used:
+     *
+     * - `render.BUFFER_DEPTH_BIT`
+     * - `render.BUFFER_STENCIL_BIT`
      *
      * If the render target has been created with multiple color attachments, these buffer types can be used
      * to enable those textures as well. Currently 4 color attachments are supported:
@@ -1495,6 +1529,16 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    static inline bool IsValidBufferType(dmGraphics::BufferType buffer_type)
+    {
+        return buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT ||
+               buffer_type == dmGraphics::BUFFER_TYPE_COLOR1_BIT ||
+               buffer_type == dmGraphics::BUFFER_TYPE_COLOR2_BIT ||
+               buffer_type == dmGraphics::BUFFER_TYPE_COLOR3_BIT ||
+               buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT  ||
+               buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    }
+
     /*# retrieve the buffer width from a render target
      *
      * Returns the specified buffer width from a render target.
@@ -1504,6 +1548,7 @@ namespace dmRender
      * @param buffer_type [type:constant] which type of buffer to retrieve the width from
      *
      * - `render.BUFFER_COLOR_BIT`
+     * - `render.BUFFER_COLOR[x]_BIT` (x: [0..3], if supported!)
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
@@ -1529,15 +1574,13 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, 2);
+        if (!IsValidBufferType(buffer_type))
         {
             return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType) buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, width);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1577,15 +1620,13 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, 2);
+        if (!IsValidBufferType(buffer_type))
         {
             return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, height);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -3020,10 +3061,11 @@ namespace dmRender
         }
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
-
-        REGISTER_BUFFER_CONSTANT(DEPTH_TEXTURE_BIT,   DEPTH_TEXTURE_BIT);
-        REGISTER_BUFFER_CONSTANT(STENCIL_TEXTURE_BIT, STENCIL_TEXTURE_BIT);
 #undef REGISTER_BUFFER_CONSTANT
+
+        // Flags (only flag here currently, so no need for an enum)
+        lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
+        lua_setfield(L, -2, "TEXTURE_BIT");
 
         lua_pop(L, 1);
 

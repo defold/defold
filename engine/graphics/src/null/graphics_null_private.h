@@ -80,11 +80,14 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
+        TextureParams   m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams   m_DepthBufferParams;
+        TextureParams   m_StencilBufferParams;
         HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture        m_DepthBufferTexture;
         HTexture        m_StencilBufferTexture;
         FrameBuffer     m_FrameBuffer;
+        uint8_t         m_DepthStencilTexture : 1;
     };
 
     struct NullContext
