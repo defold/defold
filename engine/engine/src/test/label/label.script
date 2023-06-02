@@ -53,12 +53,6 @@ local function test_single_value(name, expected)
 	assert(expected == val)
 end
 
-local function test_bool(name, expected)
-	local bool = go.get("#label", name)
-
-	assert(expected == bool)
-end
-
 local function test_set_vector3(name, startvalue)
 	local expected = vmath.vector3(startvalue, startvalue+1, startvalue+2)
 	startvalue = startvalue + 3
