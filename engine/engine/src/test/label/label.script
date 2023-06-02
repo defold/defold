@@ -144,7 +144,7 @@ function init(self)
 
 	test_set_single_value("leading", 2)
 	test_set_single_value("tracking", 3)
-	test_single_value("line_break", true)
+	test_set_single_value("line_break", true)
 
 	--
 	--
