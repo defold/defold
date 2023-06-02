@@ -47,6 +47,17 @@ local function test_vector3(name, expected)
     assert(expected.z == vz)
 end
 
+local function test_single_value(name, expected)
+	local val = go.get("#label", name)
+
+	assert(expected == val)
+end
+
+local function test_bool(name, expected)
+	local bool = go.get("#label", name)
+
+	assert(expected == bool)
+end
 
 local function test_set_vector3(name, startvalue)
 	local expected = vmath.vector3(startvalue, startvalue+1, startvalue+2)
@@ -103,6 +114,12 @@ local function test_bad_url()
 	label.set_text("#", "hello") -- script
 end
 
+local function test_set_single_value(name, set_value)
+	go.set("#label", name, set_value)
+
+	test_single_value(name, set_value)
+end
+
 function init(self)
 
 	--
@@ -116,6 +133,10 @@ function init(self)
 	test_vector4("outline", vmath.vector4(0,0,0,1))
 	test_vector4("shadow", vmath.vector4(0,0,0,1))
 
+	test_single_value("leading", 1)
+	test_single_value("tracking", 0)
+	test_single_value("line_break", false)
+
 	--
 	-- SET PROPERTIES
 	--
@@ -127,6 +148,9 @@ function init(self)
 	test_set_vector4("outline", 400)
 	test_set_vector4("shadow", 500)
 
+	test_set_single_value("leading", 2)
+	test_set_single_value("tracking", 3)
+	test_single_value("line_break", true)
 
 	--
 	--

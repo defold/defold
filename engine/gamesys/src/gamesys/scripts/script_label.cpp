@@ -183,6 +183,76 @@ namespace dmGameSystem
  * ```
  */
 
+/*# [type:number] label leading
+ *
+ * The leading of the label. This value is used to scale the line spacing of text.
+ * The type of the property is number.
+ *
+ * @name leading
+ * @property
+ *
+ * @examples
+ *
+ * How to query a label's leading:
+ *
+ * ```lua
+ * function init(self)
+ *  -- get leading from component "label"
+ *  local leading = go.get("#label", "leading")
+ *  -- do something useful
+ *  leading = leading * 1.2
+ *  go.set("#label", "leading", leading)
+ * end
+ * ```
+ */
+
+/*# [type:number] label tracking
+ *
+ * The tracking of the label.
+ * This value is used to adjust the vertical spacing of characters in the text.
+ * The type of the property is number.
+ *
+ * @name tracking
+ * @property
+ *
+ * @examples
+ *
+ * How to query a label's tracking:
+ *
+ * ```lua
+ * function init(self)
+ *  -- get tracking from component "label"
+ *  local tracking = go.get("#label", "tracking")
+ *  -- do something useful
+ *  tracking = tracking * 1.2
+ *  go.set("#label", "tracking", tracking)
+ * end
+ * ```
+ */
+
+/*# [type:bool] label line break
+ *
+ * The line break of the label.
+ * This value is used to adjust the vertical spacing of characters in the text.
+ * The type of the property is boolean.
+ *
+ * @name line_break
+ * @property
+ *
+ * @examples
+ *
+ * How to query a label's line break:
+ *
+ * ```lua
+ * function init(self)
+ *  -- get line_break from component "label"
+ *  local line_break = go.get("#label", "line_break")
+ *  -- do something useful
+ *  go.set("#label", "line_break", false)
+ * end
+ * ```
+ */
+
 // As seen in gamesys_private.h (which makes it a _lot_ harder to search for)
 static const char* LABEL_EXT = "labelc";
 
