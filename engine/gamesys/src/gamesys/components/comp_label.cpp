@@ -663,7 +663,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            component.m_Leading = params.m_Value.m_Number;
+            component->m_Leading = params.m_Value.m_Number;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (set_property == LABEL_PROP_TRACKING)
@@ -672,7 +672,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            component.m_Tracking = params.m_Value.m_Number;
+            component->m_Tracking = params.m_Value.m_Number;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (set_property == LABEL_PROP_LINE_BREAK)
@@ -681,7 +681,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            component.m_LineBreak = params.m_Value.m_Bool;
+            component->m_LineBreak = params.m_Value.m_Bool;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, params.m_Options.m_Index, CompLabelSetConstantCallback, component);
