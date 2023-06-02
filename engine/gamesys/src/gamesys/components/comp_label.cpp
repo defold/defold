@@ -84,7 +84,7 @@ namespace dmGameSystem
         uint16_t                    m_UserAllocatedText : 1;
         uint16_t                    m_ReHash : 1;
         uint16_t                    m_LineBreak : 1;
-        uint16_t                    m_Padding : 3;
+        uint16_t                    m_Padding : 11;
     };
 
     struct LabelWorld
@@ -613,7 +613,7 @@ namespace dmGameSystem
         }
         else if (get_property == LABEL_PROP_LINE_BREAK)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_LineBreak == 1);
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_LineBreak != 0);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompLabelGetConstantCallback, component);
