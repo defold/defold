@@ -146,9 +146,9 @@ public class ColladaUtil {
     //     System.err.printf("  %f, %f, %f\n", v.getX(), v.getY(), v.getZ());
     // }
 
-    // private static void printVector4d(Vector4d v) {
-    //     System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
-    // }
+    private static void printVector4d(Vector4d v) {
+        System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    }
 
     // private static void printQuat4d(Quat4d v) {
     //     System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
