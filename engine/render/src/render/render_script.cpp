@@ -1102,7 +1102,21 @@ namespace dmRender
                 else if (strncmp(key, RENDER_SCRIPT_FLAGS_NAME, strlen(RENDER_SCRIPT_FLAGS_NAME)) == 0)
                 {
                     int flags = luaL_checkinteger(L, -1);
-                    params.m_DepthStencilTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
+                    if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                    {
+                        params.m_DepthTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
+                    }
+                    else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    {
+                        if (dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STENCIL_TEXTURE))
+                        {
+                            params.m_StencilTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
+                        }
+                        else
+                        {
+                            dmLogWarning("Unable to create render target with a stencil texture for this platform, defaulting to render buffer.");
+                        }
+                    }
                 }
                 else
                 {

@@ -87,7 +87,6 @@ namespace dmGraphics
         HTexture        m_DepthBufferTexture;
         HTexture        m_StencilBufferTexture;
         FrameBuffer     m_FrameBuffer;
-        uint8_t         m_DepthStencilTexture : 1;
     };
 
     struct NullContext

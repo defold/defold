@@ -643,6 +643,7 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
+            case CONTEXT_FEATURE_STENCIL_TEXTURE:        return context->m_VersionMajor > 4 && context->m_VersionMinor > 4;
         }
         return false;
     }
@@ -829,7 +830,8 @@ static void LogFrameBufferError(GLenum status)
             mode = GLFW_FULLSCREEN;
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
-            if (is_desktop) {
+            if (is_desktop)
+            {
                 dmLogWarning("Trying OpenGL 3.1 compat mode");
 
                 // Try a second time, this time without core profile, and lower the minor version.
@@ -851,7 +853,8 @@ static void LogFrameBufferError(GLenum status)
                     return WINDOW_RESULT_WINDOW_OPEN_ERROR;
                 }
             }
-            else {
+            else
+            {
                 return WINDOW_RESULT_WINDOW_OPEN_ERROR;
             }
         }
@@ -968,8 +971,15 @@ static void LogFrameBufferError(GLenum status)
         // read back actual window size
         int width, height;
         glfwGetWindowSize(&width, &height);
+
+        int gl_version_major;
+        int gl_version_minor;
+        glfwGetGLVersion(&gl_version_major, &gl_version_minor, 0);
+
         context->m_WindowWidth    = (uint32_t) width;
         context->m_WindowHeight   = (uint32_t) height;
+        context->m_VersionMajor   = (uint32_t) gl_version_major;
+        context->m_VersionMinor   = (uint32_t) gl_version_minor;
         context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
@@ -2380,11 +2390,12 @@ static void LogFrameBufferError(GLenum status)
 
     static HRenderTarget OpenGLNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        OpenGLContext* context    = (OpenGLContext*) _context;
-        OpenGLRenderTarget* rt    = new OpenGLRenderTarget();
-        rt->m_BufferTypeFlags     = buffer_type_flags;
-        rt->m_DepthBufferBits     = context->m_DepthBufferBits;
-        rt->m_DepthStencilTexture = params.m_DepthStencilTexture;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = new OpenGLRenderTarget();
+        rt->m_BufferTypeFlags  = buffer_type_flags;
+        rt->m_DepthBufferBits  = context->m_DepthBufferBits;
+        rt->m_DepthTexture     = 0;
+        rt->m_StencilTexture   = 0;
 
         glGenFramebuffers(1, &rt->m_Id);
         CHECK_GL_ERROR;
@@ -2402,6 +2413,19 @@ static void LogFrameBufferError(GLenum status)
 
         ClearTextureParamsData(rt->m_DepthBufferParams);
         ClearTextureParamsData(rt->m_StencilBufferParams);
+
+        bool use_depth_attachment        = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+        bool use_stencil_attachment      = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+        bool depth_texture               = params.m_DepthTexture;
+        bool stencil_texture             = params.m_StencilTexture;
+        bool packed_depth_stencil_buffer = !depth_texture && !stencil_texture;
+        bool any_color_attachment_set    = false;
+
+        if (stencil_texture && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_STENCIL_TEXTURE))
+        {
+            dmLogWarning("Stencil textures are not supported as framebuffer attachment on this context, defaulting to render buffer");
+            stencil_texture = false;
+        }
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -2433,40 +2457,21 @@ static void LogFrameBufferError(GLenum status)
                 OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, attachment_tex->m_TextureIds[0], 0);
                 CHECK_GL_ERROR;
+
+                any_color_attachment_set = true;
             }
         }
         CHECK_GL_FRAMEBUFFER_ERROR;
 
-        if (params.m_DepthStencilTexture)
+        // Note: Depth and stencil attachments is a bit of a combinatory annoyance,
+        //       we need to support creating these configurations:
+        //       packed depth/stencil buffer
+        //       ** or **
+        //       a depth buffer/texture
+        //       a stencil buffer/texture (texture attachment might not be supported by context either)
+        if (use_depth_attachment || use_stencil_attachment)
         {
-            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT)
-            {
-                rt->m_DepthTexture = NewTexture(context, params.m_DepthBufferCreationParams);
-                SetTexture(rt->m_DepthTexture, params.m_DepthBufferParams);
-
-                OpenGLTexture* depth_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthTexture);
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex->m_TextureIds[0], 0);
-                CHECK_GL_ERROR;
-            }
-            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-            {
-                rt->m_StencilTexture = NewTexture(context, params.m_StencilBufferCreationParams);
-                SetTexture(rt->m_StencilTexture, params.m_StencilBufferParams);
-
-                OpenGLTexture* stencil_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_StencilTexture);
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, stencil_tex->m_TextureIds[0], 0);
-                CHECK_GL_ERROR;
-            }
-            CHECK_GL_FRAMEBUFFER_ERROR;
-        }
-        else
-        {
-            if(!(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT))
-            {
-                glGenRenderbuffers(1, &rt->m_DepthBuffer);
-                CHECK_GL_ERROR;
-            }
-            else
+            if (packed_depth_stencil_buffer)
             {
                 if(context->m_PackedDepthStencil)
                 {
@@ -2481,12 +2486,54 @@ static void LogFrameBufferError(GLenum status)
                     CHECK_GL_ERROR;
                 }
             }
-            OpenGLSetDepthStencilRenderBuffer(context, rt);
+            else
+            {
+                if (use_depth_attachment)
+                {
+                    if (depth_texture)
+                    {
+                        rt->m_DepthTexture = NewTexture(context, params.m_DepthBufferCreationParams);
+                        SetTexture(rt->m_DepthTexture, params.m_DepthBufferParams);
+
+                        OpenGLTexture* depth_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthTexture);
+                        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex->m_TextureIds[0], 0);
+                        CHECK_GL_ERROR;
+                    }
+                    else
+                    {
+                        glGenRenderbuffers(1, &rt->m_DepthBuffer);
+                        CHECK_GL_ERROR;
+                    }
+                }
+
+                if (use_stencil_attachment)
+                {
+                    if (stencil_texture)
+                    {
+                        rt->m_StencilTexture = NewTexture(context, params.m_StencilBufferCreationParams);
+                        SetTexture(rt->m_StencilTexture, params.m_StencilBufferParams);
+
+                        OpenGLTexture* stencil_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_StencilTexture);
+                        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, stencil_tex->m_TextureIds[0], 0);
+                        CHECK_GL_ERROR;
+                    }
+                    else
+                    {
+                        glGenRenderbuffers(1, &rt->m_StencilBuffer);
+                        CHECK_GL_ERROR;
+                    }
+                }
+            }
+
+            if (!depth_texture || !stencil_texture)
+            {
+                OpenGLSetDepthStencilRenderBuffer(context, rt);
+            }
             CHECK_GL_FRAMEBUFFER_ERROR;
         }
 
         // Disable color buffer
-        if ((buffer_type_flags & BUFFER_TYPE_COLOR0_BIT) == 0)
+        if (!any_color_attachment_set)
         {
 #if !defined(GL_ES_VERSION_2_0)
             // TODO: Not available in OpenGL ES.
@@ -2527,7 +2574,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
         {
-            if (rt->m_DepthStencilTexture)
+            if (rt->m_DepthTexture)
                 DeleteTexture(rt->m_DepthTexture);
             else
                 glDeleteRenderbuffers(1, &rt->m_DepthBuffer);
@@ -2535,7 +2582,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
         {
-            if (rt->m_DepthStencilTexture)
+            if (rt->m_StencilTexture)
                 DeleteTexture(rt->m_StencilTexture);
             else
                 glDeleteRenderbuffers(1, &rt->m_StencilBuffer);
@@ -2635,16 +2682,13 @@ static void LogFrameBufferError(GLenum status)
         {
             return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
         }
-        else if (rt->m_DepthStencilTexture)
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
         {
-            if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            {
-                return rt->m_DepthTexture;
-            }
-            else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            {
-                return rt->m_StencilTexture;
-            }
+            return rt->m_DepthTexture;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return rt->m_StencilTexture;
         }
         return 0;
     }
@@ -2692,6 +2736,8 @@ static void LogFrameBufferError(GLenum status)
         rt->m_DepthBufferParams.m_Height   = height;
         rt->m_StencilBufferParams.m_Width  = width;
         rt->m_StencilBufferParams.m_Height = height;
+
+        // TODO: need to update depth/stencil texture attachments as well
 
         OpenGLSetDepthStencilRenderBuffer(g_Context, rt, true);
     }
@@ -3065,6 +3111,11 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = GL_UNSIGNED_INT;
             gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
         #endif
+            break;
+        case TEXTURE_FORMAT_STENCIL:
+            gl_type            = GL_UNSIGNED_BYTE;
+            gl_format          = GL_STENCIL_INDEX;
+            gl_internal_format = DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL;
             break;
 
         default:

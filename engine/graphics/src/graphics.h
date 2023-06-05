@@ -262,7 +262,8 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
-        uint8_t               m_DepthStencilTexture : 1;
+        uint8_t               m_DepthTexture   : 1;
+        uint8_t               m_StencilTexture : 1;
     };
 
     // Parameters structure for OpenWindow
@@ -309,6 +310,7 @@ namespace dmGraphics
     {
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        CONTEXT_FEATURE_STENCIL_TEXTURE        = 2,
     };
 
     // Parameters structure for NewContext

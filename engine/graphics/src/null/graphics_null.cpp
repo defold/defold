@@ -890,7 +890,6 @@ namespace dmGraphics
     {
         NullContext* context      = (NullContext*) _context;
         RenderTarget* rt          = new RenderTarget();
-        rt->m_DepthStencilTexture = params.m_DepthStencilTexture;
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -913,10 +912,6 @@ namespace dmGraphics
             &rt->m_FrameBuffer.m_ColorBufferSize[3]
         };
 
-        // rt->m_BufferTextureParams[i]            = params[i];
-        // rt->m_BufferTextureParams[i].m_Data     = 0x0;
-        // rt->m_BufferTextureParams[i].m_DataSize = 0;
-
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
@@ -937,7 +932,7 @@ namespace dmGraphics
         {
             rt->m_DepthBufferParams = params.m_DepthBufferParams;
             ClearTextureParamsData(rt->m_DepthBufferParams);
-            if (params.m_DepthStencilTexture)
+            if (params.m_DepthTexture)
             {
                 uint32_t buffer_size               = sizeof(float) * params.m_DepthBufferParams.m_Width * params.m_DepthBufferParams.m_Height;
                 rt->m_DepthBufferParams.m_DataSize = buffer_size;
@@ -957,7 +952,7 @@ namespace dmGraphics
         {
             rt->m_StencilBufferParams = params.m_StencilBufferParams;
             ClearTextureParamsData(rt->m_StencilBufferParams);
-            if (params.m_DepthStencilTexture)
+            if (params.m_StencilTexture)
             {
                 uint32_t buffer_size                 = sizeof(float) * params.m_StencilBufferParams.m_Width * params.m_StencilBufferParams.m_Height;
                 rt->m_StencilBufferParams.m_DataSize = buffer_size;
@@ -973,91 +968,6 @@ namespace dmGraphics
                 rt->m_FrameBuffer.m_StencilBuffer = new char[GetBufferSize(params.m_StencilBufferParams)];
             }
         }
-
-        /*
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {
-            &rt->m_FrameBuffer.m_ColorBuffer[0],
-            &rt->m_FrameBuffer.m_ColorBuffer[1],
-            &rt->m_FrameBuffer.m_ColorBuffer[2],
-            &rt->m_FrameBuffer.m_ColorBuffer[3],
-            &rt->m_FrameBuffer.m_DepthBuffer,
-            &rt->m_FrameBuffer.m_StencilBuffer,
-            &rt->m_FrameBuffer.m_DepthTextureBuffer,
-            &rt->m_FrameBuffer.m_StencilTextureBuffer,
-        };
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {
-            &rt->m_FrameBuffer.m_ColorBufferSize[0],
-            &rt->m_FrameBuffer.m_ColorBufferSize[1],
-            &rt->m_FrameBuffer.m_ColorBufferSize[2],
-            &rt->m_FrameBuffer.m_ColorBufferSize[3],
-            &rt->m_FrameBuffer.m_DepthBufferSize,
-            &rt->m_FrameBuffer.m_StencilBufferSize,
-            &rt->m_FrameBuffer.m_DepthTextureBufferSize,
-            &rt->m_FrameBuffer.m_StencilTextureBufferSize,
-        };
-
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {
-            BUFFER_TYPE_COLOR0_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-            BUFFER_TYPE_DEPTH_BIT,
-            BUFFER_TYPE_STENCIL_BIT,
-            BUFFER_TYPE_DEPTH_TEXTURE_BIT,
-            BUFFER_TYPE_STENCIL_TEXTURE_BIT,
-        };
-
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
-        {
-            assert(GetBufferTypeIndex(buffer_types[i]) == i);
-
-            if (buffer_type_flags & buffer_types[i])
-            {
-                rt->m_BufferTextureParams[i]            = params[i];
-                rt->m_BufferTextureParams[i].m_Data     = 0x0;
-                rt->m_BufferTextureParams[i].m_DataSize = 0;
-
-                uint32_t bytes_per_pixel = dmGraphics::GetTextureFormatBitsPerPixel(params[i].m_Format) / 3;
-                uint32_t buffer_size     = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height * bytes_per_pixel;
-
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT) ||
-                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT) ||
-                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT) ||
-                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR3_BIT))
-                {
-                    Texture* attachment_tex;
-                    if (i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT))
-                    {
-                        buffer_size = sizeof(float) * params[i].m_Width * params[i].m_Height;
-                        rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                        rt->m_DepthBufferTexture                = NewTexture(context, creation_params[i]);
-                        attachment_tex                          = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_DepthBufferTexture);
-                        SetTexture(rt->m_DepthBufferTexture, rt->m_BufferTextureParams[i]);
-                    }
-                    else if (i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT))
-                    {
-                        buffer_size                             = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
-                        rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                        rt->m_StencilBufferTexture              = NewTexture(context, creation_params[i]);
-                        attachment_tex                          = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_StencilBufferTexture);
-                        SetTexture(rt->m_StencilBufferTexture, rt->m_BufferTextureParams[i]);
-                    }
-                    else
-                    {
-                        rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                        rt->m_ColorBufferTexture[i]             = NewTexture(context, creation_params[i]);
-                        attachment_tex                          = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
-                        SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
-                    }
-
-                    *(buffer_sizes[i]) = buffer_size;
-                    *(buffers[i])      = attachment_tex->m_Data;
-                } else {
-                    *(buffers[i]) = new char[buffer_size];
-                }
-            }
-        }
-        */
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
@@ -1114,16 +1024,13 @@ namespace dmGraphics
         {
             return rt->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
         }
-        else if (rt->m_DepthStencilTexture)
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
         {
-            if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            {
-                return rt->m_DepthBufferTexture;
-            }
-            else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            {
-                return rt->m_StencilBufferTexture;
-            }
+            return rt->m_DepthBufferTexture;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return rt->m_StencilBufferTexture;
         }
         return 0;
     }
