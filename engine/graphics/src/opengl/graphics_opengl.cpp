@@ -2314,64 +2314,24 @@ static void LogFrameBufferError(GLenum status)
     }
 
 #if __EMSCRIPTEN__
-    
-    static bool WebGLValidateFramebufferAttachmentsDepthStencil(uint32_t buffer_type_flags, uint32_t attachment_width, uint32_t attachment_height, BufferType depth_bit, BufferType stencil_bit, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    static bool WebGLValidateFramebufferAttachmentDimensions(OpenGLContext* context, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const RenderTargetCreationParams params)
     {
-        if(!(buffer_type_flags & stencil_bit))
-        {
-            uint32_t depth_param_index = GetBufferTypeIndex(depth_bit);
-
-            if (attachment_width != -1)
-            {
-                return attachment_width  == creation_params[depth_param_index].m_Width &&
-                       attachment_height == creation_params[depth_param_index].m_Height;
-            }
-        }
-        else if(!(buffer_type_flags & depth_bit))
-        {
-            uint32_t stencil_param_index = GetBufferTypeIndex(stencil_bit);
-            if (attachment_width != -1)
-            {
-                return attachment_width  == creation_params[stencil_param_index].m_Width &&
-                       attachment_height == creation_params[stencil_param_index].m_Height;
-            }
-        }
-        else
-        {
-            uint32_t depth_param_index   = GetBufferTypeIndex(depth_bit);
-            uint32_t stencil_param_index = GetBufferTypeIndex(stencil_bit);
-
-            if (attachment_width == -1)
-            {
-                return creation_params[depth_param_index].m_Width == creation_params[stencil_param_index].m_Width &&
-                       creation_params[depth_param_index].m_Height == creation_params[stencil_param_index].m_Height;
-            }
-
-            return attachment_width  == creation_params[depth_param_index].m_Width &&
-                   attachment_height == creation_params[depth_param_index].m_Height &&
-                   attachment_width  == creation_params[stencil_param_index].m_Width &&
-                   attachment_height == creation_params[stencil_param_index].m_Height;
-        }
-    }
-
-    static bool WebGLValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
-    {
-        uint32_t attachment_width  = -1;
-        uint32_t attachment_height = -1;
+        uint32_t attachment_width      = -1;
+        uint32_t attachment_height     = -1;
+        uint32_t max_color_attachments = context->m_MultiTargetRenderingSupport ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
 
         for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
             {
-                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
-                TextureCreationParams params = creation_params[color_buffer_index];
+                const TextureCreationParams color_params = params.m_ColorBufferCreationParams[i];
 
                 if (attachment_width == -1)
                 {
-                    attachment_width  = params.m_Width;
-                    attachment_height = params.m_Height;
+                    attachment_width  = color_params.m_Width;
+                    attachment_height = color_params.m_Height;
                 }
-                else if (attachment_width != params.m_Width || attachment_height != params.m_Height)
+                else if (attachment_width != color_params.m_Width || attachment_height != color_params.m_Height)
                 {
                     return false;
                 }
@@ -2380,11 +2340,38 @@ static void LogFrameBufferError(GLenum status)
 
         if(buffer_type_flags & (BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT))
         {
-            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, attachment_width, attachment_height, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT, creation_params);
-        }
-        else if (buffer_type_flags & (BUFFER_TYPE_STENCIL_TEXTURE_BIT | BUFFER_TYPE_DEPTH_TEXTURE_BIT))
-        {
-            return WebGLValidateFramebufferAttachmentsDepthStencil(buffer_type_flags, attachment_width, attachment_height, BUFFER_TYPE_DEPTH_TEXTURE_BIT, BUFFER_TYPE_STENCIL_TEXTURE_BIT, creation_params);
+            const TextureCreationParams depth_params = params.m_DepthBufferCreationParams;
+            const TextureCreationParams stencil_params = params.m_StencilBufferCreationParams;
+
+            if(!(buffer_type_flags & BUFFER_TYPE_STENCIL_BIT))
+            {
+                if (attachment_width != -1)
+                {
+                    return attachment_width  == depth_params.m_Width &&
+                           attachment_height == depth_params.m_Height;
+                }
+            }
+            else if(!(buffer_type_flags & BUFFER_TYPE_DEPTH_BIT))
+            {
+                if (attachment_width != -1)
+                {
+                    return attachment_width  == stencil_params.m_Width &&
+                           attachment_height == stencil_params.m_Height;
+                }
+            }
+            else
+            {
+                if (attachment_width == -1)
+                {
+                    return depth_params.m_Width == stencil_params.m_Width &&
+                           depth_params.m_Height == stencil_params.m_Height;
+                }
+
+                return attachment_width  == depth_params.m_Width &&
+                       attachment_height == depth_params.m_Height &&
+                       attachment_width  == stencil_params.m_Width &&
+                       attachment_height == stencil_params.m_Height;
+            }
         }
 
         return true;
@@ -2423,23 +2410,17 @@ static void LogFrameBufferError(GLenum status)
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
-
         // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
         //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
     #if __EMSCRIPTEN__
-        if (context->m_MultiTargetRenderingSupport)
+        if (!WebGLValidateFramebufferAttachmentDimensions(context, buffer_type_flags, color_buffer_flags, params))
         {
-            max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
-
-            if (!WebGLValidateFramebufferAttachments(max_color_attachments, buffer_type_flags, color_buffer_flags, creation_params))
-            {
-                dmLogError("All attachments must have the same size!");
-                return 0;
-            }
+            dmLogError("All attachments must have the same size when running on WebGL!");
+            return 0;
         }
     #endif
 
+        uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
         for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
@@ -2454,32 +2435,31 @@ static void LogFrameBufferError(GLenum status)
                 CHECK_GL_ERROR;
             }
         }
+        CHECK_GL_FRAMEBUFFER_ERROR;
 
-        /*
-        if (buffer_type_flags & (dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT | dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT))
+        if (params.m_DepthStencilTexture)
         {
-            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_TEXTURE_BIT)
+            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT)
             {
-                uint8_t depth_texture_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_TEXTURE_BIT);
-                rt->m_DepthTexture = NewTexture(context, creation_params[depth_texture_index]);
-                SetTexture(rt->m_DepthTexture, params[depth_texture_index]);
+                rt->m_DepthTexture = NewTexture(context, params.m_DepthBufferCreationParams);
+                SetTexture(rt->m_DepthTexture, params.m_DepthBufferParams);
 
                 OpenGLTexture* depth_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthTexture);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex->m_TextureIds[0], 0);
                 CHECK_GL_ERROR;
             }
-            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_TEXTURE_BIT)
+            if (buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
             {
-                uint8_t stencil_texture_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_TEXTURE_BIT);
-                rt->m_StencilTexture          = NewTexture(context, creation_params[stencil_texture_index]);
-                SetTexture(rt->m_StencilTexture, params[stencil_texture_index]);
+                rt->m_StencilTexture = NewTexture(context, params.m_StencilBufferCreationParams);
+                SetTexture(rt->m_StencilTexture, params.m_StencilBufferParams);
 
                 OpenGLTexture* stencil_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_StencilTexture);
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, stencil_tex->m_TextureIds[0], 0);
                 CHECK_GL_ERROR;
             }
+            CHECK_GL_FRAMEBUFFER_ERROR;
         }
-        else if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
+        else
         {
             if(!(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT))
             {
@@ -2501,10 +2481,9 @@ static void LogFrameBufferError(GLenum status)
                     CHECK_GL_ERROR;
                 }
             }
-            OpenGLSetDepthStencilRenderBuffer(rt);
+            OpenGLSetDepthStencilRenderBuffer(context, rt);
             CHECK_GL_FRAMEBUFFER_ERROR;
         }
-        */
 
         // Disable color buffer
         if ((buffer_type_flags & BUFFER_TYPE_COLOR0_BIT) == 0)
@@ -3082,6 +3061,10 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = GL_FLOAT;
             gl_format          = GL_DEPTH_COMPONENT;
             gl_internal_format = GetDepthBufferFormat(context);
+        #ifdef __EMSCRIPTEN__
+            gl_type            = GL_UNSIGNED_INT;
+            gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
+        #endif
             break;
 
         default:

@@ -585,6 +585,24 @@ namespace dmRender
         {0, 0}
     };
 
+    static inline dmGraphics::BufferType CheckBufferType(lua_State* L, int index)
+    {
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, index);
+
+        if (!(buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR1_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR2_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR3_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT  ||
+              buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT))
+        {
+            luaL_error(L, "Unknown buffer type supplied (%d).", (int) buffer_type);
+            return (dmGraphics::BufferType) -1;
+        }
+
+        return buffer_type;
+    }
+
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
         if (i->m_CommandBuffer.Full())
@@ -978,7 +996,7 @@ namespace dmRender
         while (lua_next(L, table_index))
         {
             bool required_found[]                 = { false, false, false };
-            dmGraphics::BufferType buffer_type    = (dmGraphics::BufferType) luaL_checkinteger(L, -2);
+            dmGraphics::BufferType buffer_type    = CheckBufferType(L, -2);
             buffer_type_flags                    |= (uint32_t) buffer_type;
             dmGraphics::TextureParams* p          = 0;
             dmGraphics::TextureCreationParams* cp = 0;
@@ -1462,7 +1480,7 @@ namespace dmRender
                 dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
                 if (lua_isnumber(L, 3))
                 {
-                    buffer_type = (dmGraphics::BufferType) lua_tointeger(L, 3);
+                    buffer_type = CheckBufferType(L, 3);
                 }
 
                 texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
@@ -1529,16 +1547,6 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    static inline bool IsValidBufferType(dmGraphics::BufferType buffer_type)
-    {
-        return buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT ||
-               buffer_type == dmGraphics::BUFFER_TYPE_COLOR1_BIT ||
-               buffer_type == dmGraphics::BUFFER_TYPE_COLOR2_BIT ||
-               buffer_type == dmGraphics::BUFFER_TYPE_COLOR3_BIT ||
-               buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT  ||
-               buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-    }
-
     /*# retrieve the buffer width from a render target
      *
      * Returns the specified buffer width from a render target.
@@ -1574,11 +1582,8 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, 2);
-        if (!IsValidBufferType(buffer_type))
-        {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
-        }
+        dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
+
         uint32_t width, height;
         dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, width);
@@ -1620,11 +1625,7 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, 2);
-        if (!IsValidBufferType(buffer_type))
-        {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
-        }
+        dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
         uint32_t width, height;
         dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, height);
