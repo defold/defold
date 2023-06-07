@@ -68,7 +68,7 @@
               brush-tile (some (comp (juxt :x :y) val) cell-map)
               brush (tile-map/make-brush-from-selection cell-map brush-tile brush-tile)
               cell-map' (reduce (fn [cell-map' pos]
-                                  (tile-map/paint cell-map' pos brush))
+                                  (tile-map/paint cell-map' layer-id pos brush))
                                 cell-map
                                 (take 128 (partition 2 (repeatedly #(rand-int 64)))))]
           (is (= (map val (sort-by key cell-map'))
