@@ -62,9 +62,11 @@
               version
               version
               platform
-              ext)]
-    (extract (http-cache/download url) packages-path ext)
-    (str (io/file packages-path "dart-sass" "sass"))))
+              ext)
+        extract-path (io/file packages-path "dart-sass" version)]
+    (when-not (.exists extract-path)
+      (extract (http-cache/download url) extract-path ext))
+    (str (io/file extract-path "dart-sass" "sass"))))
 
 (defn sass [project & [mode]]
   {:pre [(#{"once" "auto"} mode)]}
