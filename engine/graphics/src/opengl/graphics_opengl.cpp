@@ -2312,7 +2312,7 @@ static void LogFrameBufferError(GLenum status)
         if(rt->m_StencilBuffer)
         {
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_StencilBuffer);
-            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL, params->m_Width, params->m_Height);
+            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, params->m_Width, params->m_Height);
             CHECK_GL_ERROR;
             if(!update_current)
             {
@@ -3114,8 +3114,8 @@ static void LogFrameBufferError(GLenum status)
             break;
         case TEXTURE_FORMAT_STENCIL:
             gl_type            = GL_UNSIGNED_BYTE;
-            gl_format          = GL_STENCIL_INDEX;
-            gl_internal_format = DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL;
+            gl_format          = DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL;
+            gl_internal_format = DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8;
             break;
 
         default:
