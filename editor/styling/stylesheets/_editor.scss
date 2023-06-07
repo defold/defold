@@ -67,7 +67,7 @@ Links:
   -fx-text-color-base: -df-defold-blue-lighter;
   -fx-text-fill: -df-defold-blue-lighter; }
 
-&.override-inspector-check-box {
+.override-inspector-check-box {
     -fx-opacity: 1;
     -fx-padding: -2 0 0 0;
     & > .box {
@@ -145,19 +145,7 @@ Links:
     -fx-background-color: -cross-color;
     -fx-max-width: 10px;
     -fx-max-height: 10px;
-    -fx-shape: "M 2 0
-                L  5  3
-                L  8  0
-                L 10  2
-                L  7  5
-                L 10  8
-                L  8 10
-                L  5  7
-                L  2 10
-                L  0  8
-                L  3  5
-                L  0  2
-                Z";
+    -fx-shape: "M 2 0 L  5  3 L  8  0 L 10  2 L  7  5 L 10  8 L  8 10 L  5  7 L  2 10 L  0  8 L  3  5 L  0  2 Z";
 }
 
 #main-window {
