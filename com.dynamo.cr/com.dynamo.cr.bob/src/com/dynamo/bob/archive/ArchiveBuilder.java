@@ -220,27 +220,24 @@ public class ArchiveBuilder {
                 }
             }
 
+            int resourceEntryFlags = 0;
+
             // Encrypt data
             if (entry.isEncrypted()) {
                 buffer = this.encryptResourceData(buffer);
                 resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
             }
 
-            if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
+            if (entry.isCompressed()) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed) || this.getForceCompression()) {
-                    archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
-                    entry.compressedSize = compressed.length;
+                    entry.setCompressedSize(compressed.length);
                     resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
                 } else {
-                    entry.compressedSize = ArchiveEntry.FLAG_UNCOMPRESSED;
+                    entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
-            }
-            else {
-                resourceEntryFlags &= ~ResourceEntryFlag.BUNDLED.getNumber();
-                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
             }
 
             // Add entry to manifest
@@ -256,8 +253,8 @@ public class ArchiveBuilder {
             } catch (NoSuchAlgorithmException exception) {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
-            // Store association between hexdigest and original filename in a
-            // lookup table
+
+            // Store association between hexdigest and original filename in a lookup table
             entry.setHexDigest(hexDigest);
 
             // Write resource to resource pack or data archive
@@ -265,13 +262,15 @@ public class ArchiveBuilder {
                 this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
                 excludedEntries.add(entry);
-                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.EXCLUDED.getNumber());
+                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
             } else {
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
-                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.BUNDLED.getNumber());
+                resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
             }
+
+            manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
         }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash
@@ -462,17 +461,18 @@ public class ArchiveBuilder {
             settings.setZipFilepath(dirpathRoot.getAbsolutePath());
 
             ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            String rootDir = resourcePackDirectory.toAbsolutePath().toString();
             publisher.setFilename(filepathZipArchive.getName());
-            for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
+            for (File fhandle : (new File(rootDir)).listFiles()) {
                 if (fhandle.isFile()) {
-                    publisher.AddEntry(fhandle.getName(), fhandle);
+                    publisher.AddEntry(fhandle, new ArchiveEntry(rootDir, fhandle.getAbsolutePath()));
                 }
             }
 
             String liveupdateManifestFilename = "liveupdate.game.dmanifest";
             File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
             FileUtils.copyFile(filepathManifest, luManifestFile);
-            publisher.AddEntry(liveupdateManifestFilename, luManifestFile);
+            publisher.AddEntry(luManifestFile, new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()));
             publisher.Publish();
 
         } finally {
