@@ -126,6 +126,9 @@ public class ArchiveBuilder {
     }
 
     public boolean shouldUseCompressedResourceData(byte[] original, byte[] compressed) {
+        if (this.getForceCompression())
+            return compressed.length < original.length;
+
         double ratio = (double) compressed.length / (double) original.length;
         return ratio <= 0.95;
     }
@@ -208,36 +211,27 @@ public class ArchiveBuilder {
             ArchiveEntry entry = entries.get(i);
 
             byte[] buffer = this.loadResourceData(entry.getFilename());
+
+            int resourceEntryFlags = 0;
+
             if (entry.isCompressed()) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
+                    // Note, when forced, the compressed size may be larger than the original size (For unit tests)
                     buffer = compressed;
                     entry.setCompressedSize(compressed.length);
+                    entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
+                    resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
                 } else {
                     entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
             }
-
-            int resourceEntryFlags = 0;
 
             // Encrypt data
             if (entry.isEncrypted()) {
                 buffer = this.encryptResourceData(buffer);
                 resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
-            }
-
-            if (entry.isCompressed()) {
-                // Compress data
-                byte[] compressed = this.compressResourceData(buffer);
-                if (this.shouldUseCompressedResourceData(buffer, compressed) || this.getForceCompression()) {
-                    buffer = compressed;
-                    entry.setCompressedSize(compressed.length);
-                    resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
-                } else {
-                    entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
-                }
             }
 
             // Add entry to manifest
