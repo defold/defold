@@ -1,3 +1,5 @@
+@use "sass:string";
+
 .radio-button {
     &:hover {
         .radio {
@@ -19,7 +21,7 @@
     .radio {
         -fx-background-radius: 50%;
         -fx-border-radius: 50%;
-        -fx-background-image: null;
+        -fx-background-image: string.unquote("null");
         -fx-background-color: -df-background;
         -fx-border-width: 1;
         -fx-border-color: -df-background-lighter;
