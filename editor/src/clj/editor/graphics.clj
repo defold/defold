@@ -65,20 +65,6 @@
         (map (juxt :data-type :byte-size))
         attribute-data-type-infos))
 
-(defn attribute->vtx-attribute [attribute]
-  {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
-  {:name (:name attribute)
-   :name-key (:name-key attribute)
-   :semantic-type (:semantic-type attribute)
-   :coordinate-space (:coordinate-space attribute)
-   :type (vtx/attribute-data-type->type (:data-type attribute))
-   :components (:element-count attribute)
-   :normalize (:normalize attribute false)})
-
-(defn make-vertex-description [attributes]
-  (let [vtx-attributes (mapv attribute->vtx-attribute attributes)]
-    (vtx/make-vertex-description nil vtx-attributes)))
-
 (defn make-attribute-byte-buffer
   ^ByteBuffer [attribute-data-type attribute-values]
   (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
@@ -93,10 +79,34 @@
         attribute-values (attribute->values attribute)]
     (make-attribute-byte-buffer attribute-data-type attribute-values)))
 
+(defn attribute->attribute-info [attribute]
+  {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
+  (-> attribute
+      (dissoc :name-hash :int-values :uint-values :binary-values :float-values)
+      (assoc :name-key (vtx/attribute-name->key (:name attribute)))
+      (assoc :values (attribute->values attribute))
+      (assoc :bytes (.array (attribute->byte-buffer attribute)))))
+
+(defn attribute-info->vtx-attribute [attribute-info]
+  {:pre [(map? attribute-info)
+         (keyword? (:name-key attribute-info))]}
+  {:name (:name attribute-info)
+   :name-key (:name-key attribute-info)
+   :semantic-type (:semantic-type attribute-info)
+   :coordinate-space (:coordinate-space attribute-info)
+   :type (vtx/attribute-data-type->type (:data-type attribute-info))
+   :components (:element-count attribute-info)
+   :normalize (:normalize attribute-info false)})
+
+(defn make-vertex-description [attribute-infos]
+  (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
+    (vtx/make-vertex-description nil vtx-attributes)))
+
 (defn attributes->build-target [attributes]
-  (mapv (fn [attr]
-          (-> attr
+  (mapv (fn [attribute]
+          ;; Graphics$VertexAttribute in map format.
+          (-> attribute
               (dissoc :float-values :uint-values :int-values)
-              (assoc :name-hash (murmur/hash64 (:name attr))
-                     :binary-values (buffers/byte-pack (attribute->byte-buffer attr)))))
+              (assoc :name-hash (murmur/hash64 (:name attribute))
+                     :binary-values (buffers/byte-pack (attribute->byte-buffer attribute)))))
         attributes))

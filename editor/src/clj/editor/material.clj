@@ -18,7 +18,6 @@
             [editor.code.shader :as code.shader]
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
-            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.protobuf :as protobuf]
@@ -30,9 +29,9 @@
             [internal.util :as util]
             [util.coll :refer [pair]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
-           [com.dynamo.graphics.proto Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$CoordinateSpace]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
+           [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -105,13 +104,13 @@
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
             samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers pb-msg) max-page-count)
-            attributes-build-target (graphics/attributes->build-target (:attributes pb-msg))
+            build-target-attributes (graphics/attributes->build-target (:attributes pb-msg))
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
             material-desc-with-build-resources (assoc pb-msg
                                                  :vertex-program (:resource vertex-shader-build-target)
                                                  :fragment-program (:resource fragment-shader-build-target)
                                                  :samplers samplers-with-indirect-hashes
-                                                 :attributes attributes-build-target)]
+                                                 :attributes build-target-attributes)]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -297,11 +296,12 @@
                (subvec old (count new))
                [])]
     (vec (concat first rest))))
+
 (defn- set-form-value-fn [property value attributes]
   (if (= property :attributes)
     (mapv (fn [attribute]
             ;; TODO(vertex-attr): How can this be simplified?
-            (let [attribute-current (first (filterv #(= (:name %) (:name attribute)) attributes))
+            (let [attribute-current (util/first-where #(= (:name %) (:name attribute)) attributes)
                   attribute-current-value (graphics/attribute->values attribute-current)
                   attribute-form-value (:value attribute)
                   attribute-current-value (cond (or (nil? attribute-current-value)
@@ -312,7 +312,8 @@
                                                 (empty? attribute-current-value)
                                                 (vec (repeat (:element-count attribute-current) 0))
 
-                                                :else attribute-current-value)
+                                                :else
+                                                attribute-current-value)
                   attribute-new-value (update-vector-with-subvec attribute-current-value (:value attribute))
                   attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))]
               ;; Clean the old values in case the type has changed
@@ -386,13 +387,7 @@
        params))))
 
 (g/defnk produce-attribute-infos [attributes]
-  (mapv (fn [attribute]
-          (-> attribute
-              (dissoc :name-hash :int-values :uint-values :binary-values :float-values)
-              (assoc :name-key (vtx/attribute-name->key (:name attribute)))
-              (assoc :values (graphics/attribute->values attribute))
-              (assoc :bytes (.array (graphics/attribute->byte-buffer attribute)))))
-        attributes))
+  (mapv graphics/attribute->attribute-info attributes))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)

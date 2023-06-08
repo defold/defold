@@ -451,7 +451,13 @@
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (mapv #(shader/get-attrib-location shader gl (:name %)) attribs))
+  (let [attribute-infos (shader/get-attribute-infos shader gl)]
+    (mapv (fn [attrib]
+            (let [attribute-name (:name attrib)]
+              (if-some [attribute-info (get attribute-infos attribute-name)]
+                (:index attribute-info)
+                -1)))
+          attribs)))
 
 (defn- vertex-attrib-pointer
   [^GL2 gl attrib loc stride offset]
