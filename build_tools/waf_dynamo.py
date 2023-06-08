@@ -1420,7 +1420,6 @@ def detect(conf):
     if not platform:
         platform = host_platform
 
-    conf.env['BOB_BUILD_PLATFORM'] = host_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
 
