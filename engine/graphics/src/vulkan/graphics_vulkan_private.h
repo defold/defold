@@ -257,11 +257,12 @@ namespace dmGraphics
         uint64_t               m_Hash;
         VkShaderModule         m_Module;
         ShaderResourceBinding* m_Uniforms;
-        ShaderResourceBinding* m_Attributes;
+        ShaderResourceBinding* m_Inputs;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformCount;
-        uint16_t               m_AttributeCount;
         uint16_t               m_UniformBufferCount;
+        uint16_t               m_InputCount;
+        uint16_t               m_TextureSamplerCount;
     };
 
     // 2 for graphics, 1 for compute. They cannot be shared so only need max 2 here
@@ -473,7 +474,7 @@ namespace dmGraphics
     VkResult CreatePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut);
     // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    // Destroy funcions
+    // Destroy functions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
     void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
@@ -544,6 +545,7 @@ namespace dmGraphics
 
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
     void         VulkanCloseWindow(HContext context);
+    void         VulkanDestroyResources(HContext context);
     uint32_t     VulkanGetDisplayDpi(HContext context);
     uint32_t     VulkanGetWidth(HContext context);
     uint32_t     VulkanGetHeight(HContext context);

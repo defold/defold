@@ -128,6 +128,7 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_ANIMATION = dmHashString64("animation");
+    static const dmhash_t SPRITE_PROP_FRAME_COUNT = dmHashString64("frame_count");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
@@ -475,8 +476,17 @@ namespace dmGameSystem
                 vertices->x = p.getX();
                 vertices->y = p.getY();
                 vertices->z = p.getZ();
-                vertices->u = us[x];
-                vertices->v = vs[y];
+
+                if (uv_rotated)
+                {
+                    vertices->u = us[y];
+                    vertices->v = vs[x];
+                }
+                else
+                {
+                    vertices->u = us[x];
+                    vertices->v = vs[y];
+                }
                 vertices->p = (float) page_index;
                 vertices++;
             }
@@ -1234,6 +1244,14 @@ namespace dmGameSystem
         return component->m_PlaybackRate;
     }
 
+    static inline float GetAnimationFrameCount(SpriteComponent* component)
+    {
+        TextureSetResource* texture_set                     = GetTextureSet(component, component->m_Resource);
+        dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
+        dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+        return (float)(animation_ddf->m_End - animation_ddf->m_Start);
+    }
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -1347,6 +1365,11 @@ namespace dmGameSystem
         else if (get_property == SPRITE_PROP_ANIMATION)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == SPRITE_PROP_FRAME_COUNT)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(GetAnimationFrameCount(component));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component);

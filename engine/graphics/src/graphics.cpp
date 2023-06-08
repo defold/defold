@@ -15,7 +15,7 @@
 #include "graphics_private.h"
 #include "graphics_adapter.h"
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
 #include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
 #endif
 #include <string.h>
@@ -1057,7 +1057,7 @@ namespace dmGraphics
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);

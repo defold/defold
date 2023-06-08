@@ -1056,6 +1056,8 @@ static int SetTexture(lua_State* L)
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
 
+    uint8_t layer_count = type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
 
     uint8_t* data = 0;
@@ -1079,8 +1081,11 @@ static int SetTexture(lua_State* L)
     image.m_Data.m_Data          = data;
     image.m_Data.m_Count         = datasize;
 
+    // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
+    //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead
+    //       calculate a slice size. Maybe we should do one or the other..
     uint32_t mip_map_offsets             = 0;
-    uint32_t mip_map_sizes               = datasize;
+    uint32_t mip_map_sizes               = datasize / layer_count;
     image.m_MipMapOffset.m_Data          = &mip_map_offsets;
     image.m_MipMapOffset.m_Count         = NUM_MIP_MAPS;
     image.m_MipMapSize.m_Data            = &mip_map_sizes;
@@ -2534,7 +2539,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * : [type:number] The leading (default 1.0)
  *
  * `tracking`
- * : [type:number] The leading (default 0.0)
+ * : [type:number] The tracking (default 0.0)
  *
  * `line_break`
  * : [type:boolean] If the calculation should consider line breaks (default false)

@@ -248,10 +248,10 @@ public:
     virtual ~CollectionFactoryTest() {}
 };
 
-class SpriteAnimTest : public GamesysTest<const char*>
+class SpriteTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~SpriteAnimTest() {}
+    virtual ~SpriteTest() {}
 };
 
 class ParticleFxTest : public GamesysTest<const char*>

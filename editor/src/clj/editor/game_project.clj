@@ -244,8 +244,11 @@
       (set user-data path value))))
 
 (defn get-setting
-  [game-project path]
-  ((g/node-value game-project :settings-map) path))
+  ([game-project path]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-setting game-project path evaluation-context)))
+  ([game-project path evaluation-context]
+   ((g/node-value game-project :settings-map evaluation-context) path)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace

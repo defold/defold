@@ -48,6 +48,7 @@ import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
@@ -303,7 +304,7 @@ public class ShaderCompilerHelpers {
         ArrayList<String> shaderIssues = new ArrayList<String>();
 
         // Put all shader resources on a separate list that will be sorted by binding number later
-        ArrayList<SPIRVReflector.Resource> resource_list = new ArrayList();
+        ArrayList<SPIRVReflector.Resource> resources = new ArrayList();
 
         // Generate a mapping of Uniform Set -> List of Bindings for that set
         // so that we can check for duplicate bindings.
@@ -315,7 +316,6 @@ public class ShaderCompilerHelpers {
         // Set (1) |- Binding(0) |_ U4
         //                       |_ U5
         //
-        HashMap<Integer,SetEntry> setBindingMap = new HashMap<Integer,SetEntry>();
         for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
 
             // We only support a 1-1 mapping between uniform blocks and uniforms.
@@ -325,18 +325,6 @@ public class ShaderCompilerHelpers {
             } else if (ubo.uniforms.size() == 0) {
                 shaderIssues.add("No uniforms found in uniform block '" + ubo.name + "'");
             } else {
-                SetEntry setEntry = setBindingMap.get(ubo.set);
-                if (setEntry == null) {
-                    setEntry = new SetEntry();
-                    setBindingMap.put(ubo.set, setEntry);
-                }
-
-                BindingEntry bindingEntry = setEntry.get(ubo.binding);
-                if (bindingEntry == null) {
-                    bindingEntry = new BindingEntry();
-                    setEntry.put(ubo.binding, bindingEntry);
-                }
-
                 SPIRVReflector.Resource firstUniform = ubo.uniforms.get(0);
                 SPIRVReflector.Resource uniform = new SPIRVReflector.Resource();
                 uniform.name         = firstUniform.name;
@@ -344,7 +332,6 @@ public class ShaderCompilerHelpers {
                 uniform.elementCount = firstUniform.elementCount;
                 uniform.binding      = ubo.binding;
                 uniform.set          = ubo.set;
-                bindingEntry.add(uniform);
 
                 ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(uniform.type);
 
@@ -358,7 +345,7 @@ public class ShaderCompilerHelpers {
                 }
 
                 if (issue_count == shaderIssues.size()) {
-                    resource_list.add(uniform);
+                    resources.add(uniform);
                 }
             }
         }
@@ -382,46 +369,12 @@ public class ShaderCompilerHelpers {
         }
 
         for (SPIRVReflector.Resource tex : reflector.getTextures()) {
-            SetEntry setEntry = setBindingMap.get(tex.set);
-            if (setEntry == null) {
-                setEntry = new SetEntry();
-                setBindingMap.put(tex.set, setEntry);
-            }
-
-            BindingEntry bindingEntry = setEntry.get(tex.binding);
-            if (bindingEntry == null) {
-                bindingEntry = new BindingEntry();
-                setEntry.put(tex.binding, bindingEntry);
-            }
-
             ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
 
             if (!Common.isShaderTypeTexture(type)) {
                 shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
-                resource_list.add(tex);
-            }
-
-            bindingEntry.add(tex);
-        }
-
-        for (Map.Entry<Integer, SetEntry> sets : setBindingMap.entrySet()) {
-            Integer setIndex = sets.getKey();
-            SetEntry setEntry = sets.getValue();
-            for (Map.Entry<Integer, BindingEntry> bindings : setEntry.entrySet()) {
-                Integer bindingIndex = bindings.getKey();
-                BindingEntry bindingEntry = bindings.getValue();
-                if (bindingEntry.size() > 1) {
-                    String duplicateList = "";
-                    for (int i = 0; i < bindingEntry.size(); i++) {
-                        duplicateList += bindingEntry.get(i).name;
-
-                        if (i != bindingEntry.size() - 1) {
-                            duplicateList += ", ";
-                        }
-                    }
-                    shaderIssues.add("Uniforms '" + duplicateList + "' from set " + setIndex + " have the same binding " + bindingIndex);
-                }
+                resources.add(tex);
             }
         }
 
@@ -432,24 +385,18 @@ public class ShaderCompilerHelpers {
             return res;
         }
 
-        // Build vertex attributes (inputs)
-        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
-            ArrayList<SPIRVReflector.Resource> attributes = reflector.getInputs();
-            Collections.sort(attributes, new SortBindingsComparator());
-            res.attributes = attributes;
-        }
+        res.inputs    = reflector.getInputs();
+        res.outputs   = reflector.getOutputs();
+        res.resources = resources;
+        res.source    = FileUtils.readFileToByteArray(file_out_spv);
 
-        // Sort shader resources by increasing binding number
-        Collections.sort(resource_list, new SortBindingsComparator());
-
-        res.resource_list = resource_list;
-        res.source        = FileUtils.readFileToByteArray(file_out_spv);
+        Collections.sort(res.inputs, new SortBindingsComparator());
+        Collections.sort(res.outputs, new SortBindingsComparator());
+        Collections.sort(res.resources, new SortBindingsComparator());
 
         return res;
     }
 
-    static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
-    static private class SetEntry extends HashMap<Integer,BindingEntry> {}
     static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
         public int compare(SPIRVReflector.Resource a, SPIRVReflector.Resource b) {
             return a.binding - b.binding;
@@ -459,9 +406,10 @@ public class ShaderCompilerHelpers {
     static public class SPIRVCompileResult
     {
         public byte[] source;
-        public ArrayList<String> compile_warnings = new ArrayList<String>();
-        public ArrayList<SPIRVReflector.Resource> attributes = new ArrayList<SPIRVReflector.Resource>();
-        public ArrayList<SPIRVReflector.Resource> resource_list = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<String> compile_warnings           = new ArrayList<String>();
+        public ArrayList<SPIRVReflector.Resource> inputs    = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.Resource> outputs   = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.Resource> resources = new ArrayList<SPIRVReflector.Resource>();
     };
 
     static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
@@ -477,21 +425,30 @@ public class ShaderCompilerHelpers {
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
         builder.setSource(ByteString.copyFrom(compile_res.source));
 
-        // Note: No need to check for duplicates for vertex attributes,
-        // the SPIR-V compiler will complain about it.
-        for (SPIRVReflector.Resource input : compile_res.attributes) {
+        for (SPIRVReflector.Resource input : compile_res.inputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(input.name);
+            resourceBindingBuilder.setNameHash(MurmurHash.hash64(input.name));
             resourceBindingBuilder.setType(Common.stringTypeToShaderType(input.type));
             resourceBindingBuilder.setSet(input.set);
             resourceBindingBuilder.setBinding(input.binding);
-            builder.addAttributes(resourceBindingBuilder);
+            builder.addInputs(resourceBindingBuilder);
         }
 
-        // Build uniforms
-        for (SPIRVReflector.Resource res : compile_res.resource_list) {
+        for (SPIRVReflector.Resource output : compile_res.outputs) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+            resourceBindingBuilder.setName(output.name);
+            resourceBindingBuilder.setNameHash(MurmurHash.hash64(output.name));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(output.type));
+            resourceBindingBuilder.setSet(output.set);
+            resourceBindingBuilder.setBinding(output.binding);
+            builder.addOutputs(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource res : compile_res.resources) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(res.name);
+            resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
             resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
             resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);

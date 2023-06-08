@@ -21,6 +21,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../script.h"
+#include "test_script_private.h"
 #include "test/test_ddf.h"
 
 #include "data/table_cos_v0.dat.embed.h"
@@ -297,7 +298,7 @@ static int LuaCheckTable(lua_State* L) {
 }
 
 #define abs_index(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : \
-			 lua_gettop(L) + (i) + 1)
+             lua_gettop(L) + (i) + 1)
 
 static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, bool do_log)
 {
@@ -443,7 +444,7 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
     /**
      * This table structure was guaranteed to crash on frist version of #6676
      * Fix in https://github.com/defold/defold/pull/6991
-     * 
+     *
      * {
      *   foo = 1234,
      *   b = {
@@ -475,6 +476,120 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
     lua_pop(L, 1);
 
     ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
+static int g_CustomPanicFunctionCalled = 0;
+static int CustomPanicFn(lua_State* L)
+{
+    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom CustomPanicFn)\n", lua_tostring(L, -1));
+    return ++g_CustomPanicFunctionCalled; // In our case, we pass this to the longjmp, and we check it with setjmp()
+}
+
+static void SetupCyclicTable(lua_State* L)
+{
+    /**
+     *  local x1 = {}
+     *  local x2 = {}
+     *  x1.x2 = x2
+     *  x2.x1 = x1
+     */
+
+    lua_newtable(L); // x1
+    // -1: x1
+
+    lua_newtable(L); // x2
+    // -2: x1
+    // -1: x2
+
+    lua_pushvalue(L, -2);
+    // -3: x1
+    // -2: x2
+    // -1: x1
+
+    lua_setfield(L, -2, "x1"); // x2.x1 = x1
+    // -2: x1
+    // -1: x2
+
+    lua_setfield(L, -2, "x2"); // x1.x2 = x2
+    // -1: x1
+}
+
+TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
+{
+    g_CustomPanicFunctionCalled = 0;
+    SetupCyclicTable(L);
+
+    int scope_top = lua_gettop(L);
+
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
+        static int count = 0;
+        int jmpval;
+        DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
+        ++count;
+
+        if (jmpval == 0)
+        {
+            dmScript::CheckTableSize(L, -1);
+            ASSERT_FALSE(true && "We shouldn't get here");
+        }
+
+        ASSERT_EQ(2, count);
+    }
+#else
+    try {
+        dmScript::CheckTableSize(L, -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
+
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
+    lua_pop(L, 1);
+}
+
+TEST_F(LuaTableTest, CyclicTable_CheckTable)
+{
+    g_CustomPanicFunctionCalled = 0;
+    SetupCyclicTable(L);
+
+    int scope_top = lua_gettop(L);
+
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
+        static int count = 0;
+        int jmpval;
+        DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
+        ++count;
+
+        if (jmpval == 0)
+        {
+            dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+            ASSERT_FALSE(true && "We shouldn't get here");
+        }
+
+        ASSERT_EQ(2, count);
+    }
+#else
+    try {
+        dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
+
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
+    lua_pop(L, 1);
 }
 
 
@@ -952,12 +1067,12 @@ TEST_F(LuaTableTest, Stress)
             buf[8 + buf_size + 2] = 0xF0;
             buf[8 + buf_size + 3] = 0x0D;
 
-    	    int result = PCallCheckTable(L, buf, buf_size, -1, false);
+            int result = PCallCheckTable(L, buf, buf_size, -1, false);
 
-    	    if (result == 0) {
-    	      dmScript::PushTable(L, buf, buf_size);
-    	      lua_pop(L, 1);
-    	    }
+            if (result == 0) {
+              dmScript::PushTable(L, buf, buf_size);
+              lua_pop(L, 1);
+            }
 
             uint8_t a = (uint8_t)0xBA;
             uint8_t b = (uint8_t)0xAD;

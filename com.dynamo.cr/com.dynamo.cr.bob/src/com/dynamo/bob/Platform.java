@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,6 +28,7 @@ public enum Platform {
     // arch, is64bit, os, exeSuffixes, exePrefix, libSuffix, libPrefix, extenderPaths, architectures, extenderPair
     //    extenderPaths: The extenderPaths are the searh directories that we use when looking for platform resources for a remote build
     X86_64MacOS( "x86_64",  true,   "macos",   new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.MacOS, "x86_64-osx"),
+    Arm64MacOS(  "arm64",   true,   "macos",   new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "arm64-osx"}, PlatformArchitectures.MacOS, "arm64-osx"),
     X86Win32(    "x86",     false,  "win32",   new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),
     X86_64Win32( "x86_64",  true,   "win32",   new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
     X86Linux(    "x86",     false,  "linux",   new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
@@ -39,7 +40,8 @@ public enum Platform {
     JsWeb(       "js",      true,   "web",     new String[] {".js"}, "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web"),
     WasmWeb(     "wasm",    true,   "web",     new String[] {".js", ".wasm"}, "", "lib", "", new String[] {"web", "wasm-web"}, PlatformArchitectures.Web, "wasm-web"),
     Arm64NX64(   "arm64",   true,   "nx64",    new String[] {".nso"}, "", "", "", new String[] {"nx64", "arm64-nx64"}, PlatformArchitectures.NX64, "arm64-nx64"),
-    X86_64PS4(   "x86_64",  true,   "ps4",     new String[] {".elf"}, "", "", "", new String[] {"ps4", "x86_64-ps4"}, PlatformArchitectures.PS4, "x86_64-ps4");
+    X86_64PS4(   "x86_64",  true,   "ps4",     new String[] {".elf"}, "", "", "", new String[] {"ps4", "x86_64-ps4"}, PlatformArchitectures.PS4, "x86_64-ps4"),
+    X86_64PS5(   "x86_64",  true,   "ps5",     new String[] {".elf"}, "", "", "", new String[] {"ps5", "x86_64-ps5"}, PlatformArchitectures.PS5, "x86_64-ps5");
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
@@ -53,6 +55,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_SWITCH,  "^(arm64-nx64)$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_PS4,     "^(x86_64-ps4)$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_PS5,     "^(x86_64-ps5)$");
     }
 
 
@@ -210,15 +213,20 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64MacOS;
+            // Intel java reports: os_name: mac os x  arch: x86_64
+            // Arm java reports: os_name: mac os x  arch: aarch64
+            if (arch.equals("x86_64"))
+                return Platform.X86_64MacOS;
+            else if (arch.equals("aarch64"))
+                return Platform.Arm64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
             } else {
                 return Platform.X86Linux;
             }
-        } else {
-            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }
+
+        throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
     }
 }

@@ -14,8 +14,15 @@ def build(bld):
         lib_dirs['library_script.js'] = '../lib/js'
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
+
+    bld.stlib(features = 'c cxx',
+              includes = '..',
+              use = 'DLIB LUA script',
+              target = 'test_script_private',
+              source = 'test_script_private.cpp')
+
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script'
+    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script_private'
 
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):

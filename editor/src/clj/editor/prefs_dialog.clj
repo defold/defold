@@ -76,6 +76,7 @@
         ^Parent control (create-control! prefs grid desc)]
     (GridPane/setConstraints label 0 row)
     (GridPane/setConstraints control 1 row)
+    (ui/tooltip! label (:tooltip desc))
     (when (:multi-line desc)
       (GridPane/setValignment label VPos/TOP))
     (.add (.getChildren grid) label)
@@ -114,7 +115,10 @@
                     {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
            {:name  "Extensions"
             :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}
-                    {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}]
+                    {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}
+           {:name  "Tools"
+            :prefs [{:label "ADB path" :type :string :key "adb-path" :default "" :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+                    {:label "ios-deploy path" :type :string :key "ios-deploy-path" :default "" :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
 
     (system/defold-dev?)
     (conj {:name "Dev"
