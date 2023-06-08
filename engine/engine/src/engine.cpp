@@ -1408,6 +1408,7 @@ bail:
         }
 
         input_action.m_IsGamepad = action->m_IsGamepad;
+        input_action.m_GamepadUnknown = action->m_GamepadUnknown;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
