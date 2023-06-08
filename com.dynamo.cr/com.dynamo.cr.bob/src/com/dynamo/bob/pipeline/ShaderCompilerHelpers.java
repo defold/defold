@@ -172,28 +172,6 @@ public class ShaderCompilerHelpers {
         }
     }
 
-    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
-    {
-        switch(typeAsString)
-        {
-            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
-            default: break;
-        }
-
-        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-    }
-
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
@@ -351,21 +329,13 @@ public class ShaderCompilerHelpers {
         }
 
         for (SPIRVReflector.Resource img : reflector.getImages()) {
-            SetEntry setEntry = setBindingMap.get(img.set);
-            if (setEntry == null) {
-                setEntry = new SetEntry();
-                setBindingMap.put(img.set, setEntry);
+            ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(img.type);
+
+            if (type != ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D) {
+                shaderIssues.add("Unsupported type '" + img.type + "'for image resource '" + img.name + "'");
+            } else {
+                resources.add(img);
             }
-
-            BindingEntry bindingEntry = setEntry.get(img.binding);
-            if (bindingEntry == null) {
-                bindingEntry = new BindingEntry();
-                setEntry.put(img.binding, bindingEntry);
-            }
-
-            resource_list.add(img);
-
-            bindingEntry.add(img);
         }
 
         for (SPIRVReflector.Resource tex : reflector.getTextures()) {
