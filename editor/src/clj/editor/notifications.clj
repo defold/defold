@@ -35,7 +35,7 @@
   Args:
     notifications-node    node id of NotificationsNode type
     notification          map with following keys:
-                            :type       required, either info, :warn or :error
+                            :type       required, :info, :warning or :error
                             :text       required, notification text string
                             :id         optional id, anything; submitting
                                         notification a second time with the same

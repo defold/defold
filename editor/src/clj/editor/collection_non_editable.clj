@@ -15,6 +15,7 @@
 (ns editor.collection-non-editable
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.collection-common :as collection-common]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
@@ -417,7 +418,16 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
-(defn- load-non-editable-collection [_project self _resource collection-desc]
+(defn- load-non-editable-collection [_project self resource collection-desc]
+  ;; Validate the collection-desc.
+  ;; We want to throw an exception if we encounter corrupt data to ensure our
+  ;; node gets marked defective at load-time.
+  (doseq [embedded-instance-desc (:embedded-instances collection-desc)]
+    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc resource)
+    (let [prototype-desc (:data embedded-instance-desc)]
+      (doseq [embedded-component-desc (:embedded-components prototype-desc)]
+        (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))))
+
   (g/set-property self :collection-desc collection-desc))
 
 (defn register-resource-types [workspace]

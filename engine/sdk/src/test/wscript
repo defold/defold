@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, sys, shutil
 from waflib.TaskGen import feature, before, after
+from waf_dynamo import platform_supports_feature
 
 @feature('sdk_include_filter')
 @before('c')
@@ -72,9 +73,12 @@ def build(bld):
     # gather the includes that we wish to test
 
     sdk_dir = os.path.join(bld.env['DYNAMO_HOME'], 'sdk', 'include', 'dmsdk')
-    exclude_dirs = ['vectormath']
+    exclude_dirs = ['vectormath', 'external', 'lua']
     exclude_files = ['sdk.h']
-    exclude_endings = ['_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h']
+    exclude_endings = ['_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h', '_nx64.h', '_ps4.h']
+
+    if not platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+        exclude_dirs.append('glfw')
 
     includes = []
     for root, dirs, files in os.walk(sdk_dir):
