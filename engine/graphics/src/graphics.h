@@ -77,6 +77,7 @@ namespace dmGraphics
         ADAPTER_TYPE_NULL,
         ADAPTER_TYPE_OPENGL,
         ADAPTER_TYPE_VULKAN,
+        ADAPTER_TYPE_PS4
     };
 
     enum AssetType

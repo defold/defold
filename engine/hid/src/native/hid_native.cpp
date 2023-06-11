@@ -182,11 +182,14 @@ namespace dmHID
     {
         if (context != 0x0)
         {
+            assert(g_HidContext == 0);
+
             if (glfwInit() == GL_FALSE)
             {
                 dmLogFatal("glfw could not be initialized.");
                 return false;
             }
+
             if (glfwSetCharCallback(GLFWCharacterCallback) == 0)
             {
                 dmLogFatal("could not set glfw char callback.");

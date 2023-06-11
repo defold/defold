@@ -17,6 +17,7 @@
 #include <string>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
 #include <dlib/sys_internal.h>
@@ -27,6 +28,22 @@
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
+
+
+// Unit test helpers
+TEST(dmTestUtil, MakeHostPath)
+{
+    char path[128];
+
+    dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists");
+    if (strcmp(DM_HOSTFS, "") == 0) {
+        ASSERT_STREQ("does_not_exists", path);
+    }
+    else {
+        ASSERT_STREQ(DM_HOSTFS "/" "does_not_exists", path);
+    }
+}
+///////////////////////////////////////////////////////////
 
 TEST(dmSys, Exists)
 {
@@ -45,11 +62,13 @@ TEST(dmSys, Mkdir)
     char path[128];
     dmSys::Result r;
 
-    dmTestUtil::MakeHostPath(path, sizeof(path), "tmp");
+    dmTestUtil::MakeHostPath(path, sizeof(path), "testdir");
 
     if (dmSys::Exists(path)) {
-        dmSys::RmTree(path);
+        r = dmSys::RmTree(path);
+        ASSERT_EQ(dmSys::RESULT_OK, r);
     }
+
     r = dmSys::Mkdir(path, 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
@@ -59,13 +78,13 @@ TEST(dmSys, Mkdir)
     r = dmSys::Mkdir(path, 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
 
-    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/dir"), 0777);
+    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"), 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
-    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/dir"), 0777);
+    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"), 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
 
-    r = dmSys::Rmdir(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/dir"));
+    r = dmSys::Rmdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 
@@ -74,19 +93,19 @@ TEST(dmSys, Unlink)
     char path[128];
 
     dmSys::Result r;
-    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile"));
+    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/afile"));
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
     ASSERT_NE(dmSys::RESULT_OK, dmSys::IsDir(path));
 
-    FILE* f = fopen(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile"), "wb");
+    FILE* f = fopen(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/afile"), "wb");
     ASSERT_NE((FILE*) 0, f);
     fclose(f);
 
-    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile"));
+    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/afile"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 
-#if !(defined(__SCE__)) // Disabled until we can get the user paths
+#if !defined(DM_TEST_NO_APPLICATION_SUPPORT_PATH) // Disabled until we can get the user paths
 
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
@@ -116,7 +135,7 @@ TEST(dmSys, GetApplicationSupportPath)
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
 }
 
-#endif // __SCE__
+#endif
 
 int g_Argc;
 char** g_Argv;

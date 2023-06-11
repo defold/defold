@@ -422,6 +422,7 @@ namespace dmGameObject
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
+        uint32_t m_UserID;
         dmHID::GamepadPacket m_GamepadPacket;
 
         uint8_t  m_IsGamepad : 1;
@@ -970,3 +971,4 @@ namespace dmGameObject
 }
 
 #endif // DMSDK_GAMEOBJECT_H
+

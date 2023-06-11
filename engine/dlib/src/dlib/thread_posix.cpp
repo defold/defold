@@ -23,7 +23,6 @@
 
 namespace dmThread
 {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
     struct ThreadData
     {
         ThreadStart m_Start;
@@ -34,15 +33,7 @@ namespace dmThread
     static void ThreadStartProxy(void* arg)
     {
         ThreadData* data = (ThreadData*) arg;
-#if defined(__MACH__)
-        int ret = pthread_setname_np(data->m_Name);
-        assert(ret == 0);
-#elif defined(__EMSCRIPTEN__)
-#else
-        int ret = pthread_setname_np(pthread_self(), data->m_Name);
-        assert(ret == 0);
-#endif
-
+        SetThreadName(GetCurrentThread(), data->m_Name);
         dmProfile::SetThreadName(data->m_Name);
 
         data->m_Start(data->m_Arg);
@@ -52,7 +43,7 @@ namespace dmThread
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
         pthread_attr_t attr;
-#if defined(__NX__)
+#if defined(DM_DLIB_THREAD_HAS_NO_SYSCONF)
         long page_size = -1;
 #else
         long page_size = sysconf(_SC_PAGESIZE);
@@ -131,6 +122,7 @@ namespace dmThread
         return pthread_self();
     }
 
+#if !defined(DM_DLIB_THREAD_USE_CUSTOM_SETNAME)
     void SetThreadName(Thread thread, const char* name)
     {
 #if defined(__MACH__)
@@ -141,88 +133,5 @@ namespace dmThread
         pthread_setname_np(thread, name);
 #endif
     }
-
-#elif defined(_WIN32)
-
-    static void* GetFunctionPtr(const char* dllname, const char* fnname)
-    {
-        return (void*)GetProcAddress(GetModuleHandleA(dllname), fnname);
-    }
-
-    typedef HRESULT (*PfnSetThreadDescription)(HANDLE,PCWSTR);
-
-    void SetThreadName(Thread thread, const char* name)
-    {
-        (void)thread;
-        (void)name;
-    // Currently, this crashed mysteriously on Win32, so we'll keep it only for Win64 until we've figured it out
-    #if defined(_WIN64)
-        static PfnSetThreadDescription pfn = (PfnSetThreadDescription)GetFunctionPtr("kernel32.dll", "SetThreadDescription");
-        if (pfn) {
-            size_t wn = mbsrtowcs(NULL, &name, 0, NULL);
-            wchar_t* buf = (wchar_t*)malloc((wn + 1) * sizeof(wchar_t));
-            wn = mbsrtowcs(buf, &name, wn + 1, NULL);
-
-            pfn(thread, buf);
-
-            free(buf);
-        }
-    #endif
-    }
-
-    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
-    {
-        DWORD thread_id;
-        HANDLE thread = CreateThread(NULL, stack_size,
-                                     (LPTHREAD_START_ROUTINE) thread_start,
-                                     arg, 0, &thread_id);
-        assert(thread);
-
-        SetThreadName((Thread)thread, name);
-
-        return thread;
-    }
-
-    void Join(Thread thread)
-    {
-        uint32_t ret = WaitForSingleObject(thread, INFINITE);
-        assert(ret == WAIT_OBJECT_0);
-    }
-
-    void Detach(Thread thread)
-    {
-        CloseHandle(thread);
-    }
-
-    TlsKey AllocTls()
-    {
-        return TlsAlloc();
-    }
-
-    void FreeTls(TlsKey key)
-    {
-        BOOL ret = TlsFree(key);
-        assert(ret);
-    }
-
-    void SetTlsValue(TlsKey key, void* value)
-    {
-        BOOL ret = TlsSetValue(key, value);
-        assert(ret);
-    }
-
-    void* GetTlsValue(TlsKey key)
-    {
-        return TlsGetValue(key);
-    }
-
-    Thread GetCurrentThread()
-    {
-        return ::GetCurrentThread();
-    }
-
-#else
-#error "Unsupported platform"
-#endif
-
+#endif // DM_DLIB_THREAD_USE_CUSTOM_SETNAME
 }

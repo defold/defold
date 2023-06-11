@@ -6,12 +6,13 @@ APPNAME='resource'
 srcdir = '.'
 blddir = 'build'
 
-import os, subprocess
-import sys
-sys.path = ["src"] + sys.path
+PORT=6123
+
+import os, sys, subprocess, socket
 import urllib, time, atexit, urllib.error, urllib.request
 from waflib.Logs import error
 import waflib.Options
+sys.path = ["src"] + sys.path # in order to import waf_resource
 import waf_dynamo, waf_ddf, waf_resource
 import TestContext
 
@@ -50,26 +51,63 @@ def build(bld):
 def kill_proc(proc):
     proc.kill()
 
-def shutdown(self):
-    if not TestContext.is_valid(test_context) or waflib.Options.options.skip_build_tests or waflib.Options.options.skip_tests:
-        return
+def _get_local_ip(self):
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    return local_ip
 
-    proc = subprocess.Popen(["python", "-m", "http.server", "6123"],
+def _start_server(self, local_ip, port, configname=None):
+    configfile = waf_dynamo.create_test_server_config(self, port=port, ip=local_ip, config_name=configname)
+
+    proc = subprocess.Popen(["python", "-m", "http.server", str(port)],
                             shell = False,
                             cwd = "build/src/test")
-    atexit.register(kill_proc, proc)
+    return proc, configfile
 
+def _wait_for_server(self, local_ip, port):
+    timeout = 5 # seconds
     start = time.time()
     while True:
-        if time.time() - start > 5:
-            error('HTTP server failed to start within 5 seconds')
+        if time.time() - start > timeout:
+            error('HTTP server failed to start within %d seconds' % timeout)
             sys.exit(1)
         try:
-            urllib.request.urlopen('http://localhost:6123')
+            urllib.request.urlopen('http://%s:%d' % (local_ip, port))
             break
         except urllib.error.URLError:
             print('Waiting for HTTP testserver to start...')
             sys.stdout.flush()
             time.sleep(0.5)
 
-    waf_dynamo.run_tests(test_context, valgrind = True)
+def _remove_config_file(path):
+    os.remove(path)
+
+def server(self):
+    local_ip = _get_local_ip(self)
+    proc, configfile = _start_server(self, local_ip, PORT, "unittest.cfg")
+    atexit.register(_remove_config_file, configfile)
+
+    _wait_for_server(self, local_ip, PORT)
+
+    timeout = 240 # seconds
+    start = time.time()
+    while True:
+        if time.time() - start > timeout:
+            print('Shutting down server after %d seconds' % timeout)
+            return
+        time.sleep(1.0)
+
+def shutdown(self):
+    if not TestContext.is_valid(test_context) or waflib.Options.options.skip_build_tests or waflib.Options.options.skip_tests:
+        return
+
+    local_ip = _get_local_ip(self)
+    proc, configfile = _start_server(self, local_ip, PORT)
+    atexit.register(kill_proc, proc)
+
+    _wait_for_server(self, local_ip, PORT)
+
+    try:
+        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
+    finally:
+        os.remove(configfile)
