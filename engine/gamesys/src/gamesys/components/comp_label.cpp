@@ -320,7 +320,7 @@ namespace dmGameSystem
                 w = dmTransform::MulNoScaleZ(world, local);
             }
 
-            w = Vectormath::Aos::appendScale(w, c->m_Scale);
+            w = dmVMath::AppendScale(w, c->m_Scale);
 
             Vector4 position = w.getCol3();
             if (!sub_pixels)
@@ -755,7 +755,7 @@ namespace dmGameSystem
                     {
                         // Since the size is baked into the matrix, we divide by it here
                         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
+                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
                     }
                     break;
                 case 3: value = Vector4(transform.GetScale()); break; // the size is baked into this matrix as the scale

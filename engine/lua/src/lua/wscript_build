@@ -22,7 +22,7 @@ lua_lib = bld.stlib(features = 'c cxx',
                     source = lua_lib_source,
                     defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
-if not bld.env.IS_TARGET_DESKTOP:
+if bld.env.IS_TARGET_DESKTOP:
     lua = bld.program(features = 'c cxx',
                       includes = '. ../',
                       source = 'lua.c',
