@@ -16,7 +16,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
