@@ -20,6 +20,7 @@
 #include <dlib/endian.h>
 #include <dlib/log.h>
 #include <dlib/memory.h>
+#include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
 
@@ -68,6 +69,17 @@ const char* FILE_PATHS[] = {
     "/archive_data/liveupdate.file7.adc"
 };
 
+// Custom files added to the zip file
+const char* EXTRA_FILE_PATHS[] = {
+    "/archive_data/file3.adc",
+    "/uniquezipdata.adc"
+};
+
+const uint32_t EXTRA_FILE_SIZES[] = {
+    37,
+    29
+};
+
 // ****************************************************************************************************************
 
 TEST(ArchiveProviderBasic, Registered)
@@ -87,7 +99,7 @@ TEST(ArchiveProviderBasic, CanMount)
     ASSERT_NE((ArchiveLoader*)0, loader);
 
     dmURI::Parts uri;
-    dmURI::Parse("zip:build/src/test/defold.resourcepack_generic.zip", &uri);
+    dmURI::Parse("zip:some/test/path.zip", &uri);
     ASSERT_TRUE(loader->m_CanMount(&uri));
 
     dmURI::Parse(".", &uri);
@@ -102,6 +114,7 @@ TEST(ArchiveProviderBasic, CanMount)
 struct ZipParams
 {
     const char* m_Path;
+    bool        m_ExtraFiles;
 };
 
 class ArchiveProviderZip : public jc_test_params_class<ZipParams>
@@ -152,6 +165,16 @@ TEST_P(ArchiveProviderZip, GetSize)
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
 }
 
+static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
+{
+    char path_buffer[256];
+    const char* override_path = override ? "/zipfiles" : "";
+    const char* host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "build/src/test%s%s", override_path, path);
+    if (!dmSys::Exists(host_path))
+        host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "src/test%s%s", override_path, path);
+    return dmTestUtil::ReadHostFile(host_path, size);
+}
+
 // * Test that the files exist
 // * Test that the content is the same as on disc
 TEST_P(ArchiveProviderZip, ReadFile)
@@ -165,9 +188,10 @@ TEST_P(ArchiveProviderZip, ReadFile)
 
         uint32_t expected_file_size;
 
-        char path_buffer1[256];
-        dmSnPrintf(path_buffer1, sizeof(path_buffer1), "build/src/test%s", path);
-        const uint8_t* expected_file = dmTestUtil::ReadHostFile(path_buffer1, &expected_file_size);
+        // char path_buffer1[256];
+        // dmSnPrintf(path_buffer1, sizeof(path_buffer1), "build/src/test%s", path);
+        // const uint8_t* expected_file = dmTestUtil::ReadHostFile(path_buffer1, &expected_file_size);
+        const uint8_t* expected_file = GetRawFile(path, &expected_file_size, false);
         ASSERT_NE((uint8_t*)0, expected_file);
 
         dmResourceProvider::Result result;
@@ -190,11 +214,33 @@ TEST_P(ArchiveProviderZip, ReadFile)
         delete[] buffer;
         dmMemory::AlignedFree((void*)expected_file);
     }
+
+    if (GetParam().m_ExtraFiles)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(EXTRA_FILE_PATHS); ++i)
+        {
+            const char* path = EXTRA_FILE_PATHS[i];
+            dmhash_t path_hash = dmHashString64(path);
+
+            uint32_t expected_file_size;
+            const uint8_t* expected_file = GetRawFile(path, &expected_file_size, true);
+            ASSERT_NE((uint8_t*)0, expected_file);
+
+            dmResourceProvider::Result result;
+            uint32_t file_size;
+
+            result = dmResourceProvider::GetFileSize(m_Archive, path_hash, path, &file_size);
+            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+            ASSERT_EQ(expected_file_size, file_size);
+
+            dmMemory::AlignedFree((void*)expected_file);
+        }
+    }
 }
 
 ZipParams params_zip_archives[] = {
-    {"zip:build/src/test/luresources.zip"},
-    {"zip:build/src/test/luresources_compressed.zip"},
+    {"zip:build/src/test/luresources.zip", true},
+    {"zip:build/src/test/luresources_compressed.zip", false},
 };
 
 INSTANTIATE_TEST_CASE_P(ArchiveProviderZipTest, ArchiveProviderZip, jc_test_values_in(params_zip_archives));

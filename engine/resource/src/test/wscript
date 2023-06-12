@@ -1,6 +1,8 @@
+import os
 import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension, extension
 from waf_dynamo import new_copy_task
+import run
 
 blddir = 'build'
 
@@ -21,6 +23,21 @@ create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.Resour
 # Test archive data. Only copy the source data.
 new_copy_task('ad', '.ad', '.adc')
 new_copy_task('script', '.script', '.scriptc')
+
+
+def add_to_zip_file(task):
+    cwd = task.cwd.abspath()
+    sources = []
+    for src in task.inputs:
+        relpath = os.path.relpath(src.get_bld().abspath(), cwd)
+        name, ext = os.path.splitext(relpath)
+        ext = ext.replace('.ad', '.adc')
+        ext = ext.replace('.script', '.scriptc')
+        sources.append(name + ext)
+
+    cmd = ['zip', task.outputs[0].abspath()] + sources
+    run.command(cmd, cwd=cwd)
+
 
 def build(bld):
     resources = bld(source = ['test.cont_pb', 'test_ref.cont_pb', 'empty.script', 'somedata.script' ])
@@ -45,6 +62,7 @@ def build(bld):
 
     bld(features='barchive',
         source_root='src/test',
+        name='luresources',
         resource_name='luresources',
         use_compression=False,
         source=' '.join(sources))
@@ -67,7 +85,14 @@ def build(bld):
 
     bld.add_group()
 
-    bld(source = bld.path.ant_glob('overrides/**/*.*'))
+    bld(source = bld.path.ant_glob('overrides/**/*.*') + bld.path.ant_glob('zipfiles/**/*.*'),
+        name = 'overides')
+
+    bld(rule = add_to_zip_file,
+        target = bld.path.find_or_declare('luresources.zip'),
+        source = bld.path.ant_glob('zipfiles/**/*'),
+        cwd = bld.path.find_or_declare('zipfiles'),
+        after = ['luresources', 'overides'])
 
     bld.add_group()
 

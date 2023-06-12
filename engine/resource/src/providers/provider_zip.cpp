@@ -3,6 +3,7 @@
 #include "../resource_archive.h"
 #include "../resource_util.h"
 #include "../resource_manifest.h"
+#include "../resource_private.h"
 
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
@@ -109,13 +110,19 @@ static void CreateEntryMap(ZipProviderContext* archive)
             continue;
         }
 
-        const char* name  = dmZip::GetEntryName(zip);
-        dmhash_t name_hash = dmHashString64(name);
+        const char* name = dmZip::GetEntryName(zip);
+
+        char archivepath[dmResource::RESOURCE_PATH_MAX];
+        dmSnPrintf(archivepath, sizeof(archivepath), "%s%s", name[0] != '/' ? "/" : "", name);
+        dmhash_t name_hash = dmHashString64(archivepath);
 
         EntryInfo info;
         info.m_ManifestEntry = 0;
         dmZip::GetEntrySize(zip, &info.m_Size);
         dmZip::GetEntryIndex(zip, &info.m_EntryIndex);
+
+        DM_RESOURCE_DBG_LOG(3, "Added extra entry: %s %llx (%u bytes)\n", archivepath, name_hash, info.m_Size);
+
         dmZip::CloseEntry(zip);
 
         archive->m_EntryMap.Put(name_hash, info);
@@ -190,10 +197,12 @@ static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveIntern
     EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
     if (entry)
     {
+        DM_RESOURCE_DBG_LOG(3, "ZIP: %s: File size: %s %llx -> %u\n", __FUNCTION__, path, path_hash, entry->m_Size);
         *file_size = entry->m_Size;
         return dmResourceProvider::RESULT_OK;
     }
 
+    DM_RESOURCE_DBG_LOG(3, "ZIP: %s: Failed to find: %s %llx\n", __FUNCTION__, path, path_hash);
     return dmResourceProvider::RESULT_NOT_FOUND;
 }
 
