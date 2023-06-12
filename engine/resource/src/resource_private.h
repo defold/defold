@@ -21,6 +21,16 @@
 
 // Internal API that preloader needs to use.
 
+#define DM_RESOURCE_DBG_LOG_LEVEL 1
+
+#if defined(DM_RESOURCE_DBG_LOG_LEVEL)
+    #include <stdio.h> // for debug log
+    #define DM_RESOURCE_DBG_LOG(__LEVEL__, ...) if ((__LEVEL__) <= DM_RESOURCE_DBG_LOG_LEVEL) { printf(__VA_ARGS__); fflush(stdout); }
+#else
+    #define DM_RESOURCE_DBG_LOG(__LEVEL__, ...)
+#endif
+
+
 namespace dmResource
 {
     const uint32_t MAX_RESOURCE_TYPES = 128;

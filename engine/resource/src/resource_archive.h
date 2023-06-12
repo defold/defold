@@ -20,8 +20,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "providers/provider.h"
-
 #include <dlib/uri.h>
 #include <dlib/align.h>
 #include <dlib/array.h>

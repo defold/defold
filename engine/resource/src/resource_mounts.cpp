@@ -1,17 +1,12 @@
 #include "resource_mounts.h"
+#include "resource_private.h" // for log
 #include "providers/provider.h"
 
 #include <dlib/log.h>
+#include <algorithm> // std::sort
 
 namespace dmResourceMounts
 {
-
-#define DEBUG_LOG 1
-#if defined(DEBUG_LOG)
-    #define LOG(...) dmLogInfo(__VA_ARGS__)
-#else
-    #define LOG(...)
-#endif
 
 struct ArchiveMount
 {
@@ -51,31 +46,51 @@ void Destroy(HContext ctx)
     delete ctx;
 }
 
+struct MountSortPred
+{
+    bool operator ()(const ArchiveMount& a, const ArchiveMount& b) const
+    {
+        return a.m_Priority > b.m_Priority; // largest priority first
+    }
+};
+
+static void SortMounts(dmArray<ArchiveMount>& mounts)
+{
+    std::sort(mounts.Begin(), mounts.End(), MountSortPred());
+}
+
 static void AddMountInternal(HContext ctx, const ArchiveMount& mount)
 {
     if (ctx->m_Mounts.Full())
         ctx->m_Mounts.OffsetCapacity(2);
 
+    ctx->m_Mounts.Push(mount);
+    SortMounts(ctx->m_Mounts);
+
+    DM_RESOURCE_DBG_LOG(1, "Added archive %p with prio %d\n", mount.m_Archive, mount.m_Priority);
+}
+
+static void DebugPrintMount(int level, const ArchiveMount& mount)
+{
+    dmURI::Parts uri;
+    dmResourceProvider::GetUri(mount.m_Archive, &uri);
+    DM_RESOURCE_DBG_LOG(level, "Mount:  prio: %3d  p: %p  uri: %s:%s/%s\n", mount.m_Priority, mount.m_Archive, uri.m_Scheme, uri.m_Location, uri.m_Path);
+}
+
+static void DebugPrintMounts(HContext ctx)
+{
+    DM_RESOURCE_DBG_LOG(2, "Mounts\n");
     uint32_t size = ctx->m_Mounts.Size();
-    ctx->m_Mounts.SetSize(size + 1);
-
-    uint32_t insert_index = 0;
-    ArchiveMount* array = ctx->m_Mounts.Begin();
-    for (uint32_t i = 0; i < size; ++i, ++insert_index)
+    for (uint32_t i = 0; i < size; ++i)
     {
-        if (array[i].m_Priority <= mount.m_Priority)
-            continue;
-
-        // shift all remaining items right one step
-        uint32_t num_to_move = size - i;
-        memmove(array+i+1, array+i, sizeof(ArchiveMount) * num_to_move);
+        DebugPrintMount(2, ctx->m_Mounts[i]);
     }
-    ctx->m_Mounts[insert_index] = mount;
-    LOG("Added archive %p with prio %d", mount.m_Archive, mount.m_Priority);
 }
 
 dmResource::Result AddMount(HContext ctx, dmResourceProvider::HArchive archive, int priority)
 {
+    // TODO: Make sure a uri wasn't already added!
+
     ArchiveMount mount;
     mount.m_Priority = priority;
     mount.m_Archive = archive;
@@ -91,12 +106,10 @@ dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archiv
         ArchiveMount& mount = ctx->m_Mounts[i];
         if (mount.m_Archive == archive)
         {
-            // shift all remaining items left one step
-            uint32_t num_to_move = size - i - 1;
-            ArchiveMount* array = ctx->m_Mounts.Begin();
-            memmove(array+i, array+i+1, sizeof(ArchiveMount) * num_to_move);
-            ctx->m_Mounts.SetSize(size-1);
-            LOG("Removed archive %p", archive);
+            ctx->m_Mounts.EraseSwap(i); // TODO: We'd like an Erase() function in dmArray, to keep the internal ordering
+            SortMounts(ctx->m_Mounts);
+
+            DM_RESOURCE_DBG_LOG(1, "Removed archive %p\n", archive);
             return dmResource::RESULT_OK;
         }
     }
@@ -126,7 +139,11 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
         if (dmResourceProvider::RESULT_NOT_FOUND == result)
             continue;
         if (dmResourceProvider::RESULT_OK == result)
+        {
+            DM_RESOURCE_DBG_LOG(3, "GetResourceSize: %s (%u bytes)\n", path, *resource_size);
+            DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
+        }
         return ProviderResultToResult(result);
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -142,7 +159,11 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
         if (dmResourceProvider::RESULT_NOT_FOUND == result)
             continue;
         if (dmResourceProvider::RESULT_OK == result)
+        {
+            DM_RESOURCE_DBG_LOG(3, "ReadResource: %s (%u bytes)\n", path, buffer_size);
+            DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
+        }
         return ProviderResultToResult(result);
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -163,6 +184,8 @@ dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_ha
             buffer->SetSize(resource_size);
 
             result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, (uint8_t*)buffer->Begin(), resource_size);
+            DM_RESOURCE_DBG_LOG(3, "ReadResource: %s (%u bytes) - result %d\n", path, resource_size, result);
+            DebugPrintMount(3, mount);
             return ProviderResultToResult(result);
         }
     }

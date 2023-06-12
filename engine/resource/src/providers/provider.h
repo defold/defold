@@ -44,37 +44,31 @@ namespace dmResourceProvider
     typedef void*                   HArchiveInternal;
     typedef struct ArchiveLoader*   HArchiveLoader;
 
+
+
     typedef bool   (*FCanMount)(const dmURI::Parts* uri);
     typedef Result (*FMount)(const dmURI::Parts* uri, HArchive base_archive, HArchiveInternal* out_archive);
     typedef Result (*FUnmount)(HArchiveInternal archive);
 
-    /*
-     * @param archive
-     * @param path_hash The hashed path (must not be 0)
-     * @param path The path is relative to the initial uri domain
-     * @param file_size The uncompressed file size
-     */
     typedef Result (*FGetFileSize)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
-
     typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**); // In order for other providers to get the base manifest
+
+
 
     // The resource loader types
     void            RegisterArchiveLoader(HArchiveLoader loader);
     void            ClearArchiveLoaders(HArchiveLoader loader);
     HArchiveLoader  FindLoaderByName(dmhash_t name_hash);
     bool            CanMountUri(HArchiveLoader loader, const dmURI::Parts* uri);
-    // HArchiveLoader  FindLoaderByUri(const dmURI::Parts* uri);
 
     // The archive operations
-    //Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive); // TODO: Is this needed/usable?
     Result CreateMount(HArchiveLoader loader, const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive);
     Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive);
     Result Unmount(HArchive archive);
     Result GetUri(HArchive archive, dmURI::Parts* out_uri);
     Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest);
-    //Result WriteManifest(HArchive archive, dmResource::Manifest* out_manifest);
 
     Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);

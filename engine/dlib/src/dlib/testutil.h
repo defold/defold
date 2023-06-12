@@ -23,6 +23,15 @@ namespace dmTestUtil
 
     const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path);
 
+    // Prepends DM_HOSTFS to the path
+    // Returns the dst buffer
+    // dst buffer is always returned, even if truncation happened
+#ifdef __GNUC__
+    const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, ...) __attribute__ ((format (printf, 3, 4)));
+#else
+    const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, ...);
+#endif
+
     // Reads a file and returns the contents
     // * Free memory with dmMemory::AlignedFree
     // * DM_HOSTFS is added automatically to the path argument!

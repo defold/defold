@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include "provider_private.h"
+#include "../resource_private.h" // for logging
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -12,12 +13,6 @@ namespace dmResourceProvider
 {
 
 static ArchiveLoader* g_ArchiveLoaders = 0;
-
-#if defined(DM_RESOURCE_DEBUG_LOG)
-    #define DBG_LOG(...) printf(__VA_ARGS__)
-#else
-    #define DBG_LOG(...)
-#endif
 
 // ****************************************
 // Loaders
@@ -46,7 +41,7 @@ void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*set
 
     setup_fn(loader);
     RegisterArchiveLoader(loader);
-    DBG_LOG("\nRegistered loader: %s %llx\n", name, loader->m_NameHash);
+    DM_RESOURCE_DBG_LOG(2, "\nRegistered loader: %s %llx\n", name, loader->m_NameHash);
 }
 
 void ClearArchiveLoaders(ArchiveLoader* loader)
@@ -56,13 +51,16 @@ void ClearArchiveLoaders(ArchiveLoader* loader)
 
 ArchiveLoader* FindLoaderByName(dmhash_t name_hash)
 {
+    DM_RESOURCE_DBG_LOG(2, "\nFind loader: %s %llx\n", dmHashReverseSafe64(name_hash), name_hash);
     ArchiveLoader* loader = g_ArchiveLoaders;
     while (loader)
     {
+        DM_RESOURCE_DBG_LOG(2, "  loader: %s %llx\n", dmHashReverseSafe64(loader->m_NameHash), loader->m_NameHash);
         if (loader->m_NameHash == name_hash)
             return loader;
         loader = loader->m_Next;
     }
+    DM_RESOURCE_DBG_LOG(2, "\n  no loader found for name '%s'\n", dmHashReverseSafe64(name_hash));
     return 0;
 }
 

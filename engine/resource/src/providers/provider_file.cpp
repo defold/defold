@@ -60,7 +60,6 @@ namespace dmResourceProviderFile
         {
             // on some platforms, performing operations on non existing files will halt the engine
             // so we're better off returning here immediately
-            dmLogError("Failed to locate file '%s'", mountpath);
             return 0;
         }
         return buffer;
