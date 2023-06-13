@@ -266,6 +266,26 @@
              0
              renderables))
 
+(def ^:private attribute-key->default-attribute-info
+  (into {}
+        (map (fn [attribute]
+               (let [attribute-key (vtx/attribute-name->key (:name attribute))
+                     attribute-info (assoc attribute :name-key attribute-key)]
+                 [attribute-key attribute-info])))
+        [{:name "position"
+          :semantic-type :semantic-type-position
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :element-count 4}
+         {:name "texcoord0"
+          :semantic-type :semantic-type-texcoord
+          :data-type :type-float
+          :element-count 2}
+         {:name "page_index"
+          :semantic-type :semantic-type-page-index
+          :data-type :type-float
+          :element-count 1}]))
+
 (defn render-sprites [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         gpu-texture (:gpu-texture user-data)
@@ -276,31 +296,12 @@
       (let [shader (:shader user-data)
             shader-bound-attribute? (comp boolean (shader/get-attribute-infos shader gl) :name)
             material-attribute-infos (:material-attribute-infos user-data)
-            declared-material-attribute-keyword? (into #{} (map :name-key) material-attribute-infos)
-            manufactured-attributes (cond-> []
-
-                                            (not (declared-material-attribute-keyword? :position))
-                                            (conj {:name "position"
-                                                   :name-key :position
-                                                   :semantic-type :semantic-type-position
-                                                   :coordinate-space :coordinate-space-world
-                                                   :data-type :type-float
-                                                   :element-count 4})
-
-                                            (not (declared-material-attribute-keyword? :texcoord0))
-                                            (conj {:name "texcoord0"
-                                                   :name-key :texcoord0
-                                                   :semantic-type :semantic-type-texcoord
-                                                   :data-type :type-float
-                                                   :element-count 2})
-
-                                            (not (declared-material-attribute-keyword? :page-index))
-                                            (conj {:name "page_index"
-                                                   :name-key :page-index
-                                                   :semantic-type :semantic-type-page-index
-                                                   :data-type :type-float
-                                                   :element-count 1}))
-            all-attributes (into manufactured-attributes material-attribute-infos)
+            declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
+            manufactured-attribute-infos (into []
+                                               (comp (remove declared-material-attribute-key?)
+                                                     (map attribute-key->default-attribute-info))
+                                               [:position :texcoord0 :page-index])
+            all-attributes (into manufactured-attribute-infos material-attribute-infos)
             shader-bound-attributes (filterv shader-bound-attribute? all-attributes)
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
             vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
@@ -326,19 +327,24 @@
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
-(defn- pb-overridden-attributes [material-attribute-infos vertex-attribute-overrides value-only]
+(defn- pb-overridden-attributes [material-attribute-infos vertex-attribute-overrides type-info-handling]
   (into []
-        (keep (fn [material-attribute-info]
-                (when-some [override-values (get vertex-attribute-overrides (:name-key material-attribute-info))]
-                  (let [value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type material-attribute-info))]
-                    (if value-only
-                      ;; Keep just the value and the attribute name (used when saving).
-                      {:name (:name material-attribute-info)
-                       value-keyword {:v override-values}}
-                      ;; Otherwise, turn the attribute-info into a fully populated Graphics$VertexAttribute in map format.
-                      (-> material-attribute-info
+        (keep (fn [attribute-info]
+                (when-some [override-values (get vertex-attribute-overrides (:name-key attribute-info))]
+                  (let [attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute-info))]
+                    (case type-info-handling
+                      :include-type-info
+                      ;; Turn the attribute-info into a fully populated Graphics$VertexAttribute in map format.
+                      ;; Used for the build output.
+                      (-> attribute-info
                           (dissoc :bytes :name-key :values)
-                          (assoc value-keyword {:v override-values})))))))
+                          (assoc attribute-value-keyword {:v override-values}))
+
+                      :exclude-type-info
+                      ;; Keep just the value and the attribute name.
+                      ;; Used for the sprite save-data. The material dictates the type.
+                      {:name (:name attribute-info)
+                       attribute-value-keyword {:v override-values}})))))
         material-attribute-infos))
 
 ; Node defs
@@ -348,7 +354,7 @@
            :default-animation default-animation
            :material (resource/resource->proj-path material)
            :blend-mode blend-mode
-           :attributes (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides true)}
+           :attributes (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides :exclude-type-info)}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -445,7 +451,7 @@
                                              :slice9 slice9
                                              :offset offset
                                              :playback-rate playback-rate
-                                             :attributes (graphics/attributes->build-target (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides false))}
+                                             :attributes (graphics/attributes->build-target (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides :include-type-info))}
                                             [:tile-set :material])]))
 (defn- fill-with-zeros [values expected-count]
   (let [trailing-vec-with-zeros (repeat (- expected-count (count values)) 0)]
@@ -493,14 +499,14 @@
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-property-keys (map attribute->outline-key material-attribute-infos)
-        attribute-properties (map (fn [attribute attribute-property-key]
-                                    (let [attribute-key (:name-key attribute)
-                                          material-values (:values attribute)
+        attribute-properties (map (fn [attribute-info attribute-property-key]
+                                    (let [attribute-key (:name-key attribute-info)
+                                          material-values (:values attribute-info)
                                           override-values (vertex-attribute-overrides attribute-key)
                                           attribute-values (or override-values material-values)
-                                          attribute-type (attribute-property-type attribute)
-                                          attribute-expected-value-count (attribute-expected-element-count attribute)
-                                          attribute-edit-type (attribute-edit-type attribute attribute-type)
+                                          attribute-type (attribute-property-type attribute-info)
+                                          attribute-expected-value-count (attribute-expected-element-count attribute-info)
+                                          attribute-edit-type (attribute-edit-type attribute-info attribute-type)
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-type
                                                           :edit-type attribute-edit-type
@@ -518,11 +524,11 @@
 
 (g/defnk produce-vertex-attribute-bytes [material-attribute-infos vertex-attribute-overrides]
   (into {}
-        (map (fn [material-attribute-info]
-               (let [name-key (:name-key material-attribute-info)
+        (map (fn [attribute-info]
+               (let [name-key (:name-key attribute-info)
                      bytes (if-some [override-values (get vertex-attribute-overrides name-key)]
-                             (.array (graphics/make-attribute-byte-buffer (:data-type material-attribute-info) override-values))
-                             (:bytes material-attribute-info))]
+                             (.array (graphics/make-attribute-byte-buffer (:data-type attribute-info) override-values))
+                             (:bytes attribute-info))]
                  [name-key bytes])))
         material-attribute-infos))
 
