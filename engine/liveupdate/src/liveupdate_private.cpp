@@ -113,41 +113,6 @@ namespace dmLiveUpdate
         }
     }
 
-    void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest)
-    {
-        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
-        {
-            dmCrypt::HashMd5((const uint8_t*)buf, buflen, digest);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        {
-            dmCrypt::HashSha1((const uint8_t*)buf, buflen, digest);
-        }
-        else
-        {
-            dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
-        }
-    }
-
-    void CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
-    {
-        if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        {
-            dmCrypt::HashSha1(buf, buflen, digest);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
-        {
-            dmCrypt::HashSha256(buf, buflen, digest);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
-        {
-            dmCrypt::HashSha512(buf, buflen, digest);
-        }
-        else
-        {
-            dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
-        }
-    }
 
     bool FileExists(const char* path)
     {

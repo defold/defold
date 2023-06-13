@@ -20,7 +20,7 @@
 
 namespace dmResource
 {
-    struct Manifest; //TODO: Move the structure to this header!
+    struct Manifest; //TODO: Move the structure to this header! (and also hide the implementation?)
 }
 
 namespace dmURI

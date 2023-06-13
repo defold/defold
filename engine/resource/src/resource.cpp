@@ -59,8 +59,6 @@
  *  - Handle out of resources. Eg Hashtables full.
  */
 
-extern dmDDF::Descriptor dmLiveUpdateDDF_ManifestFile_DESCRIPTOR;
-
 DM_PROPERTY_U32(rmtp_Resource, 0, FrameReset, "# resources");
 
 namespace dmResource
@@ -183,65 +181,6 @@ void SetManifest(HFactory factory, Manifest* manifest)
     // factory->m_Manifest = manifest;
     // factory->m_Manifest->m_ArchiveIndex = new_archive;
 }
-
-
-// Result DecryptSignatureHash(const Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
-// {
-//     const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-//     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-//     dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
-//     if (r != dmCrypt::RESULT_OK) {
-//         return RESULT_INVALID_DATA;
-//     }
-//     return RESULT_OK;
-// }
-
-// Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
-// {
-//     Result res = RESULT_OK;
-//     char public_key_path[DMPATH_MAX_PATH];
-//     uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
-//     uint8_t* pub_key_buf = 0x0;
-//     uint8_t* hash_decrypted = 0x0;
-
-//     // Load public key
-//     dmPath::Concat(app_path, "game.public.der", public_key_path, DMPATH_MAX_PATH);
-//     dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
-//     if (sys_res != dmSys::RESULT_OK)
-//     {
-//         dmLogError("Failed to get size of public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-//         free(pub_key_buf);
-//         return RESULT_IO_ERROR;
-//     }
-//     pub_key_buf = (uint8_t*)malloc(pub_key_size);
-//     assert(pub_key_buf);
-//     sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
-
-//     if (sys_res != dmSys::RESULT_OK)
-//     {
-//         dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
-//         free(pub_key_buf);
-//         return RESULT_IO_ERROR;
-//     }
-
-//     if (out_resource_size != pub_key_size)
-//     {
-//         dmLogError("Failed to load public key for manifest verification at path: %s, tried reading %d bytes, got %d bytes", public_key_path, pub_key_size, out_resource_size);
-//         free(pub_key_buf);
-//         return RESULT_IO_ERROR;
-//     }
-
-//     res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, &hash_decrypted, &hash_decrypted_len);
-//     if (res != RESULT_OK)
-//     {
-//         return res;
-//     }
-//     res = HashCompare((const uint8_t*)hash_decrypted, hash_decrypted_len, expected_digest, expected_len);
-
-//     free(hash_decrypted);
-//     free(pub_key_buf);
-//     return res;
-// }
 
 // // TODO: Move elsewhere. Used by Live update only
 // Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len)

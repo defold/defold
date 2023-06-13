@@ -86,6 +86,46 @@ void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_
     }
 }
 
+Result CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
+{
+    if (algorithm == dmLiveUpdateDDF::HASH_MD5)
+    {
+        dmCrypt::HashMd5(buf, buflen, digest);
+    }
+    else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+    {
+        dmCrypt::HashSha1(buf, buflen, digest);
+    }
+    else
+    {
+        dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
+        return RESULT_INVALID_DATA;
+    }
+    return RESULT_OK;
+}
+
+Result CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
+{
+    if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+    {
+        dmCrypt::HashSha1(buf, buflen, digest);
+    }
+    else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+    {
+        dmCrypt::HashSha256(buf, buflen, digest);
+    }
+    else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+    {
+        dmCrypt::HashSha512(buf, buflen, digest);
+    }
+    else
+    {
+        dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
+        return RESULT_INVALID_DATA;
+    }
+    return RESULT_OK;
+}
+
 Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len)
 {
     if (expected_len != len)
@@ -95,7 +135,7 @@ Result MemCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_d
     }
     if (memcmp(digest, expected_digest, len) != 0)
     {
-        return RESULT_FORMAT_ERROR;
+        return RESULT_SIGNATURE_MISMATCH;;
     }
     return RESULT_OK;
 }

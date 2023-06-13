@@ -17,6 +17,7 @@
 #include "../resource_manifest.h"
 #include "../resource_archive_private.h"
 #include "../resource_util.h"
+#include "../resource_verify.h"
 #include "../providers/provider_archive_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
@@ -263,7 +264,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
 
-    int cmp = VerifyArchiveIndex(archive);
+    int cmp = dmResource::VerifyArchiveIndex(archive);
     ASSERT_EQ(0, cmp);
 
     free(resource->m_Header);
@@ -351,7 +352,7 @@ TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
     entry_count_after = dmResourceArchive::GetEntryCount(archive);
     ASSERT_EQ(3U, entry_count_after);
 
-    int cmp = VerifyArchiveIndex(archive);
+    int cmp = dmResource::VerifyArchiveIndex(archive);
     ASSERT_EQ(0, cmp);
 
     // Find inserted entry in archive after insertion
@@ -610,7 +611,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
+    ASSERT_EQ(dmResource::RESULT_SIGNATURE_MISMATCH, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);

@@ -332,86 +332,39 @@ namespace dmResourceArchive
         return GetInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, out_index);
     }
 
-    dmResource::Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive)
+    void DebugArchiveIndex(HArchiveIndexContainer archive)
     {
-        for(uint32_t i = 0; i < num_entries; ++i)
-        {
-            if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
-            {
-                uint8_t* hash = entries[i].m_Hash.m_Data.m_Data;
-                dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive, hash, hash_len, 0x0);
-                if (res == dmResourceArchive::RESULT_NOT_FOUND)
-                {
-                    char hash_buffer[64*2+1]; // String repr. of project id SHA1 hash
-                    dmResource::BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
-
-                    // Manifest expect the resource to be bundled, but it is not in the archive index.
-                    dmLogError("Resource '%s' (%s) is expected to be in the bundle was not found.\nResource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url, hash_buffer);
-                    return dmResource::RESULT_INVALID_DATA;
-                }
-            }
-        }
-
-        return dmResource::RESULT_OK;
-    }
-
-    dmResource::Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const dmResource::Manifest* manifest)
-    {
-        uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
-        dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
-
-        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
-        uint32_t hash_len = dmResource::HashLength(algorithm);
-
-        return VerifyResourcesBundled(entries, entry_count, hash_len, base_archive);
-    }
-
-
-    int VerifyArchiveIndex(HArchiveIndexContainer archive)
-    {
-        dmLogInfo("VerifyArchiveIndex: %p\n", archive);
-
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
         uint8_t* hashes = 0;
-        //EntryData* entries = 0;
+        dmResourceArchive::EntryData* entries = 0;
+
+        dmLogInfo("HArchiveIndexContainer: %p  %s", archive, archive->m_ArchiveFileIndex?archive->m_ArchiveFileIndex->m_Path:"no path");
 
         // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
         if (!archive->m_IsMemMapped)
         {
             hashes = archive->m_ArchiveFileIndex->m_Hashes;
-            //entries = archive->m_ArchiveFileIndex->m_Entries;
+            entries = archive->m_ArchiveFileIndex->m_Entries;
         }
         else
         {
-            //uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-            uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
             hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-            //entries = (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
+            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
         }
-
-        uint32_t hash_len = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashLength);
-        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-
-        const uint8_t* prevh = hashes;
 
         for (uint32_t i = 0; i < entry_count; ++i)
         {
-            const uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
+            uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
+            dmResourceArchive::EntryData* e = &entries[i];
+            uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
 
-            int cmp = memcmp(prevh, h, dmResourceArchive::MAX_HASH);
-            if (cmp > 0)
-            {
-                char hash_buffer1[dmResourceArchive::MAX_HASH*2+1];
-                dmResource::BytesToHexString(prevh, hash_len, hash_buffer1, sizeof(hash_buffer1));
-                char hash_buffer2[dmResourceArchive::MAX_HASH*2+1];
-                dmResource::BytesToHexString(h, hash_len, hash_buffer2, sizeof(hash_buffer2));
-                dmLogError("Entry %3d: '%s' is not smaller than", i == 0 ? -1 : i-1, hash_buffer1);
-                dmLogError("Entry %3d: '%s'", i, hash_buffer2);
-                return cmp;
-            }
-
-            prevh = h;
+            printf("entry: off: %4u  sz: %4u  csz: %4u flags: %2u encr: %d lu: %d hash: ", dmEndian::ToNetwork(e->m_ResourceDataOffset), dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize),
+                                flags, flags & ENTRY_FLAG_ENCRYPTED, flags & ENTRY_FLAG_LIVEUPDATE_DATA);
+            dmResource::PrintHash(h, 20);
+            printf("\n");
         }
-        return 0;
     }
 
     void NewArchiveIndexFromCopy(ArchiveIndex*& dst, HArchiveIndexContainer src, uint32_t extra_entries_alloc)

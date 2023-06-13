@@ -416,22 +416,6 @@ namespace dmResourceProviderArchiveMutable
         return (res == dmResourceArchive::RESULT_OK) ? dmResourceProvider::RESULT_OK : dmResourceProvider::RESULT_IO_ERROR;
     }
 
-    static void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
-    {
-        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
-        {
-            dmCrypt::HashMd5(buf, buflen, digest);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        {
-            dmCrypt::HashSha1(buf, buflen, digest);
-        }
-        else
-        {
-            dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
-        }
-    }
-
     static dmResourceProvider::Result WriteFile(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_length)
     {
         GameArchiveFile* archive = (GameArchiveFile*)internal;
@@ -463,7 +447,7 @@ namespace dmResourceProviderArchiveMutable
 
         // Hash the incoming data...
         uint8_t digest[512]; // max length
-        CreateResourceHash(algorithm, resource.m_Data, resource.m_Count, digest);
+        dmResource::CreateResourceHash(algorithm, resource.m_Data, resource.m_Count, digest);
 
         // ...and compare it to the signature in the manifest
         dmResourceProvider::Result result = VerifyResource(archive->m_Manifest, expected_digest, expected_digest_length,

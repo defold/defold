@@ -36,8 +36,33 @@ namespace dmResource
     Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
 
 
-    // Returns the length in bytes of the supplied hash algorithm
+    /*#
+     * Returns the length in bytes of the supplied hash algorithm
+     * @name HashLength
+     * @param algorithm [type: dmLiveUpdateDDF::HashAlgorithm] The algorithm
+     * @return size [type: uint32_t] the size required to store a hash using the algorithm (in bytes)
+     */
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+
+    /*#
+     * Create a hash of a byte buffer representing a resource
+     * @name CreateResourceHash
+     * @param algorithm [type: dmLiveUpdateDDF::HashAlgorithm] The algorithm (MD5 or SHA1)
+     * @param buffer [type: uint8_t*] the buffer
+     * @param buffer_size [type: size_t] the size of the buffer (in bytes)
+     * @param digest [type: uint8_t*] the output digest. Expected to be at least the size needed for this algorithm (See HashLength)
+     */
+    Result CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buffer, size_t buffer_size, uint8_t* digest);
+
+    /*#
+     * Create a hash of a manifest
+     * @name CreateManifestHash
+     * @param algorithm [type: dmLiveUpdateDDF::HashAlgorithm] The algorithm (SHA1, SHA256 or SHA512)
+     * @param buffer [type: uint8_t*] the buffer
+     * @param buffer_size [type: size_t] the size of the buffer (in bytes)
+     * @param digest [type: uint8_t*] the output digest. Expected to be at least the size needed for this algorithm (See HashLength)
+     */
+    Result CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buffer, size_t buffer_size, uint8_t* digest);
 
     /*#
      * Converts the supplied byte buffer to hexadecimal string representation

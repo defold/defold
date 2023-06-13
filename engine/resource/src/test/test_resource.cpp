@@ -39,11 +39,12 @@
 
 #include <resource/resource_ddf.h>
 #include "../resource.h"
-#include "../resource_manifest.h"
 #include "../resource_archive.h"
-#include "../resource_util.h"
-#include "../resource_private.h"
 #include "../resource_archive_private.h"
+#include "../resource_manifest.h"
+#include "../resource_private.h"
+#include "../resource_util.h"
+#include "../resource_verify.h"
 #include "test/test_resource_ddf.h"
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
@@ -1482,7 +1483,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerification)
     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     uint32_t hash_len = dmResource::HashLength(algorithm);
 
-    result = dmResourceArchive::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, hash_len, archive);
+    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, hash_len, archive);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::Delete(archive);
@@ -1522,7 +1523,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     uint32_t hash_len = dmResource::HashLength(algorithm);
 
-    result = dmResourceArchive::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, hash_len, archive);
+    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, hash_len, archive);
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
 
     // Clean up deep-copied resource entries

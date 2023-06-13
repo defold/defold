@@ -234,8 +234,6 @@ namespace dmResourceArchive
     // For debugging purposes only
     void DebugArchiveIndex(HArchiveIndexContainer archive);
 
-    // for testing ascending order
-    int VerifyArchiveIndex(HArchiveIndexContainer archive);
 }  // namespace dmResourceArchive
 
 #endif
