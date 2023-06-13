@@ -176,7 +176,7 @@
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
   (.transform wt pt)
-  [(.x pt) (.y pt) (.z pt) cr cg cb 1])
+  (vector-of :float (.x pt) (.y pt) (.z pt) cr cg cb 1.0))
 
 (defn- conj-outline-quad! [^ByteBuffer buf ^Matrix4d wt ^Point3d pt width height cr cg cb]
   (let [x1 (* 0.5 width)
@@ -188,21 +188,21 @@
         v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (doto buf
-      (vtx/buf-push! v0)
-      (vtx/buf-push! v1)
-      (vtx/buf-push! v1)
-      (vtx/buf-push! v2)
-      (vtx/buf-push! v2)
-      (vtx/buf-push! v3)
-      (vtx/buf-push! v3)
-      (vtx/buf-push! v0))))
+      (vtx/buf-push-floats! v0)
+      (vtx/buf-push-floats! v1)
+      (vtx/buf-push-floats! v1)
+      (vtx/buf-push-floats! v2)
+      (vtx/buf-push-floats! v2)
+      (vtx/buf-push-floats! v3)
+      (vtx/buf-push-floats! v3)
+      (vtx/buf-push-floats! v0))))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (let [outline-points (map (fn [[x y]]
                               (gen-outline-vertex world-transform tmp-point x y cr cg cb))
                             line-data)]
     (doseq [outline-point outline-points]
-      (vtx/buf-push! buf outline-point))))
+      (vtx/buf-push-floats! buf outline-point))))
 
 (defn- gen-outline-vertex-buffer [renderables count]
   (let [tmp-point (Point3d.)
@@ -681,4 +681,4 @@
 
 ;; TODO(vertex-attr):
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
-;; * Validation for the vertex attributes, right now we allow _any_ value which will crash the engine. Should probably limit to 1..4?
+;; * Validation for the vertex attributes, right now we allow _any_ value which will crash the engine. Should probably limit element-count to 1..4?
