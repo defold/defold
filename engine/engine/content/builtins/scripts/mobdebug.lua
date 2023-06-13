@@ -592,8 +592,9 @@ local function get_server_data(file)
     return
   end
   checkcount = mobdebug.checkcount
-  if coroutine.status(coro_debugger) == "suspended" then
-    local status, res = cororesume(coro_debugger, nil,nil,file)
+  if corostatus(coro_debugger) == "suspended" then
+    local state_vars = capture_vars(3)
+    local status, res = cororesume(coro_debugger, nil, state_vars, file)
     if not status and res then
       error(res, 2) -- report any other (internal) errors back to the application 
     end
@@ -601,7 +602,11 @@ local function get_server_data(file)
     while status and res == 'stack' do
       -- resume with the stack trace and variables
       if vars then restore_vars(vars) end -- restore vars so they are reflected in stack values
-      status, res = cororesume(coro_debugger, events.STACK, stack(4), file, line)
+      local st = stack(4)
+      if st[1] and st[1][1] and st[1][1][2] == "[C]" then
+        table.remove(st, 1)
+      end
+      status, res = cororesume(coro_debugger, events.STACK, st, file, line)
     end
     handle_breakpoint(server)
   end
