@@ -2,7 +2,7 @@ import os
 import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension, extension
 from waf_dynamo import new_copy_task
-import run
+import zipfile
 
 blddir = 'build'
 
@@ -27,16 +27,15 @@ new_copy_task('script', '.script', '.scriptc')
 
 def add_to_zip_file(task):
     cwd = task.cwd.abspath()
-    sources = []
-    for src in task.inputs:
-        relpath = os.path.relpath(src.get_bld().abspath(), cwd)
-        name, ext = os.path.splitext(relpath)
-        ext = ext.replace('.ad', '.adc')
-        ext = ext.replace('.script', '.scriptc')
-        sources.append(name + ext)
-
-    cmd = ['zip', task.outputs[0].abspath()] + sources
-    run.command(cmd, cwd=cwd)
+    with zipfile.ZipFile(task.outputs[0].abspath(), 'a') as zipf:
+        for i in task.inputs:
+            src = i.get_bld().abspath()
+            name, ext = os.path.splitext(src)
+            ext = ext.replace('.ad', '.adc')
+            ext = ext.replace('.script', '.scriptc')
+            src = name + ext
+            dst = os.path.relpath(src, cwd)
+            zipf.write(src, dst)
 
 
 def build(bld):
