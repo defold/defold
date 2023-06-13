@@ -69,7 +69,7 @@
   ^ByteBuffer [attribute-data-type attribute-values]
   (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
         vtx-attribute-type (vtx/attribute-data-type->type attribute-data-type)
-        ^ByteBuffer byte-buffer (buffers/little-endian (ByteBuffer/allocate attribute-value-byte-count))]
+        byte-buffer (vtx/make-buf attribute-value-byte-count)]
     (vtx/buf-push! byte-buffer vtx-attribute-type false attribute-values)
     (.rewind byte-buffer)))
 

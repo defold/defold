@@ -146,11 +146,15 @@
   (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
     (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
+(defn make-buf
+  ^ByteBuffer [byte-capacity]
+  (.order (ByteBuffer/allocateDirect (int byte-capacity))
+          ByteOrder/LITTLE_ENDIAN))
+
 (defn make-vertex-buffer
   [vertex-description usage ^long capacity]
   (let [nbytes (* capacity ^long (:size vertex-description))
-        buf (doto (ByteBuffer/allocateDirect nbytes)
-              (.order ByteOrder/LITTLE_ENDIAN))]
+        buf (make-buf nbytes)]
     (wrap-vertex-buffer vertex-description usage buf)))
 
 ;; low-level access
