@@ -51,13 +51,12 @@
                                                                           (map remove-empty-channels)
                                                                           (apply merge-with (constantly ::conflicting-data)))])))]
           (testing "Bone exists in skeleton"
-            (prn "MAWE BONE ID" bone-id)
             (is (some #(= bone-id %) bone-list)))
 
           (testing "Channels are not animated by multiple tracks"
             (doseq [[channel data] data-by-channel]
               (is (not= ::conflicting-data data)
-                  (str "Found multiple tracks targetting " channel " for bone " bone-id))))
+                  (str "Found multiple tracks targeting " channel " for bone " bone-id))))
 
           (testing "Channel data matches expected strides"
             (are [stride channel]

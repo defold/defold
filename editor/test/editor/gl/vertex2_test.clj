@@ -147,142 +147,122 @@
         (map #(.get buf ^long %))
         (range 0 (.capacity buf) Byte/BYTES)))
 
-(defn- data-fn [data-type]
+(defn- out-data-fn [data-type]
   (partial vector-of (primitive-type-kw data-type)))
+
+(defn- limits [data-type normalize]
+  (let [out-min
+        (case data-type
+          :double Double/MIN_VALUE
+          :float Float/MIN_VALUE
+          :int Integer/MIN_VALUE
+          :uint (int 0)
+          :short Short/MIN_VALUE
+          :ushort (short 0)
+          :byte Byte/MIN_VALUE
+          :ubyte (byte 0))
+
+        in-min
+        (case data-type
+          (:double :float) out-min
+          (:int :short :byte) (if normalize -1.0 out-min)
+          (:uint :ushort :ubyte) (if normalize 0.0 out-min))
+
+        out-max
+        (case data-type
+          :double Double/MAX_VALUE
+          :float Float/MAX_VALUE
+          :int Integer/MAX_VALUE
+          :uint (unchecked-int 0xffffffff)
+          :short Short/MAX_VALUE
+          :ushort (unchecked-short 0xffff)
+          :byte Byte/MAX_VALUE
+          :ubyte (unchecked-byte 0xff))
+
+        in-max
+        (if normalize
+          (case data-type
+            (:double :float) out-max
+            (:int :uint :short :ushort :byte :ubyte) 1.0)
+          (case data-type
+            :double Double/MAX_VALUE
+            :float Float/MAX_VALUE
+            :int (long Integer/MAX_VALUE)
+            :uint (long 0xffffffff)
+            :short (long Short/MAX_VALUE)
+            :ushort (long 0xffff)
+            :byte (long Byte/MAX_VALUE)
+            :ubyte (long 0xff)))]
+
+    [in-min in-max out-min out-max]))
 
 (deftest buf-blit!-test
   (let [min Byte/MIN_VALUE
         max Byte/MAX_VALUE
         buf->data (buf->data-fn :byte)
-        data (data-fn :byte)
-        data-bytes (comp byte-array data)
+        out-data (out-data-fn :byte)
+        in-bytes (comp byte-array out-data)
         buf (v/make-buf 4)]
-    (is (identical? buf (v/buf-blit! buf 0 (data-bytes min min min min))) "Returns self")
+    (is (identical? buf (v/buf-blit! buf 0 (in-bytes min min min min))) "Returns self")
     (is (zero? (.position buf)) "Position is unaffected")
-    (is (= (data min min min min) (buf->data buf)))
-    (v/buf-blit! buf 1 (data-bytes max max))
-    (is (= (data min max max min) (buf->data buf)))))
+    (is (= (out-data min min min min) (buf->data buf)))
+    (v/buf-blit! buf 1 (in-bytes max max))
+    (is (= (out-data min max max min) (buf->data buf)))))
 
 (deftest buf-put-floats!-test
   (let [min Float/MIN_VALUE
         max Float/MAX_VALUE
         element-byte-size (element-byte-size :float)
         buf->data (buf->data-fn :float)
-        data (data-fn :float)
+        out-data (out-data-fn :float)
         buf (v/make-buf (* 4 element-byte-size))]
-    (is (identical? buf (v/buf-put-floats! buf 0 (data min min min min))) "Put returns self")
+    (is (identical? buf (v/buf-put-floats! buf 0 (vector min min min min))) "Put returns self")
     (is (zero? (.position buf)) "Position is unaffected")
-    (is (= (data min min min min) (buf->data buf)))
-    (v/buf-put-floats! buf element-byte-size (data max max))
-    (is (= (data min max max min) (buf->data buf)))))
+    (is (= (out-data min min min min) (buf->data buf)))
+    (v/buf-put-floats! buf element-byte-size (vector max max))
+    (is (= (out-data min max max min) (buf->data buf)))))
 
 (deftest buf-put!-test
   (doseq [normalize [false true]
           data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
-    (let [out-min
-          (case data-type
-            :double Double/MIN_VALUE
-            :float Float/MIN_VALUE
-            :int Integer/MIN_VALUE
-            :uint (int 0)
-            :short Short/MIN_VALUE
-            :ushort (short 0)
-            :byte Byte/MIN_VALUE
-            :ubyte (byte 0))
-
-          in-min
-          (case data-type
-            (:double :float) out-min
-            (:int :short :byte) (if normalize -1.0 out-min)
-            (:uint :ushort :ubyte) (if normalize 0.0 out-min))
-
-          out-max
-          (case data-type
-            :double Double/MAX_VALUE
-            :float Float/MAX_VALUE
-            :int Integer/MAX_VALUE
-            :uint (unchecked-int 0xffffffff)
-            :short Short/MAX_VALUE
-            :ushort (unchecked-short 0xffff)
-            :byte Byte/MAX_VALUE
-            :ubyte (unchecked-byte 0xff))
-
-          in-max
-          (case data-type
-            (:double :float) out-max
-            (:int :uint :short :ushort :byte :ubyte) (if normalize 1.0 out-max))
-
+    (let [[in-min in-max out-min out-max] (limits data-type normalize)
           element-byte-size (element-byte-size data-type)
           buf->data (buf->data-fn data-type)
-          data (data-fn data-type)
+          out-data (out-data-fn data-type)
           buf (v/make-buf (* 4 element-byte-size))]
-
       (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
-        (is (identical? buf (v/buf-put! buf 0 data-type normalize (data in-min in-min in-min in-min))) "Returns self")
+        (is (identical? buf (v/buf-put! buf 0 data-type normalize (vector in-min in-min in-min in-min))) "Returns self")
         (is (zero? (.position buf)) "Position is unaffected")
-        (is (= (data out-min out-min out-min out-min) (buf->data buf)))
-        (v/buf-put! buf element-byte-size data-type normalize (data in-max in-max))
-        (is (= (data out-min out-max out-max out-min) (buf->data buf)))))))
+        (is (= (out-data out-min out-min out-min out-min) (buf->data buf)))
+        (v/buf-put! buf element-byte-size data-type normalize (vector in-max in-max))
+        (is (= (out-data out-min out-max out-max out-min) (buf->data buf)))))))
 
 (deftest buf-push-floats!-test
   (let [min Float/MIN_VALUE
         max Float/MAX_VALUE
         element-byte-size (element-byte-size :float)
         buf->data (buf->data-fn :float)
-        data (data-fn :float)
+        out-data (out-data-fn :float)
         buf (v/make-buf (* 4 element-byte-size))]
-    (is (identical? buf (v/buf-push-floats! buf (data min min))) "Returns self")
+    (is (identical? buf (v/buf-push-floats! buf (vector min min))) "Returns self")
     (is (= (* 2 element-byte-size) (.position buf)) "Position advances")
-    (is (= (data min min 0 0) (buf->data buf)))
-    (v/buf-push-floats! buf (data max max))
+    (is (= (out-data min min 0 0) (buf->data buf)))
+    (v/buf-push-floats! buf (vector max max))
     (is (= (* 4 element-byte-size) (.position buf)) "Position advances")
-    (is (= (data min min max max) (buf->data buf)))))
+    (is (= (out-data min min max max) (buf->data buf)))))
 
 (deftest buf-push!-test
   (doseq [normalize [false true]
           data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
-    (let [out-min
-          (case data-type
-            :double Double/MIN_VALUE
-            :float Float/MIN_VALUE
-            :int Integer/MIN_VALUE
-            :uint (int 0)
-            :short Short/MIN_VALUE
-            :ushort (short 0)
-            :byte Byte/MIN_VALUE
-            :ubyte (byte 0))
-
-          in-min
-          (case data-type
-            (:double :float) out-min
-            (:int :short :byte) (if normalize -1.0 out-min)
-            (:uint :ushort :ubyte) (if normalize 0.0 out-min))
-
-          out-max
-          (case data-type
-            :double Double/MAX_VALUE
-            :float Float/MAX_VALUE
-            :int Integer/MAX_VALUE
-            :uint (unchecked-int 0xffffffff)
-            :short Short/MAX_VALUE
-            :ushort (unchecked-short 0xffff)
-            :byte Byte/MAX_VALUE
-            :ubyte (unchecked-byte 0xff))
-
-          in-max
-          (case data-type
-            (:double :float) out-max
-            (:int :uint :short :ushort :byte :ubyte) (if normalize 1.0 out-max))
-
+    (let [[in-min in-max out-min out-max] (limits data-type normalize)
           element-byte-size (element-byte-size data-type)
           buf->data (buf->data-fn data-type)
-          data (data-fn data-type)
+          out-data (out-data-fn data-type)
           buf (v/make-buf (* 4 element-byte-size))]
-
       (testing (format "%s %ss" (if normalize "Normalized" "Non-normalized") (name data-type))
-        (is (identical? buf (v/buf-push! buf data-type normalize (data in-min in-min))) "Returns self")
+        (is (identical? buf (v/buf-push! buf data-type normalize (vector in-min in-min))) "Returns self")
         (is (= (* 2 element-byte-size) (.position buf)) "Position advances")
-        (is (= (data out-min out-min 0 0) (buf->data buf)))
-        (v/buf-push! buf data-type normalize (data in-max in-max))
+        (is (= (out-data out-min out-min 0 0) (buf->data buf)))
+        (v/buf-push! buf data-type normalize (vector in-max in-max))
         (is (= (* 4 element-byte-size) (.position buf)) "Position advances")
-        (is (= (data out-min out-min out-max out-max) (buf->data buf)))))))
+        (is (= (out-data out-min out-min out-max out-max) (buf->data buf)))))))
