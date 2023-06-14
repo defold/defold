@@ -15,15 +15,21 @@
 #ifndef DMSDK_GAMESYSTEM_RES_GUI_H
 #define DMSDK_GAMESYSTEM_RES_GUI_H
 
-#include <dlib/array.h>
-#include <particle/particle.h>
-#include <render/font_renderer.h>
-#include <gui/gui.h>
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/hashtable.h>
+#include <dmsdk/render/render.h>
+#include <dmsdk/gui/gui.h>
+
 #include <gamesys/gui_ddf.h>
 #include "res_textureset.h"
 #include "res_texture.h"
 
 #include <dmsdk/script/script.h>
+
+namespace dmParticle
+{
+    typedef struct Prototype* HPrototype;
+}
 
 namespace dmGameSystem
 {

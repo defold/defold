@@ -15,7 +15,7 @@
 #include "graphics_private.h"
 #include "graphics_adapter.h"
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
 #include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
 #endif
 #include <string.h>
@@ -160,6 +160,43 @@ namespace dmGraphics
             default:break;
         }
         return "<unknown asset type>";
+    }
+
+    const char* GetTextureFormatLiteral(TextureFormat format)
+    {
+        switch(format)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_LUMINANCE);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_LUMINANCE_ALPHA);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_16BPP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_16BPP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_DEPTH);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_STENCIL);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_ETC1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ETC2);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_BC1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC3);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R_BC4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG_BC5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC7);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            default:break;
+        }
+        return "<unknown texture format>";
     }
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
@@ -1007,7 +1044,7 @@ namespace dmGraphics
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);

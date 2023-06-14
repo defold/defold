@@ -1356,10 +1356,27 @@
       (set-show-relative-to-window! cm true)
       (.show cm node (.getScreenX event) (.getScreenY event)))))
 
-(defn register-context-menu [^Control control menu-location]
-  (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
-    (event-handler event
-      (show-context-menu! menu-location event))))
+(defn register-context-menu
+  "Register a context menu listener on a control for the menu location
+
+  Args:
+    control          an instance of a Control
+    menu-location    keyword identifier of a menu location registered with
+                     [[editor.handler/register-menu!]]
+    focus            whether to focus on the control when the context menu is
+                     requested, default false. Focusing might be necessary in
+                     some cases because the context menu handlers are evaluated
+                     in the context of the focus owner of the scene, and some
+                     controls (e.g. Label) are not focused when a context menu
+                     is requested for them. Without a focus, any context these
+                     controls define will be lost."
+  ([control menu-location]
+   (register-context-menu control menu-location false))
+  ([^Control control menu-location focus]
+   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
+     (event-handler event
+       (when focus (.requestFocus control))
+       (show-context-menu! menu-location event)))))
 
 (defn- event-targets-tab? [^Event event]
   (some? (closest-node-with-style "tab" (.getTarget event))))

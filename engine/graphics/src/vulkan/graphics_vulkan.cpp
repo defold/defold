@@ -100,46 +100,6 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STR_CASE
 
-    #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
-    static const char* TextureFormatToString(TextureFormat format)
-    {
-        switch(format)
-        {
-            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE_ALPHA);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_4BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG_BC5);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC7);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG16F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(R32F);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RG32F);
-            default:break;
-        }
-        return "UNKNOWN_FORMAT";
-    }
-    #undef DM_TEXTURE_FORMAT_TO_STR_CASE
-
-
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
     {
         memset(this, 0, sizeof(*this));
@@ -908,7 +868,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
-                dmLogError("Device selection failed for device %s: Could not get a valid queue family.", device->m_Properties.deviceName);
+                dmLogError("Device selection failed for device %s (%d/%d): Could not get a valid queue family.", device->m_Properties.deviceName, i, device_count);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -918,6 +878,7 @@ namespace dmGraphics
             {
                 if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
                 {
+                    dmLogError("Required device extension '%s' is missing for device %s (%d/%d).", device_extensions[ext_i], device->m_Properties.deviceName, i, device_count);
                     all_extensions_found = false;
                     break;
                 }
@@ -1746,11 +1707,11 @@ bail:
 
             ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-            for (uint32_t j=0; j < vertex_shader->m_AttributeCount; j++)
+            for (uint32_t j=0; j < vertex_shader->m_InputCount; j++)
             {
-                if (vertex_shader->m_Attributes[j].m_NameHash == stream.m_NameHash)
+                if (vertex_shader->m_Inputs[j].m_NameHash == stream.m_NameHash)
                 {
-                    stream.m_Location = vertex_shader->m_Attributes[j].m_Binding;
+                    stream.m_Location = vertex_shader->m_Inputs[j].m_Binding;
                     break;
                 }
             }
@@ -2141,7 +2102,6 @@ bail:
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
             uint32_t uniform_buffer_count      = 0;
-            int32_t  last_binding              = -1;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -2154,9 +2114,6 @@ bail:
                 res.m_NameHash             = 0;
 
                 assert(res.m_Set <= 1);
-                assert(res.m_Binding >= last_binding);
-                last_binding = res.m_Binding;
-
                 if (IsUniformTextureSampler(res))
                 {
                     res.m_TextureUnit = texture_sampler_count;
@@ -2172,25 +2129,22 @@ bail:
 
             shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
+            shader->m_TextureSamplerCount    = texture_sampler_count;
         }
 
-        if (ddf->m_Attributes.m_Count > 0)
+        if (ddf->m_Inputs.m_Count > 0)
         {
-            shader->m_Attributes     = new ShaderResourceBinding[ddf->m_Attributes.m_Count];
-            shader->m_AttributeCount = ddf->m_Attributes.m_Count;
-            int32_t  last_binding    = -1;
+            shader->m_Inputs     = new ShaderResourceBinding[ddf->m_Inputs.m_Count];
+            shader->m_InputCount = ddf->m_Inputs.m_Count;
 
-            for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
+            for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
             {
-                ShaderResourceBinding& res = shader->m_Attributes[i];
-                res.m_Binding              = ddf->m_Attributes[i].m_Binding;
-                res.m_Set                  = ddf->m_Attributes[i].m_Set;
-                res.m_Type                 = ddf->m_Attributes[i].m_Type;
-                res.m_Name                 = strdup(ddf->m_Attributes[i].m_Name);
-                res.m_NameHash             = dmHashString64(res.m_Name);
-
-                assert(res.m_Binding >= last_binding);
-                last_binding = res.m_Binding;
+                ShaderResourceBinding& res = shader->m_Inputs[i];
+                res.m_Binding              = ddf->m_Inputs[i].m_Binding;
+                res.m_Set                  = ddf->m_Inputs[i].m_Set;
+                res.m_Type                 = ddf->m_Inputs[i].m_Type;
+                res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
+                res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
             }
         }
     }
@@ -2204,6 +2158,22 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+
+        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            DeleteVertexProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return 0;
+        }
+        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            DeleteVertexProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return 0;
+        }
+
         return (HVertexProgram) shader;
     }
 
@@ -2215,6 +2185,22 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+
+        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            DeleteFragmentProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of uniform buffers exceeded: fragment shader has %d buffers, but maximum is %d.",
+                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return 0;
+        }
+        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            DeleteFragmentProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of texture samplers exceeded: fragment shader has %d samplers, but maximum is %d.",
+                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return 0;
+        }
+
         return (HFragmentProgram) shader;
     }
 
@@ -2259,7 +2245,7 @@ bail:
         *byte_offset_end_out = byte_offset;
     }
 
-    static void CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
+    static bool CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
@@ -2278,8 +2264,8 @@ bail:
         vk_fragment_shader_create_info.module = fragment_module->m_Module;
         vk_fragment_shader_create_info.pName  = "main";
 
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT]    = vk_fragment_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]   = vk_vertex_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT] = vk_fragment_shader_create_info;
         program->m_Hash               = 0;
         program->m_UniformDataOffsets = 0;
         program->m_UniformData        = 0;
@@ -2289,12 +2275,9 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        if (vertex_module->m_AttributeCount > 0)
+        for (uint32_t i=0; i < vertex_module->m_InputCount; i++)
         {
-            for (uint32_t i=0; i < vertex_module->m_AttributeCount; i++)
-            {
-                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Attributes[i].m_Binding, sizeof(vertex_module->m_Attributes[i].m_Binding));
-            }
+            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
         }
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
@@ -2351,12 +2334,17 @@ bail:
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
+
+        return true;
     }
 
     static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         Program* program = new Program;
-        CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
+        if (!CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program))
+        {
+            return 0;
+        }
         return (HProgram) program;
     }
 
@@ -2381,6 +2369,11 @@ bail:
 
     static void DestroyShader(ShaderModule* shader)
     {
+        if (!shader)
+        {
+            return;
+        }
+
         DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
@@ -2388,20 +2381,13 @@ bail:
             free(shader->m_Uniforms[i].m_Name);
         }
 
-        for (uint32_t i=0; i < shader->m_AttributeCount; i++)
+        for (uint32_t i=0; i < shader->m_InputCount; i++)
         {
-            free(shader->m_Attributes[i].m_Name);
+            free(shader->m_Inputs[i].m_Name);
         }
 
-        if (shader->m_Attributes)
-        {
-            delete[] shader->m_Attributes;
-        }
-
-        if (shader->m_Uniforms)
-        {
-            delete[] shader->m_Uniforms;
-        }
+        delete[] shader->m_Inputs;
+        delete[] shader->m_Uniforms;
     }
 
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
@@ -2443,20 +2429,7 @@ bail:
     static void VulkanDeleteFragmentProgram(HFragmentProgram prog)
     {
         ShaderModule* shader = (ShaderModule*) prog;
-        assert(shader->m_Attributes == 0);
-
-        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
-
-        for (uint32_t i=0; i < shader->m_UniformCount; i++)
-        {
-            free(shader->m_Uniforms[i].m_Name);
-        }
-
-        if (shader->m_Uniforms)
-        {
-            delete[] shader->m_Uniforms;
-        }
-
+        DestroyShader(shader);
         delete shader;
     }
 
@@ -3361,7 +3334,7 @@ bail:
         {
             case TEXTURE_FORMAT_DEPTH:
             case TEXTURE_FORMAT_STENCIL:
-                dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
+                dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(params.m_Format));
                 return;
             default:break;
         }
@@ -3383,7 +3356,7 @@ bail:
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
-            dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(format_orig));
+            dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(format_orig));
             return;
         }
 
@@ -3440,7 +3413,7 @@ bail:
         }
 
         bool use_stage_buffer = true;
-#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
         // Can't use a staging buffer for MoltenVK when we upload
         // PVRTC textures.
         if (vk_format == VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ||
@@ -3490,6 +3463,61 @@ bail:
         {
             delete[] (uint8_t*)tex_data_ptr;
         }
+    }
+
+    void VulkanDestroyResources(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
+
+        DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+
+        vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
+
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
+
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
+        {
+            vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
+        }
+
+        for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
+        {
+            DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
+        }
+
+        for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
+        {
+            DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
+        }
+
+        for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
+        {
+            DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
+        }
+
+        for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
+        {
+            FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
+        }
+
+        for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
+            FrameResource& frame_resource = context->m_FrameResources[i];
+            vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
+            vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
+            vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
+        }
+
+        DestroySwapChain(vk_device, context->m_SwapChain);
+        DestroyLogicalDevice(&context->m_LogicalDevice);
+        DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }
 
     static void VulkanSetTexture(HTexture texture, const TextureParams& params)

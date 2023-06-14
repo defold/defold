@@ -72,6 +72,15 @@ message TextureImage
         TEXTURE_FORMAT_R_BC4             = 15;
         TEXTURE_FORMAT_RG_BC5            = 16;
         TEXTURE_FORMAT_RGBA_BC7          = 17;
+
+        TEXTURE_FORMAT_RGB16F            = 18;
+        TEXTURE_FORMAT_RGB32F            = 19;
+        TEXTURE_FORMAT_RGBA16F           = 20;
+        TEXTURE_FORMAT_RGBA32F           = 21;
+        TEXTURE_FORMAT_R16F              = 22;
+        TEXTURE_FORMAT_RG16F             = 23;
+        TEXTURE_FORMAT_R32F              = 24;
+        TEXTURE_FORMAT_RG32F             = 25;
     }
 
     message Image
@@ -132,6 +141,7 @@ message PlatformProfile
         OS_ID_WEB     = 6;
         OS_ID_SWITCH  = 7;
         OS_ID_PS4     = 8;
+        OS_ID_PS5     = 9;
     }
 
     required OS os                              = 1;
@@ -164,6 +174,7 @@ message ShaderDesc
         LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
         LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
         LANGUAGE_SPIRV      = 5;
+        LANGUAGE_PSSL       = 6; // Playstation
      }
 
     enum ShaderDataType
@@ -187,10 +198,11 @@ message ShaderDesc
     message ResourceBinding
     {
         required string         name          = 1;
-        required ShaderDataType type          = 2;
-        optional uint32         element_count = 3 [default=1];
-        optional uint32         set           = 4 [default=0];
-        optional uint32         binding       = 5 [default=0];
+        required uint64         name_hash     = 2;
+        required ShaderDataType type          = 3;
+        optional uint32         element_count = 4 [default=1];
+        optional uint32         set           = 5 [default=0];
+        optional uint32         binding       = 6 [default=0];
     }
 
     message Shader
@@ -198,8 +210,9 @@ message ShaderDesc
         required Language        language              = 1;
         optional bytes           source                = 2;
         repeated ResourceBinding uniforms              = 4;
-        repeated ResourceBinding attributes            = 5;
-        optional bool            variant_texture_array = 6 [default = false];
+        repeated ResourceBinding inputs                = 5;
+        repeated ResourceBinding outputs               = 6;
+        optional bool            variant_texture_array = 7 [default = false];
     }
 
     repeated Shader shaders = 1;

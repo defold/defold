@@ -235,6 +235,8 @@
     :command :referencing-files}
    {:label "Dependencies..."
     :command :dependencies}
+   {:label "Show Overrides"
+    :command :show-overrides}
    {:label :separator}
    {:label "Add"
     :icon "icons/32/Icons_M_07_plus.png"

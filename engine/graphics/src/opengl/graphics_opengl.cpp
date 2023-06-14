@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,9 +38,9 @@
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
+#if defined(DM_PLATFORM_MACOS)
+// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+#include <Carbon/Carbon.h>
 #endif
 
 #include <dmsdk/graphics/glfw/glfw.h>
@@ -176,6 +176,7 @@
     #define glUnmapBufferARB glUnmapBufferOES
     #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
     #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
+    #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -187,7 +188,21 @@ namespace dmGraphics
 static void LogGLError(GLint err, const char* fnname, int line)
 {
 #if defined(GL_ES_VERSION_2_0)
-    dmLogError("%s(%d): gl error %d\n", fnname, line, err);
+    const char* error_str = "<unknown-gl-error>";
+    switch(err)
+    {
+        case GL_INVALID_ENUM: 
+            error_str = "GL_INVALID_ENUM";
+            break;
+        case GL_INVALID_VALUE: 
+            error_str = "GL_INVALID_VALUE";
+            break;
+        case GL_INVALID_OPERATION: 
+            error_str = "GL_INVALID_OPERATION";
+            break;
+        default:break;
+    }
+    dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, error_str);
 #else
     dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, gluErrorString(err));
 #endif
@@ -323,7 +338,7 @@ static void LogFrameBufferError(GLenum status)
     } \
 
 
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
     struct ChooseEAGLView
     {
         ChooseEAGLView() {
@@ -360,7 +375,7 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
- 
+
     // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
     //       however we might want to do this the other way around perhaps? i.e special case for webgl
     //       and load functions like this for all other platforms.
@@ -760,7 +775,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         dmLogInfo("Context features:");
-
     #define PRINT_FEATURE_IF_SUPPORTED(feature) \
         if (IsContextFeatureSupported(context, feature)) \
             dmLogInfo("  %s", #feature);
@@ -795,7 +809,7 @@ static void LogFrameBufferError(GLenum status)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-    #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
     #else
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
@@ -803,7 +817,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         bool is_desktop = false;
-#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || (defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || defined(DM_PLATFORM_MACOS)
         is_desktop = true;
 #endif
         if (is_desktop) {
@@ -971,7 +985,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_IsGles3Version = 1;
         }
 #else
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+    #if defined(DM_PLATFORM_IOS)
         // iOS
         context->m_IsGles3Version = 1;
         context->m_IsShaderLanguageGles = 1;
@@ -1025,7 +1039,15 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: OpenGL");
+            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
+        }
+
+#if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -1215,7 +1237,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_MaxTextureSize = gl_max_texture_size;
         CLEAR_GL_ERROR;
 
-#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS) || defined(ANDROID)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
         // The below seems to be the reported sweet spot for modern or semi-modern hardware
         context->m_MaxElementVertices = 1024*1024;
@@ -1266,8 +1288,21 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
         }
+
+    #if !defined(__EMSCRIPTEN__)
+        // Note: This is enabled automatically for WebGL2, and the defined value is not available **at all** on WebGL1,
+        //       so if we don't want to do crazy workarounds for WebGL let's just ignore it and move on.
+        if (!context->m_IsGles3Version && OpenGLIsExtensionSupported(context, "GL_ARB_seamless_cube_map"))
+        {
+            glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+            CLEAR_GL_ERROR;
+        }
+    #endif
 #else
         context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+
+        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+        CLEAR_GL_ERROR;
 #endif
 
         if (params->m_PrintDeviceInfo)
@@ -2070,9 +2105,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteShader(OpenGLShader* shader)
     {
-        glDeleteShader(shader->m_Id);
-        CHECK_GL_ERROR;
-        delete shader;
+        if (shader)
+        {
+            glDeleteShader(shader->m_Id);
+            CHECK_GL_ERROR;
+            delete shader;
+        }
     }
 
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
@@ -2518,7 +2556,7 @@ static void LogFrameBufferError(GLenum status)
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
             context->m_FrameBufferInvalidateBits = transient_buffer_types;
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+#if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
@@ -2856,6 +2894,125 @@ static void LogFrameBufferError(GLenum status)
         return HANDLE_RESULT_OK;
     }
 
+    static inline void GetOpenGLSetTextureParams(OpenGLContext* context, TextureFormat format, GLint& gl_internal_format, GLenum& gl_format, GLenum& gl_type)
+    {
+        #define ES2_ENUM_WORKAROUND(var, value) if (!context->m_IsGles3Version) var = value
+
+    #ifdef __EMSCRIPTEN__
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define EMSCRIPTEN_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+    #ifdef __ANDROID__
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value) ES2_ENUM_WORKAROUND(var, value)
+    #else
+        #define ANDROID_ES2_BACKWARDS_COMPAT(var, value)
+    #endif
+
+        switch (format)
+        {
+        case TEXTURE_FORMAT_LUMINANCE:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            break;
+        case TEXTURE_FORMAT_RGB:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA:
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_RGB_16BPP:
+            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA_16BPP:
+            gl_type            = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
+        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
+        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
+        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
+        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
+        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
+        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
+
+        // Float formats
+        case TEXTURE_FORMAT_RGB16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RGB32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
+            break;
+        case TEXTURE_FORMAT_RGBA16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RGBA32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            break;
+        case TEXTURE_FORMAT_R16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_R32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
+            break;
+        case TEXTURE_FORMAT_RG16F:
+            gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            break;
+        case TEXTURE_FORMAT_RG32F:
+            gl_type            = GL_FLOAT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
+            break;
+
+        default:
+            assert(0);
+            dmLogError("Texture format %s is not a valid format.", GetTextureFormatLiteral(format));
+            break;
+        }
+
+    #undef ES2_ENUM_WORKAROUND
+    #undef EMSCRIPTEN_ES2_BACKWARDS_COMPAT
+    #undef ANDROID_ES2_BACKWARDS_COMPAT
+    }
+
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
         DM_PROFILE(__FUNCTION__);
@@ -2894,7 +3051,8 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        if (unpackAlignment != 4) {
+        if (unpackAlignment != 4)
+        {
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR;
         }
@@ -2903,101 +3061,12 @@ static void LogFrameBufferError(GLenum status)
 
         tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        GLenum type = GetOpenGLTextureType(tex->m_Type);
-        GLenum gl_format;
-        GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
-        GLint internal_format = -1; // // Only used for uncompressed formats
-        switch (params.m_Format)
-        {
-        case TEXTURE_FORMAT_LUMINANCE:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            break;
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            break;
-        case TEXTURE_FORMAT_RGB:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
-        case TEXTURE_FORMAT_RGB_16BPP:
-            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA_16BPP:
-            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
+        GLenum type              = GetOpenGLTextureType(tex->m_Type);
+        GLenum gl_format         = 0;
+        GLenum gl_type           = GL_UNSIGNED_BYTE; // only used of uncompressed formats
+        GLint gl_internal_format = -1;               // only used for uncompressed formats
 
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1; break;
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
-        case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
-        case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
-        case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
-        case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
-        case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
-        case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
-        case TEXTURE_FORMAT_RG_BC5:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG_RGTC2; break;
-        case TEXTURE_FORMAT_RGBA_BC7:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_BPTC_UNORM; break;
-
-        // Float formats
-        case TEXTURE_FORMAT_RGB16F:
-            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
-            break;
-        case TEXTURE_FORMAT_RGB32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
-            break;
-        case TEXTURE_FORMAT_RGBA16F:
-            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
-            break;
-        case TEXTURE_FORMAT_RGBA32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
-            break;
-        case TEXTURE_FORMAT_R16F:
-            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
-            break;
-        case TEXTURE_FORMAT_R32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
-            break;
-        case TEXTURE_FORMAT_RG16F:
-            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
-            break;
-        case TEXTURE_FORMAT_RG32F:
-            gl_type = GL_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
-            break;
-
-        default:
-            gl_format = 0;
-            assert(0);
-            break;
-        }
+        GetOpenGLSetTextureParams(g_Context, params.m_Format, gl_internal_format, gl_format, gl_type);
 
         tex->m_Params = params;
 
@@ -3021,7 +3090,8 @@ static void LogFrameBufferError(GLenum status)
             glBindTexture(type, tex->m_TextureIds[i]);
             CHECK_GL_ERROR;
 
-            if (!params.m_SubUpdate) {
+            if (!params.m_SubUpdate)
+            {
                 SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
             }
 
@@ -3041,35 +3111,38 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
-                if (tex->m_Type == TEXTURE_TYPE_2D) {
+                if (tex->m_Type == TEXTURE_TYPE_2D)
+                {
                     const char* p = (const char*) params.m_Data;
-                    if (params.m_SubUpdate) {
+                    if (params.m_SubUpdate)
+                    {
                         glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
-                    } else {
-                        glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
+                    }
+                    else
+                    {
+                        glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
                     }
                     CHECK_GL_ERROR;
-                } else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                }
+                else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY)
+                {
                     assert(g_Context->m_TextureArraySupport);
-                    #ifdef ANDROID
-                        #define TEX_SUB_IMAGE_3D PFN_glTexSubImage3D
-                        #define TEX_IMAGE_3D     PFN_glTexImage3D
-                    #else
-                        #define TEX_SUB_IMAGE_3D glTexSubImage3D
-                        #define TEX_IMAGE_3D     glTexImage3D
-                    #endif
-                        if (params.m_SubUpdate) {
-                            TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
-                        } else {
-                            TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
-                        }
-                    #undef TEX_SUB_IMAGE_3D
-                    #undef TEX_IMAGE_3D
+                    if (params.m_SubUpdate)
+                    {
+                        DMGRAPHICS_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                    }
+                    else
+                    {
+                        DMGRAPHICS_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                    }
                     CHECK_GL_ERROR;
-                } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                }
+                else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+                {
                     assert(tex->m_NumTextureIds == 1);
                     const char* p = (const char*) params.m_Data;
-                    if (params.m_SubUpdate) {
+                    if (params.m_SubUpdate)
+                    {
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
                         CHECK_GL_ERROR;
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
@@ -3078,25 +3151,29 @@ static void LogFrameBufferError(GLenum status)
                         CHECK_GL_ERROR;
                         glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
                         CHECK_GL_ERROR;
-                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
                         CHECK_GL_ERROR;
-                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
-                        CHECK_GL_ERROR;
-                    } else {
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
-                        CHECK_GL_ERROR;
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
-                        CHECK_GL_ERROR;
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
-                        CHECK_GL_ERROR;
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
-                        CHECK_GL_ERROR;
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR;
-                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
                         CHECK_GL_ERROR;
                     }
-                } else {
+                    else
+                    {
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
+                        CHECK_GL_ERROR;
+                    }
+                }
+                else
+                {
                     assert(0);
                 }
                 break;
@@ -3115,33 +3192,37 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R_BC4:
             case TEXTURE_FORMAT_RG_BC5:
             case TEXTURE_FORMAT_RGBA_BC7:
-                if (params.m_DataSize > 0) {
-                    if (tex->m_Type == TEXTURE_TYPE_2D) {
-                        if (params.m_SubUpdate) {
+                if (params.m_DataSize > 0)
+                {
+                    if (tex->m_Type == TEXTURE_TYPE_2D)
+                    {
+                        if (params.m_SubUpdate)
+                        {
                             glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
-                        } else {
+                        }
+                        else
+                        {
                             glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
                         }
                         CHECK_GL_ERROR;
-                    } else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY) {
-                    #ifdef __ANDROID__
-                        #define COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
-                        #define COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
-                    #else
-                        #define COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
-                        #define COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
-                    #endif
-                        if (params.m_SubUpdate) {
-                            COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
-                        } else {
-                            COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
+                    }
+                    else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY)
+                    {
+                        if (params.m_SubUpdate)
+                        {
+                            DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                        }
+                        else
+                        {
+                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize * params.m_Depth, params.m_Data);
                         }
                         CHECK_GL_ERROR;
-                    #undef COMPRESSED_TEX_SUB_IMAGE_3D
-                    #undef COMPRESSED_TEX_IMAGE_3D
-                    } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                    }
+                    else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+                    {
                         const char* p = (const char*) params.m_Data;
-                        if (params.m_SubUpdate) {
+                        if (params.m_SubUpdate)
+                        {
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
                             CHECK_GL_ERROR;
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
@@ -3154,7 +3235,9 @@ static void LogFrameBufferError(GLenum status)
                             CHECK_GL_ERROR;
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
-                        } else {
+                        }
+                        else
+                        {
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
                             CHECK_GL_ERROR;
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
@@ -3168,11 +3251,12 @@ static void LogFrameBufferError(GLenum status)
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
                         }
-                    } else {
+                    }
+                    else
+                    {
                         assert(0);
                     }
                 }
-
                 break;
             default:
                 assert(0);
@@ -3183,7 +3267,8 @@ static void LogFrameBufferError(GLenum status)
         glBindTexture(type, 0);
         CHECK_GL_ERROR;
 
-        if (unpackAlignment != 4) {
+        if (unpackAlignment != 4)
+        {
             // Restore to default
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR;
@@ -3201,10 +3286,7 @@ static void LogFrameBufferError(GLenum status)
             size_total += size;
             size >>= 2;
         }
-        if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            size_total *= 6;
-        }
+        size_total *= dmMath::Max((uint16_t) 1, tex->m_Depth);
         return size_total + sizeof(OpenGLTexture);
     }
 
@@ -3520,7 +3602,7 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_PipelineState.m_StencilFrontOpFail      = sfail;
             context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
         }
     }
 

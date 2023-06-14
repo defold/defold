@@ -55,8 +55,8 @@ jobs:
   bld-eng-darwin:
     strategy:
       matrix:
-        platform: [x86_64-macos, arm64-ios, x86_64-ios]
-    runs-on: macOS-latest
+        platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
+    runs-on: macos-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },

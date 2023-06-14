@@ -628,6 +628,7 @@ namespace dmGraphics
     uint8_t     GetNumTextureHandles(HTexture texture);
 
     const char* GetTextureTypeLiteral(TextureType texture_type);
+    const char* GetTextureFormatLiteral(TextureFormat format);
     uint32_t    GetMaxTextureSize(HContext context);
     void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     void        DisableTexture(HContext context, uint32_t unit, HTexture texture);

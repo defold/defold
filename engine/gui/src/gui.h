@@ -45,9 +45,6 @@
  */
 namespace dmGui
 {
-    typedef struct Context* HContext;
-    typedef struct Script* HScript;
-
     /**
      * Default layout id
      */

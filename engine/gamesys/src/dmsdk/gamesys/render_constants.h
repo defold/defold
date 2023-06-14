@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/render/render.h>
 
 /*# Component render constant API documentation

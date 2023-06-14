@@ -403,7 +403,8 @@
   (:visible property true))
 
 (defn coalesce [properties]
-  (let [properties (mapv flatten-properties properties)
+  (let [node-ids (mapv :node-id properties)
+        properties (mapv flatten-properties properties)
         display-orders (mapv :display-order properties)
         properties (mapv :properties properties)
         node-count (count properties)
@@ -436,7 +437,8 @@
                                     [k prop]))
                                 common-props))]
     {:properties coalesced
-     :display-order (prune-display-order (first display-orders) (set (keys coalesced)))}))
+     :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
+     :original-node-ids node-ids}))
 
 (defn values [property]
   (let [f (get-in property [:edit-type :to-type] identity)]
