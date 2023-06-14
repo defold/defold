@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -316,7 +317,7 @@ namespace dmGameSystem
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 3);
 
-        Vectormath::Aos::Matrix4 value;
+        dmVMath::Matrix4 value;
         bool is_matrix4_type = dmScript::IsMatrix4(L,4);
         if (is_matrix4_type)
         {
@@ -324,7 +325,7 @@ namespace dmGameSystem
         }
         else
         {
-            Vectormath::Aos::Vector4* value_vec4 = dmScript::CheckVector4(L, 4);
+            dmVMath::Vector4* value_vec4 = dmScript::CheckVector4(L, 4);
             value.setCol0(*value_vec4);
         }
 
