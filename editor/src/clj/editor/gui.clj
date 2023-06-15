@@ -350,6 +350,7 @@
    [:texture-anim-datas :texture-anim-datas]
    [:texture-names :texture-names]
    [:material-names :material-names]
+   [:override-material-shaders :override-material-shaders]
    [:font-shaders :font-shaders]
    [:font-datas :font-datas]
    [:font-names :font-names]
@@ -625,6 +626,10 @@
   (output texture-names GuiResourceNames (gu/passthrough texture-names))
   (input material-names GuiResourceNames)
   (output material-names GuiResourceNames (gu/passthrough material-names))
+
+  (input override-material-shaders GuiResourceShaders)
+  (output override-material-shaders GuiResourceShaders (gu/passthrough override-material-shaders))
+
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
   (input font-datas FontDatas)
@@ -828,6 +833,8 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
+(def ^:private validate-material (partial validate-optional-gui-resource "material '%s' does not exist in the scene" :material))
+
 (def ^:private size-prop-index (prop-key->prop-index :manual-size))
 
 (def ^:private is-size-prop-index? (partial = size-prop-index))
@@ -915,7 +922,7 @@
   (property material g/Str
             (default "")
             (dynamic edit-type (g/fnk [material-names] (optional-gui-resource-choicebox material-names)))
-            #_(dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
+            (dynamic error (g/fnk [_node-id material-names material] (validate-material _node-id material-names material))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -930,6 +937,10 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
+  (output override-material-shader ShaderLifecycle (g/fnk [override-material-shaders material]
+                                                     (prn "COOL MATERIAL")
+                                         (or (override-material-shaders material)
+                                             (override-material-shaders ""))))
   (output texture-size g/Any (g/fnk [anim-data]
                                     (when (some? anim-data)
                                       [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
@@ -950,11 +961,14 @@
                      (not (empty? animation)))
             (g/set-property node-id :texture (str new-name "/" animation))))))))
 
+(defmethod update-gui-resource-reference [::ShapeNode :material]
+  [_ evaluation-context node-id old-name new-name]
+  (when (g/property-value-origin? (:basis evaluation-context) node-id :material)
+    (let [old-value (g/node-value node-id :material evaluation-context)]
+      (if (= old-name old-value)
+        (g/set-property node-id :material new-name)))))
+
 ;; Box nodes
-
-(defn- steps->ranges [v]
-  (partition 2 1 v))
-
 (g/defnk produce-box-node-msg [shape-base-node-msg slice9]
   (assoc shape-base-node-msg
     :slice9 slice9))
@@ -973,13 +987,15 @@
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-box-node-msg)
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
+          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted override-material-shader]
+            (prn "IM A BOX NODE")
             (let [frame (get-in anim-data [:frames 0])
                   slice9-data (slice9/vertex-data frame size slice9 pivot)
                   user-data {:geom-data (:position-data slice9-data)
                              :line-data (:line-data slice9-data)
                              :uv-data (:uv-data slice9-data)
                              :color color+alpha
+                             :override-material-shader override-material-shader
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
                       (not= :clipping-mode-none clipping-mode)
@@ -1621,6 +1637,7 @@
                    (project/resource-setter
                      evaluation-context self old-value new-value
                      [:resource :material-resource]
+                     [:shader :override-material-shader]
                      [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
@@ -1629,6 +1646,8 @@
   (input name-counts NameCounts)
 
   (input material-resource resource/Resource)
+
+  (input override-material-shader ShaderLifecycle :substitute (constantly nil))
 
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
@@ -1645,6 +1664,11 @@
   (output pb-msg g/Any (g/fnk [name material-resource]
                          {:name name
                           :material (resource/resource->proj-path material-resource)}))
+  (output override-material-shaders GuiResourceShaders :cached (g/fnk [override-material-shader name]
+                                                    ;; If the referenced material-resource is missing, we don't return an entry.
+                                                    ;; This will cause every usage to fall back on the no-font entry for "".
+                                                    (when (some? override-material-shader)
+                                                      {name override-material-shader})))
   (output material-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
@@ -1882,8 +1906,13 @@
   (output material-names GuiResourceNames (gu/passthrough material-names))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+
+  (input override-material-shaders GuiResourceShaders)
+  (output override-material-shaders GuiResourceShaders (gu/passthrough override-material-shaders))
+
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
+
   (input font-datas FontDatas)
   (output font-datas FontDatas (gu/passthrough font-datas))
   (input font-names GuiResourceNames)
@@ -1991,6 +2020,7 @@
   ([self materials-node material internal?]
    (concat
      (g/connect material :_node-id self :nodes)
+     (g/connect material :override-material-shaders self :override-material-shaders)
      (when (not internal?)
        (concat
          (g/connect material :material-names self :material-names)
@@ -2339,7 +2369,6 @@
       (update :layouts (fn [layouts] (mapv #(update % :nodes nodes->rt-nodes) layouts)))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets]
-  (println "YSE SIR" _node-id resource pb-msg)
   (g/precluding-errors build-errors
     (let [def pb-def
           template-build-targets (flatten template-build-targets)
@@ -2349,7 +2378,6 @@
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
           resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
           dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-      (println "THIS IS AFTER" rt-pb-msg)
       [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
@@ -2526,6 +2554,9 @@
   (input texture-names GuiResourceNames :array)
   (output texture-names GuiResourceNames :cached (g/fnk [aux-texture-names texture-names] (into (sorted-set) cat (concat aux-texture-names texture-names))))
 
+  (input aux-override-material-shaders GuiResourceShaders :array)
+  (input override-material-shaders GuiResourceShaders :array)
+  (output override-material-shaders GuiResourceShaders :cached (g/fnk [aux-override-material-shaders override-material-shaders] (into {} (concat aux-override-material-shaders override-material-shaders))))
   (input aux-material-names GuiResourceNames :array)
   (input material-names GuiResourceNames :array)
   (output material-names GuiResourceNames :cached (g/fnk [aux-material-names material-names] (into (sorted-set) cat (concat aux-material-names material-names))))
@@ -2893,6 +2924,7 @@
                                      [:texture-anim-datas :texture-anim-datas]
                                      [:texture-names :texture-names]
                                      [:material-names :material-names]
+                                     [:override-material-shaders :override-material-shaders]
                                      [:font-shaders :font-shaders]
                                      [:font-datas :font-datas]
                                      [:font-names :font-names]
