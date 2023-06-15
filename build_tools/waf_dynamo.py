@@ -1775,11 +1775,13 @@ def detect(conf):
 
     if platform in ('x86_64-macos','arm64-macos',):
         conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
+        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
     elif platform in ('armv7-android', 'arm64-android'):
         pass
         #conf.env['STLIB_TESTAPP'] += ['android']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
+        conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
 
