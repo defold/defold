@@ -369,6 +369,49 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestGetTree)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    //params.m_RigContext = m_RigContext;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_id(n1, \"n1\")\n"
+            "    local n2 = gui.new_box_node(vmath.vector3(2, 2, 2), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_id(n2, \"n2\")\n"
+            "    local n3 = gui.new_box_node(vmath.vector3(3, 3, 3), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_id(n3, \"n3\")\n"
+            "    local n4 = gui.new_text_node(vmath.vector3(3, 3, 3), \"TEST\")\n"
+            "    gui.set_id(n4, \"n4\")\n"
+            "    gui.set_parent(n2, n1)\n"
+            "    gui.set_parent(n3, n2)\n"
+            "    gui.set_parent(n4, n3)\n"
+            "    local t = gui.get_tree(n1)\n"
+            "    assert(t.n1 == n1)\n"
+            "    assert(t.n2 == n2)\n"
+            "    assert(t.n3 == n3)\n"
+            "    assert(t.n4 == n4)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 TEST_F(dmGuiScriptTest, TestPieNodeScript)
 {
     dmGui::HScript script = NewScript(m_Context);
