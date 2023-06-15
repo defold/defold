@@ -755,11 +755,14 @@
                              "Adjust mode \"Stretch\" not supported for particlefx nodes."))
                          adjust-mode))
 
-(g/defnk produce-visual-base-node-msg [gui-base-node-msg visible blend-mode adjust-mode pivot x-anchor y-anchor]
+(def ^:private validate-material (partial validate-optional-gui-resource "material '%s' does not exist in the scene" :material))
+
+(g/defnk produce-visual-base-node-msg [gui-base-node-msg visible blend-mode adjust-mode material pivot x-anchor y-anchor]
   (assoc gui-base-node-msg
     :visible visible
     :blend-mode blend-mode ; TODO: Not used by particlefx (forced to :blend-mode-alpha). Move?
     :adjust-mode adjust-mode
+    :material material
     :pivot pivot ; TODO: Not used by particlefx (forced to :pivot-center). Move?
     :xanchor x-anchor
     :yanchor y-anchor))
@@ -783,17 +786,27 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
+  (property material g/Str
+            (default "")
+            (dynamic edit-type (g/fnk [material-names] (optional-gui-resource-choicebox material-names)))
+            (dynamic error (g/fnk [_node-id material-names material] (validate-material _node-id material-names material))))
+
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
 
+  (output override-material-shader ShaderLifecycle (g/fnk [override-material-shaders material]
+                                                     (or (override-material-shaders material)
+                                                         (override-material-shaders ""))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader override-material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
-                       material-shader (get scene-renderable-user-data :override-material-shader material-shader)]
+                       material-shader (or override-material-shader
+                                           (:override-material-shader scene-renderable-user-data)
+                                           material-shader)]
                    {:render-fn render-tris
                     :tags (set/union #{:gui} (:renderable-tags scene-renderable-user-data))
                     :passes [pass/transparent pass/selection]
@@ -832,8 +845,6 @@
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
-
-(def ^:private validate-material (partial validate-optional-gui-resource "material '%s' does not exist in the scene" :material))
 
 (def ^:private size-prop-index (prop-key->prop-index :manual-size))
 
@@ -882,7 +893,6 @@
       (assoc :size (v3->v4 manual-size)
              :size-mode size-mode
              :texture texture
-             :material material
              :clipping-mode clipping-mode
              :clipping-visible clipping-visible
              :clipping-inverted clipping-inverted)
@@ -919,11 +929,6 @@
             (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
             (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
 
-  (property material g/Str
-            (default "")
-            (dynamic edit-type (g/fnk [material-names] (optional-gui-resource-choicebox material-names)))
-            (dynamic error (g/fnk [_node-id material-names material] (validate-material _node-id material-names material))))
-
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
   (property clipping-visible g/Bool (default true))
@@ -937,10 +942,6 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
-  (output override-material-shader ShaderLifecycle (g/fnk [override-material-shaders material]
-                                                     (prn "COOL MATERIAL")
-                                         (or (override-material-shaders material)
-                                             (override-material-shaders ""))))
   (output texture-size g/Any (g/fnk [anim-data]
                                     (when (some? anim-data)
                                       [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
@@ -961,7 +962,7 @@
                      (not (empty? animation)))
             (g/set-property node-id :texture (str new-name "/" animation))))))))
 
-(defmethod update-gui-resource-reference [::ShapeNode :material]
+(defmethod update-gui-resource-reference [::VisualNode :material]
   [_ evaluation-context node-id old-name new-name]
   (when (g/property-value-origin? (:basis evaluation-context) node-id :material)
     (let [old-value (g/node-value node-id :material evaluation-context)]
@@ -987,15 +988,13 @@
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-box-node-msg)
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted override-material-shader]
-            (prn "IM A BOX NODE")
+          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
             (let [frame (get-in anim-data [:frames 0])
                   slice9-data (slice9/vertex-data frame size slice9 pivot)
                   user-data {:geom-data (:position-data slice9-data)
                              :line-data (:line-data slice9-data)
                              :uv-data (:uv-data slice9-data)
                              :color color+alpha
-                             :override-material-shader override-material-shader
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
                       (not= :clipping-mode-none clipping-mode)
@@ -1145,7 +1144,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
@@ -1414,11 +1413,11 @@
     (dynamic visible (g/constantly false)))
 
   (display-order (into base-display-order
-                       [:enabled :visible :particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:enabled :visible :particlefx :material :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   (output node-msg g/Any :cached produce-particlefx-node-msg)
-  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader color+alpha]
+  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader override-material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
                                                   (scene/claim-scene _node-id id)
@@ -1431,7 +1430,7 @@
                                                                 (assoc :child-index child-index)
                                                                 (update :user-data (fn [ud]
                                                                                      (-> ud
-                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader material-shader))))
+                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader (or override-material-shader material-shader)))))
                                                                                          (assoc :inherit-alpha true)
                                                                                          (assoc :color color+alpha))))
                                                                 (cond->
