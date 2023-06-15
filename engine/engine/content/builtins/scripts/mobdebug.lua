@@ -100,6 +100,8 @@ local iscasepreserving = win or (mac and io.open('/library') ~= nil)
 if jit and jit.off then jit.off() end
 
 local socket = require "builtins.scripts.socket"
+local edn = require "builtins.scripts.edn"
+local edn_edge_refs_cache = {}
 local coro_debugger
 local coro_debugee
 local coroutines = {}; setmetatable(coroutines, {__mode = "k"}) -- "weak" keys
@@ -799,6 +801,25 @@ local function done()
   abort = nil -- to make sure that callback calls use proper "abort" value
 end
 
+local function respond_with_edn(val, analyze_params)
+  local analyze_ok, graph, edge_refs = pcall(edn.analyze, val, analyze_params)
+  if analyze_ok then
+    for key, value in pairs(edge_refs) do
+      edn_edge_refs_cache[key] = value
+    end
+    local serialize_ok, edn_string = pcall(edn.serialize, val, graph)
+    if serialize_ok then
+      server:send("200 OK " .. tostring(edn_string) .. "\n")
+    else
+      server:send("401 Error in Execution " .. tostring(#edn_string) .. "\n")
+      server:send(edn_string)
+    end
+  else
+    server:send("401 Error in Execution " .. tostring(#graph) .. "\n")
+    server:send(graph)
+  end
+end
+
 local function debugger_loop(sev, svars, sfile, sline)
   local command
   local app, osname
@@ -959,6 +980,7 @@ local function debugger_loop(sev, svars, sfile, sline)
         server:send("400 Bad Request\n")
       end
     elseif command == "RUN" then
+      edn_edge_refs_cache = {}
       server:send("200 OK\n")
 
       local ev, vars, file, line, idx_watch = coroyield()
@@ -974,6 +996,7 @@ local function debugger_loop(sev, svars, sfile, sline)
         server:send(file)
       end
     elseif command == "STEP" then
+      edn_edge_refs_cache = {}
       server:send("200 OK\n")
       step_into = true
 
@@ -990,6 +1013,7 @@ local function debugger_loop(sev, svars, sfile, sline)
         server:send(file)
       end
     elseif command == "OVER" or command == "OUT" then
+      edn_edge_refs_cache = {}
       server:send("200 OK\n")
       step_over = true
 
@@ -1023,6 +1047,7 @@ local function debugger_loop(sev, svars, sfile, sline)
     elseif command == "SUSPEND" then
       -- do nothing; it already fulfilled its role
     elseif command == "DONE" then
+      edn_edge_refs_cache = {}
       coroyield("done")
       return -- done with all the debugging
     elseif command == "STACK" then
@@ -1046,14 +1071,19 @@ local function debugger_loop(sev, svars, sfile, sline)
         if params.sparse == nil then params.sparse = false end
         -- take into account additional levels for the stack frames and data management
         if tonumber(params.maxlevel) then params.maxlevel = tonumber(params.maxlevel)+4 end
-
-        local ok, res = pcall(mobdebug.dump, vars, params)
-        if ok then
-          server:send("200 OK " .. tostring(res) .. "\n")
-        else
-          server:send("401 Error in Execution " .. tostring(#res) .. "\n")
-          server:send(res)
-        end
+        respond_with_edn(vars, params)
+      end
+    elseif command == "REF" then
+      local ref = string.match(line, "^[A-Z]+%s+(%S+)")
+      local val = edn_edge_refs_cache[ref]
+      if val then
+        local params = string.match(line, "--%s*(%b{})%s*$")
+        local pfunc = params and loadstring("return "..params)
+        params = pfunc and pfunc()
+        params = (type(params) == "table" and params or {})
+        respond_with_edn(val, params)
+      else
+        server:send("400 Bad Request\n")
       end
     elseif command == "OUTPUT" then
       local _, _, stream, mode = string.find(line, "^[A-Z]+%s+(%w+)%s+([dcr])%s*$")

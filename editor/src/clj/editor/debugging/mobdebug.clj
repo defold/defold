@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debugging.mobdebug
-  (:refer-clojure :exclude [eval run!])
+  (:refer-clojure :exclude [run!])
   (:require [clojure.edn :as edn]
             [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
@@ -94,189 +94,6 @@
   [^PrintWriter out command]
   (.println out command)
   (.flush out))
-
-
-;;--------------------------------------------------------------------
-;; data decoding
-
-;; Custom lua type those structure can't be encoded into edn, displayed as a
-;; string
-
-(defrecord LuaBlackBox [tag string])
-
-;; Ref is an internal part of LuaStructure, needed to express circular
-;; references. Shouldn't be exposed as a public API
-
-(defrecord LuaRef [address])
-
-;; A representation of lua table that supports circular references. Acts like a
-;; read-only map (no assoc/dissoc) that creates sub-structures on demand.
-
-(deftype LuaStructure [value refs]
-  ILookup
-  (valAt [this k]
-    (.valAt this k nil))
-  (valAt [_ k not-found]
-    (let [lookup-key (if (instance? LuaStructure k)
-                       (.-value ^LuaStructure k)
-                       k)
-          ret (get-in refs [value lookup-key] not-found)]
-      (if (instance? LuaRef ret)
-        (LuaStructure. ret refs)
-        ret)))
-
-  Seqable
-  (seq [_]
-    (seq (map (fn [[k v]]
-                (MapEntry. (if (instance? LuaRef k)
-                             (LuaStructure. k refs)
-                             k)
-                           (if (instance? LuaRef v)
-                             (LuaStructure. v refs)
-                             v)))
-              (get refs value))))
-
-  Counted
-  (count [_]
-    (count (get refs value))))
-
-(defn- lua-ref->identity-string [ref structure-refs]
-  (if-let [lua-table (get structure-refs ref)]
-    (format "<%s>" (:string (meta lua-table)))
-    (str "..." (:address ref))))
-
-(defn lua-value->identity-string
-  "Returns string representing identity of a lua value. Does not show internal
-  structure of lua tables"
-  [x]
-  (cond
-    (instance? LuaStructure x)
-    (let [^LuaStructure ls x]
-      (lua-ref->identity-string (.-value ls) (.-refs ls)))
-
-    (instance? LuaBlackBox x)
-    (format "<%s>" (:string x))
-
-    (= ##Inf x)
-    "inf"
-
-    (= ##-Inf x)
-    "-inf"
-
-    (and (number? x) (Double/isNaN (double x)))
-    "nan"
-
-    :else
-    (pr-str x)))
-
-(defn- blanks [n]
-  (apply str (repeat n \space)))
-
-(defn lua-value->structure-string
-  "Returns string representing structure of a lua value. Tries to show contents
-  of lua tables as close to lua data literals as possible. When same lua table
-  is referenced multiple times, prints only first occurrence as structure, other
-  are displayed as identities"
-  [x]
-  (cond
-    (instance? LuaStructure x)
-    (let [^LuaStructure ls x
-          structure-refs (.-refs ls)]
-      (letfn [(structure-value->str+seen-refs [indent x seen-refs]
-                (cond
-                  (and (instance? LuaRef x) (not (contains? seen-refs x)))
-                  (ref->str+seen-refs indent x seen-refs)
-
-                  (instance? LuaRef x)
-                  [(lua-ref->identity-string x structure-refs) seen-refs]
-
-                  :else
-                  [(lua-value->identity-string x) seen-refs]))
-              (ref->str+seen-refs [indent ref seen-refs]
-                (loop [acc-str-entries []
-                       acc-seen-refs (conj seen-refs ref)
-                       [e & es] (get structure-refs ref)
-                       i 1]
-                  (if (nil? e)
-                    [(str "{ -- " (lua-ref->identity-string ref structure-refs)
-                          (->> acc-str-entries
-                               (map #(str \newline (blanks (+ indent 2)) %))
-                               (string/join \,))
-                          \newline (blanks indent) \})
-                     acc-seen-refs]
-                    (let [[k v] e
-                          [k-str k-seen-refs] (structure-value->str+seen-refs (+ indent 2) k acc-seen-refs)
-                          [v-str v-seen-refs] (structure-value->str+seen-refs (+ indent 2) v k-seen-refs)]
-                      (recur (conj acc-str-entries
-                                   (cond
-                                     (= k i)
-                                     v-str
-
-                                     (and (string? k)
-                                          (some? (re-match #"^[a-zA-Z_][a-zA-Z_0-9]*$" k)))
-                                     (format "%s = %s" k v-str)
-
-                                     :else
-                                     (format "[%s] = %s" k-str v-str)))
-                             v-seen-refs
-                             es
-                             (inc i))))))]
-        (first (ref->str+seen-refs 0 (.-value ls) #{}))))
-
-    :else
-    (lua-value->identity-string x)))
-
-(defn- tuple->map-entry
-  ^MapEntry [[k v]]
-  (MapEntry. k v))
-
-(defn- sequence->map-entries [coll]
-  (sequence (comp (partition-all 2)
-                  (map tuple->map-entry))
-            coll))
-
-(defn- classify-type [x]
-  (cond (number? x) :number
-        (string? x) :string
-        (instance? Comparable x) :comparable
-        :else :other))
-
-(defn- compare-keys [a b]
-  (let [a-type (classify-type a)
-        b-type (classify-type b)]
-    (case a-type
-      :number (case b-type
-                :number (compare a b)
-                (:string :comparable :other) -1)
-      :string (case b-type
-                :number 1
-                :string (compare a b)
-                (:comparable :other) -1)
-      :comparable (case b-type
-                    (:number :string) 1
-                    :comparable (compare a b)
-                    :other -1)
-      :other (case b-type
-               (:number :string :comparable) 1
-               :other (compare (System/identityHashCode a)
-                               (System/identityHashCode b))))))
-
-(def ^:private lua-readers
-  {'lua/table (fn [{:keys [content string]}]
-                (with-meta (into (sorted-map-by compare-keys)
-                                 (sequence->map-entries content))
-                           {:string string}))
-   'lua/ref (fn [address]
-              (LuaRef. address))
-   'lua/structure (fn [{:keys [value refs]}]
-                    (LuaStructure. value refs))})
-
-(defn- decode-serialized-data
-  [^String s]
-  (try
-    (edn/read-string {:readers lua-readers :default ->LuaBlackBox} s)
-    (catch Exception e
-      (throw (ex-info "Error decoding serialized data" {:input s} e)))))
 
 (defn- remove-filename-prefix
   [^String s]
@@ -371,6 +188,218 @@
   [^DebugSession debug-session]
   (-state debug-session))
 
+;;--------------------------------------------------------------------
+;; data decoding
+
+;; Custom lua type those structure can't be encoded into edn, displayed as a
+;; string
+
+(defrecord LuaBlackBox [tag string])
+
+;; Ref is an internal part of LuaStructure, needed to express circular
+;; references. Shouldn't be exposed as a public API
+
+(defrecord LuaRef [address])
+
+(defn- tuple->map-entry
+  ^MapEntry [[k v]]
+  (MapEntry. k v))
+
+(defn- sequence->map-entries [coll]
+  (sequence (comp (partition-all 2)
+                  (map tuple->map-entry))
+            coll))
+
+(defn- classify-type [x]
+  (cond (number? x) :number
+        (string? x) :string
+        (instance? Comparable x) :comparable
+        :else :other))
+
+(defn- compare-keys [a b]
+  (let [a-type (classify-type a)
+        b-type (classify-type b)]
+    (case a-type
+      :number (case b-type
+                :number (compare a b)
+                (:string :comparable :other) -1)
+      :string (case b-type
+                :number 1
+                :string (compare a b)
+                (:comparable :other) -1)
+      :comparable (case b-type
+                    (:number :string) 1
+                    :comparable (compare a b)
+                    :other -1)
+      :other (case b-type
+               (:number :string :comparable) 1
+               :other (compare (System/identityHashCode a)
+                               (System/identityHashCode b))))))
+
+(defn- read-lua-table [{:keys [content string]}]
+  (with-meta (into (sorted-map-by compare-keys)
+                   (sequence->map-entries content))
+             {:string string}))
+
+(declare ->LuaStructure)
+
+(defn- decode-serialized-data
+  [debug-session edn-string]
+  (try
+    (edn/read-string
+      {:readers {'lua/table read-lua-table
+                 'lua/ref ->LuaRef
+                 'lua/structure (fn [{:keys [value refs]}]
+                                  (->LuaStructure debug-session value refs))}
+       :default ->LuaBlackBox}
+      edn-string)
+    (catch Exception e
+      (throw (ex-info "Error decoding serialized data" {:input edn-string} e)))))
+
+;; A representation of lua table that supports circular references. Acts like a
+;; read-only map (no assoc/dissoc) that creates/loads sub-structures on demand.
+
+(defn- maybe-ref->structure [^DebugSession debug-session x refs]
+  (if (instance? LuaRef x)
+    (if (contains? refs x)
+      (->LuaStructure debug-session x refs)
+      ;; We have a reference that was not serialized, load it:
+      (with-session debug-session
+        (when (= :suspended (-state debug-session))
+          (let [out (.-out debug-session)
+                in (.-in debug-session)]
+            (send-command! out (format "REF %s --{maxlevel=4}" (:address x)))
+            (let [[status rest] (read-status in)]
+              (case status
+                "200"
+                (when-let [[edn-string] (re-match #"^OK\s+" rest)]
+                  (let [loaded-refs (::refs (decode-serialized-data debug-session edn-string))]
+                    (->LuaStructure debug-session x (into refs loaded-refs))))
+
+                "401"
+                (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
+                  (let [message (read-data in (Integer/parseInt size))]
+                    (log/warn :message "Failed to serialize the ref"
+                              :ref (:address x)
+                              :error-message message)
+                    nil))
+
+                "400"
+                (do (log/warn :message "Couldn't load lua table for a ref: not registered on a server"
+                              :ref (:address x)
+                              :error-message rest)
+                    nil)))))))
+    x))
+
+(deftype LuaStructure [^DebugSession debug-session value refs]
+  ILookup
+  (valAt [this k]
+    (.valAt this k nil))
+  (valAt [_ k not-found]
+    (case k
+      ::refs refs
+      (let [lookup-key (if (instance? LuaStructure k)
+                         (.-value ^LuaStructure k)
+                         k)
+            ret (get-in refs [value lookup-key] not-found)]
+        (maybe-ref->structure debug-session ret refs))))
+
+  Seqable
+  (seq [_]
+    (seq (map (fn [[k v]]
+                (MapEntry. (maybe-ref->structure debug-session k refs)
+                           (maybe-ref->structure debug-session v refs)))
+              (get refs value))))
+
+  Counted
+  (count [_]
+    (count (get refs value))))
+
+(defn- lua-ref->identity-string [ref structure-refs]
+  (if-let [lua-table (get structure-refs ref)]
+    (format "<%s>" (:string (meta lua-table)))
+    (str "..." (:address ref))))
+
+(defn lua-value->identity-string
+  "Returns string representing identity of a lua value. Does not show internal
+  structure of lua tables"
+  [x]
+  (cond
+    (instance? LuaStructure x)
+    (let [^LuaStructure ls x]
+      (lua-ref->identity-string (.-value ls) (.-refs ls)))
+
+    (instance? LuaBlackBox x)
+    (format "<%s>" (:string x))
+
+    (= ##Inf x)
+    "inf"
+
+    (= ##-Inf x)
+    "-inf"
+
+    (and (number? x) (Double/isNaN (double x)))
+    "nan"
+
+    :else
+    (pr-str x)))
+
+(defn- blanks [n]
+  (apply str (repeat n \space)))
+
+(defn lua-value->structure-string
+  "Returns string representing structure of a lua value. Tries to show contents
+  of lua tables as close to lua data literals as possible. When same lua table
+  is referenced multiple times, prints only first occurrence as structure, other
+  are displayed as identities"
+  [x]
+  (cond
+    (instance? LuaStructure x)
+    (let [^LuaStructure ls x
+          structure-refs (.-refs ls)]
+      (letfn [(structure-value->str+seen-refs [indent x seen-refs]
+                (cond
+                  (and (instance? LuaRef x) (not (contains? seen-refs x)))
+                  (ref->str+seen-refs indent x seen-refs)
+
+                  (instance? LuaRef x)
+                  [(lua-ref->identity-string x structure-refs) seen-refs]
+
+                  :else
+                  [(lua-value->identity-string x) seen-refs]))
+              (ref->str+seen-refs [indent ref seen-refs]
+                (loop [acc-str-entries []
+                       acc-seen-refs (conj seen-refs ref)
+                       [e & es] (get structure-refs ref)
+                       i 1]
+                  (if (nil? e)
+                    [(str "{ -- " (lua-ref->identity-string ref structure-refs)
+                          (->> acc-str-entries
+                               (map #(str \newline (blanks (+ indent 2)) %))
+                               (string/join \,))
+                          \newline (blanks indent) \})
+                     acc-seen-refs]
+                    (let [[k v] e
+                          [k-str k-seen-refs] (structure-value->str+seen-refs (+ indent 2) k acc-seen-refs)
+                          [v-str v-seen-refs] (structure-value->str+seen-refs (+ indent 2) v k-seen-refs)]
+                      (recur (conj acc-str-entries
+                                   (cond
+                                     (= k i)
+                                     v-str
+
+                                     (and (string? k)
+                                          (some? (re-match #"^[a-zA-Z_][a-zA-Z_0-9]*$" k)))
+                                     (format "%s = %s" k v-str)
+
+                                     :else
+                                     (format "[%s] = %s" k-str v-str)))
+                             v-seen-refs
+                             es
+                             (inc i))))))]
+        (first (ref->str+seen-refs 0 (.-value ls) #{}))))
+
+    :else
+    (lua-value->identity-string x)))
 
 ;;--------------------------------------------------------------------
 ;; commands
@@ -492,38 +521,29 @@
   (with-session debug-session
     (let [out (.out debug-session)
           in (.in debug-session)]
-      (send-command! out "STACK")
+      (send-command! out "STACK --{maxlevel=2}")
       (let [[status rest] (read-status in)]
         (case status
           "200" (when-let [[stack] (re-match #"^OK\s+" rest)]
-                  {:stack (stack-data (decode-serialized-data stack))})
+                  {:stack (stack-data (decode-serialized-data debug-session stack))})
           "401" (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
                   (let [n (Integer/parseInt size)]
                     {:error (read-data in n)})))))))
 
-(defn exec
-  ([debug-session code]
-   (exec debug-session code 0))
-  ([^DebugSession debug-session code frame]
-   (with-session debug-session
-     (let [out (.out debug-session)
-           in (.in debug-session)]
-       (send-command! out (format "EXEC %s --{stack=%s}" code frame))
-       (let [[status rest] (read-status in)]
-         (case status
-           "200" (when-let [[size] (re-match #"^OK\s+(\d+)$" rest)]
-                   (let [n (Integer/parseInt size)]
-                     {:result (decode-serialized-data (read-data in n))}))
-           "400" {:error :bad-request}
-           "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
-                   (let [n (Integer/parseInt size)]
-                     {:error (read-data in n)}))))))))
-
-(defn eval
-  ([debug-session code]
-   (eval debug-session code 0))
-  ([debug-session code frame]
-   (exec debug-session (str "return " code) frame)))
+(defn exec [^DebugSession debug-session code frame]
+  (with-session debug-session
+    (let [out (.out debug-session)
+          in (.in debug-session)]
+      (send-command! out (format "EXEC return %s --{stack=%s}" code frame))
+      (let [[status rest] (read-status in)]
+        (case status
+          "200" (when-let [[size] (re-match #"^OK\s+(\d+)$" rest)]
+                  (let [n (Integer/parseInt size)]
+                    {:result (decode-serialized-data debug-session (read-data in n))}))
+          "400" {:error :bad-request}
+          "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
+                  (let [n (Integer/parseInt size)]
+                    {:error (read-data in n)})))))))
 
 
 ;; A note on "SETB file line":
