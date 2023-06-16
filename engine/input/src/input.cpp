@@ -120,6 +120,8 @@ namespace dmInput
         gamepad_binding->m_Actions.SetCapacity(64, 256);
 
         action.m_GamepadIndex = gamepad_binding->m_Index;
+        action.m_UserID       = 0;
+
         for (uint32_t i = 0; i < binding->m_DDFGamepadTriggersCount; ++i)
         {
             const dmInputDDF::GamepadTrigger& ddf_trigger = binding->m_DDFGamepadTriggersData[i];
@@ -785,6 +787,8 @@ namespace dmInput
                                         char device_name[128];
                                         dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
                                         action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
+
+                                        dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
                                     }
                                 }
                             }

@@ -209,6 +209,7 @@ message ShaderDesc
     {
         required Language        language              = 1;
         optional bytes           source                = 2;
+        optional string          name                  = 3;
         repeated ResourceBinding uniforms              = 4;
         repeated ResourceBinding inputs                = 5;
         repeated ResourceBinding outputs               = 6;

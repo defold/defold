@@ -32,7 +32,22 @@ IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
 DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
 
-ANDROID_NDK_VERSION="25b"
+if [ "Darwin" == "$(uname)" ]; then
+    if [ ! -d "${DARWIN_TOOLCHAIN_ROOT}" ]; then
+        DARWIN_TOOLCHAIN_ROOT=$(xcode-select -print-path)/Toolchains/XcodeDefault.xctoolchain
+    fi
+    if [ ! -d "${OSX_SDK_ROOT}" ]; then
+        OSX_SDK_ROOT=$(xcrun -f --sdk macosx --show-sdk-path)
+    fi
+    if [ ! -d "${IOS_SDK_ROOT}" ]; then
+        IOS_SDK_ROOT=$(xcrun -f --sdk iphoneos --show-sdk-path)
+    fi
+    if [ ! -d "${IOS_SIMULATOR_SDK_ROOT}" ]; then
+        IOS_SIMULATOR_SDK_ROOT=$(xcrun -f --sdk iphonesimulator --show-sdk-path)
+    fi
+fi
+
+ANDROID_NDK_VERSION=20
 ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
 
 ANDROID_VERSION=19 # Android 4.4

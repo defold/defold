@@ -13,6 +13,16 @@
 -- specific language governing permissions and limitations under the License.
 
 function test_sys()
+
+    -- get_host_path
+    print("Load existing resource")
+    local host_path = sys.get_host_path("src/test/test_resource.txt")
+    local f, err, res = io.open(host_path, "rb")
+    local content     = f:read("*all")
+    f:close()
+    assert(content == "defold")
+
+    --
     local filename = "save001.save"
     local max_table_size_v3 = 512 * 1024
     local file = sys.get_save_file("my_game", filename)
@@ -85,7 +95,6 @@ function test_sys()
     assert(data['location'] == data_prim['location'])
     assert(data['xp'] == data_prim['xp'])
     assert(data['name'] == data_prim['name'])
-
 
     -- get_config_string
     print("Testing get_config_string")

@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !(defined(__SCE__))
-
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
 #include "socket.h"
@@ -887,5 +885,3 @@ namespace dmSocket
         return result;
     }
 }
-
-#endif

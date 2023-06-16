@@ -19,8 +19,6 @@
 #include <jc_test/jc_test.h>
 #include "../record/record.h"
 
-#if !(defined(__NX__) || defined(__SCE__)) // disabled platforms
-
 TEST(dmRecord, InvalidWidth1)
 {
     dmRecord::NewParams params;
@@ -122,8 +120,6 @@ TEST(dmRecord, Simple)
     r = dmRecord::Delete(recorder);
     ASSERT_EQ(dmRecord::RESULT_OK, r);
 }
-
-#endif
 
 int main(int argc, char **argv)
 {

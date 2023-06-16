@@ -13,8 +13,8 @@ def build(bld):
         libs.append('UNWIND')
 
     extra_features = []
-    if 'ps4' in bld.env['PLATFORM']:
-        libs += ['PLATFORM_SOCKET']
+    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
+        libs += ['SOCKET']
         extra_features = ['skip_test'] # until we've implemented a crash handler for PS4
 
     test_crash = bld.program(features = 'cxx cprogram test'.split() + extra_features,
@@ -29,7 +29,7 @@ def build(bld):
         test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     # essentially only test that it links
-    test_crash_null = bld.program(features = 'cxx cprogram',
+    test_crash_null = bld.program(features = 'cxx cprogram test skip_test',
                                      includes = '..',
                                      use = libs + ['crashext_null'],
                                      web_libs = ['library_sys.js'],

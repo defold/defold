@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
 
@@ -994,6 +995,7 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
