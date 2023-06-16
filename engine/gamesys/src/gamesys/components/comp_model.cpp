@@ -47,6 +47,7 @@
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ModelIndexCount, 0, FrameReset, "# indices", &rmtp_Model);
 DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, FrameReset, "# vertices", &rmtp_Model);
 DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Model);
 
@@ -578,8 +579,9 @@ namespace dmGameSystem
             ro.m_IndexBuffer = buffers->m_IndexBuffer;              // May be 0
             ro.m_IndexType = buffers->m_IndexBufferElementType;
 
-            DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, ro.m_VertexCount);
-            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, ro.m_VertexCount * sizeof(dmRig::RigModelVertex)); 
+            DM_PROPERTY_ADD_U32(rmtp_ModelIndexCount, buffers->m_IndexCount);
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex)); 
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
