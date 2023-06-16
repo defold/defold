@@ -35,19 +35,19 @@ namespace dmSys
 {
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-    	assert(path_len > 0);
-    	NSBundle* mainBundle = [NSBundle mainBundle];
-    	if (mainBundle == NULL)
-    	{
-    		return RESULT_FAULT;
-    	}
-    	const char *bundle_path = [[mainBundle bundlePath] UTF8String];
-    	if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
-    	{
-    		path_out[0] = 0;
-    		return RESULT_INVAL;
-    	}
-    	return RESULT_OK;
+        assert(path_len > 0);
+        NSBundle* mainBundle = [NSBundle mainBundle];
+        if (mainBundle == NULL)
+        {
+            return RESULT_FAULT;
+        }
+        const char *bundle_path = [[mainBundle bundlePath] UTF8String];
+        if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
+        {
+            path_out[0] = 0;
+            return RESULT_INVAL;
+        }
+        return RESULT_OK;
     }
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
