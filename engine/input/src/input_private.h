@@ -66,6 +66,7 @@ namespace dmInput
         uint32_t m_DeviceId;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
+        uint8_t m_Unknown : 1;
         uint8_t m_NoMapWarning : 1;
     };
 

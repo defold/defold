@@ -426,6 +426,7 @@ namespace dmGameObject
         dmHID::GamepadPacket m_GamepadPacket;
 
         uint8_t  m_IsGamepad : 1;
+        uint8_t  m_GamepadUnknown : 1;
         uint8_t  m_GamepadDisconnected : 1;
         uint8_t  m_GamepadConnected : 1;
         uint8_t  m_HasGamepadPacket : 1;

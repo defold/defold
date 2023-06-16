@@ -110,6 +110,7 @@ namespace dmInput
         Action action;
         memset(&action, 0, sizeof(Action));
         action.m_IsGamepad = 1;
+        action.m_GamepadUnknown = gamepad_binding->m_Unknown;
 
         gamepad_binding->m_Index = gamepad_index;
 
@@ -167,13 +168,14 @@ namespace dmInput
                 dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
                 return 0x0;
             }
-            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
-            {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
-            }
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
             gamepad_binding->m_Gamepad = gamepad;
+            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
+                gamepad_binding->m_Unknown = 1;
+            }
 
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
 

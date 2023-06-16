@@ -15,7 +15,6 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/align.h>
 #include <dlib/memory.h>
@@ -593,7 +592,7 @@ namespace dmRender
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
 
-        te.m_FrustumCullingRadiusSq = Vectormath::Aos::lengthSqr(cornerpoint_world - centerpoint_world);
+        te.m_FrustumCullingRadiusSq = dmVMath::LengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
 
 

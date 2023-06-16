@@ -16,7 +16,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
@@ -561,8 +561,8 @@ namespace dmGraphics
     uint32_t GetUniformCount(HProgram prog);
     int32_t  GetUniformLocation(HProgram prog, const char* name);
 
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
     void SetSampler(HContext context, int32_t location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 

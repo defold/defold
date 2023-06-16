@@ -1788,6 +1788,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                         lua_pushliteral(L, "userid");
                         lua_pushinteger(L, ia->m_UserID);
+
+                        lua_pushliteral(L, "gamepad_unknown");
+                        lua_pushboolean(L, ia->m_GamepadUnknown);
+
                         lua_settable(L, -3);
                     }
 
