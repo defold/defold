@@ -434,7 +434,6 @@
 ;; SDK api
 (g/deftype GuiResourceNames s/Any #_(sorted-set s/Str))
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
-(g/deftype ^:private GuiResourceMaterials s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (g/deftype ^:private TextureAnimDatas s/Any #_{s/Str (s/maybe {s/Keyword s/Any})})
 (g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
