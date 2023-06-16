@@ -922,12 +922,6 @@ namespace dmGameSystem
         return (dmGraphics::HTexture) result;
     }
 
-    static inline dmGraphics::HTexture GetNodeTexture(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
-    {
-        dmGraphics::HTexture tex = dmGameSystem::GetNodeTexture(scene, node);
-        return tex ? tex : gui_context->m_GuiWorld->m_WhiteTexture;
-    }
-
     static inline dmRender::HMaterial GetNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
     {
         void* node_material = dmGui::GetNodeMaterial(scene, node);
@@ -1232,13 +1226,20 @@ namespace dmGameSystem
         ro.m_VertexStart       = vertex_start;
         ro.m_VertexCount       = vertex_count;
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
-        ro.m_Textures[0]       = GetNodeTexture(gui_context, scene, first_node);
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
         ro.m_SetBlendFactors = 1;
 
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
+
+        // Set default texture
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
+        if (texture) {
+            ro.m_Textures[0] = texture;
+        } else {
+            ro.m_Textures[0] = gui_world->m_WhiteTexture;
+        }
     }
 
     static void RenderBoxNodes(dmGui::HScene scene,
@@ -1279,10 +1280,13 @@ namespace dmGameSystem
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
-        ro.m_Textures[0]       = GetNodeTexture(gui_context, scene, first_node);
 
         // Set default texture
-        dmGraphics::HTexture texture = ro.m_Textures[0];
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
+        if (texture)
+            ro.m_Textures[0] = texture;
+        else
+            ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
@@ -1290,8 +1294,8 @@ namespace dmGameSystem
 
         // 9-slice values are specified with reference to the original graphics and not by
         // the possibly stretched texture.
-        float org_width = (float)dmGraphics::GetOriginalTextureWidth(texture);
-        float org_height = (float)dmGraphics::GetOriginalTextureHeight(texture);
+        float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
+        float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
         assert(org_width > 0 && org_height > 0);
 
         int rendered_vert_count = 0;
@@ -1578,7 +1582,13 @@ namespace dmGameSystem
         ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount       = 0;
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
-        ro.m_Textures[0]       = GetNodeTexture(gui_context, scene, first_node);
+
+        // Set default texture
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
+        if (texture)
+            ro.m_Textures[0] = texture;
+        else
+            ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
         uint32_t max_total_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
