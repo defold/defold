@@ -1665,7 +1665,6 @@
                           :material (resource/resource->proj-path material-resource)}))
   (output override-material-shaders GuiResourceShaders :cached (g/fnk [override-material-shader name]
                                                     ;; If the referenced material-resource is missing, we don't return an entry.
-                                                    ;; This will cause every usage to fall back on the no-font entry for "".
                                                     (when (some? override-material-shader)
                                                       {name override-material-shader})))
   (output material-names GuiResourceNames (g/fnk [name] (sorted-set name)))

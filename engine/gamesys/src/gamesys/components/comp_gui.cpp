@@ -906,12 +906,6 @@ namespace dmGameSystem
         ApplyStencilClipping(gui_context, state, params.m_StencilTestParams);
     }
 
-    static inline dmRender::HMaterial GetNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
-    {
-        void* node_material = dmGui::GetNodeMaterial(scene, node);
-        return node_material ? (dmRender::HMaterial) node_material : gui_context->m_Material;
-    }
-
     static dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
     {
         dmGui::NodeTextureType texture_type;
@@ -926,6 +920,18 @@ namespace dmGameSystem
         }
 
         return (dmGraphics::HTexture) result;
+    }
+
+    static inline dmGraphics::HTexture GetNodeTexture(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
+    {
+        dmGraphics::HTexture tex = dmGameSystem::GetNodeTexture(scene, node);
+        return tex ? tex : gui_context->m_GuiWorld->m_WhiteTexture;
+    }
+
+    static inline dmRender::HMaterial GetNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
+    {
+        void* node_material = dmGui::GetNodeMaterial(scene, node);
+        return node_material ? (dmRender::HMaterial) node_material : gui_context->m_Material;
     }
 
     static void RenderTextNodes(dmGui::HScene scene,
@@ -1003,7 +1009,8 @@ namespace dmGameSystem
                 params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
                 break;
             }
-            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), 0, 0, params);
+
+            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), GetNodeMaterial(gui_context, scene, node), 0, params);
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
@@ -1033,11 +1040,11 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
-        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_Material = gui_context->m_Material;
-        ro.m_Textures[0] = (dmGraphics::HTexture) first_emitter_render_data->m_Texture;
+        ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
+        ro.m_Textures[0]       = (dmGraphics::HTexture) first_emitter_render_data->m_Texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
@@ -1220,25 +1227,18 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
-        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = vertex_start;
-        ro.m_VertexCount = vertex_count;
-        ro.m_Material = gui_context->m_Material;
+        ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart       = vertex_start;
+        ro.m_VertexCount       = vertex_count;
+        ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
+        ro.m_Textures[0]       = GetNodeTexture(gui_context, scene, first_node);
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
         ro.m_SetBlendFactors = 1;
 
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
-
-        // Set default texture
-        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
-        if (texture) {
-            ro.m_Textures[0] = texture;
-        } else {
-            ro.m_Textures[0] = gui_world->m_WhiteTexture;
-        }
     }
 
     static void RenderBoxNodes(dmGui::HScene scene,
@@ -1279,13 +1279,10 @@ namespace dmGameSystem
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
+        ro.m_Textures[0]       = GetNodeTexture(gui_context, scene, first_node);
 
         // Set default texture
-        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
-        if (texture)
-            ro.m_Textures[0] = texture;
-        else
-            ro.m_Textures[0] = gui_world->m_WhiteTexture;
+        dmGraphics::HTexture texture = ro.m_Textures[0];
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
@@ -1293,8 +1290,8 @@ namespace dmGameSystem
 
         // 9-slice values are specified with reference to the original graphics and not by
         // the possibly stretched texture.
-        float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
-        float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
+        float org_width = (float)dmGraphics::GetOriginalTextureWidth(texture);
+        float org_height = (float)dmGraphics::GetOriginalTextureHeight(texture);
         assert(org_width > 0 && org_height > 0);
 
         int rendered_vert_count = 0;
@@ -1574,20 +1571,14 @@ namespace dmGameSystem
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
-        ro.m_SetBlendFactors = 1;
+        ro.m_SetBlendFactors   = 1;
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
-        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
-        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_VertexCount = 0;
-        ro.m_Material = gui_context->m_Material;
-
-        // Set default texture
-        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
-        if (texture)
-            ro.m_Textures[0] = texture;
-        else
-            ro.m_Textures[0] = gui_world->m_WhiteTexture;
+        ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
+        ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_VertexCount       = 0;
+        ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
+        ro.m_Textures[0]       = GetNodeTexture(gui_context, scene, first_node);
 
         uint32_t max_total_vertices = 0;
         for (uint32_t i = 0; i < node_count; ++i)
