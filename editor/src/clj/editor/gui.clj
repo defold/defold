@@ -350,7 +350,7 @@
    [:texture-anim-datas :texture-anim-datas]
    [:texture-names :texture-names]
    [:material-names :material-names]
-   [:override-material-shaders :override-material-shaders]
+   [:material-shaders :material-shaders]
    [:font-shaders :font-shaders]
    [:font-datas :font-datas]
    [:font-names :font-names]
@@ -627,8 +627,8 @@
   (input material-names GuiResourceNames)
   (output material-names GuiResourceNames (gu/passthrough material-names))
 
-  (input override-material-shaders GuiResourceShaders)
-  (output override-material-shaders GuiResourceShaders (gu/passthrough override-material-shaders))
+  (input material-shaders GuiResourceShaders)
+  (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
 
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
@@ -795,9 +795,9 @@
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
 
-  (output override-material-shader ShaderLifecycle (g/fnk [override-material-shaders material]
-                                                     (or (override-material-shaders material)
-                                                         (override-material-shaders ""))))
+  (output override-material-shader ShaderLifecycle (g/fnk [material-shaders material]
+                                                     (or (material-shaders material)
+                                                         (material-shaders ""))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
@@ -1663,7 +1663,7 @@
   (output pb-msg g/Any (g/fnk [name material-resource]
                          {:name name
                           :material (resource/resource->proj-path material-resource)}))
-  (output override-material-shaders GuiResourceShaders :cached (g/fnk [override-material-shader name]
+  (output material-shaders GuiResourceShaders :cached (g/fnk [override-material-shader name]
                                                     ;; If the referenced material-resource is missing, we don't return an entry.
                                                     (when (some? override-material-shader)
                                                       {name override-material-shader})))
@@ -1905,8 +1905,8 @@
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
 
-  (input override-material-shaders GuiResourceShaders)
-  (output override-material-shaders GuiResourceShaders (gu/passthrough override-material-shaders))
+  (input material-shaders GuiResourceShaders)
+  (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
 
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
@@ -2018,7 +2018,7 @@
   ([self materials-node material internal?]
    (concat
      (g/connect material :_node-id self :nodes)
-     (g/connect material :override-material-shaders self :override-material-shaders)
+     (g/connect material :material-shaders self :material-shaders)
      (when (not internal?)
        (concat
          (g/connect material :material-names self :material-names)
@@ -2552,9 +2552,9 @@
   (input texture-names GuiResourceNames :array)
   (output texture-names GuiResourceNames :cached (g/fnk [aux-texture-names texture-names] (into (sorted-set) cat (concat aux-texture-names texture-names))))
 
-  (input aux-override-material-shaders GuiResourceShaders :array)
-  (input override-material-shaders GuiResourceShaders :array)
-  (output override-material-shaders GuiResourceShaders :cached (g/fnk [aux-override-material-shaders override-material-shaders] (into {} (concat aux-override-material-shaders override-material-shaders))))
+  (input aux-material-shaders GuiResourceShaders :array)
+  (input material-shaders GuiResourceShaders :array)
+  (output material-shaders GuiResourceShaders :cached (g/fnk [aux-material-shaders material-shaders] (into {} (concat aux-material-shaders material-shaders))))
   (input aux-material-names GuiResourceNames :array)
   (input material-names GuiResourceNames :array)
   (output material-names GuiResourceNames :cached (g/fnk [aux-material-names material-names] (into (sorted-set) cat (concat aux-material-names material-names))))
@@ -2922,7 +2922,7 @@
                                      [:texture-anim-datas :texture-anim-datas]
                                      [:texture-names :texture-names]
                                      [:material-names :material-names]
-                                     [:override-material-shaders :override-material-shaders]
+                                     [:material-shaders :material-shaders]
                                      [:font-shaders :font-shaders]
                                      [:font-datas :font-datas]
                                      [:font-names :font-names]
