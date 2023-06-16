@@ -578,6 +578,9 @@ namespace dmGameSystem
             ro.m_IndexBuffer = buffers->m_IndexBuffer;              // May be 0
             ro.m_IndexType = buffers->m_IndexBufferElementType;
 
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, ro.m_VertexCount);
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, ro.m_VertexCount * sizeof(dmRig::RigModelVertex)); 
+
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
                 ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
