@@ -17,7 +17,7 @@
 
 // Let's only include these in a single place, in the correct order
 #include <WinSock2.h>
-#include <Ws2tcpip.h>
+#include <WS2tcpip.h>
 #include <iphlpapi.h>
 
 typedef int socklen_t;
