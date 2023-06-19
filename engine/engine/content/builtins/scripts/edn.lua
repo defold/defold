@@ -159,8 +159,8 @@ end
 local function encode_refs(ref_to_table)
   local encoded_refs = {}
   for ref, ref_table in pairs(ref_to_table) do
-    encoded_refs[#encoded_refs+1] = encode_as_primitive(ref)
-    encoded_refs[#encoded_refs+1] = encode_edn_table(ref, ref_table)
+    encoded_refs[#encoded_refs + 1] = encode_as_primitive(ref)
+    encoded_refs[#encoded_refs + 1] = encode_edn_table(ref, ref_table)
   end
   return "{" .. table.concat(encoded_refs, " ") .. "}"
 end
@@ -194,9 +194,9 @@ end
 
 ---Build a references graph for a value up to a certain depth for serialization
 ---@param val any value to analyze
----@param params {maxlevel: integer?}
+---@param params {maxlevel: integer?} params table, where maxlevel is max depth level of serialization
 ---@return table<any, table> internal_graph mapping from found references to a table of its contents
----@return table<string, any> edge_refs mapping from hexademical pointer strings to  references that were found but will not be serialized
+---@return table<string, any> edge_refs mapping from hexademical pointer strings to references that were found but will not be serialized
 function M.analyze(val, params)
   local depth = params.maxlevel or 16
   local internal_graph = {}
@@ -223,21 +223,26 @@ function M.serialize(val, internal_graph)
 end
 
 ---Build a val reference graph up to a certain depth and serialize it to EDN
----@param val any
----@param params {maxlevel: integer?}
+---@param val any value to serialize
+---@param params {maxlevel: integer?} params table, where maxlevel is max depth level of serialization
 ---@return string edn serialized object graph
 function M.encode(val, params)
-  local ok, result = pcall(function ()
-    local graph = M.analyze(val, params)
-    return M.serialize(val, graph)
-  end)
+  local err_trace
+  local ok, result = xpcall(
+    function()
+      local graph = M.analyze(val, params)
+      return M.serialize(val, graph)
+    end,
+    function(err)
+      err_trace = debug.traceback()
+      return err
+    end)
   if ok then
     return result
   else
     print("Debugger: " .. result)
-    local trace = debug.traceback()
-    if trace then
-      print(trace)
+    if err_trace then
+      print(err_trace)
     end
     return encode_nil()
   end

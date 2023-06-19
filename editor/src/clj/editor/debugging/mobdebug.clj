@@ -118,7 +118,7 @@
 
 (defprotocol IDebugSession
   (-state [this] "return the session state")
-  (-state! [this state] "set the session state")
+  (-set-state! [this state] "set the session state")
   (-push-suspend-callback! [this f])
   (-pop-suspend-callback! [this]))
 
@@ -131,7 +131,7 @@
                        on-closed]
   IDebugSession
   (-state [this] state)
-  (-state! [this new-state] (set! state new-state))
+  (-set-state! [this new-state] (set! state new-state))
   (-push-suspend-callback! [this f] (.push suspend-callbacks f))
   (-pop-suspend-callback! [this] (.pop suspend-callbacks)))
 
@@ -169,7 +169,7 @@
      (try
        (.close socket)
        (catch IOException _)))
-   (-state! debug-session end-state)
+   (-set-state! debug-session end-state)
    (when-some [on-closed (.on-closed debug-session)]
      (on-closed debug-session))))
 
@@ -260,7 +260,8 @@
 ;; read-only map (no assoc/dissoc) that creates/loads sub-structures on demand.
 
 (defn- maybe-ref->structure [^DebugSession debug-session x refs]
-  (if (instance? LuaRef x)
+  (if-not (instance? LuaRef x)
+    x
     (if (contains? refs x)
       (->LuaStructure debug-session x refs)
       ;; We have a reference that was not serialized, load it:
@@ -288,8 +289,7 @@
                 (do (log/warn :message "Couldn't load lua table for a ref: not registered on a server"
                               :ref (:address x)
                               :error-message rest)
-                    nil)))))))
-    x))
+                    nil)))))))))
 
 (deftype LuaStructure [^DebugSession debug-session value refs]
   ILookup
@@ -447,7 +447,7 @@
           (let [[status rest] (read-status in)]
             (case status
               "200" (do
-                      (-state! debug-session :running)
+                      (-set-state! debug-session :running)
                       (when on-suspended (-push-suspend-callback! debug-session on-suspended))
                       (thread (when-some [suspend-event (try
                                                           (await-suspend debug-session)
@@ -456,7 +456,7 @@
                                                             nil))]
                                 (when-some [f (with-session debug-session
                                                 (assert (= :running (-state debug-session)))
-                                                (-state! debug-session :suspended)
+                                                (-set-state! debug-session :suspended)
                                                 (-pop-suspend-callback! debug-session))]
                                   (f debug-session suspend-event))))
                       (when on-resumed (on-resumed debug-session)))))

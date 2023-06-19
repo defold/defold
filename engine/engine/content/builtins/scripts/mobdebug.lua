@@ -804,8 +804,8 @@ end
 local function respond_with_edn(val, analyze_params)
   local analyze_ok, graph, edge_refs = pcall(edn.analyze, val, analyze_params)
   if analyze_ok then
-    for key, value in pairs(edge_refs) do
-      edn_edge_refs_cache[key] = value
+    for k, v in pairs(edge_refs) do
+      edn_edge_refs_cache[k] = v
     end
     local serialize_ok, edn_string = pcall(edn.serialize, val, graph)
     if serialize_ok then
