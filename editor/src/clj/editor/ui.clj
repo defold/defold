@@ -1851,24 +1851,6 @@
        (finally
          ((second ~bindings) progress/done)))))
 
-(defn make-run-later-render-progress [render-progress!]
-  (let [render-inflight (ref false)
-        last-progress (ref nil)]
-    (progress/throttle-render-progress
-      (fn [progress]
-        (let [schedule (ref false)]
-          (dosync
-            (ref-set schedule (not @render-inflight))
-            (ref-set render-inflight true)
-            (ref-set last-progress progress))
-          (when @schedule
-            (run-later
-              (let [progress-snapshot (ref nil)]
-                (dosync
-                  (ref-set progress-snapshot @last-progress)
-                  (ref-set render-inflight false))
-                (render-progress! @progress-snapshot)))))))))
-
 (defn- set-scene-disable! [^Scene scene disable?]
   (when-some [root (.getRoot scene)]
     (.setDisable root disable?)
@@ -1912,19 +1894,6 @@
   [f]
   (reify EventHandler
     (handle [this event] (f event))))
-
-(defmacro defcommand
-  "Create a command with the given category and id. Binds
-the resulting command to the named variable.
-
-Label should be a human-readable string. It will appear
-directly in the UI (unless there is a translation for it.)
-
-If you use the same category-id and command-id more than once,
-this will create independent entities that refer to the same underlying
-command."
-  [name category-id command-id label]
-  `(def ^:command ~name [~label ~category-id ~command-id]))
 
 (defprotocol Future
   (cancel [this])
