@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -581,6 +581,68 @@
       (set-generic-headers! view issues [:architecture :keystore :keystore-pass :key-pass :bundle-format]))))
 
 ;; -----------------------------------------------------------------------------
+;; macOS
+;; -----------------------------------------------------------------------------
+
+(defn- make-macos-controls [refresh! owner-window]
+  (assert (fn? refresh!))
+  (let [no-identity-label "None"
+        architecture-controls (doto (VBox.)
+                                (ui/children! [(make-labeled-check-box "x86_64" "architecture-x86_64-check-box" true refresh!)
+                                               (make-labeled-check-box "arm64" "architecture-arm64-check-box" true refresh!)]))]
+    (doto (VBox.)
+      (ui/add-style! "settings")
+      (ui/add-style! "macos")
+      (ui/children! [(labeled! "Architectures" architecture-controls)]))))
+
+(defn- load-macos-prefs! [prefs view]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
+    (ui/value! architecture-x86_64-check-box (prefs/get-prefs prefs "bundle-macos-architecture-x86_64?" true))
+    (ui/value! architecture-arm64-check-box (prefs/get-prefs prefs "bundle-macos-architecture-arm64?" true))))
+
+(defn- save-macos-prefs! [prefs view]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
+    (prefs/set-prefs prefs "bundle-macos-architecture-x86_64?" (ui/value architecture-x86_64-check-box))
+    (prefs/set-prefs prefs "bundle-macos-architecture-arm64?" (ui/value architecture-arm64-check-box))))
+
+(defn- get-macos-options [view]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
+    {:architecture-x86_64? (ui/value architecture-x86_64-check-box)
+     :architecture-arm64? (ui/value architecture-arm64-check-box)}))
+
+(defn- set-macos-options! [view {:keys [architecture-x86_64? architecture-arm64?] :as _options} issues]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box ok-button]
+    (doto architecture-x86_64-check-box
+      (ui/value! architecture-x86_64?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-arm64-check-box
+      (ui/value! architecture-arm64?)
+      (set-field-status! (:architecture issues)))
+    (ui/enable! ok-button true)))
+
+(deftype MacOSBundleOptionsPresenter [workspace view variant-choices compression-choices]
+  BundleOptionsPresenter
+  (make-views [this owner-window]
+    (let [refresh! (make-presenter-refresher this)]
+      (into [(make-generic-headers "Bundle macOS Application")
+             (make-macos-controls refresh! owner-window)]
+            (make-generic-controls refresh! variant-choices compression-choices))))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view)
+    (load-macos-prefs! prefs view))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view)
+    (save-macos-prefs! prefs view))
+  (get-options [_this]
+    (merge {:platform "x86_64-macos"}
+           (get-generic-options view)
+           (get-macos-options view)))
+  (set-options! [_this options]
+    (let [issues []]
+      (set-generic-options! view options workspace)
+      (set-macos-options! view options issues))))
+
+;; -----------------------------------------------------------------------------
 ;; iOS
 ;; -----------------------------------------------------------------------------
 
@@ -785,7 +847,7 @@
 (defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants common-compressions))
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
-(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-macos" desktop-variants common-compressions))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (MacOSBundleOptionsPresenter. workspace view desktop-variants common-compressions))
 (defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants common-compressions))
 
 (handler/defhandler ::close :bundle-dialog

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,9 +38,9 @@
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
+#if defined(DM_PLATFORM_MACOS)
+// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+#include <Carbon/Carbon.h>
 #endif
 
 #include <dmsdk/graphics/glfw/glfw.h>
@@ -188,7 +188,21 @@ namespace dmGraphics
 static void LogGLError(GLint err, const char* fnname, int line)
 {
 #if defined(GL_ES_VERSION_2_0)
-    dmLogError("%s(%d): gl error %d\n", fnname, line, err);
+    const char* error_str = "<unknown-gl-error>";
+    switch(err)
+    {
+        case GL_INVALID_ENUM: 
+            error_str = "GL_INVALID_ENUM";
+            break;
+        case GL_INVALID_VALUE: 
+            error_str = "GL_INVALID_VALUE";
+            break;
+        case GL_INVALID_OPERATION: 
+            error_str = "GL_INVALID_OPERATION";
+            break;
+        default:break;
+    }
+    dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, error_str);
 #else
     dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, gluErrorString(err));
 #endif
@@ -324,7 +338,7 @@ static void LogFrameBufferError(GLenum status)
     } \
 
 
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
     struct ChooseEAGLView
     {
         ChooseEAGLView() {
@@ -361,7 +375,7 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
- 
+
     // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
     //       however we might want to do this the other way around perhaps? i.e special case for webgl
     //       and load functions like this for all other platforms.
@@ -795,7 +809,7 @@ static void LogFrameBufferError(GLenum status)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-    #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
     #else
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
@@ -803,7 +817,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         bool is_desktop = false;
-#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || (defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || defined(DM_PLATFORM_MACOS)
         is_desktop = true;
 #endif
         if (is_desktop) {
@@ -971,7 +985,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_IsGles3Version = 1;
         }
 #else
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+    #if defined(DM_PLATFORM_IOS)
         // iOS
         context->m_IsGles3Version = 1;
         context->m_IsShaderLanguageGles = 1;
@@ -1025,7 +1039,15 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: OpenGL");
+            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
+        }
+
+#if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -1215,7 +1237,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_MaxTextureSize = gl_max_texture_size;
         CLEAR_GL_ERROR;
 
-#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS) || defined(ANDROID)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
         // The below seems to be the reported sweet spot for modern or semi-modern hardware
         context->m_MaxElementVertices = 1024*1024;
@@ -2083,9 +2105,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteShader(OpenGLShader* shader)
     {
-        glDeleteShader(shader->m_Id);
-        CHECK_GL_ERROR;
-        delete shader;
+        if (shader)
+        {
+            glDeleteShader(shader->m_Id);
+            CHECK_GL_ERROR;
+            delete shader;
+        }
     }
 
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
@@ -2531,7 +2556,7 @@ static void LogFrameBufferError(GLenum status)
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
             context->m_FrameBufferInvalidateBits = transient_buffer_types;
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+#if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
@@ -3086,7 +3111,8 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
-                if (tex->m_Type == TEXTURE_TYPE_2D) {
+                if (tex->m_Type == TEXTURE_TYPE_2D)
+                {
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate)
                     {
@@ -3097,27 +3123,22 @@ static void LogFrameBufferError(GLenum status)
                         glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
                     }
                     CHECK_GL_ERROR;
-                } else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                }
+                else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY)
+                {
                     assert(g_Context->m_TextureArraySupport);
-                    #ifdef ANDROID
-                        #define TEX_SUB_IMAGE_3D PFN_glTexSubImage3D
-                        #define TEX_IMAGE_3D     PFN_glTexImage3D
-                    #else
-                        #define TEX_SUB_IMAGE_3D glTexSubImage3D
-                        #define TEX_IMAGE_3D     glTexImage3D
-                    #endif
-                        if (params.m_SubUpdate)
-                        {
-                            TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
-                        }
-                        else
-                        {
-                            TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
-                        }
-                    #undef TEX_SUB_IMAGE_3D
-                    #undef TEX_IMAGE_3D
+                    if (params.m_SubUpdate)
+                    {
+                        DMGRAPHICS_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                    }
+                    else
+                    {
+                        DMGRAPHICS_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                    }
                     CHECK_GL_ERROR;
-                } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                }
+                else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+                {
                     assert(tex->m_NumTextureIds == 1);
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate)
@@ -3150,7 +3171,9 @@ static void LogFrameBufferError(GLenum status)
                         glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
                         CHECK_GL_ERROR;
                     }
-                } else {
+                }
+                else
+                {
                     assert(0);
                 }
                 break;
@@ -3169,33 +3192,37 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R_BC4:
             case TEXTURE_FORMAT_RG_BC5:
             case TEXTURE_FORMAT_RGBA_BC7:
-                if (params.m_DataSize > 0) {
-                    if (tex->m_Type == TEXTURE_TYPE_2D) {
-                        if (params.m_SubUpdate) {
+                if (params.m_DataSize > 0)
+                {
+                    if (tex->m_Type == TEXTURE_TYPE_2D)
+                    {
+                        if (params.m_SubUpdate)
+                        {
                             glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
-                        } else {
+                        }
+                        else
+                        {
                             glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
                         }
                         CHECK_GL_ERROR;
-                    } else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY) {
-                    #ifdef __ANDROID__
-                        #define COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
-                        #define COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
-                    #else
-                        #define COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
-                        #define COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
-                    #endif
-                        if (params.m_SubUpdate) {
-                            COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
-                        } else {
-                            COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
+                    }
+                    else if (tex->m_Type == TEXTURE_TYPE_2D_ARRAY)
+                    {
+                        if (params.m_SubUpdate)
+                        {
+                            DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                        }
+                        else
+                        {
+                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize * params.m_Depth, params.m_Data);
                         }
                         CHECK_GL_ERROR;
-                    #undef COMPRESSED_TEX_SUB_IMAGE_3D
-                    #undef COMPRESSED_TEX_IMAGE_3D
-                    } else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                    }
+                    else if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
+                    {
                         const char* p = (const char*) params.m_Data;
-                        if (params.m_SubUpdate) {
+                        if (params.m_SubUpdate)
+                        {
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
                             CHECK_GL_ERROR;
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
@@ -3208,7 +3235,9 @@ static void LogFrameBufferError(GLenum status)
                             CHECK_GL_ERROR;
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
-                        } else {
+                        }
+                        else
+                        {
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
                             CHECK_GL_ERROR;
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
@@ -3222,11 +3251,12 @@ static void LogFrameBufferError(GLenum status)
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
                         }
-                    } else {
+                    }
+                    else
+                    {
                         assert(0);
                     }
                 }
-
                 break;
             default:
                 assert(0);
@@ -3237,7 +3267,8 @@ static void LogFrameBufferError(GLenum status)
         glBindTexture(type, 0);
         CHECK_GL_ERROR;
 
-        if (unpackAlignment != 4) {
+        if (unpackAlignment != 4)
+        {
             // Restore to default
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR;
@@ -3255,10 +3286,7 @@ static void LogFrameBufferError(GLenum status)
             size_total += size;
             size >>= 2;
         }
-        if (tex->m_Type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            size_total *= 6;
-        }
+        size_total *= dmMath::Max((uint16_t) 1, tex->m_Depth);
         return size_total + sizeof(OpenGLTexture);
     }
 
@@ -3574,7 +3602,7 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_PipelineState.m_StencilFrontOpFail      = sfail;
             context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
         }
     }
 

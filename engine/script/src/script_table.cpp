@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/static_assert.h>
@@ -288,12 +289,45 @@ namespace dmScript
         return total_size;
     }
 
-    uint32_t DoCheckTableSize(lua_State* L, int index, int parent_offset)
+    static void StackPush(dmArray<const void*>& table_stack, const void* p)
+    {
+        if (table_stack.Full())
+            table_stack.OffsetCapacity(8);
+        table_stack.Push(p);
+    }
+
+    static const void* StackPop(dmArray<const void*>& table_stack)
+    {
+        const void* p = table_stack.Back();
+        table_stack.Pop();
+        return p;
+    }
+
+    static bool StackContains(dmArray<const void*>& table_stack, const void* p)
+    {
+        uint32_t size = table_stack.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            if (table_stack[i] == p)
+                return true;
+        }
+        return false;
+    }
+
+    uint32_t DoCheckTableSize(lua_State* L, int index, int parent_offset, dmArray<const void*>& table_stack)
     {
         int top = lua_gettop(L);
         (void)top;
 
         luaL_checktype(L, index, LUA_TTABLE);
+
+        const void* table_data = (const void*)lua_topointer(L, index);
+        if (StackContains(table_stack, table_data))
+        {
+            return luaL_error(L, "Save table is recursive!");
+        }
+        StackPush(table_stack, table_data);
+
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
@@ -389,7 +423,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    size += DoCheckTableSize(L, -1, parent_offset + size);
+                    size += DoCheckTableSize(L, -1, parent_offset + size, table_stack);
                 }
                 break;
 
@@ -401,16 +435,20 @@ namespace dmScript
             lua_pop(L, 1);
         }
         lua_pop(L, 1);
+
+        const void* p = StackPop(table_stack);
+        assert(p == table_data);
         return size;
     }
 
     uint32_t CheckTableSize(lua_State* L, int index)
     {
-        uint32_t size = sizeof(TableHeader) + DoCheckTableSize(L, index, 0);
+        dmArray<const void*> table_stack;
+        uint32_t size = sizeof(TableHeader) + DoCheckTableSize(L, index, 0, table_stack);
         return size;
     }
 
-    uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
+    uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index, dmArray<const void*>& table_stack)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -418,6 +456,14 @@ namespace dmScript
         char* buffer_start = buffer;
         char* buffer_end = buffer + buffer_size;
         luaL_checktype(L, index, LUA_TTABLE);
+
+        const void* table_data = (const void*)lua_topointer(L, index);
+        if (StackContains(table_stack, table_data))
+        {
+            return luaL_error(L, "Save table is recursive!");
+        }
+        StackPush(table_stack, table_data);
+
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
@@ -643,7 +689,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    uint32_t n_used = DoCheckTable(L, header, original_buffer, buffer, buffer_end - buffer, -1);
+                    uint32_t n_used = DoCheckTable(L, header, original_buffer, buffer, buffer_end - buffer, -1, table_stack);
                     buffer += n_used;
                 }
                 break;
@@ -656,6 +702,9 @@ namespace dmScript
             lua_pop(L, 1);
         }
         lua_pop(L, 1);
+
+        const void* p = StackPop(table_stack);
+        assert(p == table_data);
 
         memcpy(buffer_start, &count, sizeof(uint32_t));
 
@@ -675,7 +724,8 @@ namespace dmScript
             buffer += sizeof(TableHeader);
             buffer_size -= (buffer - original_buffer);
 
-            return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index);
+            dmArray<const void*> table_stack;
+            return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index, table_stack);
         } else {
             luaL_error(L, "buffer (%d bytes) too small for header (%zu bytes)", buffer_size, sizeof(TableHeader));
             return 0;
