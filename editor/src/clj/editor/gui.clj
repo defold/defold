@@ -345,7 +345,6 @@
 
 (def gui-node-parent-attachments
   [[:id :parent]
-   [:material-shader :material-shader]
    [:texture-gpu-textures :texture-gpu-textures]
    [:texture-anim-datas :texture-anim-datas]
    [:texture-names :texture-names]
@@ -615,8 +614,6 @@
 
   (input parent g/Str)
 
-  (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input texture-gpu-textures GuiResourceTextures)
   (output texture-gpu-textures GuiResourceTextures (gu/passthrough texture-gpu-textures))
   (input texture-anim-datas TextureAnimDatas)
@@ -800,12 +797,11 @@
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader override-material-shader scene-renderable-user-data visible enabled]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture override-material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                        material-shader (or override-material-shader
-                                           (:override-material-shader scene-renderable-user-data)
-                                           material-shader)]
+                                           (:override-material-shader scene-renderable-user-data))]
                    {:render-fn render-tris
                     :tags (set/union #{:gui} (:renderable-tags scene-renderable-user-data))
                     :passes [pass/transparent pass/selection]
@@ -1416,7 +1412,7 @@
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   (output node-msg g/Any :cached produce-particlefx-node-msg)
-  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader override-material-shader color+alpha]
+  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index override-material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
                                                   (scene/claim-scene _node-id id)
@@ -1429,7 +1425,7 @@
                                                                 (assoc :child-index child-index)
                                                                 (update :user-data (fn [ud]
                                                                                      (-> ud
-                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader (or override-material-shader material-shader)))))
+                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader override-material-shader))))
                                                                                          (assoc :inherit-alpha true)
                                                                                          (assoc :color color+alpha))))
                                                                 (cond->
@@ -1901,8 +1897,6 @@
   (output texture-names GuiResourceNames (gu/passthrough texture-names))
   (input material-names GuiResourceNames)
   (output material-names GuiResourceNames (gu/passthrough material-names))
-  (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
 
   (input material-shaders GuiResourceShaders)
   (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
@@ -2853,7 +2847,8 @@
       ;; Materials list
       (g/make-nodes graph-id [materials-node MaterialsNode
                               no-material [MaterialNode
-                                          :name ""]]
+                                           :name ""
+                                           :material (workspace/resolve-resource resource (:material scene))]]        ;; (g/set-property self :material (workspace/resolve-resource resource (:material scene)))
         (g/connect materials-node :_node-id self :materials-node) ; for the tests :/
         (g/connect materials-node :_node-id self :nodes)
         (g/connect materials-node :build-errors self :build-errors)
@@ -2916,8 +2911,7 @@
                                      [:build-errors :build-errors]
                                      [:template-build-targets :template-build-targets]]]
                       (g/connect node-tree from self to))
-                    (for [[from to] [[:material-shader :material-shader]
-                                     [:texture-gpu-textures :texture-gpu-textures]
+                    (for [[from to] [[:texture-gpu-textures :texture-gpu-textures]
                                      [:texture-anim-datas :texture-anim-datas]
                                      [:texture-names :texture-names]
                                      [:material-names :material-names]
