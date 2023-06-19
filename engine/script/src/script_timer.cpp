@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -579,7 +579,7 @@ namespace dmScript
      *     timer.cancel(handle) -- cancel timer after 100 calls
      *   end
      * end
-     * 
+     *
      * self.counter = 0
      * timer.delay(1, true, call_every_second)
      * ```
@@ -627,7 +627,7 @@ namespace dmScript
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      * @examples
-     * 
+     *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second") end)
      * ...
@@ -636,7 +636,7 @@ namespace dmScript
      *    print("the timer is already cancelled")
      * end
      * ```
-     * 
+     *
      */
     static int TimerCancel(lua_State* L)
     {
@@ -664,7 +664,7 @@ namespace dmScript
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      * @examples
-     * 
+     *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second or manually by timer.trigger") end)
      * ...
@@ -679,7 +679,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 1);
 
         const int timer_handle = luaL_checkint(L, 1);
-        
+
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
         {
@@ -725,17 +725,17 @@ namespace dmScript
      * @name  timer.get_info
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return data [type:table] or nil if timer is cancelled/completed. table with data in the following fields:
-     * 
+     *
      * `time_remaining`
      * : [type:number] Time remaining until the next time a timer.delay() fires.
      *
      * `delay`
      * : [type:number] Time interval.
-     * 
+     *
      * `repeating`
-     *: [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     * : [type:boolean] true = repeat timer until cancel, false = one-shot timer.
      * @examples
-     * 
+     *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second") end)
      * ...
@@ -745,7 +745,7 @@ namespace dmScript
      * else
      *    pprint(result) -- delay, time_remaining, repeating
      * end
-     * 
+     *
      * ```
      *
      */
@@ -754,7 +754,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 1);
 
         const int timer_handle = luaL_checkint(L, 1);
-        
+
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
         {
@@ -778,7 +778,13 @@ namespace dmScript
         }
 
         Timer& timer = timer_world->m_Timers[timer_index];
-        
+
+        if (timer.m_Handle != timer_handle)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
         lua_newtable(L);
         lua_pushnumber(L,timer.m_Remaining);
         lua_setfield(L, -2, "time_remaining");

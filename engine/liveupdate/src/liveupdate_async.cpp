@@ -212,7 +212,7 @@ namespace dmLiveUpdate
     void AsyncInitialize(const dmResource::HFactory factory)
     {
         m_ResourceFactory = factory;
-        m_Active = 0;
+        m_Active = 1;
     }
 
     void AsyncFinalize()
