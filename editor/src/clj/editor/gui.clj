@@ -791,17 +791,17 @@
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
 
-  (output override-material-shader ShaderLifecycle (g/fnk [material-shaders material]
+  (output material-shader ShaderLifecycle (g/fnk [material-shaders material]
                                                      (or (material-shaders material)
                                                          (material-shaders ""))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture override-material-shader scene-renderable-user-data visible enabled]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
-                       material-shader (or override-material-shader
-                                           (:override-material-shader scene-renderable-user-data))]
+                       material-shader (or (:override-material-shader scene-renderable-user-data)
+                                           material-shader)]
                    {:render-fn render-tris
                     :tags (set/union #{:gui} (:renderable-tags scene-renderable-user-data))
                     :passes [pass/transparent pass/selection]
@@ -1149,13 +1149,14 @@
   (output node-msg g/Any :cached produce-text-node-msg)
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [manual-size font font-shaders pivot text-data color+alpha]
+          (g/fnk [manual-size font font-shaders material material-shaders pivot text-data color+alpha]
                  (let [[w h] manual-size
                        offset (pivot-offset pivot manual-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
                        font-map (get-in text-data [:font-data :font-map])
                        texture-recip-uniform (font/get-texture-recip-uniform font-map)
-                       font-shader (or (font-shaders font) (font-shaders ""))
+                       material-shader (when (not (empty? material)) (material-shaders material))
+                       font-shader (or material-shader (font-shaders font) (font-shaders ""))
                        font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
                    ;; The material-shader output is used to propagate the shader
                    ;; from the GuiSceneNode to our child nodes. Thus, we cannot
@@ -1412,7 +1413,7 @@
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   (output node-msg g/Any :cached produce-particlefx-node-msg)
-  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index override-material-shader color+alpha]
+  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
                                                   (scene/claim-scene _node-id id)
@@ -1425,7 +1426,7 @@
                                                                 (assoc :child-index child-index)
                                                                 (update :user-data (fn [ud]
                                                                                      (-> ud
-                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader override-material-shader))))
+                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader material-shader))))
                                                                                          (assoc :inherit-alpha true)
                                                                                          (assoc :color color+alpha))))
                                                                 (cond->
@@ -1506,6 +1507,14 @@
   (when (and (some? texture-page-count)
              (pos? texture-page-count))
     "Guis do not support paged Atlases, but the selected Texture is paged"))
+
+(defn- paged-material-not-supported-error-message [is-paged-material]
+  (when is-paged-material
+    "Guis do not support paged Materials, but the selected Material is paged"))
+
+(defn- validate-material-resource [_node-id material material-shader]
+  (or (prop-resource-error _node-id :material material "Material")
+      (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
 
 (defn- validate-texture-resource [_node-id texture texture-page-count]
   (or (prop-resource-error _node-id :texture texture "Texture")
@@ -1631,8 +1640,10 @@
                    (project/resource-setter
                      evaluation-context self old-value new-value
                      [:resource :material-resource]
-                     [:shader :override-material-shader]
+                     [:shader :material-shader]
                      [:build-targets :dep-build-targets])))
+            (dynamic error (g/fnk [_node-id material material-shader]
+                             (validate-material-resource _node-id material material-shader)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
@@ -1641,7 +1652,7 @@
 
   (input material-resource resource/Resource)
 
-  (input override-material-shader ShaderLifecycle :substitute (constantly nil))
+  (input material-shader ShaderLifecycle :substitute (constantly nil))
 
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
@@ -1658,14 +1669,15 @@
   (output pb-msg g/Any (g/fnk [name material-resource]
                          {:name name
                           :material (resource/resource->proj-path material-resource)}))
-  (output material-shaders GuiResourceShaders :cached (g/fnk [override-material-shader name]
+  (output material-shaders GuiResourceShaders :cached (g/fnk [material-shader name]
                                                     ;; If the referenced material-resource is missing, we don't return an entry.
-                                                    (when (some? override-material-shader)
-                                                      {name override-material-shader})))
+                                                    (when (some? material-shader)
+                                                      {name material-shader})))
   (output material-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output build-errors g/Any (g/fnk [_node-id name name-counts]
+  (output build-errors g/Any (g/fnk [_node-id name name-counts material material-shader]
                                (g/package-errors _node-id
-                                                 (prop-unique-id-error _node-id :name name name-counts "Name")))))
+                                                 (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                 (validate-material-resource _node-id material material-shader)))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -2302,7 +2314,7 @@
   (let [merge-fn! (fn [coll msg kw] (reduce conj! coll (map #(do [(:name %) %]) (get msg kw))))
         [textures materials fonts particlefx-resources resources]
         (loop [textures (transient {})
-        					  materials (transient {})
+               materials (transient {})
                fonts (transient {})
                particlefx-resources (transient {})
                resources (transient {})
@@ -2431,14 +2443,6 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(defn- paged-material-not-supported-error-message [is-paged-material]
-  (when is-paged-material
-    "Guis do not support paged Materials, but the selected Material is paged"))
-
-(defn- validate-material-resource [_node-id material material-shader]
-  (or (prop-resource-error _node-id :material material "Material")
-      (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
-
 (g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script ^:try template-build-targets]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
@@ -2507,7 +2511,6 @@
   (input layouts-node g/NodeID) ; for tests
   (input fonts-node g/NodeID) ; for tests
   (input textures-node g/NodeID) ; for tests
-  (input materials-node g/NodeID) ; for tests
   (input particlefx-resources-node g/NodeID) ; for tests
   (input handler-infos g/Any :array)
   (output handler-infos g/Any (g/fnk [handler-infos]
@@ -2848,8 +2851,7 @@
       (g/make-nodes graph-id [materials-node MaterialsNode
                               no-material [MaterialNode
                                            :name ""
-                                           :material (workspace/resolve-resource resource (:material scene))]]        ;; (g/set-property self :material (workspace/resolve-resource resource (:material scene)))
-        (g/connect materials-node :_node-id self :materials-node) ; for the tests :/
+                                           :material (workspace/resolve-resource resource (:material scene))]]
         (g/connect materials-node :_node-id self :nodes)
         (g/connect materials-node :build-errors self :build-errors)
         (g/connect materials-node :node-outline self :child-outlines)

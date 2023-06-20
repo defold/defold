@@ -164,12 +164,12 @@ namespace dmGui
 
         void*       m_CustomData;
 
+        dmhash_t    m_MaterialNameHash;
+        void*       m_Material;
+
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;
         dmParticle::HInstance   m_ParticleInstance;
-
-        dmhash_t m_MaterialNameHash;
-        void*    m_Material;
     };
 
     struct InternalNode

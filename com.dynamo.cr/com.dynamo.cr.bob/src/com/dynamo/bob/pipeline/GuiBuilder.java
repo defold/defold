@@ -267,7 +267,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
         if (n.hasMaterial() && !n.getMaterial().isEmpty()) {
             if (!materialNames.contains(n.getMaterial())) {
-                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getMaterial()));
+                throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_MISSING_MATERIAL, n.getMaterial()));
             }
         }
         if (n.hasFont() && !n.getFont().isEmpty()) {
@@ -448,7 +448,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
             for (MaterialDesc f : sceneBuilder.getMaterialsList()) {
                 if (materialNames.contains(f.getName())) {
-                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_TEXTURE,
+                    throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_MATERIAL,
                             f.getName()));
                 }
                 materialNames.add(f.getName());
