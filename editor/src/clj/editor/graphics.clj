@@ -13,10 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics
-  (:require [editor.buffers :as buffers]
-            [editor.gl.vertex2 :as vtx]
-            [util.murmur :as murmur])
-  (:import [java.nio ByteBuffer]))
+  (:require [editor.gl.vertex2 :as vtx]
+            [potemkin.namespaces :as namespaces]
+            [util.coll :refer [pair]]
+            [util.murmur :as murmur]
+            [util.num :as num])
+  (:import [com.google.protobuf ByteString]))
+
+(namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
 
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
@@ -41,53 +45,93 @@
     :value-keyword :float-values
     :byte-size 4}])
 
-(def attribute-data-type->attribute-value-keyword
+(def ^:private attribute-data-type->attribute-value-keyword
   (into {}
         (map (juxt :data-type :value-keyword))
         attribute-data-type-infos))
 
-(defn attribute->values [attribute]
-  (let [attribute-value-keyword (attribute-data-type->attribute-value-keyword (:data-type attribute))]
-    (:v (get attribute attribute-value-keyword))))
+(defn attribute-value-keyword [attribute-data-type normalize]
+  (if normalize
+    :float-values
+    (attribute-data-type->attribute-value-keyword attribute-data-type)))
 
-(defn attribute->any-values [attribute]
-  (cond (not (empty? (get-in attribute [:float-values :v])))
-        (:v (get attribute :float-values))
-
-        (not (empty? (get-in attribute [:int-values :v])))
-        (:v (get attribute :int-values))
-
-        (not (empty? (get-in attribute [:uint-values :v])))
-        (:v (get attribute :uint-values))))
-
-(def attribute-data-type->byte-size
+(def ^:private attribute-data-type->byte-size
   (into {}
         (map (juxt :data-type :byte-size))
         attribute-data-type-infos))
 
-(defn make-attribute-byte-buffer
-  ^ByteBuffer [attribute-data-type attribute-values]
+(defn attribute->doubles [{:keys [data-type normalize] :as attribute}]
+  (if (or normalize
+          (= :type-float data-type))
+    (into (vector-of :double)
+          (map double)
+          (:v (:float-values attribute)))
+    (case data-type
+      (:type-byte :type-short :type-int)
+      (into (vector-of :double)
+            (map double)
+            (:v (:int-values attribute)))
+
+      (:type-unsigned-byte :type-unsigned :type-unsigned-int)
+      (into (vector-of :double)
+            (map num/uint->double)
+            (:v (:uint-values attribute))))))
+
+(defn attribute->any-doubles [{:keys [data-type normalize] :as attribute}]
+  (if (or normalize
+          (= :type-float data-type))
+    (into (vector-of :double)
+          (map double)
+          (:v (:float-values attribute)))
+    (some (fn [[attribute-value-keyword coerce-fn]]
+            (when-some [values (some-> (attribute-value-keyword attribute) :v not-empty)]
+              (into (vector-of :double)
+                    (map coerce-fn)
+                    values)))
+          [[:int-values double]
+           [:uint-values num/uint->double]])))
+
+(defn- doubles->stored-values [double-values attribute-value-keyword]
+  (case attribute-value-keyword
+    :float-values
+    (into (vector-of :float)
+          (map unchecked-float)
+          double-values)
+
+    :int-values
+    (into (vector-of :int)
+          (map unchecked-int)
+          double-values)
+
+    :uint-values
+    (into (vector-of :int)
+          (map num/unchecked-uint)
+          double-values)))
+
+(defn doubles->storage [double-values attribute-data-type normalize]
+  (let [attribute-value-keyword (attribute-value-keyword attribute-data-type normalize)
+        stored-values (doubles->stored-values double-values attribute-value-keyword)]
+    (pair attribute-value-keyword stored-values)))
+
+(defn make-attribute-bytes
+  ^bytes [attribute-data-type normalize attribute-values]
   (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
-        vtx-attribute-type (vtx/attribute-data-type->type attribute-data-type)
-        byte-buffer (vtx/make-buf attribute-value-byte-count)]
-    (vtx/buf-push! byte-buffer vtx-attribute-type false attribute-values)
-    (.rewind byte-buffer)))
+        attribute-bytes (byte-array attribute-value-byte-count)
+        byte-buffer (vtx/wrap-buf attribute-bytes)
+        vtx-attribute-type (vtx/attribute-data-type->type attribute-data-type)]
+    (vtx/buf-push! byte-buffer vtx-attribute-type normalize attribute-values)
+    attribute-bytes))
 
-(defn attribute->byte-buffer
-  ^ByteBuffer [attribute]
-  (let [attribute-data-type (:data-type attribute)
-        attribute-values (attribute->values attribute)]
-    (make-attribute-byte-buffer attribute-data-type attribute-values)))
+(defn attribute-info->build-target-attribute [attribute-info]
+  {:pre [(map? attribute-info)
+         (keyword? (:name-key attribute-info))]}
+  (let [^bytes attribute-bytes (:bytes attribute-info)]
+    (-> attribute-info
+        (dissoc :bytes :name-key :values)
+        (assoc :name-hash (murmur/hash64 (:name attribute-info))
+               :binary-values (ByteString/copyFrom attribute-bytes)))))
 
-(defn attribute->attribute-info [attribute]
-  {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
-  (-> attribute
-      (dissoc :name-hash :int-values :uint-values :binary-values :float-values)
-      (assoc :name-key (vtx/attribute-name->key (:name attribute)))
-      (assoc :values (attribute->values attribute))
-      (assoc :bytes (.array (attribute->byte-buffer attribute)))))
-
-(defn attribute-info->vtx-attribute [attribute-info]
+(defn- attribute-info->vtx-attribute [attribute-info]
   {:pre [(map? attribute-info)
          (keyword? (:name-key attribute-info))]}
   {:name (:name attribute-info)
@@ -101,12 +145,3 @@
 (defn make-vertex-description [attribute-infos]
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
     (vtx/make-vertex-description nil vtx-attributes)))
-
-(defn attributes->build-target [attributes]
-  (mapv (fn [attribute]
-          ;; Graphics$VertexAttribute in map format.
-          (-> attribute
-              (dissoc :float-values :uint-values :int-values)
-              (assoc :name-hash (murmur/hash64 (:name attribute))
-                     :binary-values (buffers/byte-pack (attribute->byte-buffer attribute)))))
-        attributes))

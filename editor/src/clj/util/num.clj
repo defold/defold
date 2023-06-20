@@ -15,11 +15,19 @@
 (ns util.num)
 
 (set! *warn-on-reflection* true)
-(set! *unchecked-math* :warn-on-boxed)
 
-(defmacro ubyte [num]
+(definline unchecked-ubyte [num]
+  `(unchecked-byte (unchecked-short ~num)))
+
+(definline unchecked-ushort [num]
+  `(unchecked-short (unchecked-int ~num)))
+
+(definline unchecked-uint [num]
+  `(unchecked-int (unchecked-long ~num)))
+
+(definline ubyte [num]
   (if *unchecked-math*
-    `(unchecked-byte (unchecked-long ~num))
+    `(unchecked-ubyte ~num)
     `(unchecked-byte
        (let [n# ~num
              ln# (unchecked-long n#)]
@@ -27,9 +35,9 @@
            (throw (IllegalArgumentException. (str "Value out of range for ubyte: " n#)))
            ln#)))))
 
-(defmacro ushort [num]
+(definline ushort [num]
   (if *unchecked-math*
-    `(unchecked-short (unchecked-long ~num))
+    `(unchecked-ushort ~num)
     `(unchecked-short
        (let [n# ~num
              ln# (unchecked-long n#)]
@@ -37,9 +45,9 @@
            (throw (IllegalArgumentException. (str "Value out of range for ushort: " n#)))
            ln#)))))
 
-(defmacro uint [num]
+(definline uint [num]
   (if *unchecked-math*
-    `(unchecked-int (unchecked-long ~num))
+    `(unchecked-uint ~num)
     `(unchecked-int
        (let [n# ~num
              ln# (unchecked-long n#)]
@@ -47,20 +55,101 @@
            (throw (IllegalArgumentException. (str "Value out of range for uint: " n#)))
            ln#)))))
 
+(definline ubyte->long [num]
+  `(bit-and ~num 0xff))
+
+(definline ushort->long [num]
+  `(bit-and ~num 0xffff))
+
+(definline uint->long [num]
+  `(bit-and ~num 0xffffffff))
+
+(definline ubyte->double [num]
+  `(double (ubyte->long ~num)))
+
+(definline ushort->double [num]
+  `(double (ushort->long ~num)))
+
+(definline uint->double [num]
+  `(double (uint->long ~num)))
+
+(definline byte-range->normalized [num]
+  `(let [n# (double ~num)]
+     (if (pos? n#)
+       (/ n# 127.0)
+       (/ n# 128.0))))
+
+(definline ubyte-range->normalized [num]
+  `(/ (double ~num) 255.0))
+
+(definline short-range->normalized [num]
+  `(let [n# (double ~num)]
+     (if (pos? n#)
+       (/ n# 32767.0)
+       (/ n# 32768.0))))
+
+(definline ushort-range->normalized [num]
+  `(/ (double ~num) 65535.0))
+
+(definline int-range->normalized [num]
+  `(let [n# (double ~num)]
+     (if (pos? n#)
+       (/ n# 2147483647.0)
+       (/ n# 2147483648.0))))
+
+(definline uint-range->normalized [num]
+  `(/ (double ~num) 4294967295.0))
+
+(definline normalized->byte-range [num]
+  `(Math/floor (* (double ~num) 127.5)))
+
+(definline normalized->ubyte-range [num]
+  `(Math/rint (* (double ~num) 255.0)))
+
+(definline normalized->short-range [num]
+  `(Math/floor (* (double ~num) 32767.5)))
+
+(definline normalized->ushort-range [num]
+  `(Math/rint (* (double ~num) 65535.0)))
+
+(definline normalized->int-range [num]
+  `(Math/floor (* (double ~num) 2147483647.5)))
+
+(definline normalized->uint-range [num]
+  `(Math/rint (* (double ~num) 4294967295.0)))
+
+(definline normalized->unchecked-byte [num]
+  `(unchecked-byte (normalized->byte-range ~num)))
+
+(definline normalized->unchecked-ubyte [num]
+  `(unchecked-ubyte (normalized->ubyte-range ~num)))
+
+(definline normalized->unchecked-short [num]
+  `(unchecked-short (normalized->short-range ~num)))
+
+(definline normalized->unchecked-ushort [num]
+  `(unchecked-ushort (normalized->ushort-range ~num)))
+
+(definline normalized->unchecked-int [num]
+  `(unchecked-int (normalized->int-range ~num)))
+
+(definline normalized->unchecked-uint [num]
+  `(unchecked-uint (normalized->uint-range ~num)))
+
 (definline normalized->byte [num]
-  `(byte (Math/floor (* (double ~num) 127.5))))
+  `(byte (normalized->byte-range ~num)))
 
 (definline normalized->ubyte [num]
-  `(ubyte (Math/round (* (double ~num) 255.0))))
+  `(ubyte (normalized->ubyte-range ~num)))
 
 (definline normalized->short [num]
-  `(short (Math/floor (* (double ~num) 32767.5))))
+  `(short (normalized->short-range ~num)))
 
 (definline normalized->ushort [num]
-  `(ushort (Math/round (* (double ~num) 65535.0))))
+  `(ushort (normalized->ushort-range ~num)))
 
 (definline normalized->int [num]
-  `(int (Math/floor (* (double ~num) 2147483647.5))))
+  `(int (normalized->int-range ~num)))
 
 (definline normalized->uint [num]
-  `(uint (Math/round (* (double ~num) 4294967295.0))))
+  `(uint (normalized->uint-range ~num)))

@@ -294,7 +294,7 @@ This must be submitted to the driver for compilation before you can use it. See
   `(def ~name ~(create-shader body)))
 
 (defprotocol ShaderVariables
-  (get-attribute-infos [this gl])
+  (attribute-infos [this gl])
   (set-uniform [this gl name val])
   (set-uniform-array [this gl name count val]))
 
@@ -451,7 +451,7 @@ This must be submitted to the driver for compilation before you can use it. See
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
-  (get-attribute-infos [_this gl]
+  (attribute-infos [_this gl]
     (when-let [{:keys [attribute-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
       attribute-infos))
 

@@ -27,8 +27,9 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :refer [pair]]
-            [util.murmur :as murmur])
+            [util.coll :as coll :refer [pair]]
+            [util.murmur :as murmur]
+            [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
@@ -68,14 +69,40 @@
 
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
-(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count attributes :as pb-msg]
-  (-> pb-msg
-      (dissoc :_node-id :basis)
+(defn- attribute->editable-attribute [attribute]
+  {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
+  ;; The protobuf stores values in different arrays depending on their type.
+  ;; Here, we convert all of them into a vector of doubles for easy editing.
+  ;; This is fine, since doubles can accurately represent values in the entire
+  ;; signed and unsigned 32-bit integer range from -2147483648 to 4294967295.
+  (-> attribute
+      (dissoc :float-values :int-values :uint-values)
+      (assoc :values (graphics/attribute->doubles attribute))))
+
+(defn- editable-attribute->attribute [{:keys [data-type normalize values] :as editable-attribute}]
+  {:pre [(map? editable-attribute)
+         (vector? values)]}
+  (let [[attribute-value-keyword stored-values] (graphics/doubles->storage values data-type normalize)]
+    (-> editable-attribute
+        (dissoc :values)
+        (assoc attribute-value-keyword {:v stored-values}))))
+
+(defn- save-value-attributes [editable-attributes]
+  (mapv editable-attribute->attribute editable-attributes))
+
+(defn- build-target-attributes [attribute-infos]
+  (mapv graphics/attribute-info->build-target-attribute attribute-infos))
+
+(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count :as base-pb-msg]
+  (-> base-pb-msg
       (update :vertex-program resource/resource->proj-path)
       (update :fragment-program resource/resource->proj-path)
       (update :vertex-constants hack-upgrade-constants)
-      (update :fragment-constants hack-upgrade-constants)
-      (update :attributes (partial mapv #(dissoc % :name-hash)))))
+      (update :fragment-constants hack-upgrade-constants)))
+
+(g/defnk produce-save-value [base-pb-msg attributes]
+  (assoc base-pb-msg
+    :attributes (save-value-attributes attributes)))
 
 (defn- build-material [resource build-resource->fused-build-resource user-data]
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
@@ -97,16 +124,16 @@
                                      (range max-page-count))))
         samplers))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg project-settings max-page-count vertex-program fragment-program vertex-shader-source-info fragment-shader-source-info]
+(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count project-settings resource vertex-program vertex-shader-source-info]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
       (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
-            samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers pb-msg) max-page-count)
-            build-target-attributes (graphics/attributes->build-target (:attributes pb-msg))
+            samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers base-pb-msg) max-page-count)
+            build-target-attributes (build-target-attributes attribute-infos)
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
-            material-desc-with-build-resources (assoc pb-msg
+            material-desc-with-build-resources (assoc base-pb-msg
                                                  :vertex-program (:resource vertex-shader-build-target)
                                                  :fragment-program (:resource fragment-shader-build-target)
                                                  :samplers samplers-with-indirect-hashes
@@ -202,18 +229,18 @@
                      [{:path [:name]
                        :label "Name"
                        :type :string}
+                      {:path [:semantic-type]
+                       :label "Semantic Type"
+                       :type :choicebox
+                       :options (protobuf-forms/make-options attribute-semantic-type-options)
+                       :default :semantic-type-none}
                       {:path [:data-type]
                        :label "Data Type"
                        :type :choicebox
                        :options (protobuf-forms/make-options attribute-data-type-options)
                        :default :type-float}
-                      {:path [:semantic-type]
-                       :label "Semantic Type"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options attribute-semantic-type-options)
-                       :default (ffirst attribute-semantic-type-options)}
                       {:path [:element-count]
-                       :label "Element Count"
+                       :label "Count"
                        :type :integer
                        :default 3}
                       {:path [:normalize]
@@ -224,8 +251,8 @@
                        :label "Coordinate Space"
                        :type :choicebox
                        :options (protobuf-forms/make-options attribute-coordinate-space)
-                       :default (ffirst attribute-coordinate-space)}
-                      {:path [:value] :label "Value" :type :vec4}])}
+                       :default :coordinate-space-local}
+                      {:path [:values] :label "Value" :type :vec4}])}
          {:path [:vertex-constants]
           :label "Vertex Constants"
           :type :table
@@ -290,60 +317,70 @@
           :type :integer
           :default 0}]}]}))
 
-(defn- update-vector-with-subvec [old new]
-  (let [first (vec (take (count old) new))
-        rest (if (> (count old) (count new))
-               (subvec old (count new))
-               [])]
-    (vec (concat first rest))))
+(defn- coerce-attribute [new-attribute old-attribute]
+  (let [old-element-count (:element-count old-attribute)
+        old-normalize (:normalize old-attribute)
+        new-element-count (:element-count new-attribute)
+        new-normalize (:normalize new-attribute)]
+    (cond
+      (and (not= old-normalize new-normalize)
+           (not= :type-float (:data-type new-attribute)))
+      (let [coerce-fn
+            (cond
+              old-normalize ; Convert from normalized to non-normalized values.
+              (case (:data-type new-attribute)
+                :type-byte num/normalized->byte-range
+                :type-unsigned-byte num/normalized->ubyte-range
+                :type-short num/normalized->short-range
+                :type-unsigned-short num/normalized->ushort-range
+                :type-int num/normalized->int-range
+                :type-unsigned-int num/normalized->uint-range)
 
-(defn- set-form-value-fn [property value attributes]
-  (if (= property :attributes)
-    (mapv (fn [attribute]
-            ;; TODO(vertex-attr): How can this be simplified?
-            (let [attribute-current (util/first-where #(= (:name %) (:name attribute)) attributes)
-                  attribute-current-value (graphics/attribute->values attribute-current)
-                  attribute-form-value (:value attribute)
-                  attribute-current-value (cond (or (nil? attribute-current-value)
-                                                    (and (empty? attribute-form-value)
-                                                         (empty? attribute-current-value)))
-                                                []
+              new-normalize ; Convert from non-normalized to normalized values.
+              (case (:data-type new-attribute)
+                :type-byte num/byte-range->normalized
+                :type-unsigned-byte num/ubyte-range->normalized
+                :type-short num/short-range->normalized
+                :type-unsigned-short num/ushort-range->normalized
+                :type-int num/int-range->normalized
+                :type-unsigned-int num/uint-range->normalized))]
+        (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
-                                                (empty? attribute-current-value)
-                                                (vec (repeat (:element-count attribute-current) 0))
+      (not= old-element-count new-element-count)
+      (let [semantic-type (:semantic-type new-attribute)
+            fill-value (if (= :semantic-type-color semantic-type) 1.0 0.0)] ; Default to opaque white.
+        (coll/resize new-attribute new-element-count fill-value))
 
-                                                :else
-                                                attribute-current-value)
-                  attribute-new-value (update-vector-with-subvec attribute-current-value (:value attribute))
-                  attribute-value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))]
-              ;; Clean the old values in case the type has changed
-              (-> attribute
-                  (dissoc :float-values :uint-values :int-values :binary-values)
-                  (assoc attribute-value-keyword {:v attribute-new-value}))))
-          value)
+      :else ; Do not attempt value coercion.
+      new-attribute)))
+
+(defn- set-form-value-fn [property value user-data]
+  (case property
+    :attributes
+    ;; When setting the attributes, coerce the existing values to conform to the
+    ;; updated data type and element count. The attributes cannot be reordered
+    ;; using the form view, so we can assume any existing attribute will be at
+    ;; the same index as the updated attribute.
+    (let [old-attributes (:attributes user-data)]
+      (into []
+            (map-indexed (fn [index new-attribute]
+                           (if-some [old-attribute (get old-attributes index)]
+                             (coerce-attribute new-attribute old-attribute)
+                             new-attribute)))
+            value))
+
+    ;; Default case.
     value))
 
-(defn- set-form-op [{:keys [node-id attributes]} [property] value]
-  (let [processed-value (set-form-value-fn property value attributes)]
+(defn- set-form-op [{:keys [node-id] :as user-data} [property] value]
+  (let [processed-value (set-form-value-fn property value user-data)]
     (g/set-property! node-id property processed-value)))
 
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(defn- set-attribute-form-values [values]
-  (let [attributes (:attributes values)
-        attribute-with-values (mapv (fn [attribute]
-                                      (let [attribute-values (graphics/attribute->values attribute)
-                                            attribute-value (if (empty? attribute-values)
-                                                               nil
-                                                               attribute-values)]
-                                        (assoc attribute :value attribute-value)))
-                                    attributes)]
-    (assoc values :attributes attribute-with-values)))
-
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
-  (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
-        values (set-attribute-form-values values)
+  (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
@@ -387,7 +424,13 @@
        params))))
 
 (g/defnk produce-attribute-infos [attributes]
-  (mapv graphics/attribute->attribute-info attributes))
+  (mapv (fn [{:keys [data-type values name normalize] :as attribute}]
+          (let [bytes (graphics/make-attribute-bytes data-type normalize values)
+                name-key (graphics/attribute-name->key name)]
+            (-> attribute
+                (assoc :bytes bytes)
+                (assoc :name-key name-key))))
+        attributes))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
@@ -426,9 +469,9 @@
   (input fragment-shader-source-info g/Any)
   (input project-settings g/Any)
 
-  (output pb-msg g/Any produce-pb-msg)
+  (output base-pb-msg g/Any produce-base-pb-msg)
 
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
@@ -444,19 +487,25 @@
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
     (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))
     (g/set-property self :fragment-constants (hack-downgrade-constants (:fragment-constants pb)))
-    (for [field [:name :samplers :tags :vertex-space :max-page-count :attributes]]
+    (g/set-property self :attributes (mapv attribute->editable-attribute (:attributes pb)))
+    (for [field [:name :samplers :tags :vertex-space :max-page-count]]
       (g/set-property self field (field pb)))))
 
 (defn- sanitize-sampler [sampler]
   ;; Material$MaterialDesc$Sampler in map format.
   (dissoc sampler :name-indirections)) ; Only used in built data by the runtime.
 
-(defn- sanitize-attribute [attribute]
-  (let [attribute-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type attribute))
-        attribute-values (graphics/attribute->values attribute)]
+(defn- sanitize-attribute [{:keys [data-type normalize] :as attribute}]
+  ;; Graphics$VertexAttribute in map format.
+  (let [attribute-value-keyword (graphics/attribute-value-keyword data-type normalize)
+        attribute-values (:v (get attribute attribute-value-keyword))]
+    ;; TODO:
+    ;; Currently the protobuf read function returns empty instances of every
+    ;; OneOf variant. Strip out the empty ones.
+    ;; Once we update the protobuf loader, we shouldn't need to do this here.
     (-> attribute
-        (dissoc :float-values :uint-values :int-values :binary-values)
-        (assoc attribute-keyword {:v attribute-values}))))
+        (dissoc :name-hash :float-values :int-values :uint-values :binary-values)
+        (assoc attribute-value-keyword {:v attribute-values}))))
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
@@ -471,7 +520,7 @@
                        (util/distinct-by :name)
                        (concat existing-samplers
                                samplers-created-from-textures))
-        attributes (map sanitize-attribute (:attributes material-desc))]
+        attributes (mapv sanitize-attribute (:attributes material-desc))]
     (-> material-desc
         (assoc :samplers samplers)
         (assoc :attributes attributes)

@@ -448,7 +448,7 @@ the `do-gl` macro from `editor.gl`."
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (let [attribute-infos (shader/get-attribute-infos shader gl)]
+  (let [attribute-infos (shader/attribute-infos shader gl)]
     (mapv (fn [attrib]
             (let [attribute-name (name (first attrib))]
               (if-some [attribute-info (get attribute-infos attribute-name)]
@@ -460,7 +460,7 @@ the `do-gl` macro from `editor.gl`."
   [^GL2 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         ^int stride (vertex-size attribs)
-        attribute-infos (shader/get-attribute-infos shader gl)]
+        attribute-infos (shader/attribute-infos shader gl)]
     (mapv (fn [^long offset attrib]
             (let [[nm ^int sz tp & more] attrib
                   ^boolean norm (if (not (nil? (first more))) (first more) false)

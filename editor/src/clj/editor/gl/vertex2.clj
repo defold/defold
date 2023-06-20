@@ -26,6 +26,7 @@
            [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn type-size
   ^long [type]
@@ -110,12 +111,12 @@
   (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^:unsynchronized-mutable ^long version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
   (flipped? [_this] (= 0 (.position buf)))
   (clear! [this] (.clear buf) this)
-  (position! [this position] (.position buf (int (* position buf-items-per-vertex))) this)
+  (position! [this position] (.position buf (int (* (int position) buf-items-per-vertex))) this)
   (version [_this] version)
 
   Counted
@@ -147,6 +148,11 @@
   [vertex-description usage ^Buffer buffer]
   (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
     (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
+
+(defn wrap-buf
+  ^ByteBuffer [^bytes byte-array]
+  (.order (ByteBuffer/wrap byte-array)
+          ByteOrder/LITTLE_ENDIAN))
 
 (defn make-buf
   ^ByteBuffer [byte-capacity]
@@ -493,7 +499,7 @@
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (let [attribute-infos (shader/get-attribute-infos shader gl)]
+  (let [attribute-infos (shader/attribute-infos shader gl)]
     (mapv (fn [attrib]
             (let [attribute-name (:name attrib)]
               (if-some [attribute-info (get attribute-infos attribute-name)]
