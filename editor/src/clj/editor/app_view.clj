@@ -48,6 +48,7 @@
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
+            [editor.ios-deploy :as ios-deploy]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
@@ -2315,7 +2316,7 @@ If you do not specifically require different script states, consider changing th
           ;; We should close the out when we are done here
           (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
             (try
-              (.println writer (format "Resolving ADB location..." apk-path))
+              (.println writer "Resolving ADB location...")
               (let [adb-path (adb/get-adb-path prefs)
                     _ (.println writer (format "Resolved to '%s'" adb-path))
                     _ (.println writer "Listing devices...")
@@ -2326,6 +2327,30 @@ If you do not specifically require different script states, consider changing th
                 (when launch
                   (.println writer (format "Launching %s..." package))
                   (adb/launch! adb-path device package out))
+                (.println writer (format "Install%s done." (if launch " and launch" ""))))
+              (catch Throwable e
+                (.println writer (.getMessage e))))))))))
+
+(defn- ios-post-bundle! [prefs output-directory project ^OutputStream out launch]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
+          project-title (game-project/get-setting game-project ["project" "title"] evaluation-context)
+          app-path (io/file output-directory (str project-title ".app"))]
+      (future
+        (error-reporting/catch-all!
+          (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
+            (try
+              (.println writer "Resolving ios-deploy location...")
+              (let [ios-deploy-path (ios-deploy/get-ios-deploy-path prefs)
+                    _ (.println writer (format "Resolved to '%s'" ios-deploy-path))
+                    _ (.println writer "Listing devices...")
+                    device (or (first (ios-deploy/list-devices! ios-deploy-path))
+                               (throw (ex-info "No devices are connected" {:ios-deploy-path ios-deploy-path})))]
+                (.println writer (format "Installing on '%s'" (:label device)))
+                (ios-deploy/install! ios-deploy-path device app-path out)
+                (when launch
+                  (.println writer (format "Launching %s..." project-title))
+                  (ios-deploy/launch! ios-deploy-path device app-path out))
                 (.println writer (format "Install%s done." (if launch " and launch" ""))))
               (catch Throwable e
                 (.println writer (.getMessage e))))))))))
@@ -2359,6 +2384,11 @@ If you do not specifically require different script states, consider changing th
                                           (string/includes? (:bundle-format bundle-options) "apk"))
                                      ;; will eventually close the output
                                      (adb-post-bundle! prefs output-directory project out (:adb-launch bundle-options))
+
+                                     (and (= :ios platform)
+                                          (:ios-deploy-install bundle-options))
+                                     ;; will eventually close the output
+                                     (ios-post-bundle! prefs output-directory project out (:ios-deploy-launch bundle-options))
 
                                      :else
                                      (.close out)))

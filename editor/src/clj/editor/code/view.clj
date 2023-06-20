@@ -1814,7 +1814,8 @@
                   KeyCode/ENTER (accept! (first (ui/selection list-view)))
                   KeyCode/ESCAPE (.hide popup)
                   nil))))))
-      (.show popup (.getWindow (.getScene canvas)) (.getX anchor) (.getY anchor)))))
+      (.show popup (.getWindow (.getScene canvas)) (.getX anchor) (.getY anchor))
+      (popup/update-list-view! list-view 200.0 results 0))))
 
 (defn- show-no-language-server-for-resource-language-notification! [resource]
   (let [language (resource/language resource)]

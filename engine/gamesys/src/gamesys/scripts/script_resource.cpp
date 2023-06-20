@@ -2536,7 +2536,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * : [type:number] The leading (default 1.0)
  *
  * `tracking`
- * : [type:number] The leading (default 0.0)
+ * : [type:number] The tracking (default 0.0)
  *
  * `line_break`
  * : [type:boolean] If the calculation should consider line breaks (default false)

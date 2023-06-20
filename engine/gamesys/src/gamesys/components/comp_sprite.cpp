@@ -855,10 +855,10 @@ namespace dmGameSystem
                 Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(world * local, size);
+                c->m_World = dmVMath::AppendScale(world * local, size);
                 // we need to consider the full scale here
                 // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         } else
@@ -870,10 +870,10 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(w, size);
+                c->m_World = dmVMath::AppendScale(w, size);
                 // we need to consider the full scale here
                 // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         }
@@ -1520,7 +1520,7 @@ namespace dmGameSystem
                     {
                         // Since the size is baked into the matrix, we divide by it here
                         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
+                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
                     }
                     break;
                 case 3:

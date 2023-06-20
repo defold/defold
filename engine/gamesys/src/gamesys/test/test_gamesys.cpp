@@ -26,6 +26,8 @@
 #include <dlib/time.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/testutil.h>
+#include <testmain/testmain.h>
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -37,7 +39,7 @@
 
 using namespace dmVMath;
 
-#if !defined(__SCE__)
+#if !defined(DM_TEST_EXTERN_INIT_FUNCTIONS)
     bool GameSystemTest_PlatformInit()
     {
         return true;
@@ -55,8 +57,6 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-const char* ROOT = DM_HOSTFS "build/src/gamesys/test";
-
 static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
@@ -67,27 +67,15 @@ static bool RunString(lua_State* L, const char* script)
     return true;
 }
 
-static void WrapIoFunctions(lua_State* L)
-{
-    RunString(L,
-        "local function new_open(path, attrs)\n" \
-        "    return io._old_open('" DM_HOSTFS "' .. path, attrs)\n" \
-        "end\n" \
-        "if io._old_open == nil then\n" \
-        "    io._old_open = io.open;\n" \
-        "    io.open = new_open;\n" \
-        "end\n");
-}
-
 bool CopyResource(const char* src, const char* dst)
 {
     char src_path[128];
-    dmSnPrintf(src_path, sizeof(src_path), "%s/%s", ROOT, src);
+    dmTestUtil::MakeHostPathf(src_path, sizeof(src_path), "build/src/gamesys/test/%s", src);
     FILE* src_f = fopen(src_path, "rb");
     if (src_f == 0x0)
         return false;
     char dst_path[128];
-    dmSnPrintf(dst_path, sizeof(dst_path), "%s/%s", ROOT, dst);
+    dmTestUtil::MakeHostPathf(dst_path, sizeof(dst_path), "build/src/gamesys/test/%s", dst);
     FILE* dst_f = fopen(dst_path, "wb");
     if (dst_f == 0x0)
     {
@@ -111,7 +99,7 @@ bool CopyResource(const char* src, const char* dst)
 bool UnlinkResource(const char* name)
 {
     char path[128];
-    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, name);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", name);
     return dmSys::Unlink(path) == 0;
 }
 
@@ -213,8 +201,6 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    WrapIoFunctions(scriptlibcontext.m_LuaState);
-
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -227,7 +213,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     void* resource = 0x0;
     dmhash_t res_hash = dmHashString64("/test_simple.texturec");
     dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
-    ASSERT_NE((void*)0, rd);
+    ASSERT_NE((dmResource::SResourceDescriptor*)0, rd);
     ASSERT_EQ(2, rd->m_ReferenceCount);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
@@ -354,8 +340,6 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-    WrapIoFunctions(scriptlibcontext.m_LuaState);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
@@ -440,7 +424,7 @@ TEST_P(ComponentTest, Test)
     const char* go_name = GetParam();
     dmGameObjectDDF::PrototypeDesc* go_ddf;
     char path[128];
-    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, go_name);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
     const char* component_name = go_ddf->m_Components[0].m_Component;
@@ -485,7 +469,7 @@ TEST_P(ComponentTest, TestReloadFail)
     const char* go_name = GetParam();
     dmGameObjectDDF::PrototypeDesc* go_ddf;
     char path[128];
-    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, go_name);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
     const char* component_name = go_ddf->m_Components[0].m_Component;
@@ -711,9 +695,6 @@ TEST_F(SoundTest, UpdateSoundResource)
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
-    // Since the script uses "io.open()" we want to override the path
-    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     const char* go_path = "/sound/updated_sound.goc";
     dmhash_t comp_name = dmHashString64("dynamic-sound"); // id of soundc component
@@ -3720,6 +3701,8 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 

@@ -232,7 +232,7 @@ namespace dmLiveUpdate
         char archive_path[DMPATH_MAX_PATH];
         dmPath::Concat(app_support_path, LIVEUPDATE_ARCHIVE_FILENAME, archive_path, DMPATH_MAX_PATH);
 
-        dmSys::Result sys_result = dmSys::RenameFile(archive_path, archive_tmp_path);
+        dmSys::Result sys_result = dmSys::Rename(archive_path, archive_tmp_path);
         if (sys_result != dmSys::RESULT_OK)
         {
             // The recently added resources will not be available if we proceed after this point

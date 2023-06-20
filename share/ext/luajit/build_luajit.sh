@@ -135,7 +135,7 @@ function cmi_unpack() {
 function cmi_patch() {
     echo cmi_patch
     if [ -f ../patch_$VERSION ]; then
-        echo "Applying patch ../patch_$VERSION" && patch -l --binary -p1 < ../patch_$VERSION
+		echo "Applying patch ../patch_$VERSION" && git apply --no-index --unsafe-paths --ignore-whitespace -v ../patch_$VERSION
     fi
 }
 
