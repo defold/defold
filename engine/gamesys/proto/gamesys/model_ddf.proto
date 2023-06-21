@@ -26,7 +26,7 @@ message Material
 message ModelDesc
 {
     required string mesh        = 2 [(resource)=true];
-    required string material    = 3 [(resource)=true]; // Deprecated
+    optional string material    = 3 [(resource)=true]; // Deprecated
     repeated string textures    = 4 [(resource)=true]; // Deprecated
     optional string skeleton    = 5 [(resource)=true];
     optional string animations  = 6 [(resource)=true];
