@@ -42,6 +42,7 @@ message Model
     required string rig_scene   = 1;
     optional string default_animation  = 2;
     repeated Material materials = 3;
+    repeated Texture textures   = 4;
 }
 
 message ResetConstant

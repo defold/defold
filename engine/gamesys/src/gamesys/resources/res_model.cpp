@@ -223,17 +223,10 @@ namespace dmGameSystem
         FlattenMeshes(resource, mesh_set);
         CreateBuffers(context, resource);
 
-        uint32_t material_count = dmMath::Max(resource->m_Model->m_Materials.m_Count, mesh_set->m_Materials.m_Count);
-        resource->m_Materials.SetCapacity(material_count);
-        for (uint32_t i = 0; i < material_count; ++i)
+        resource->m_Materials.SetCapacity(resource->m_Model->m_Materials.m_Count);
+        for (uint32_t i = 0; i < resource->m_Model->m_Materials.m_Count; ++i)
         {
-            uint32_t material_index = i;
-
-            // This case may come up if we use an old model which hasn't mapped between mesh materials properly
-            // I.e. the model only has one "default" material
-            if (i >= resource->m_Model->m_Materials.m_Count)
-                material_index = 0;
-            dmModelDDF::Material* model_material = &resource->m_Model->m_Materials[material_index];
+            dmModelDDF::Material* model_material = &resource->m_Model->m_Materials[i];
 
             MaterialInfo info;
             memset(&info, 0, sizeof(info));
@@ -251,6 +244,35 @@ namespace dmGameSystem
             if (resource->m_Materials.Full())
                 resource->m_Materials.OffsetCapacity(1);
             resource->m_Materials.Push(info);
+        }
+
+        memset(resource->m_Textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
+        memset(resource->m_TextureSamplerNames, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmhash_t));
+
+        for (uint32_t i = 0; i < resource->m_Model->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            const dmModelDDF::Texture* texture = &resource->m_Model->m_Textures[i];;
+            if (*texture->m_Texture == 0)
+                continue;
+            dmResource::Result r = dmResource::Get(factory, texture->m_Texture, (void**) &resource->m_Textures[i]);
+            if (r != dmResource::RESULT_OK)
+            {
+                if (result == dmResource::RESULT_OK)
+                {
+                    result = r;
+                }
+            }
+            else
+            {
+                resource->m_TextureSamplerNames[i] = dmHashString64(texture->m_Sampler);
+
+                r = dmResource::GetPath(factory, resource->m_Textures[i], &resource->m_TexturePaths[i]);
+
+                if (r != dmResource::RESULT_OK)
+                {
+                   result = r;
+                }
+            }
         }
 
         // Sort the materials so that they have the same indices as specified in the MeshSet list of materials
