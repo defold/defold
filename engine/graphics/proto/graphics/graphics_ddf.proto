@@ -47,17 +47,12 @@ message VertexAttribute
 
     message IntValues
     {
-        repeated int32 v = 1;
-    }
-
-    message UIntValues
-    {
-        repeated uint32 v = 1;
+        repeated int64 v = 1 [packed = true]; // We use int64 so we can represent the entire signed and unsigned int32 range as human-readable integers in the project files.
     }
 
     message FloatValues
     {
-        repeated float v = 1;
+        repeated float v = 1 [packed = true];
     }
 
     required string          name             = 1;
@@ -72,10 +67,9 @@ message VertexAttribute
 
     oneof values
     {
-        IntValues   int_values    = 8;
-        UIntValues  uint_values   = 9;
-        FloatValues float_values  = 10;
-        bytes       binary_values = 11; // Packed binary representation of the input values (engine only)
+        IntValues   int_values    = 8;  // Saved integer values (project files only)
+        FloatValues float_values  = 9;  // Saved floating point values (project files only)
+        bytes       binary_values = 10; // Packed binary representation of the input values (engine only)
     }
 }
 

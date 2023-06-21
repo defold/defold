@@ -14,80 +14,61 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.List;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
-
 import com.google.protobuf.ByteString;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GraphicsUtil {
 
-	private static void validateAttribute(VertexAttribute attr, VertexAttribute.DataType dataType) throws CompileExceptionError
-    {
-        if (dataType == VertexAttribute.DataType.TYPE_BYTE && !(attr.hasBinaryValues() || attr.hasIntValues()))
-        {
-            throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but neither byte_values nor int_values has been set.",
-                    attr.getName(), dataType));
-        }
-        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !(attr.hasBinaryValues() || attr.hasUintValues()))
-        {
-            throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but neither byte_values nor uint_values has been set.",
-                    attr.getName(), dataType));
-        }
-        else if ((dataType == VertexAttribute.DataType.TYPE_SHORT || dataType == VertexAttribute.DataType.TYPE_INT) && !attr.hasIntValues())
-        {
-            throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but int_values has not been set.",
-                    attr.getName(), dataType));
-        }
-        else if ((dataType == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT || dataType == VertexAttribute.DataType.TYPE_UNSIGNED_INT) && !attr.hasUintValues())
-        {
-            throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but uint_values has not been set.",
-                attr.getName(), dataType));
-        }
-        else if (dataType == VertexAttribute.DataType.TYPE_FLOAT && !attr.hasFloatValues())
-        {
-            throw new CompileExceptionError(
-                String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but float_values has not been set.",
-                    attr.getName(), dataType));
+    private static void validateAttribute(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) throws CompileExceptionError {
+        if (normalize || dataType == VertexAttribute.DataType.TYPE_FLOAT) {
+            if (!attr.hasFloatValues()) {
+                throw new CompileExceptionError(
+                        String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s%s but float_values has not been set.",
+                                attr.getName(),
+                                normalize ? "normalized " : "",
+                                dataType));
+            }
+        } else {
+            if (!attr.hasIntValues()) {
+                throw new CompileExceptionError(
+                        String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but int_values has not been set.",
+                                attr.getName(),
+                                dataType));
+            }
         }
     }
 
     private static void putFloatList(ByteBuffer buffer, List<Float> values) {
-        buffer.asFloatBuffer();
-        for (int i = 0 ; i < values.size(); i++) {
-            float v = (float) values.get(i);
+        for (float v : values) {
             buffer.putFloat(v);
         }
     }
 
-    private static void putIntList(ByteBuffer buffer, List<Integer> values) {
-        buffer.asIntBuffer();
-        for (int i = 0 ; i < values.size(); i++) {
-            int v = (int) values.get(i);
+    private static void putIntList(ByteBuffer buffer, List<Long> values) {
+        for (long n : values) {
+            int v = (int) n;
             buffer.putInt(v);
         }
     }
 
-    private static void putShortList(ByteBuffer buffer, List<Integer> values) {
-    	buffer.asShortBuffer();
-        for (int i = 0 ; i < values.size(); i++) {
-            short v = (short) (int) values.get(i);
+    private static void putShortList(ByteBuffer buffer, List<Long> values) {
+        for (long n : values) {
+            short v = (short) n;
             buffer.putShort(v);
         }
     }
 
-    private static void putByteList(ByteBuffer buffer, List<Integer> values) {
-        for (int i = 0 ; i < values.size(); i++) {
-            char v = (char) (int) values.get(i);
-            buffer.put( (byte) v);
+    private static void putByteList(ByteBuffer buffer, List<Long> values) {
+        for (long n : values) {
+            byte v = (byte) n;
+            buffer.put(v);
         }
     }
 
@@ -97,69 +78,106 @@ public class GraphicsUtil {
         return bb.order(ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static VertexAttribute buildVertexAttribute(VertexAttribute attr, VertexAttribute.DataType dataType) throws CompileExceptionError {
-        VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
+    private static ByteBuffer makeFloatByteBuffer(List<Float> values) {
+        ByteBuffer buffer = newByteBuffer(values.size() * 4);
+        putFloatList(buffer, values);
+        buffer.rewind();
+        return buffer;
+    }
 
-        validateAttribute(attr, dataType);
+    private static ByteBuffer makeIntByteBuffer(List<Long> values, VertexAttribute.DataType dataType) {
+        ByteBuffer buffer = null;
 
-        if (dataType == VertexAttribute.DataType.TYPE_BYTE && !attr.hasBinaryValues())
-        {
-            List<Integer> values = attr.getIntValues().getVList();
-            ByteBuffer buffer = newByteBuffer(values.size());
-            putByteList(buffer, values);
-            buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
+        switch (dataType) {
+            case TYPE_UNSIGNED_INT:
+            case TYPE_INT:
+                buffer = newByteBuffer(values.size() * 4);
+                putIntList(buffer, values);
+                break;
+            case TYPE_UNSIGNED_SHORT:
+            case TYPE_SHORT:
+                buffer = newByteBuffer(values.size() * 2);
+                putShortList(buffer, values);
+                break;
+            case TYPE_UNSIGNED_BYTE:
+            case TYPE_BYTE:
+                buffer = newByteBuffer(values.size());
+                putByteList(buffer, values);
+                break;
+            default:
+                assert false;
         }
-        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_BYTE && !attr.hasBinaryValues())
-        {
-        	List<Integer> values = attr.getUintValues().getVList();
-        	ByteBuffer buffer = newByteBuffer(values.size());
-        	putByteList(buffer, values);
-        	buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
+
+        buffer.rewind();
+        return buffer;
+    }
+
+    private static ArrayList<Long> unnormalizeFloatList(List<Float> floatList, VertexAttribute.DataType dataType) {
+        int count = floatList.size();
+        ArrayList<Long> result = new ArrayList<Long>(count);
+
+        switch (dataType) {
+            case TYPE_UNSIGNED_INT:
+                for (float n : floatList) {
+                    result.add(Math.round(n * 4294967295.0));
+                }
+                break;
+            case TYPE_INT:
+                for (float n : floatList) {
+                    result.add((long) Math.floor(n * 2147483647.5));
+                }
+                break;
+            case TYPE_UNSIGNED_SHORT:
+                for (float n : floatList) {
+                    result.add(Math.round(n * 65535.0));
+                }
+                break;
+            case TYPE_SHORT:
+                for (float n : floatList) {
+                    result.add((long) Math.floor(n * 32767.5));
+                }
+                break;
+            case TYPE_UNSIGNED_BYTE:
+                for (float n : floatList) {
+                    result.add(Math.round(n * 255.0));
+                }
+                break;
+            case TYPE_BYTE:
+                for (float n : floatList) {
+                    result.add((long) Math.floor(n * 127.5));
+                }
+                break;
+            default:
+                assert false;
         }
-        else if (dataType == VertexAttribute.DataType.TYPE_SHORT)
-        {
-        	List<Integer> values = attr.getIntValues().getVList();
-        	ByteBuffer buffer = newByteBuffer(values.size() * 2);
-        	putShortList(buffer, values);
-        	buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
-        }
-        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_SHORT)
-        {
-            List<Integer> values = attr.getUintValues().getVList();
-            ByteBuffer buffer = newByteBuffer(values.size() * 2);
-            putShortList(buffer, values);
-            buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
-        }
-        else if (dataType == VertexAttribute.DataType.TYPE_FLOAT)
-        {
+
+        return result;
+    }
+
+    private static ByteBuffer makeByteBuffer(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) {
+        if (dataType == VertexAttribute.DataType.TYPE_FLOAT) {
             List<Float> values = attr.getFloatValues().getVList();
-            ByteBuffer buffer = newByteBuffer(values.size() * 4);
-            putFloatList(buffer, values);
-            buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
+            return makeFloatByteBuffer(values);
+        } else if (normalize) {
+            List<Float> floatValues = attr.getFloatValues().getVList();
+            List<Long> values = unnormalizeFloatList(floatValues, dataType);
+            return makeIntByteBuffer(values, dataType);
+        } else {
+            List<Long> values = attr.getIntValues().getVList();
+            return makeIntByteBuffer(values, dataType);
         }
-        else if (dataType == VertexAttribute.DataType.TYPE_INT)
-        {
-            List<Integer> values = attr.getIntValues().getVList();
-            ByteBuffer buffer = newByteBuffer(values.size() * 4);
-            putIntList(buffer, values);
-            buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
-        }
-        else if (dataType == VertexAttribute.DataType.TYPE_UNSIGNED_INT)
-        {
-            List<Integer> values = attr.getUintValues().getVList();
-            ByteBuffer buffer = newByteBuffer(values.size() * 4);
-            putIntList(buffer, values);
-            buffer.rewind();
-            attributeBuilder.setBinaryValues(ByteString.copyFrom(buffer));
-        }
+    }
 
+    private static ByteString makeBinaryValues(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) {
+        ByteBuffer buffer = makeByteBuffer(attr, dataType, normalize);
+        return ByteString.copyFrom(buffer);
+    }
+
+    public static VertexAttribute buildVertexAttribute(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) throws CompileExceptionError {
+        validateAttribute(attr, dataType, normalize);
+        VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
         attributeBuilder.setNameHash(MurmurHash.hash64(attr.getName()));
+        attributeBuilder.setBinaryValues(makeBinaryValues(attr, dataType, normalize));
         return attributeBuilder.build();
     }
 }

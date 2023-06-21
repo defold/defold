@@ -356,7 +356,7 @@ public class ProtoBuilders {
                     VertexAttribute materialAttribute = FindMaterialAttribute(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
-                        spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute.getDataType()));
+                        spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute.getDataType(), materialAttribute.getNormalize()));
                     }
                 }
 
