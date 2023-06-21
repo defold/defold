@@ -89,7 +89,9 @@
         (is (= [[:on-initialized
                  {:text-document-sync {:open-close true
                                        :change :incremental}
-                  :pull-diagnostics :none}]
+                  :pull-diagnostics :none
+                  :goto-definition false
+                  :find-references false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))

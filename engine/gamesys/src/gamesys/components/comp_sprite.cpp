@@ -128,6 +128,7 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_ANIMATION = dmHashString64("animation");
+    static const dmhash_t SPRITE_PROP_FRAME_COUNT = dmHashString64("frame_count");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
@@ -475,8 +476,17 @@ namespace dmGameSystem
                 vertices->x = p.getX();
                 vertices->y = p.getY();
                 vertices->z = p.getZ();
-                vertices->u = us[x];
-                vertices->v = vs[y];
+
+                if (uv_rotated)
+                {
+                    vertices->u = us[y];
+                    vertices->v = vs[x];
+                }
+                else
+                {
+                    vertices->u = us[x];
+                    vertices->v = vs[y];
+                }
                 vertices->p = (float) page_index;
                 vertices++;
             }
@@ -836,10 +846,10 @@ namespace dmGameSystem
                 Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(world * local, size);
+                c->m_World = dmVMath::AppendScale(world * local, size);
                 // we need to consider the full scale here
                 // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         } else
@@ -851,10 +861,10 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(w, size);
+                c->m_World = dmVMath::AppendScale(w, size);
                 // we need to consider the full scale here
                 // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         }
@@ -1234,6 +1244,14 @@ namespace dmGameSystem
         return component->m_PlaybackRate;
     }
 
+    static inline float GetAnimationFrameCount(SpriteComponent* component)
+    {
+        TextureSetResource* texture_set                     = GetTextureSet(component, component->m_Resource);
+        dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
+        dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+        return (float)(animation_ddf->m_End - animation_ddf->m_Start);
+    }
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -1347,6 +1365,11 @@ namespace dmGameSystem
         else if (get_property == SPRITE_PROP_ANIMATION)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == SPRITE_PROP_FRAME_COUNT)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(GetAnimationFrameCount(component));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component);
@@ -1488,7 +1511,7 @@ namespace dmGameSystem
                     {
                         // Since the size is baked into the matrix, we divide by it here
                         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
+                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
                     }
                     break;
                 case 3:

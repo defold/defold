@@ -1,6 +1,14 @@
+diff -ruw '--exclude=.git' repo_a/src/jit/bcsave.lua repo_b/src/jit/bcsave.lua
+--- repo_a/src/jit/bcsave.lua	2022-11-23 16:31:02.967041400 +0100
++++ repo_b/src/jit/bcsave.lua	2022-11-23 16:31:10.766042100 +0100
+@@ -702,4 +702,3 @@
+ return {
+   start = docmd -- Process -b command line option.
+ }
+-
 diff -ruw '--exclude=.git' repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
---- repo_a/src/lj_alloc.c	2022-11-06 09:31:19.625293600 +0100
-+++ repo_b/src/lj_alloc.c	2022-11-06 09:31:26.716228300 +0100
+--- repo_a/src/lj_alloc.c	2022-11-23 16:31:02.983038400 +0100
++++ repo_b/src/lj_alloc.c	2022-11-23 16:31:10.767042100 +0100
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -10,9 +18,20 @@ diff -ruw '--exclude=.git' repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
  
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+diff -ruw '--exclude=.git' repo_a/src/lj_err.c repo_b/src/lj_err.c
+--- repo_a/src/lj_err.c	2022-11-23 16:31:03.124038500 +0100
++++ repo_b/src/lj_err.c	2022-11-23 16:31:10.648041700 +0100
+@@ -777,6 +777,7 @@
+ {
+   if (L->status == LUA_ERRERR+1)  /* Don't touch the stack during lua_open. */
+     lj_vm_unwind_c(L->cframe, LUA_ERRMEM);
++  if (curr_funcisL(L)) L->top = curr_topL(L);
+   setstrV(L, L->top++, lj_err_str(L, LJ_ERR_ERRMEM));
+   lj_err_throw(L, LUA_ERRMEM);
+ }
 diff -ruw '--exclude=.git' repo_a/src/lj_jit.h repo_b/src/lj_jit.h
---- repo_a/src/lj_jit.h	2022-11-06 09:31:19.660296100 +0100
-+++ repo_b/src/lj_jit.h	2022-11-06 09:31:26.718221000 +0100
+--- repo_a/src/lj_jit.h	2022-11-23 16:31:03.019040700 +0100
++++ repo_b/src/lj_jit.h	2022-11-23 16:31:10.767042100 +0100
 @@ -447,11 +447,11 @@
    int32_t retdepth;	/* Return frame depth (count of RETF). */
  
@@ -28,8 +47,8 @@ diff -ruw '--exclude=.git' repo_a/src/lj_jit.h repo_b/src/lj_jit.h
  
    IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
 diff -ruw '--exclude=.git' repo_a/src/lj_obj.h repo_b/src/lj_obj.h
---- repo_a/src/lj_obj.h	2022-11-06 09:31:19.665294400 +0100
-+++ repo_b/src/lj_obj.h	2022-11-06 09:31:26.718221000 +0100
+--- repo_a/src/lj_obj.h	2022-11-23 16:31:03.024040800 +0100
++++ repo_b/src/lj_obj.h	2022-11-23 16:31:10.768042000 +0100
 @@ -320,16 +320,23 @@
  /* -- Userdata object ----------------------------------------------------- */
  
@@ -56,3 +75,43 @@ diff -ruw '--exclude=.git' repo_a/src/lj_obj.h repo_b/src/lj_obj.h
  /* Userdata types. */
  enum {
    UDTYPE_USERDATA,	/* Regular userdata. */
+diff -ruw '--exclude=.git' repo_a/src/nxbuild.bat repo_b/src/nxbuild.bat
+--- repo_a/src/nxbuild.bat	2022-11-23 16:31:03.124038500 +0100
++++ repo_b/src/nxbuild.bat	2022-11-23 16:31:10.769041900 +0100
+@@ -121,6 +121,7 @@
+ @set TARGETLIB=libluajit_%TARGETLIB_SUFFIX%.a
+ :BUILD
+ del %TARGETLIB%
++@set LJCOMPILE=%LJCOMPILE% %TARGET_CFLAGS%
+ @if "%1" neq "noamalg" goto :AMALG
+ for %%f in (lj_*.c lib_*.c) do (
+   %LJCOMPILE% %%f
+diff -ruw '--exclude=.git' repo_a/src/ps4build.bat repo_b/src/ps4build.bat
+--- repo_a/src/ps4build.bat	2022-11-23 16:31:03.052039300 +0100
++++ repo_b/src/ps4build.bat	2022-11-23 16:31:10.770041700 +0100
+@@ -78,7 +78,7 @@
+ @set LJLIB="%SCE_ORBIS_SDK_DIR%\host_tools\bin\orbis-ar" rcus
+ @set INCLUDE=""
+ 
+-orbis-as -o lj_vm.o lj_vm.s
++"%SCE_ORBIS_SDK_DIR%\host_tools\bin\orbis-as" -o lj_vm.o lj_vm.s
+ 
+ @if "%1" neq "debug" goto :NODEBUG
+ @shift
+diff -ruw '--exclude=.git' repo_a/src/ps5build.bat repo_b/src/ps5build.bat
+--- repo_a/src/ps5build.bat	2022-11-23 16:31:03.052039300 +0100
++++ repo_b/src/ps5build.bat	2022-11-23 16:31:10.770041700 +0100
+@@ -74,11 +74,11 @@
+ @if errorlevel 1 goto :BAD
+ 
+ @rem ---- Cross compiler ----
+-@set LJCOMPILE="%SCE_PROSPERO_SDK_DIR%\host_tools\bin\prospero-clang" -c -Wall -DLUAJIT_DISABLE_FFI %GC64%
++@set LJCOMPILE="%SCE_PROSPERO_SDK_DIR%\host_tools\bin\prospero-clang" -c -Wall -DLUAJIT_DISABLE_FFI -DLUAJIT_USE_SYSMALLOC %GC64%
+ @set LJLIB="%SCE_PROSPERO_SDK_DIR%\host_tools\bin\prospero-llvm-ar" rcus
+ @set INCLUDE=""
+ 
+-%SCE_PROSPERO_SDK_DIR%\host_tools\bin\prospero-llvm-as -o lj_vm.o lj_vm.s
++"%SCE_PROSPERO_SDK_DIR%\host_tools\bin\prospero-clang" -c -o lj_vm.o lj_vm.s
+ 
+ @if "%1" neq "debug" goto :NODEBUG
+ @shift

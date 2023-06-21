@@ -14,8 +14,6 @@
 
 #include <jc_test/jc_test.h>
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
-
 #include <dlib/hash.h>
 
 #include <resource/resource.h>
@@ -24,8 +22,6 @@
 #include "../component.h"
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
-
-using namespace Vectormath::Aos;
 
 struct ReloadTargetComponent
 {

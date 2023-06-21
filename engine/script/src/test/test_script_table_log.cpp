@@ -13,11 +13,13 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
+
 #include "../script.h"
 #include "../script_private.h"
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
+#include "test_script.h"
 
 class PushTableLoggerTest : public jc_test_base_class
 {
@@ -153,6 +155,7 @@ TEST_F(PushTableLoggerTest, OOB)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
