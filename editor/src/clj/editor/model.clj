@@ -85,9 +85,9 @@
                     (map (fn [[label res]]
                            [label (resource/proj-path (get dep-resources res))])
                          (:dep-resources user-data)))
-        textures (map make-texture (:textures pb))
+        textures (mapv make-texture (:textures pb))
         material (make-material "default" (:material pb) textures)
-        pb (assoc pb :materials (list material))
+        pb (assoc pb :materials [material])
         pb (dissoc pb :material :textures)]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
