@@ -174,11 +174,13 @@ public class GraphicsUtil {
         return ByteString.copyFrom(buffer);
     }
 
-    public static VertexAttribute buildVertexAttribute(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) throws CompileExceptionError {
-        validateAttribute(attr, dataType, normalize);
-        VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(attr);
-        attributeBuilder.setNameHash(MurmurHash.hash64(attr.getName()));
-        attributeBuilder.setBinaryValues(makeBinaryValues(attr, dataType, normalize));
+    public static VertexAttribute buildVertexAttribute(VertexAttribute sourceAttr, VertexAttribute targetAttr) throws CompileExceptionError {
+        VertexAttribute.DataType dataType = targetAttr.getDataType();
+        boolean normalize = targetAttr.getNormalize();
+        validateAttribute(sourceAttr, dataType, normalize);
+        VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(sourceAttr);
+        attributeBuilder.setNameHash(MurmurHash.hash64(sourceAttr.getName()));
+        attributeBuilder.setBinaryValues(makeBinaryValues(sourceAttr, dataType, normalize));
         return attributeBuilder.build();
     }
 }
