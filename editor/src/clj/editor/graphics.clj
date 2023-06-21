@@ -88,6 +88,12 @@
         stored-values (doubles->stored-values double-values attribute-value-keyword)]
     (pair attribute-value-keyword stored-values)))
 
+(defn coerce-doubles [double-values semantic-type element-count]
+  (let [fill-value (case semantic-type
+                     :semantic-type-color 1.0 ; Default to opaque white for color attributes.
+                     0.0)]
+    (coll/resize double-values element-count fill-value)))
+
 (defn make-attribute-bytes
   ^bytes [attribute-data-type normalize attribute-values]
   (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))

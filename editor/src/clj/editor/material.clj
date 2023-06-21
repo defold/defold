@@ -318,6 +318,8 @@
           :default 0}]}]}))
 
 (defn- coerce-attribute [new-attribute old-attribute]
+  ;; This assumes only a single property will change at a time, which is the
+  ;; case when editing an attribute using the form view.
   (let [old-element-count (:element-count old-attribute)
         old-normalize (:normalize old-attribute)
         new-element-count (:element-count new-attribute)
@@ -347,9 +349,8 @@
         (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
       (not= old-element-count new-element-count)
-      (let [semantic-type (:semantic-type new-attribute)
-            fill-value (if (= :semantic-type-color semantic-type) 1.0 0.0)] ; Default to opaque white.
-        (coll/resize new-attribute new-element-count fill-value))
+      (let [semantic-type (:semantic-type new-attribute)]
+        (update new-attribute :values #(graphics/coerce-doubles % semantic-type new-element-count)))
 
       :else ; Do not attempt value coercion.
       new-attribute)))

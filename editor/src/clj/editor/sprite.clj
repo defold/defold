@@ -34,8 +34,7 @@
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [util.coll :as coll])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
@@ -473,21 +472,19 @@
 (defn- attribute-clear-property [current-property-value attribute]
   (dissoc current-property-value (:name-key attribute)))
 
-(defn- attribute-edit-type [attribute prop-type]
+(defn- attribute-edit-type [attribute property-type]
   (let [attribute-element-count (:element-count attribute)
         attribute-semantic-type (:semantic-type attribute)
         attribute-update-fn (fn [_evaluation-context self _old-value new-value]
                               (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))
         attribute-clear-fn (fn [self _property-label]
-                              (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
-    (if (= attribute-semantic-type :semantic-type-color)
-      {:type types/Color
-       :ignore-alpha? (not= 4 attribute-element-count)
-       :set-fn attribute-update-fn
-       :clear-fn attribute-clear-fn}
-      {:type prop-type
-       :set-fn attribute-update-fn
-       :clear-fn attribute-clear-fn})))
+                             (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
+    (cond-> {:type property-type
+             :set-fn attribute-update-fn
+             :clear-fn attribute-clear-fn}
+
+            (= attribute-semantic-type :semantic-type-color)
+            (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
 
 (defn- attribute-key->property-key-raw [attribute-key]
   (keyword (str "attribute_" (name attribute-key))))
@@ -501,15 +498,16 @@
         attribute-properties (map (fn [attribute-info attribute-property-key]
                                     (let [attribute-key (:name-key attribute-info)
                                           material-values (:values attribute-info)
+                                          attribute-semantic-type (:semantic-type attribute-info)
                                           override-values (vertex-attribute-overrides attribute-key)
                                           attribute-values (or override-values material-values)
-                                          attribute-type (attribute-property-type attribute-info)
-                                          attribute-expected-value-count (attribute-expected-element-count attribute-info)
-                                          attribute-edit-type (attribute-edit-type attribute-info attribute-type)
+                                          attribute-property-type (attribute-property-type attribute-info)
+                                          attribute-expected-element-count (attribute-expected-element-count attribute-info)
+                                          attribute-edit-type (attribute-edit-type attribute-info attribute-property-type)
                                           attribute-prop {:node-id _node-id
-                                                          :type attribute-type
+                                                          :type attribute-property-type
                                                           :edit-type attribute-edit-type
-                                                          :value (coll/resize attribute-values attribute-expected-value-count 0.0)
+                                                          :value (graphics/coerce-doubles attribute-values attribute-semantic-type attribute-expected-element-count)
                                                           :label (properties/keyword->name attribute-key)}]
                                       ;; Insert the original material values as original-value if there is a vertex override
                                       (if (some? override-values)
