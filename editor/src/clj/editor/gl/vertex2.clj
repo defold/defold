@@ -14,31 +14,19 @@
 
 (ns editor.gl.vertex2
   (:require [clojure.string :as str]
+            [editor.buffers :as buffers]
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [editor.protobuf :as protobuf]
-            [editor.scene-cache :as scene-cache]
-            [util.num :as num])
+            [editor.scene-cache :as scene-cache])
   (:import [clojure.lang Counted]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
-           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
+           [java.nio Buffer ByteBuffer IntBuffer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn type-size
-  ^long [type]
-  (case type
-    :ubyte  Buffers/SIZEOF_BYTE
-    :byte   Buffers/SIZEOF_BYTE
-    :ushort Buffers/SIZEOF_SHORT
-    :short  Buffers/SIZEOF_SHORT
-    :uint   Buffers/SIZEOF_INT
-    :int    Buffers/SIZEOF_INT
-    :float  Buffers/SIZEOF_FLOAT
-    :double Buffers/SIZEOF_DOUBLE))
 
 (def gl-types
   {:ubyte   GL/GL_UNSIGNED_BYTE
@@ -124,25 +112,15 @@
     (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
       (/ item-count buf-items-per-vertex))))
 
-(defn buffer-item-byte-size
-  ^long [^Buffer buffer]
-  (condp instance? buffer
-    ByteBuffer 1
-    DoubleBuffer 8
-    FloatBuffer 4
-    IntBuffer 4
-    LongBuffer 8
-    ShortBuffer 2))
-
 (defn- buffer-items-per-vertex
   ^long [^Buffer buffer vertex-description]
   (let [^long vertex-byte-size (:size vertex-description)
-        buffer-item-byte-size (buffer-item-byte-size buffer)]
+        buffer-item-byte-size (buffers/item-byte-size buffer)]
     (/ vertex-byte-size buffer-item-byte-size)))
 
 (defn- buffer-size-in-bytes
   ^long [^Buffer buffer]
-  (* (buffer-item-byte-size buffer) (.limit buffer)))
+  (* (buffers/item-byte-size buffer) (.limit buffer)))
 
 (defn wrap-vertex-buffer
   [vertex-description usage ^Buffer buffer]
@@ -151,13 +129,11 @@
 
 (defn wrap-buf
   ^ByteBuffer [^bytes byte-array]
-  (.order (ByteBuffer/wrap byte-array)
-          ByteOrder/LITTLE_ENDIAN))
+  (buffers/little-endian (buffers/wrap-byte-array byte-array)))
 
 (defn make-buf
   ^ByteBuffer [byte-capacity]
-  (.order (ByteBuffer/allocateDirect (int byte-capacity))
-          ByteOrder/LITTLE_ENDIAN))
+  (buffers/little-endian (buffers/new-byte-buffer byte-capacity)))
 
 (defn make-vertex-buffer
   [vertex-description usage ^long capacity]
@@ -167,225 +143,16 @@
 
 ;; low-level access
 
-(defn buf-blit!
-  ^ByteBuffer [^ByteBuffer buf ^long byte-offset ^bytes bytes]
-  (let [old-position (.position buf)]
-    (.position buf byte-offset)
-    (.put buf bytes)
-    (.position buf old-position)))
-
-(defn buf-put-floats!
-  ^ByteBuffer [^ByteBuffer buf ^long byte-offset numbers]
-  (reduce (fn [^long byte-offset n]
-            (.putFloat buf byte-offset (float n))
-            (+ byte-offset Float/BYTES))
-          byte-offset
-          numbers)
-  buf)
-
-(defn buf-put!
-  ^ByteBuffer [^ByteBuffer buf byte-offset data-type normalize numbers]
-  (let [byte-offset (int byte-offset)]
-    (if normalize
-      ;; Normalized.
-      (case data-type
-        :float
-        (reduce (fn [^long byte-offset n]
-                  (.putFloat buf byte-offset (float n))
-                  (+ byte-offset Float/BYTES))
-                byte-offset
-                numbers)
-
-        :double
-        (reduce (fn [^long byte-offset n]
-                  (.putDouble buf byte-offset (double n))
-                  (+ byte-offset Double/BYTES))
-                byte-offset
-                numbers)
-
-        :byte
-        (reduce (fn [^long byte-offset n]
-                  (.put buf byte-offset (num/normalized->byte n))
-                  (inc byte-offset))
-                byte-offset
-                numbers)
-
-        :ubyte
-        (reduce (fn [^long byte-offset n]
-                  (.put buf byte-offset (num/normalized->ubyte n))
-                  (inc byte-offset))
-                byte-offset
-                numbers)
-
-        :short
-        (reduce (fn [^long byte-offset n]
-                  (.putShort buf byte-offset (num/normalized->short n))
-                  (+ byte-offset Short/BYTES))
-                byte-offset
-                numbers)
-
-        :ushort
-        (reduce (fn [^long byte-offset n]
-                  (.putShort buf byte-offset (num/normalized->ushort n))
-                  (+ byte-offset Short/BYTES))
-                byte-offset
-                numbers)
-
-        :int
-        (reduce (fn [^long byte-offset n]
-                  (.putInt buf byte-offset (num/normalized->int n))
-                  (+ byte-offset Integer/BYTES))
-                byte-offset
-                numbers)
-
-        :uint
-        (reduce (fn [^long byte-offset n]
-                  (.putInt buf byte-offset (num/normalized->uint n))
-                  (+ byte-offset Integer/BYTES))
-                byte-offset
-                numbers))
-
-      ;; Not normalized.
-      (case data-type
-        :float
-        (reduce (fn [^long byte-offset n]
-                  (.putFloat buf byte-offset (float n))
-                  (+ byte-offset Float/BYTES))
-                byte-offset
-                numbers)
-
-        :double
-        (reduce (fn [^long byte-offset n]
-                  (.putDouble buf byte-offset (double n))
-                  (+ byte-offset Double/BYTES))
-                byte-offset
-                numbers)
-
-        :byte
-        (reduce (fn [^long byte-offset n]
-                  (.put buf byte-offset (byte n))
-                  (inc byte-offset))
-                byte-offset
-                numbers)
-
-        :ubyte
-        (reduce (fn [^long byte-offset n]
-                  (.put buf byte-offset (num/ubyte n))
-                  (inc byte-offset))
-                byte-offset
-                numbers)
-
-        :short
-        (reduce (fn [^long byte-offset n]
-                  (.putShort buf byte-offset (short n))
-                  (+ byte-offset Short/BYTES))
-                byte-offset
-                numbers)
-
-        :ushort
-        (reduce (fn [^long byte-offset n]
-                  (.putShort buf byte-offset (num/ushort n))
-                  (+ byte-offset Short/BYTES))
-                byte-offset
-                numbers)
-
-        :int
-        (reduce (fn [^long byte-offset n]
-                  (.putInt buf byte-offset (int n))
-                  (+ byte-offset Integer/BYTES))
-                byte-offset
-                numbers)
-
-        :uint
-        (reduce (fn [^long byte-offset n]
-                  (.putInt buf byte-offset (num/uint n))
-                  (+ byte-offset Integer/BYTES))
-                byte-offset
-                numbers))))
-  buf)
+(definline buf-put! [buf byte-offset data-type normalize numbers]
+  `(buffers/put! ~buf ~byte-offset ~data-type ~normalize ~numbers))
 
 (defn put!
   ^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
   (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
   vbuf)
 
-(defn buf-push-floats!
-  ^ByteBuffer [^ByteBuffer buf numbers]
-  (doseq [n numbers]
-    (.putFloat buf (float n)))
-  buf)
-
-(defn buf-push!
-  ^ByteBuffer [^ByteBuffer buf data-type normalize numbers]
-  (if normalize
-    ;; Normalized.
-    (case data-type
-      :float
-      (doseq [n numbers]
-        (.putFloat buf (float n)))
-
-      :double
-      (doseq [n numbers]
-        (.putDouble buf (double n)))
-
-      :byte
-      (doseq [^double n numbers]
-        (.put buf ^byte (num/normalized->byte n)))
-
-      :ubyte
-      (doseq [^double n numbers]
-        (.put buf ^byte (num/normalized->ubyte n)))
-
-      :short
-      (doseq [^double n numbers]
-        (.putShort buf (num/normalized->short n)))
-
-      :ushort
-      (doseq [^double n numbers]
-        (.putShort buf (num/normalized->ushort n)))
-
-      :int
-      (doseq [^double n numbers]
-        (.putInt buf (num/normalized->int n)))
-
-      :uint
-      (doseq [^double n numbers]
-        (.putInt buf (num/normalized->uint n))))
-
-    ;; Not normalized.
-    (case data-type
-      :float
-      (doseq [n numbers]
-        (.putFloat buf (float n)))
-
-      :double
-      (doseq [n numbers]
-        (.putDouble buf (double n)))
-
-      :byte
-      (doseq [n numbers]
-        (.put buf (byte n)))
-
-      :ubyte
-      (doseq [n numbers]
-        (.put buf ^byte (num/ubyte n)))
-
-      :short
-      (doseq [n numbers]
-        (.putShort buf (short n)))
-
-      :ushort
-      (doseq [n numbers]
-        (.putShort buf (num/ushort n)))
-
-      :int
-      (doseq [n numbers]
-        (.putInt buf (int n)))
-
-      :uint
-      (doseq [n numbers]
-        (.putInt buf (num/uint n)))))
-  buf)
+(definline buf-push! [buf data-type normalize numbers]
+  `(buffers/push! ~buf ~data-type ~normalize ~numbers))
 
 (defn push!
   ^VertexBuffer [^VertexBuffer vbuf data-type normalize numbers]
@@ -396,7 +163,7 @@
 
 (defn attribute-size
   ^long [{:keys [^long components type]}]
-  (* components (type-size type)))
+  (* components (buffers/type-size type)))
 
 (defn- attribute-sizes
   [attributes]
