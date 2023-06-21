@@ -329,9 +329,15 @@
 
 (defn- save-value-attributes [material-attribute-infos vertex-attribute-overrides]
   (into []
-        (keep (fn [{:keys [data-type name name-key normalize]}]
+        (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
                 (when-some [override-values (get vertex-attribute-overrides name-key)]
-                  (let [[attribute-value-keyword stored-values] (graphics/doubles->storage override-values data-type normalize)]
+                  ;; Ensure our saved values have the expected element-count.
+                  ;; If the material has been edited, this might have changed,
+                  ;; but specialized widgets like the one we use to edit color
+                  ;; properties may also produce a different element count from
+                  ;; what the material dictates.
+                  (let [resized-values (graphics/resize-doubles override-values semantic-type element-count)
+                        [attribute-value-keyword stored-values] (graphics/doubles->storage resized-values data-type normalize)]
                     {:name name
                      attribute-value-keyword {:v stored-values}}))))
         material-attribute-infos))
@@ -339,6 +345,10 @@
 (defn- build-target-attributes [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (into []
         (keep (fn [{:keys [name-key] :as attribute-info}]
+                ;; The values in vertex-attribute-overrides are ignored - we
+                ;; only use it to check if we have an override value. The output
+                ;; bytes are taken from the vertex-attribute-bytes map. They
+                ;; have already been coerced to the expected size.
                 (when (contains? vertex-attribute-overrides name-key)
                   (let [attribute-bytes (get vertex-attribute-bytes name-key)]
                     (graphics/attribute-info->build-target-attribute
@@ -507,7 +517,7 @@
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-property-type
                                                           :edit-type attribute-edit-type
-                                                          :value (graphics/coerce-doubles attribute-values attribute-semantic-type attribute-expected-element-count)
+                                                          :value (graphics/resize-doubles attribute-values attribute-semantic-type attribute-expected-element-count)
                                                           :label (properties/keyword->name attribute-key)}]
                                       ;; Insert the original material values as original-value if there is a vertex override
                                       (if (some? override-values)
@@ -524,7 +534,9 @@
         (map (fn [attribute-info]
                (let [name-key (:name-key attribute-info)
                      bytes (if-some [override-values (get vertex-attribute-overrides name-key)]
-                             (graphics/make-attribute-bytes (:data-type attribute-info) (:normalize attribute-info) override-values)
+                             (let [{:keys [data-type element-count normalize semantic-type]} attribute-info
+                                   resized-values (graphics/resize-doubles override-values semantic-type element-count)]
+                               (graphics/make-attribute-bytes data-type normalize resized-values))
                              (:bytes attribute-info))]
                  [name-key bytes])))
         material-attribute-infos))
@@ -609,10 +621,6 @@
                                               :precision 0.01})))
   (property vertex-attribute-overrides g/Any
             (default {})
-            (dynamic visible (g/constantly false)))
-
-  (property attributes g/Any
-            (default [])
             (dynamic visible (g/constantly false)))
 
   (input image-resource resource/Resource)

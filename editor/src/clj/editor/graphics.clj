@@ -19,6 +19,8 @@
             [util.murmur :as murmur])
   (:import [com.google.protobuf ByteString]))
 
+(set! *warn-on-reflection* true)
+
 (namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
 
 (def ^:private attribute-data-type-infos
@@ -88,7 +90,7 @@
         stored-values (doubles->stored-values double-values attribute-value-keyword)]
     (pair attribute-value-keyword stored-values)))
 
-(defn coerce-doubles [double-values semantic-type element-count]
+(defn resize-doubles [double-values semantic-type element-count]
   (let [fill-value (case semantic-type
                      :semantic-type-color 1.0 ; Default to opaque white for color attributes.
                      0.0)]

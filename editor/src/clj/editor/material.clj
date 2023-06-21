@@ -325,11 +325,17 @@
         new-element-count (:element-count new-attribute)
         new-normalize (:normalize new-attribute)]
     (cond
+      ;; If an attribute changes from a non-normalized value to a normalized one
+      ;; or vice versa, attempt to remap the value range. Note that we cannot do
+      ;; anything about attribute overrides stored elsewhere in the project.
+      ;; These overrides will instead need to produce errors if they are outside
+      ;; the allowed value range.
       (and (not= old-normalize new-normalize)
            (not= :type-float (:data-type new-attribute)))
       (let [coerce-fn
             (cond
-              old-normalize ; Convert from normalized to non-normalized values.
+              ;; Converting from normalized to non-normalized values.
+              old-normalize
               (case (:data-type new-attribute)
                 :type-byte num/normalized->byte-range
                 :type-unsigned-byte num/normalized->ubyte-range
@@ -338,7 +344,8 @@
                 :type-int num/normalized->int-range
                 :type-unsigned-int num/normalized->uint-range)
 
-              new-normalize ; Convert from non-normalized to normalized values.
+              ;; Converting from non-normalized to normalized values.
+              new-normalize
               (case (:data-type new-attribute)
                 :type-byte num/byte-range->normalized
                 :type-unsigned-byte num/ubyte-range->normalized
@@ -348,11 +355,15 @@
                 :type-unsigned-int num/uint-range->normalized))]
         (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
+      ;; If the element count changes, resize the default value in the material.
+      ;; This change will also cause attribute overrides stored elsewhere in the
+      ;; project to be saved with the updated element count.
       (not= old-element-count new-element-count)
       (let [semantic-type (:semantic-type new-attribute)]
-        (update new-attribute :values #(graphics/coerce-doubles % semantic-type new-element-count)))
+        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-element-count)))
 
-      :else ; Do not attempt value coercion.
+      ;; If something else changed, do not attempt value coercion.
+      :else
       new-attribute)))
 
 (defn- set-form-value-fn [property value user-data]
