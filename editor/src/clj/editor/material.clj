@@ -76,7 +76,7 @@
   ;; This is fine, since doubles can accurately represent values in the entire
   ;; signed and unsigned 32-bit integer range from -2147483648 to 4294967295.
   (-> attribute
-      (dissoc :float-values :int-values :uint-values)
+      (dissoc :double-values :long-values) ; Only one of these will be present, but we want neither.
       (assoc :values (graphics/attribute->doubles attribute))))
 
 (defn- editable-attribute->attribute [{:keys [data-type normalize values] :as editable-attribute}]
@@ -495,18 +495,6 @@
   ;; Material$MaterialDesc$Sampler in map format.
   (dissoc sampler :name-indirections)) ; Only used in built data by the runtime.
 
-(defn- sanitize-attribute [{:keys [data-type normalize] :as attribute}]
-  ;; Graphics$VertexAttribute in map format.
-  (let [attribute-value-keyword (graphics/attribute-value-keyword data-type normalize)
-        attribute-values (:v (get attribute attribute-value-keyword))]
-    ;; TODO:
-    ;; Currently the protobuf read function returns empty instances of every
-    ;; OneOf variant. Strip out the empty ones.
-    ;; Once we update the protobuf loader, we shouldn't need to do this here.
-    (-> attribute
-        (dissoc :name-hash :float-values :int-values :uint-values :binary-values)
-        (assoc attribute-value-keyword {:v attribute-values}))))
-
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
   :samplers if we encounter them. Ignores :textures that already have
@@ -520,7 +508,7 @@
                        (util/distinct-by :name)
                        (concat existing-samplers
                                samplers-created-from-textures))
-        attributes (mapv sanitize-attribute (:attributes material-desc))]
+        attributes (mapv graphics/sanitize-attribute (:attributes material-desc))]
     (-> material-desc
         (assoc :samplers samplers)
         (assoc :attributes attributes)
@@ -536,3 +524,77 @@
     :sanitize-fn sanitize-material
     :icon "icons/32/Icons_31-Material.png"
     :view-types [:cljfx-form-view :text]))
+
+(comment
+  (require 'dev)
+  (import '[com.dynamo.graphics.proto Graphics$VertexAttribute])
+
+  (let [node-id (dev/active-resource)]
+    (g/node-value node-id :save-value))
+
+  (let [node-id (dev/active-resource)
+        args (into {}
+                   (map (fn [sym]
+                          (let [label (keyword (name sym))
+                                value (g/node-value node-id label)]
+                            [label value])))
+                   '[_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space])
+        {:keys [_node-id attributes]} args]
+
+    (let [form-values
+          (into {}
+                (comp (mapcat :fields)
+                      (map (fn [field]
+                             (let [path (:path field)
+                                   args-key (util/only-or-throw path) ; [:vertex-space] -> :vertex-space
+                                   args-value (get args args-key ::not-found)]
+                               (assert (not= ::not-found args-value))
+                               (let [value (if (not= :attributes args-key)
+                                             args-value
+                                             (mapv (fn [{:keys [data-type element-count] :as attribute}]
+                                                     (let [fill-value 0.0]
+                                                       (update attribute :values coll/resize element-count fill-value)))
+                                                   args-value))]
+                                 (pair path value))))))
+                (:sections form-data))]
+      (assoc form-data
+        :values form-values
+        :form-ops {:user-data {:node-id node-id :attributes attributes}
+                   :set set-form-op
+                   :clear clear-form-op})))
+
+  (update-in
+    form-data [:sections 0 :fields]
+    (fn [fields]
+      (mapv
+        (fn [field]
+          (if (not= :attributes (first (:path field)))
+            field
+            (update
+              field :columns
+              (fn [columns]
+                (mapv
+                  (fn [column]
+                    (if (not= :values (first (:path column)))
+                      column
+                      (assoc column :NEW! :NEW!)))
+                  columns)))))
+        fields)))
+
+  (let [attribute (protobuf/str->map
+                    Graphics$VertexAttribute "
+                    name: ''
+                    data_type: TYPE_UNSIGNED_INT
+                    element_count: 1
+                    long_values {
+                      v: 4294967295
+                    }")]
+    (get-in attribute [:long-values :v 0]))
+
+  (protobuf/map->str
+    Graphics$VertexAttribute
+    {:name ""
+     :data-type :type-unsigned-int
+     :normalize true
+     :element-count 1
+     :double-values {:v [(num/byte-range->normalized 127)]}}))

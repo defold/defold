@@ -28,25 +28,26 @@ public class GraphicsUtil {
 
     private static void validateAttribute(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) throws CompileExceptionError {
         if (normalize || dataType == VertexAttribute.DataType.TYPE_FLOAT) {
-            if (!attr.hasFloatValues()) {
+            if (!attr.hasDoubleValues()) {
                 throw new CompileExceptionError(
-                        String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s%s but float_values has not been set.",
+                        String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s%s but double_values has not been set.",
                                 attr.getName(),
                                 normalize ? "normalized " : "",
                                 dataType));
             }
         } else {
-            if (!attr.hasIntValues()) {
+            if (!attr.hasLongValues()) {
                 throw new CompileExceptionError(
-                        String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but int_values has not been set.",
+                        String.format("Invalid vertex attribute configuration for attribute '%s', data type is %s but long_values has not been set.",
                                 attr.getName(),
                                 dataType));
             }
         }
     }
 
-    private static void putFloatList(ByteBuffer buffer, List<Float> values) {
-        for (float v : values) {
+    private static void putFloatList(ByteBuffer buffer, List<Double> values) {
+        for (double n : values) {
+            float v = (float) n;
             buffer.putFloat(v);
         }
     }
@@ -78,14 +79,14 @@ public class GraphicsUtil {
         return bb.order(ByteOrder.LITTLE_ENDIAN);
     }
 
-    private static ByteBuffer makeFloatByteBuffer(List<Float> values) {
+    private static ByteBuffer makeFloatingPointByteBuffer(List<Double> values) {
         ByteBuffer buffer = newByteBuffer(values.size() * 4);
         putFloatList(buffer, values);
         buffer.rewind();
         return buffer;
     }
 
-    private static ByteBuffer makeIntByteBuffer(List<Long> values, VertexAttribute.DataType dataType) {
+    private static ByteBuffer makeIntegerByteBuffer(List<Long> values, VertexAttribute.DataType dataType) {
         ByteBuffer buffer = null;
 
         switch (dataType) {
@@ -112,38 +113,38 @@ public class GraphicsUtil {
         return buffer;
     }
 
-    private static ArrayList<Long> unnormalizeFloatList(List<Float> floatList, VertexAttribute.DataType dataType) {
-        int count = floatList.size();
+    private static ArrayList<Long> unnormalizeDoubleList(List<Double> doubleList, VertexAttribute.DataType dataType) {
+        int count = doubleList.size();
         ArrayList<Long> result = new ArrayList<Long>(count);
 
         switch (dataType) {
             case TYPE_UNSIGNED_INT:
-                for (float n : floatList) {
+                for (double n : doubleList) {
                     result.add(Math.round(n * 4294967295.0));
                 }
                 break;
             case TYPE_INT:
-                for (float n : floatList) {
+                for (double n : doubleList) {
                     result.add((long) Math.floor(n * 2147483647.5));
                 }
                 break;
             case TYPE_UNSIGNED_SHORT:
-                for (float n : floatList) {
+                for (double n : doubleList) {
                     result.add(Math.round(n * 65535.0));
                 }
                 break;
             case TYPE_SHORT:
-                for (float n : floatList) {
+                for (double n : doubleList) {
                     result.add((long) Math.floor(n * 32767.5));
                 }
                 break;
             case TYPE_UNSIGNED_BYTE:
-                for (float n : floatList) {
+                for (double n : doubleList) {
                     result.add(Math.round(n * 255.0));
                 }
                 break;
             case TYPE_BYTE:
-                for (float n : floatList) {
+                for (double n : doubleList) {
                     result.add((long) Math.floor(n * 127.5));
                 }
                 break;
@@ -156,15 +157,15 @@ public class GraphicsUtil {
 
     private static ByteBuffer makeByteBuffer(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) {
         if (dataType == VertexAttribute.DataType.TYPE_FLOAT) {
-            List<Float> values = attr.getFloatValues().getVList();
-            return makeFloatByteBuffer(values);
+            List<Double> values = attr.getDoubleValues().getVList();
+            return makeFloatingPointByteBuffer(values);
         } else if (normalize) {
-            List<Float> floatValues = attr.getFloatValues().getVList();
-            List<Long> values = unnormalizeFloatList(floatValues, dataType);
-            return makeIntByteBuffer(values, dataType);
+            List<Double> doubleValues = attr.getDoubleValues().getVList();
+            List<Long> values = unnormalizeDoubleList(doubleValues, dataType);
+            return makeIntegerByteBuffer(values, dataType);
         } else {
-            List<Long> values = attr.getIntValues().getVList();
-            return makeIntByteBuffer(values, dataType);
+            List<Long> values = attr.getLongValues().getVList();
+            return makeIntegerByteBuffer(values, dataType);
         }
     }
 

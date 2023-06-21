@@ -16,33 +16,32 @@
   (:require [editor.gl.vertex2 :as vtx]
             [potemkin.namespaces :as namespaces]
             [util.coll :refer [pair]]
-            [util.murmur :as murmur]
-            [util.num :as num])
+            [util.murmur :as murmur])
   (:import [com.google.protobuf ByteString]))
 
 (namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
 
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
-    :value-keyword :int-values
+    :value-keyword :long-values
     :byte-size 1}
    {:data-type :type-unsigned-byte
-    :value-keyword :uint-values
+    :value-keyword :long-values
     :byte-size 1}
    {:data-type :type-short
-    :value-keyword :int-values
+    :value-keyword :long-values
     :byte-size 2}
    {:data-type :type-unsigned-short
-    :value-keyword :uint-values
+    :value-keyword :long-values
     :byte-size 2}
    {:data-type :type-int
-    :value-keyword :int-values
+    :value-keyword :long-values
     :byte-size 4}
    {:data-type :type-unsigned-int
-    :value-keyword :uint-values
+    :value-keyword :long-values
     :byte-size 4}
    {:data-type :type-float
-    :value-keyword :float-values
+    :value-keyword :double-values
     :byte-size 4}])
 
 (def ^:private attribute-data-type->attribute-value-keyword
@@ -52,7 +51,7 @@
 
 (defn attribute-value-keyword [attribute-data-type normalize]
   (if normalize
-    :float-values
+    :double-values
     (attribute-data-type->attribute-value-keyword attribute-data-type)))
 
 (def ^:private attribute-data-type->byte-size
@@ -60,52 +59,28 @@
         (map (juxt :data-type :byte-size))
         attribute-data-type-infos))
 
-(defn attribute->doubles [{:keys [data-type normalize] :as attribute}]
-  (if (or normalize
-          (= :type-float data-type))
-    (into (vector-of :double)
-          (map double)
-          (:v (:float-values attribute)))
-    (case data-type
-      (:type-byte :type-short :type-int)
-      (into (vector-of :double)
-            (map double)
-            (:v (:int-values attribute)))
+(defn attribute->doubles [attribute]
+  (into (vector-of :double)
+        (map unchecked-double)
+        (if (or (:normalize attribute)
+                (= :type-float (:data-type attribute)))
+          (:v (:double-values attribute))
+          (:v (:long-values attribute)))))
 
-      (:type-unsigned-byte :type-unsigned :type-unsigned-int)
-      (into (vector-of :double)
-            (map num/uint->double)
-            (:v (:uint-values attribute))))))
-
-(defn attribute->any-doubles [{:keys [data-type normalize] :as attribute}]
-  (if (or normalize
-          (= :type-float data-type))
-    (into (vector-of :double)
-          (map double)
-          (:v (:float-values attribute)))
-    (some (fn [[attribute-value-keyword coerce-fn]]
-            (when-some [values (some-> (attribute-value-keyword attribute) :v not-empty)]
-              (into (vector-of :double)
-                    (map coerce-fn)
-                    values)))
-          [[:int-values double]
-           [:uint-values num/uint->double]])))
+(defn attribute->any-doubles [attribute]
+  (into (vector-of :double)
+        (map unchecked-double)
+        (or (not-empty (:v (:double-values attribute)))
+            (not-empty (:v (:long-values attribute))))))
 
 (defn- doubles->stored-values [double-values attribute-value-keyword]
   (case attribute-value-keyword
-    :float-values
-    (into (vector-of :float)
-          (map unchecked-float)
-          double-values)
+    :double-values
+    double-values
 
-    :int-values
-    (into (vector-of :int)
-          (map unchecked-int)
-          double-values)
-
-    :uint-values
-    (into (vector-of :int)
-          (map num/unchecked-uint)
+    :long-values
+    (into (vector-of :long)
+          (map unchecked-long)
           double-values)))
 
 (defn doubles->storage [double-values attribute-data-type normalize]
@@ -145,3 +120,16 @@
 (defn make-vertex-description [attribute-infos]
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
     (vtx/make-vertex-description nil vtx-attributes)))
+
+(defn sanitize-attribute [{:keys [data-type normalize] :as attribute}]
+  ;; Graphics$VertexAttribute in map format.
+  (let [attribute-value-keyword (attribute-value-keyword data-type normalize)
+        attribute-values (:v (get attribute attribute-value-keyword))]
+    ;; TODO:
+    ;; Currently the protobuf read function returns empty instances of every
+    ;; OneOf variant. Strip out the empty ones.
+    ;; Once we update the protobuf loader, we shouldn't need to do this here.
+    ;; We still want to remove the default empty :name-hash string, though.
+    (-> attribute
+        (dissoc :name-hash :double-values :long-values :binary-values)
+        (assoc attribute-value-keyword {:v attribute-values}))))
