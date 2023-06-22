@@ -489,7 +489,10 @@
   (let [attribute-element-count (:element-count attribute)
         attribute-semantic-type (:semantic-type attribute)
         attribute-update-fn (fn [_evaluation-context self _old-value new-value]
-                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))
+                              (let [values (if (= g/Num property-type)
+                                             (vector-of :double new-value)
+                                             new-value)]
+                                (g/update-property self :vertex-attribute-overrides attribute-update-property attribute values)))
         attribute-clear-fn (fn [self _property-label]
                              (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
     (cond-> {:type property-type
@@ -520,8 +523,10 @@
                                           attribute-prop {:node-id _node-id
                                                           :type attribute-property-type
                                                           :edit-type attribute-edit-type
-                                                          :value (graphics/resize-doubles attribute-values attribute-semantic-type attribute-expected-element-count)
-                                                          :label (properties/keyword->name attribute-key)}]
+                                                          :label (properties/keyword->name attribute-key)
+                                                          :value (if (= g/Num attribute-property-type)
+                                                                   (first attribute-values)
+                                                                   (graphics/resize-doubles attribute-values attribute-semantic-type attribute-expected-element-count))}]
                                       ;; Insert the original material values as original-value if there is a vertex override
                                       (if (some? override-values)
                                         {attribute-property-key (assoc attribute-prop :original-value material-values)}
