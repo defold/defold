@@ -133,7 +133,7 @@ public class ModelBuilder extends Builder<Void> {
                 for (Texture t : material.getTexturesList()) {
                     BuilderUtil.checkResource(this.project, resource, "texture", t.getTexture());
 
-                    Texture.Builder textureBuilder = Texture.newBuilder(t);
+                    Texture.Builder textureBuilder = Texture.newBuilder(t); // create from existing message
                     textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t.getTexture()));
                     texturesList.add(textureBuilder.build());
                 }
@@ -153,24 +153,25 @@ public class ModelBuilder extends Builder<Void> {
                 Material.Builder materialBuilder = Material.newBuilder();
                 materialBuilder.setName("default");
                 materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
+
+                List<Texture> texturesList = new ArrayList<>();
+                for (String t : modelDescBuilder.getTexturesList()) {
+                    if (t.isEmpty())
+                        continue; // TODO: Perhaps we can check if the material expects textures?
+
+                    BuilderUtil.checkResource(this.project, resource, "texture", t);
+
+                    Texture.Builder textureBuilder = Texture.newBuilder();
+                    textureBuilder.setSampler(""); // If they have no name, then we detect that an treat it as an array
+                    textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t));
+                    texturesList.add(textureBuilder.build());
+                }
+
+                materialBuilder.addAllTextures(texturesList);
+
                 model.addMaterials(materialBuilder);
             }
         }
-
-        List<Texture> texturesList = new ArrayList<>();
-        for (String t : modelDescBuilder.getTexturesList()) {
-            if (t.isEmpty())
-                continue; // TODO: Perhaps we can check if the material expects textures?
-
-            BuilderUtil.checkResource(this.project, resource, "texture", t);
-
-            Texture.Builder textureBuilder = Texture.newBuilder();
-            textureBuilder.setSampler(""); // If they have no name, then we detect that an treat it as an array
-            textureBuilder.setTexture(ProtoBuilders.replaceTextureName(t));
-            texturesList.add(textureBuilder.build());
-        }
-
-        model.addAllTextures(texturesList);
 
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
 
