@@ -1402,6 +1402,9 @@ public class Project {
                     }
 
                     if (remoteBuildFuture != null) {
+                        // get the result from the remote build and catch
+                        // if an exception was thrown in buildRemoteEngine() the
+                        // original exception is included in the ExecutionException
                         try {
                             remoteBuildFuture.get();
                         }
