@@ -100,56 +100,65 @@
 (definline uint-range->normalized [num]
   `(/ (double ~num) 4294967295.0))
 
-(definline normalized->byte-range [num]
-  `(Math/floor (* (double ~num) 127.5)))
+(definline normalized->byte-double [num]
+  `(let [n# (double ~num)]
+     (Math/rint (if (pos? n#)
+                  (* n# 127.0)
+                  (* n# 128.0)))))
 
-(definline normalized->ubyte-range [num]
+(definline normalized->ubyte-double [num]
   `(Math/rint (* (double ~num) 255.0)))
 
-(definline normalized->short-range [num]
-  `(Math/floor (* (double ~num) 32767.5)))
+(definline normalized->short-double [num]
+  `(let [n# (double ~num)]
+     (Math/rint (if (pos? n#)
+                  (* n# 32767.0)
+                  (* n# 32768.0)))))
 
-(definline normalized->ushort-range [num]
+(definline normalized->ushort-double [num]
   `(Math/rint (* (double ~num) 65535.0)))
 
-(definline normalized->int-range [num]
-  `(Math/floor (* (double ~num) 2147483647.5)))
+(definline normalized->int-double [num]
+  `(let [n# (double ~num)]
+     (Math/rint (if (pos? n#)
+                  (* n# 2147483647.0)
+                  (* n# 2147483648.0)))))
 
-(definline normalized->uint-range [num]
+(definline normalized->uint-double [num]
   `(Math/rint (* (double ~num) 4294967295.0)))
 
 (definline normalized->unchecked-byte [num]
-  `(unchecked-byte (normalized->byte-range ~num)))
+  `(unchecked-byte (normalized->byte-double ~num)))
 
 (definline normalized->unchecked-ubyte [num]
-  `(unchecked-ubyte (normalized->ubyte-range ~num)))
+  `(unchecked-ubyte (normalized->ubyte-double ~num)))
 
 (definline normalized->unchecked-short [num]
-  `(unchecked-short (normalized->short-range ~num)))
+  `(unchecked-short (normalized->short-double ~num)))
 
 (definline normalized->unchecked-ushort [num]
-  `(unchecked-ushort (normalized->ushort-range ~num)))
+  `(unchecked-ushort (normalized->ushort-double ~num)))
 
 (definline normalized->unchecked-int [num]
-  `(unchecked-int (normalized->int-range ~num)))
+  `(unchecked-int (normalized->int-double ~num)))
 
 (definline normalized->unchecked-uint [num]
-  `(unchecked-uint (normalized->uint-range ~num)))
+  `(unchecked-uint (normalized->uint-double ~num)))
 
 (definline normalized->byte [num]
-  `(byte (normalized->byte-range ~num)))
+  `(byte (normalized->byte-double ~num)))
 
 (definline normalized->ubyte [num]
-  `(ubyte (normalized->ubyte-range ~num)))
+  `(ubyte (normalized->ubyte-double ~num)))
 
 (definline normalized->short [num]
-  `(short (normalized->short-range ~num)))
+  `(short (normalized->short-double ~num)))
 
 (definline normalized->ushort [num]
-  `(ushort (normalized->ushort-range ~num)))
+  `(ushort (normalized->ushort-double ~num)))
 
 (definline normalized->int [num]
-  `(int (normalized->int-range ~num)))
+  `(int (normalized->int-double ~num)))
 
 (definline normalized->uint [num]
-  `(uint (normalized->uint-range ~num)))
+  `(uint (normalized->uint-double ~num)))

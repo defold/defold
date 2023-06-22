@@ -125,7 +125,7 @@ public class GraphicsUtil {
                 break;
             case TYPE_INT:
                 for (double n : doubleList) {
-                    result.add((long) Math.floor(n * 2147483647.5));
+                    result.add(Math.round(n * (n > 0.0 ? 2147483647.0 : 2147483648.0)));
                 }
                 break;
             case TYPE_UNSIGNED_SHORT:
@@ -135,7 +135,7 @@ public class GraphicsUtil {
                 break;
             case TYPE_SHORT:
                 for (double n : doubleList) {
-                    result.add((long) Math.floor(n * 32767.5));
+                    result.add(Math.round(n * (n > 0.0 ? 32767.0 : 32768.0)));
                 }
                 break;
             case TYPE_UNSIGNED_BYTE:
@@ -145,7 +145,7 @@ public class GraphicsUtil {
                 break;
             case TYPE_BYTE:
                 for (double n : doubleList) {
-                    result.add((long) Math.floor(n * 127.5));
+                    result.add(Math.round(n * (n > 0.0 ? 127.0 : 128.0)));
                 }
                 break;
             default:

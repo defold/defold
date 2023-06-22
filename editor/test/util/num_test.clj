@@ -224,49 +224,49 @@
   (is (= [0.0 1.0] (mapv num/uint-range->normalized [0.0 4294967295.0]))))
 
 (set! *unchecked-math* false)
-(deftest normalized->byte-range-test
-  (is (= -128.0 (num/normalized->byte-range -1.0)))
-  (is (= 0.0 (num/normalized->byte-range 0.0)))
-  (is (= 127.0 (num/normalized->byte-range 1.0)))
-  (is (= 127.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->byte-range 1.0)) (.get 0))))
-  (is (= [-128.0 127.0] (mapv num/normalized->byte-range [-1.0 1.0]))))
+(deftest normalized->byte-double-test
+  (is (= -128.0 (num/normalized->byte-double -1.0)))
+  (is (= 0.0 (num/normalized->byte-double 0.0)))
+  (is (= 127.0 (num/normalized->byte-double 1.0)))
+  (is (= 127.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->byte-double 1.0)) (.get 0))))
+  (is (= [-128.0 -64.0 0.0 64.0 127.0] (mapv num/normalized->byte-double [-1.0 -0.5 0.0 0.5 1.0]))))
 
 (set! *unchecked-math* false)
-(deftest normalized->ubyte-range-test
-  (is (= 0.0 (num/normalized->ubyte-range 0.0)))
-  (is (= 255.0 (num/normalized->ubyte-range 1.0)))
-  (is (= 255.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->ubyte-range 1.0)) (.get 0))))
-  (is (= [0.0 255.0] (mapv num/normalized->ubyte-range [0.0 1.0]))))
+(deftest normalized->ubyte-double-test
+  (is (= 0.0 (num/normalized->ubyte-double 0.0)))
+  (is (= 255.0 (num/normalized->ubyte-double 1.0)))
+  (is (= 255.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->ubyte-double 1.0)) (.get 0))))
+  (is (= [0.0 128.0 255.0] (mapv num/normalized->ubyte-double [0.0 0.5 1.0]))))
 
 (set! *unchecked-math* false)
-(deftest normalized->short-range-test
-  (is (= -32768.0 (num/normalized->short-range -1.0)))
-  (is (= 0.0 (num/normalized->short-range 0.0)))
-  (is (= 32767.0 (num/normalized->short-range 1.0)))
-  (is (= 32767.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->short-range 1.0)) (.get 0))))
-  (is (= [-32768.0 32767.0] (mapv num/normalized->short-range [-1.0 1.0]))))
+(deftest normalized->short-double-test
+  (is (= -32768.0 (num/normalized->short-double -1.0)))
+  (is (= 0.0 (num/normalized->short-double 0.0)))
+  (is (= 32767.0 (num/normalized->short-double 1.0)))
+  (is (= 32767.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->short-double 1.0)) (.get 0))))
+  (is (= [-32768.0 -16384.0 0.0 16384.0 32767.0] (mapv num/normalized->short-double [-1.0 -0.5 0.0 0.5 1.0]))))
 
 (set! *unchecked-math* false)
-(deftest normalized->ushort-range-test
-  (is (= 0.0 (num/normalized->ushort-range 0.0)))
-  (is (= 65535.0 (num/normalized->ushort-range 1.0)))
-  (is (= 65535.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->ushort-range 1.0)) (.get 0))))
-  (is (= [0.0 65535.0] (mapv num/normalized->ushort-range [0.0 1.0]))))
+(deftest normalized->ushort-double-test
+  (is (= 0.0 (num/normalized->ushort-double 0.0)))
+  (is (= 65535.0 (num/normalized->ushort-double 1.0)))
+  (is (= 65535.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->ushort-double 1.0)) (.get 0))))
+  (is (= [0.0 32768.0 65535.0] (mapv num/normalized->ushort-double [0.0 0.5 1.0]))))
 
 (set! *unchecked-math* false)
-(deftest normalized->int-range-test
-  (is (= -2147483648.0 (num/normalized->int-range -1.0)))
-  (is (= 0.0 (num/normalized->int-range 0.0)))
-  (is (= 2147483647.0 (num/normalized->int-range 1.0)))
-  (is (= 2147483647.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->int-range 1.0)) (.get 0))))
-  (is (= [-2147483648.0 2147483647.0] (mapv num/normalized->int-range [-1.0 1.0]))))
+(deftest normalized->int-double-test
+  (is (= -2147483648.0 (num/normalized->int-double -1.0)))
+  (is (= 0.0 (num/normalized->int-double 0.0)))
+  (is (= 2147483647.0 (num/normalized->int-double 1.0)))
+  (is (= 2147483647.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->int-double 1.0)) (.get 0))))
+  (is (= [-2147483648.0 -1073741824.0 0.0 1073741824.0 2147483647.0] (mapv num/normalized->int-double [-1.0 -0.5 0.0 0.5 1.0]))))
 
 (set! *unchecked-math* false)
-(deftest normalized->uint-range-test
-  (is (= 0.0 (num/normalized->uint-range 0.0)))
-  (is (= 4294967295.0 (num/normalized->uint-range 1.0)))
-  (is (= 4294967295.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->uint-range 1.0)) (.get 0))))
-  (is (= [0.0 4294967295.0] (mapv num/normalized->uint-range [0.0 1.0]))))
+(deftest normalized->uint-double-test
+  (is (= 0.0 (num/normalized->uint-double 0.0)))
+  (is (= 4294967295.0 (num/normalized->uint-double 1.0)))
+  (is (= 4294967295.0 (-> (DoubleBuffer/allocate 1) (.put (num/normalized->uint-double 1.0)) (.get 0))))
+  (is (= [0.0 2147483648.0 4294967295.0] (mapv num/normalized->uint-double [0.0 0.5 1.0]))))
 
 (set! *unchecked-math* false)
 (deftest normalized->unchecked-byte-checked-test

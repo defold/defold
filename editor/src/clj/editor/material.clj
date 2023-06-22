@@ -339,12 +339,12 @@
               ;; Converting from normalized to non-normalized values.
               old-normalize
               (case (:data-type new-attribute)
-                :type-byte num/normalized->byte-range
-                :type-unsigned-byte num/normalized->ubyte-range
-                :type-short num/normalized->short-range
-                :type-unsigned-short num/normalized->ushort-range
-                :type-int num/normalized->int-range
-                :type-unsigned-int num/normalized->uint-range)
+                :type-byte num/normalized->byte-double
+                :type-unsigned-byte num/normalized->ubyte-double
+                :type-short num/normalized->short-double
+                :type-unsigned-short num/normalized->ushort-double
+                :type-int num/normalized->int-double
+                :type-unsigned-int num/normalized->uint-double)
 
               ;; Converting from non-normalized to normalized values.
               new-normalize
