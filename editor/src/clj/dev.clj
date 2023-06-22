@@ -44,7 +44,7 @@
   (ffirst (g/targets-of (workspace) :resource-map)))
 
 (defn app-view []
-  (ffirst (g/targets-of (project) :_node-id)))
+  (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
 
 (defn active-resource []
   (->> (g/node-value (project) :selected-node-ids-by-resource-node)
