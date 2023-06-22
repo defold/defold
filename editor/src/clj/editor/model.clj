@@ -88,7 +88,8 @@
         textures (mapv make-texture (:textures pb))
         material (make-material "default" (:material pb) textures)
         pb (assoc pb :materials [material])
-        pb (dissoc pb :material :textures)]
+        pb (assoc pb :textures textures)
+        pb (dissoc pb :material)]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]

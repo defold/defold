@@ -153,7 +153,7 @@
                              (is (= "" (:texture-set rig-scene)))
                              (is (= (murmur/hash64 "Book") (-> mesh-set :models first :id)))
                              (is (contains? targets (:material (first (:materials pb)))))
-                             (is (contains? targets (:texture (first (:textures (first (:materials pb)))))))))}
+                             (is (contains? targets (:texture (first (:textures pb)))))))}
                {:label "Model with animations"
                 :path "/model/treasure_chest.model"
                 :pb-class ModelProto$Model
@@ -182,7 +182,7 @@
                              (is (= (set (:bone-list mesh-set)) (set (:bone-list animation-set))))
                              (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))
                              (is (contains? targets (:material (first (:materials pb)))))
-                             (is (contains? targets (:texture (first (:textures (first (:materials pb)))))))))}]
+                             (is (contains? targets (:texture (first (:textures pb)))))))}]
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
@@ -198,7 +198,7 @@
                                   mesh-set (target (:mesh-set rig-scene) targets)]
                               (is (= "" (:texture-set rig-scene)))
                               (is (contains? targets (:material (first (:materials pb)))))
-                              (is (= "" (:texture (first (:textures (first (:materials pb)))))))
+                              (is (= "" (:texture (first (:textures pb)))))
 
                               (let [mesh (-> mesh-set :models first :meshes first)
                                     size (.size (:indices mesh))
