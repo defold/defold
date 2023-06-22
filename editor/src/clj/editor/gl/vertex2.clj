@@ -143,6 +143,12 @@
 
 ;; low-level access
 
+(definline buf-blit! [buffer byte-offset bytes]
+  `(buffers/blit! ~buffer ~byte-offset ~bytes))
+
+(definline buf-put-floats! [buffer byte-offset numbers]
+  `(buffers/put-floats! ~buffer ~byte-offset ~numbers))
+
 (definline buf-put! [buf byte-offset data-type normalize numbers]
   `(buffers/put! ~buf ~byte-offset ~data-type ~normalize ~numbers))
 
@@ -150,6 +156,9 @@
   ^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
   (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
   vbuf)
+
+(definline buf-push-floats! [buffer numbers]
+  `(buffers/push-floats! ~buffer ~numbers))
 
 (definline buf-push! [buf data-type normalize numbers]
   `(buffers/push! ~buf ~data-type ~normalize ~numbers))
