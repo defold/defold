@@ -57,11 +57,19 @@ namespace dmGameSystem
         dmRigDDF::Mesh*         m_Mesh;
     };
 
-    // pod type, for easier hashing in comp_model.cpp: ReHash
+    struct MaterialTextureInfo
+    {
+        dmhash_t                m_SamplerNameHash;
+        TextureResource*        m_Texture;
+    };
+
     struct MaterialInfo
     {
         const char*             m_Name;
         MaterialResource*       m_Material;
+
+        MaterialTextureInfo*    m_Textures;
+        uint32_t                m_TexturesCount;
     };
 
     struct ModelResource
@@ -72,11 +80,6 @@ namespace dmGameSystem
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
-
-        // Deprecated: Currently, the overrides are the same on all materials
-        TextureResource*         m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                 m_TextureSamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                 m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 }
 

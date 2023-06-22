@@ -31,6 +31,8 @@
 
 namespace dmGameSystem
 {
+    static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource);
+
     // TODO: Sorting+flattening the structure could be done in the pipeline
     struct MeshSortPred
     {
@@ -247,6 +249,22 @@ namespace dmGameSystem
             info.m_Name = strdup(model_material->m_Name);
 
             // Currently, we don't support overriding the textures per-material on the model level
+            info.m_TexturesCount = model_material->m_Textures.m_Count;
+            info.m_Textures = new MaterialTextureInfo[info.m_TexturesCount];
+            memset(info.m_Textures, 0, sizeof(MaterialTextureInfo)*info.m_TexturesCount);
+            for (uint32_t t = 0; t < info.m_TexturesCount; ++t)
+            {
+                dmModelDDF::Texture* texture = &model_material->m_Textures[t];
+
+                MaterialTextureInfo* texture_info = &info.m_Textures[t];
+                result = dmResource::Get(factory, texture->m_Texture, (void**) &texture_info->m_Texture);
+                if (result != dmResource::RESULT_OK)
+                {
+                    return result;
+                }
+
+                texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
+            }
 
             if (resource->m_Materials.Full())
                 resource->m_Materials.OffsetCapacity(1);
@@ -258,10 +276,7 @@ namespace dmGameSystem
 
         if (result != dmResource::RESULT_OK)
         {
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            {
-                if (resource->m_Textures[i]) dmResource::Release(factory, (void*) resource->m_Textures[i]);
-            }
+            ReleaseResources(factory, resource);
             return result;
         }
 
@@ -302,19 +317,18 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
-            free((void*)resource->m_Materials[i].m_Name);
-            dmResource::Release(factory, resource->m_Materials[i].m_Material);
+            MaterialInfo* material = &resource->m_Materials[i];
+            free((void*)material->m_Name);
+            dmResource::Release(factory, material->m_Material);
+
+            for (uint32_t t = 0; t < material->m_TexturesCount; ++t)
+            {
+                if (material->m_Textures[t].m_Texture) dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
+            }
+            delete[] material->m_Textures;
+            material->m_TexturesCount = 0;
         }
         resource->m_Materials.SetSize(0);
-
-        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (resource->m_Textures[i])
-            {
-                dmResource::Release(factory, (void*) resource->m_Textures[i]);
-            }
-            resource->m_Textures[i] = 0x0;
-        }
     }
 
     dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams& params)
