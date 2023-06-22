@@ -15,7 +15,7 @@
 (ns editor.graphics
   (:require [editor.gl.vertex2 :as vtx]
             [potemkin.namespaces :as namespaces]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.google.protobuf ByteString]))
 
@@ -96,7 +96,12 @@
                      0.0)]
     (coll/resize double-values element-count fill-value)))
 
-(defn make-attribute-bytes
+(defn- default-attribute-doubles-raw [semantic-type element-count]
+  (resize-doubles (vector-of :double) semantic-type element-count))
+
+(def default-attribute-doubles (memoize default-attribute-doubles-raw))
+
+(defn- make-attribute-bytes
   ^bytes [attribute-data-type normalize attribute-values]
   (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
         attribute-bytes (byte-array attribute-value-byte-count)
@@ -105,12 +110,36 @@
     (vtx/buf-push! byte-buffer vtx-attribute-type normalize attribute-values)
     attribute-bytes))
 
+(defn- default-attribute-bytes-raw [semantic-type data-type element-count normalize]
+  (let [default-values (default-attribute-doubles semantic-type element-count)]
+    (make-attribute-bytes data-type normalize default-values)))
+
+(def default-attribute-bytes (memoize default-attribute-bytes-raw))
+
+(defn attribute->bytes+error-message
+  ([attribute]
+   (attribute->bytes+error-message attribute nil))
+  ([{:keys [data-type normalize] :as attribute} override-values]
+   {:pre [(map? attribute)
+          (contains? attribute :values)
+          (or (nil? override-values) (sequential? override-values))]}
+   (try
+     (let [values (or override-values (:values attribute))
+           bytes (make-attribute-bytes data-type normalize values)]
+       [bytes nil])
+     (catch IllegalArgumentException exception
+       (let [{:keys [element-count name semantic-type]} attribute
+             default-bytes (default-attribute-bytes semantic-type data-type element-count normalize)
+             exception-message (ex-message exception)
+             error-message (format "Vertex attribute '%s' - %s" name exception-message)]
+         [default-bytes error-message])))))
+
 (defn attribute-info->build-target-attribute [attribute-info]
   {:pre [(map? attribute-info)
          (keyword? (:name-key attribute-info))]}
   (let [^bytes attribute-bytes (:bytes attribute-info)]
     (-> attribute-info
-        (dissoc :bytes :name-key :values)
+        (dissoc :bytes :error :name-key :values)
         (assoc :name-hash (murmur/hash64 (:name attribute-info))
                :binary-values (ByteString/copyFrom attribute-bytes)))))
 

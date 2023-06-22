@@ -268,9 +268,12 @@
 
 (def ^:private attribute-key->default-attribute-info
   (into {}
-        (map (fn [attribute]
-               (let [attribute-key (graphics/attribute-name->key (:name attribute))
-                     attribute-info (assoc attribute :name-key attribute-key)]
+        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+               (let [attribute-key (graphics/attribute-name->key name)
+                     bytes (graphics/default-attribute-bytes semantic-type data-type element-count normalize)
+                     attribute-info (assoc attribute
+                                      :name-key attribute-key
+                                      :bytes bytes)]
                  [attribute-key attribute-info])))
         [{:name "position"
           :semantic-type :semantic-type-position
@@ -529,17 +532,25 @@
         (update :properties into attribute-properties)
         (update :display-order into attribute-property-keys))))
 
-(g/defnk produce-vertex-attribute-bytes [material-attribute-infos vertex-attribute-overrides]
-  (into {}
-        (map (fn [attribute-info]
-               (let [name-key (:name-key attribute-info)
-                     bytes (if-some [override-values (get vertex-attribute-overrides name-key)]
-                             (let [{:keys [data-type element-count normalize semantic-type]} attribute-info
-                                   resized-values (graphics/resize-doubles override-values semantic-type element-count)]
-                               (graphics/make-attribute-bytes data-type normalize resized-values))
-                             (:bytes attribute-info))]
-                 [name-key bytes])))
-        material-attribute-infos))
+(g/defnk produce-vertex-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
+  (let [vertex-attribute-bytes
+        (into {}
+              (map (fn [{:keys [name-key] :as attribute-info}]
+                     (let [override-values (get vertex-attribute-overrides name-key)
+                           [bytes error] (if (nil? override-values)
+                                           [(:bytes attribute-info) (:error attribute-info)]
+                                           (let [{:keys [element-count semantic-type]} attribute-info
+                                                 resized-values (graphics/resize-doubles override-values semantic-type element-count)
+                                                 [bytes error-message :as bytes+error-message] (graphics/attribute->bytes+error-message attribute-info resized-values)]
+                                             (if (nil? error-message)
+                                               bytes+error-message
+                                               (let [property-key (attribute-key->property-key name-key)
+                                                     error (g/->error _node-id property-key :fatal override-values error-message)]
+                                                 [bytes error]))))]
+                       [name-key (or error bytes)])))
+              material-attribute-infos)]
+    (g/precluding-errors (vals vertex-attribute-bytes)
+      vertex-attribute-bytes)))
 
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)

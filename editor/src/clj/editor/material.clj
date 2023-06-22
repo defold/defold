@@ -125,8 +125,10 @@
         samplers))
 
 (g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count project-settings resource vertex-program vertex-shader-source-info]
-  (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-      (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+  (or (g/flatten-errors
+        (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+        (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+        (keep :error attribute-infos))
       (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
@@ -435,13 +437,18 @@
        (merge params default-tex-params)
        params))))
 
-(g/defnk produce-attribute-infos [attributes]
-  (mapv (fn [{:keys [data-type values name normalize] :as attribute}]
-          (let [bytes (graphics/make-attribute-bytes data-type normalize values)
-                name-key (graphics/attribute-name->key name)]
-            (-> attribute
-                (assoc :bytes bytes)
-                (assoc :name-key name-key))))
+(g/defnk produce-attribute-infos [_node-id attributes]
+  (mapv (fn [attribute]
+          (let [name (:name attribute)
+                name-key (graphics/attribute-name->key name)
+                [bytes error-message] (graphics/attribute->bytes+error-message attribute)]
+            (cond-> (assoc attribute
+                      :bytes bytes
+                      :name-key name-key)
+
+                    (some? error-message)
+                    (assoc
+                      :error (g/->error _node-id :attributes :fatal nil error-message)))))
         attributes))
 
 (g/defnode MaterialNode
