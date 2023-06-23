@@ -3788,9 +3788,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
 
         if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
+        {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            if (anim_complete_callback != 0x0)
+            {
+                anim_complete_callback(scene, node, true, callback_userdata1, callback_userdata2);
+            }
+        }
         else
+        {
             AnimateTextureSetAnim(scene, node, offset, playback_rate, anim_complete_callback, callback_userdata1, callback_userdata2);
+        }
         CalculateNodeSize(n);
         return RESULT_OK;
     }
