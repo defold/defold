@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !(defined(__SCE__))
-
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
 #include "socket.h"
@@ -635,7 +633,7 @@ namespace dmSocket
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
-#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if !defined(__APPLE__)
     Result GetLocalAddress(Address* address)
     {
 #ifdef __ANDROID__
@@ -887,5 +885,3 @@ namespace dmSocket
         return result;
     }
 }
-
-#endif

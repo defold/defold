@@ -663,6 +663,37 @@ namespace dmScript
      * @return buffer [type:const char*] returns the passed in buffer
      */
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size);
+
+    /**
+     * Get the size of a table when serialized
+     * @name CheckTableSize
+     * @param L [type: lua_State*] Lua state
+     * @param index [type: int] Index of the table
+     * @return result [type: uint32_t] Number of bytes required for the serialized table
+     */
+    uint32_t CheckTableSize(lua_State* L, int index);
+
+    /*#
+     * Serialize a table to a buffer
+     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, Point3, Vector3, Vector4 and Quat
+     * Keys must be strings
+     * @name CheckTable
+     * @param L [type: lua_State*] Lua state
+     * @param buffer [type: char*] Buffer that will be written to (must be DM_ALIGNED(16))
+     * @param buffer_size [type: uint32_t] Buffer size
+     * @param index [type: int] Index of the table
+     * @return result [type: uint32_t] Number of bytes used in buffer
+     */
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
+
+    /**
+     * Push a serialized table to the supplied lua state, will increase the stack by 1.
+     * * @name PushTable
+     * @param L [type: lua_State*] Lua state
+     * @param data [type: const char*] Buffer with serialized table to push
+     * @param data_size [type: uint32_t] Size of buffer of serialized data
+     */
+    void PushTable(lua_State* L, const char* data, uint32_t data_size);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H

@@ -83,7 +83,8 @@ local function test_fail_wrong_mipmap(self)
 end
 
 local function test_success_compressed(self)
-	local f     = io.open("src/gamesys/test/resource/blank.basis", "rb")
+    local host_path = sys.get_host_path("src/gamesys/test/resource/blank.basis")
+	local f     = io.open(host_path, "rb")
     local c     = f:read("*all")
     local fsize = f:seek("end")
     f:close()

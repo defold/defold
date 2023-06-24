@@ -119,8 +119,6 @@ namespace dmHID
 
         driver->m_Devices.Push(new_device);
 
-        SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, true);
-
         return gp;
     }
 
@@ -140,7 +138,12 @@ namespace dmHID
 
     static void GLFWGamepadCallback(int gamepad_id, int connected)
     {
-        GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+        Gamepad* gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+        if (gp == 0)
+        {
+            return;
+        }
+        SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, connected);
     }
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)

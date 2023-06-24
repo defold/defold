@@ -142,17 +142,25 @@ public class ColladaUtil {
         return assetSpace;
     }
 
-    // private static void printVector4d(Vector4d v) {
+    // private static void printVector3d(Vector3d v) {
+    //     System.err.printf("  %f, %f, %f\n", v.getX(), v.getY(), v.getZ());
+    // }
+
+    private static void printVector4d(Vector4d v) {
+        System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    }
+
+    // private static void printQuat4d(Quat4d v) {
     //     System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
     // }
 
-    // private static void printMatrix4d(Matrix4d mat) {
-    //     Vector4d v = new Vector4d();
-    //     mat.getColumn(0, v); printVector4d(v);
-    //     mat.getColumn(1, v); printVector4d(v);
-    //     mat.getColumn(2, v); printVector4d(v);
-    //     mat.getColumn(3, v); printVector4d(v);
-    // }
+    private static void printMatrix4d(Matrix4d mat) {
+        Vector4d v = new Vector4d();
+        mat.getColumn(0, v); printVector4d(v);
+        mat.getColumn(1, v); printVector4d(v);
+        mat.getColumn(2, v); printVector4d(v);
+        mat.getColumn(3, v); printVector4d(v);
+    }
 
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
@@ -324,6 +332,7 @@ public class ColladaUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
+                                             Bone bone,
                                              RigUtil.AnimationTrack posTrack,
                                              RigUtil.AnimationTrack rotTrack,
                                              RigUtil.AnimationTrack sclTrack,
@@ -331,7 +340,7 @@ public class ColladaUtil {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.getSourceId()));
 
         samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
         sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
@@ -440,7 +449,7 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
 
-                    createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+                    createAnimationTracks(animBuilder, bone, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
 
                     break; // we only support one animation per file/bone
                 }
@@ -1259,6 +1268,16 @@ public class ColladaUtil {
         return rootSkeletonNode;
     }
 
+    private static boolean validateMatrix4d(Matrix4d m) {
+        try {
+            Matrix4d inv = new Matrix4d(m);
+            inv.invert();
+            return true;
+        } catch(javax.vecmath.SingularMatrixException e) {
+            return false;
+        }
+    }
+
     // Generate skeleton DDF data of bones.
     // It will extract the position, rotation and scale from the bone transform as needed by the runtime.
     private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex, Matrix4d parentWorldTransform) {
@@ -1269,8 +1288,23 @@ public class ColladaUtil {
         b.setId(MurmurHash.hash64(bone.getSourceId()));
 
         Matrix4d localMatrix = getBoneLocalToParent(bone);
+        if (!validateMatrix4d(localMatrix)) {
+            logger.severe(String.format("Found invalid local matrix in bone '%s', replacing with identity matrix", bone.getName()));
+            System.out.printf("'%s' local matrix:\n", bone.getName());
+            printMatrix4d(localMatrix);
+            localMatrix.setIdentity();
+        }
+
         Matrix4d worldMatrix = new Matrix4d();
         worldMatrix.mul(parentWorldTransform, localMatrix);
+
+        if (!validateMatrix4d(worldMatrix)) {
+            logger.severe(String.format("Found invalid world matrix in bone '%s', replacing with identity matrix", bone.getName()));
+            System.out.printf("'%s' world matrix:\n", bone.getName());
+            printMatrix4d(worldMatrix);
+            worldMatrix.setIdentity();
+        }
+
         Matrix4d invBindMatrix = new Matrix4d(worldMatrix);
         invBindMatrix.invert();
 

@@ -27,14 +27,11 @@
 #include <ddf/ddf.h>
 
 #define TEST_HTTP_SUPPORTED
-#if defined(__NX__) || defined(__SCE__)
+#if defined(__NX__)
     #undef TEST_HTTP_SUPPORTED
 #endif
 
-#if defined(_MSC_VER)
-    #define TMP_DIR "."
-    #define MOUNT_DIR "."
-#elif defined(__NX__) || defined(__SCE__)
+#if defined(DM_PLATFORM_VENDOR)
     #define TMP_DIR ""
     #define MOUNT_DIR DM_HOSTFS
 #else
@@ -52,6 +49,10 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/uri.h>
+
+static int g_HttpPort = -1;
+char g_HttpAddress[128] = "localhost";
+
 #endif
 
 
@@ -232,7 +233,24 @@ protected:
 
         dmResourceArchive::ClearArchiveLoaders();
         dmResourceArchive::RegisterDefaultArchiveLoader();
-        m_Factory = dmResource::NewFactory(&params, GetParam());
+
+        char url_buffer[128];
+        const char* url = GetParam();
+
+        if (strstr(url, "http:") == url)
+        {
+            dmSnPrintf(url_buffer, sizeof(url_buffer), url, g_HttpAddress, g_HttpPort);
+            url = url_buffer;
+        } else if (strstr(url, "dmanif:") == url)
+        {
+            if (DM_HOSTFS[0] != 0)
+                dmSnPrintf(url_buffer, sizeof(url_buffer), url, DM_HOSTFS "/");
+            else
+                dmSnPrintf(url_buffer, sizeof(url_buffer), url, DM_HOSTFS);
+            url = url_buffer;
+        }
+
+        m_Factory = dmResource::NewFactory(&params, url);
         ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
 
@@ -545,7 +563,12 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
-const char* params_resource_paths[] = {"build/src/test/", "http://127.0.0.1:6123", "dmanif:build/src/test/resources_pb.dmanifest"};
+const char* params_resource_paths[] = {
+    "build/src/test/",
+#if defined(TEST_HTTP_SUPPORTED)
+    "http://%s:%d",
+#endif
+    "dmanif:%sbuild/src/test/resources_pb.dmanifest"};
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI, GetResourceTest, jc_test_values_in(params_resource_paths));
 
 #endif // TEST_HTTP_SUPPORTED
@@ -991,8 +1014,6 @@ static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& p
 
 TEST(RecreateTest, RecreateTest)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1011,11 +1032,8 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
-    char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s%s", tmp_dir, resource_name);
-
     char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPathf(host_name, sizeof(host_name), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1098,8 +1116,6 @@ static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParam
 
 TEST(RecreateTest, RecreateTestHttp)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1115,11 +1131,8 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
-    char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
-
     char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPathf(host_name, sizeof(host_name), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1214,8 +1227,6 @@ dmResource::Result FilenameResourceRecreate(const dmResource::ResourceRecreatePa
 
 TEST(FilenameTest, FilenameTest)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1231,10 +1242,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testfilename__.foo";
-    dmSnPrintf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
-
-    char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), filename_resource_filename);
+    const char* path = dmTestUtil::MakeHostPathf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1344,8 +1352,6 @@ void ReloadCallback(const dmResource::ResourceReloadedParams& params)
 
 TEST(RecreateTest, ReloadCallbackTest)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1357,11 +1363,8 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
-    char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
-
     char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPathf(host_name, sizeof(host_name), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1546,18 +1549,49 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 
 int main(int argc, char **argv)
 {
-    #if defined(TEST_HTTP_SUPPORTED)
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+#if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
-    #endif
+
+    if(argc > 1)
+    {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        if (!dmTestUtil::GetIpFromConfig(config, g_HttpAddress, sizeof(g_HttpAddress))) {
+            dmLogError("Failed to get server ip!");
+        } else {
+            dmLogInfo("Server ip: %s:%d", g_HttpAddress, g_HttpPort);
+        }
+
+        dmConfigFile::Delete(config);
+    }
+    else
+    {
+        dmLogError("No config file specified!");
+        return 1;
+    }
+#endif
+
+    dmHashEnableReverseHash(true);
 
     dmHashEnableReverseHash(true);
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
 
-    #if defined(TEST_HTTP_SUPPORTED)
+#if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
-    #endif
+#endif
     return ret;
 }
 

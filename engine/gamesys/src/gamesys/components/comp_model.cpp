@@ -47,6 +47,7 @@
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ModelIndexCount, 0, FrameReset, "# indices", &rmtp_Model);
 DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, FrameReset, "# vertices", &rmtp_Model);
 DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Model);
 
@@ -435,6 +436,7 @@ namespace dmGameSystem
         create_params.m_EventCBUserData2 = 0;
 
         create_params.m_BindPose         = &rig_resource->m_BindPose;
+        create_params.m_BoneIndices      = &rig_resource->m_SkeletonRes->m_BoneIndices;
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
@@ -576,6 +578,10 @@ namespace dmGameSystem
 
             ro.m_IndexBuffer = buffers->m_IndexBuffer;              // May be 0
             ro.m_IndexType = buffers->m_IndexBufferElementType;
+
+            DM_PROPERTY_ADD_U32(rmtp_ModelIndexCount, buffers->m_IndexCount);
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex)); 
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {

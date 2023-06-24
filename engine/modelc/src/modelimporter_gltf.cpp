@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <algorithm> // std::sort
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/hash.h>
@@ -277,7 +278,7 @@ static Skin* FindSkin(Scene* scene, cgltf_data* gltf_data, cgltf_skin* gltf_skin
 static uint32_t FindIndex(uintptr_t base_pointer, uintptr_t pointer)
 {
     if (!pointer)
-        return 0xFFFFFFFF;
+        return INVALID_INDEX;
     return (uint32_t)(pointer - base_pointer);
 }
 
@@ -340,6 +341,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
         Node* node = &scene->m_Nodes[i];
         node->m_Name = CreateObjectName(gltf_node, "node", i);
+        node->m_NameHash = dmHashString64(node->m_Name);
         node->m_Index = i;
 
         // We link them together later
@@ -577,6 +579,95 @@ static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
     return INVALID_INDEX;
 }
 
+// Once the bones have been reassigned their new logical, depth-first index
+// We can sort it on index
+struct BoneSortPred
+{
+    bool operator()(const Bone& a, const Bone& b) const
+    {
+        int indexa = a.m_Index == INVALID_INDEX ? -1 : a.m_Index;
+        int indexb = b.m_Index == INVALID_INDEX ? -1 : b.m_Index;
+        return indexa < indexb;
+    }
+};
+
+struct BoneSortInfo
+{
+    uint32_t m_Index;     // The index in the hierarchy (depth first!)
+    uint32_t m_OldIndex;
+};
+
+struct BoneInfoSortPred
+{
+    bool operator()(const BoneSortInfo& a, const BoneSortInfo& b) const
+    {
+        return a.m_Index < b.m_Index;
+    }
+};
+
+static void CalcIndicesDepthFirst(BoneSortInfo* infos, const Bone* bone, uint32_t* index)
+{
+    infos[bone->m_Index].m_OldIndex = bone->m_Index;
+    infos[bone->m_Index].m_Index = (*index)++;
+
+    if (!bone->m_Children)
+        return;
+    for (uint32_t i = 0; i < bone->m_Children->Size(); ++i)
+    {
+        CalcIndicesDepthFirst(infos, (*bone->m_Children)[i], index);
+    }
+}
+
+static void SortSkinBones(Skin* skin)
+{
+    BoneSortInfo* infos = new BoneSortInfo[skin->m_BonesCount];
+
+    uint32_t index_iter = 0;
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    {
+        Bone* bone = &skin->m_Bones[i];
+        if (bone->m_ParentIndex == INVALID_INDEX)
+        {
+            CalcIndicesDepthFirst(infos, bone, &index_iter);
+        }
+    }
+
+    std::sort(infos, infos + skin->m_BonesCount, BoneInfoSortPred());
+
+    // build the remap array
+    skin->m_BoneRemap = new uint32_t[skin->m_BonesCount];
+    bool indices_differ = false;
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    {
+        uint32_t index_old = infos[i].m_OldIndex;
+        uint32_t index_new = infos[i].m_Index;
+        skin->m_BoneRemap[index_old] = index_new;
+
+        indices_differ |= index_old != index_new;
+    }
+    // If the indices don't differ, then we don't need to update the meshes bone indices either
+    if (!indices_differ)
+    {
+        delete[] skin->m_BoneRemap;
+        skin->m_BoneRemap = 0;
+    }
+
+    // do the remapping
+    if (skin->m_BoneRemap)
+    {
+        for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+        {
+            Bone& bone = skin->m_Bones[i];
+            bone.m_Index = skin->m_BoneRemap[bone.m_Index];
+            bone.m_ParentIndex = bone.m_ParentIndex != INVALID_INDEX ? skin->m_BoneRemap[bone.m_ParentIndex] : INVALID_INDEX;
+        }
+
+        std::sort(skin->m_Bones, skin->m_Bones + skin->m_BonesCount, BoneSortPred());
+    }
+
+    delete[] infos;
+}
+
 static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 {
     if (gltf_data->skins_count == 0)
@@ -606,6 +697,17 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
             bone->m_Name = CreateObjectName(gltf_joint, "bone", j);
             bone->m_Index = j;
             bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
+
+            if (bone->m_ParentIndex != INVALID_INDEX)
+            {
+                Bone* parent = &skin->m_Bones[bone->m_ParentIndex];
+                if (parent->m_Children == 0)
+                    parent->m_Children = new dmArray<Bone*>();
+                if (parent->m_Children->Full())
+                    parent->m_Children->OffsetCapacity(4);
+                parent->m_Children->Push(bone);
+            }
+
             // Cannot translate the bones here, since they're not created yet
             // bone->m_Node = ...
 
@@ -618,6 +720,8 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
                 assert(false);
             }
         }
+
+        SortSkinBones(skin);
 
         // LOAD SKELETON?
     }
@@ -724,8 +828,30 @@ static void LinkNodesWithBones(Scene* scene, cgltf_data* gltf_data)
         for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
         {
             cgltf_node* gltf_joint = gltf_skin->joints[j];
-            Bone* bone = &skin->m_Bones[j];
+
+            Bone* bone = 0;
+            for (uint32_t b = 0; b < gltf_skin->joints_count; ++b)
+            {
+                if (strcmp(skin->m_Bones[b].m_Name, gltf_joint->name) == 0)
+                {
+                    bone = &skin->m_Bones[b];
+                    break;
+                }
+            }
             bone->m_Node = TranslateNode(gltf_joint, gltf_data, scene);
+        }
+    }
+}
+
+static void RemapMeshBoneIndices(Skin* skin, Mesh* mesh)
+{
+    uint32_t* remap_table = skin->m_BoneRemap;
+    for (uint32_t i = 0; i < mesh->m_VertexCount; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            uint32_t old_index = mesh->m_Bones[i*4+j];
+            mesh->m_Bones[i*4+j] = remap_table[old_index];
         }
     }
 }
@@ -744,6 +870,15 @@ static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
         assert(index < gltf_data->meshes_count);
 
         node->m_Model = &scene->m_Models[index];
+
+        // We need to compensate for any bone index remapping
+        if (node->m_Skin && node->m_Skin->m_BoneRemap)
+        {
+            for (uint32_t j = 0; j < node->m_Model->m_MeshesCount; ++j)
+            {
+                RemapMeshBoneIndices(node->m_Skin, &node->m_Model->m_Meshes[j]);
+            }
+        }
     }
 }
 
@@ -854,13 +989,15 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     scene->m_Animations = new Animation[scene->m_AnimationsCount];
 
     // first, count number of animated nodes we have
-    for (uint32_t i = 0; i < gltf_data->animations_count; ++i)
+    for (uint32_t a = 0; a < gltf_data->animations_count; ++a)
     {
-        cgltf_animation* gltf_animation = &gltf_data->animations[i];
-        Animation* animation = &scene->m_Animations[i];
+        cgltf_animation* gltf_animation = &gltf_data->animations[a];
+        Animation* animation = &scene->m_Animations[a];
 
-        animation->m_Name = CreateObjectName(gltf_animation, "animation", i);
+        animation->m_Name = CreateObjectName(gltf_animation, "animation", a);
 
+        // Here we want to create a many individual tracks for different bones (name.type): "a.rot", "b.rot", "a.pos", "b.scale"...
+        // into a list of tracks that holds all 3 types: [a: {rot, pos, scale}, b: {rot, pos, scale}...]
         dmHashTable64<uint32_t> node_name_to_index;
         animation->m_NodeAnimationsCount = CountAnimatedNodes(gltf_animation, node_name_to_index);
         animation->m_NodeAnimations = new NodeAnimation[animation->m_NodeAnimationsCount];
@@ -870,15 +1007,14 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         {
             cgltf_animation_channel* channel = &gltf_animation->channels[i];
 
-            const char* node_name = channel->target_node->name;
-            dmhash_t node_name_hash = dmHashString64(node_name);
+            Node* node = TranslateNode(channel->target_node, gltf_data, scene);
+            dmhash_t node_name_hash = node->m_NameHash;
 
             uint32_t* node_index = node_name_to_index.Get(node_name_hash);
             assert(node_index != 0);
 
             NodeAnimation* node_animation = &animation->m_NodeAnimations[*node_index];
-            if (node_animation->m_Node == 0)
-                node_animation->m_Node = TranslateNode(channel->target_node, gltf_data, scene);
+            node_animation->m_Node = node;
 
             LoadChannel(node_animation, channel);
 

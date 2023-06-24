@@ -36,6 +36,6 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/graphics/graphics_native.h>
 #include <dmsdk/graphics/graphics.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #endif // DMSDK_SDK_H

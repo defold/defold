@@ -16,6 +16,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <testmain/testmain.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <script/script.h>
@@ -30,6 +31,10 @@ namespace dmGraphics
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, int base_register);
 }
 
+class dmRenderMaterialTest : public jc_test_base_class
+{
+};
+
 static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
 {
     dmGraphics::ShaderDesc::Shader ddf;
@@ -39,7 +44,7 @@ static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uin
     return ddf;
 }
 
-TEST(dmMaterialTest, TestTags)
+TEST_F(dmRenderMaterialTest, TestTags)
 {
     dmGraphics::Initialize();
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -67,7 +72,7 @@ TEST(dmMaterialTest, TestTags)
     dmScript::DeleteContext(params.m_ScriptContext);
 }
 
-TEST(dmMaterialTest, TestMaterialConstants)
+TEST_F(dmRenderMaterialTest, TestMaterialConstants)
 {
     dmGraphics::Initialize();
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -116,7 +121,7 @@ TEST(dmMaterialTest, TestMaterialConstants)
     dmScript::DeleteContext(params.m_ScriptContext);
 }
 
-TEST(dmMaterialTest, TestMaterialConstantsOverride)
+TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 {
     dmGraphics::Initialize();
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -190,7 +195,7 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmScript::DeleteContext(params.m_ScriptContext);
 }
 
-TEST(dmMaterialTest, MatchMaterialTags)
+TEST_F(dmRenderMaterialTest, MatchMaterialTags)
 {
     dmhash_t material_tags[] = { 1, 2, 3, 4, 5 };
 
@@ -213,6 +218,7 @@ TEST(dmMaterialTest, MatchMaterialTags)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);
     return jc_test_run_all();

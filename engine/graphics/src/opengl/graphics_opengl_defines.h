@@ -24,7 +24,7 @@
 
 #elif defined (__MACH__)
 
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 #include <OpenGLES/ES2/gl.h>
 #include <OpenGLES/ES2/glext.h>
 #else
@@ -52,6 +52,18 @@
 #include <GL/glext.h>
 #else
 #error "Platform not supported."
+#endif
+
+#ifdef __ANDROID__
+	#define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
+	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+#else
+	#define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
+	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
 #endif
 
 // Types
