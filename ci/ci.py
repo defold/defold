@@ -19,7 +19,7 @@ import platform
 import os
 import base64
 from argparse import ArgumentParser
-from ci_helper import is_platform_supported, is_repo_private
+from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
@@ -441,9 +441,15 @@ def main(argv):
 
     # saving lots of CI minutes and waiting by not building the editor, which we don't use
     if is_repo_private():
+        repo = os.environ.get('GITHUB_REPOSITORY', 'defold')
         for command in args.commands:
-            if 'editor' in command:
-                print("Platform {} is private we've disabled building the editor. Skipping".format(platform))
+            if 'editor' in command or 'bob' in command:
+                print("The repo {} is private. We've disabled building the editor and bob. Skipping".format(repo))
+                return
+
+        if platform and not is_platform_private(platform):
+            if platform not in ['x86_64-win32']:
+                print("The repo {} is private. We've disabled building the platform {}. Skipping".format(repo, platform))
                 return
 
     branch = get_branch()

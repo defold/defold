@@ -21,141 +21,143 @@ local function assert_error(func)
 end
 
 function init(self)
-	self.update_counter = 0
+    self.update_counter = 0
 end
 
 local tparams = {
-	width          = 128,
-	height         = 128,
-	type           = resource.TEXTURE_TYPE_2D,
-	format         = resource.TEXTURE_FORMAT_RGBA,
+    width          = 128,
+    height         = 128,
+    type           = resource.TEXTURE_TYPE_2D,
+    format         = resource.TEXTURE_FORMAT_RGBA,
 }
 
 local tparams_cube = {
-	width          = 128,
-	height         = 128,
-	type           = resource.TEXTURE_TYPE_CUBE_MAP,
-	format         = resource.TEXTURE_FORMAT_RGBA,
+    width          = 128,
+    height         = 128,
+    type           = resource.TEXTURE_TYPE_CUBE_MAP,
+    format         = resource.TEXTURE_FORMAT_RGBA,
 }
 
 local tparams_compressed = {
-	type             = resource.TEXTURE_TYPE_2D,
-	width            = 32,
-	height           = 32,
-	format           = resource.TEXTURE_FORMAT_RGB_ETC1,
-	compression_type = resource.COMPRESSION_TYPE_BASIS_UASTC,
+    type             = resource.TEXTURE_TYPE_2D,
+    width            = 32,
+    height           = 32,
+    format           = resource.TEXTURE_FORMAT_RGB_ETC1,
+    compression_type = resource.COMPRESSION_TYPE_BASIS_UASTC,
 }
 
 function test_simple()
-	local t_id = resource.create_texture("/test_simple.texturec", tparams)
-	go.set("#model", "texture0", t_id)
+    local t_id = resource.create_texture("/test_simple.texturec", tparams)
+    print("MAWE", "/test_simple.texturec", t_id)
+    go.set("#model", "texture0", t_id)
 end
 
 function test_with_buffer()
-	local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
-	local t_id = resource.create_texture("/test_with_buffer.texturec", tparams, tex_buffer)
-	go.set("#model", "texture0", t_id)
+    local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    local t_id = resource.create_texture("/test_with_buffer.texturec", tparams, tex_buffer)
+    go.set("#model", "texture0", t_id)
 end
 
 function test_release()
-	resource.release("/test_simple.texturec")
-	resource.release("/test_simple.texturec")
+    resource.release("/test_simple.texturec")
+    resource.release("/test_simple.texturec")
 end
 
 function test_wrong_ext()
-	assert_error(function()
-		resource.create_texture("no_ext", tparams)
-	end)
+    assert_error(function()
+        resource.create_texture("no_ext", tparams)
+    end)
 end
 
 function test_already_exist()
-	assert_error(function()
-		resource.create_texture("/test_exists.texturec", tparams)
-		resource.create_texture("/test_exists.texturec", tparams)
-	end)
+    assert_error(function()
+        resource.create_texture("/test_exists.texturec", tparams)
+        resource.create_texture("/test_exists.texturec", tparams)
+    end)
 end
 
 function test_release_not_found()
-	assert_error(function()
-		resource.release("/not_found")
-	end)
+    assert_error(function()
+        resource.release("/not_found")
+    end)
 end
 
 function test_compressed()
-	local f     = io.open("src/gamesys/test/resource/blank.basis", "rb")
+    local host_path = sys.get_host_path("src/gamesys/test/resource/blank.basis")
+    local f     = io.open(host_path, "rb")
     local c     = f:read("*all")
     local fsize = f:seek("end")
     f:close()
 
     local tex_buffer = buffer.create(fsize, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
-	local stream     = buffer.get_stream(tex_buffer, hash("data"))
+    local stream     = buffer.get_stream(tex_buffer, hash("data"))
 
-	for i=1, fsize do
-		stream[i] = c:byte(i)
-	end
+    for i=1, fsize do
+        stream[i] = c:byte(i)
+    end
 
     resource.create_texture("/test_compressed.texturec", tparams_compressed, tex_buffer)
 end
 
 function test_compressed_fail()
-	-- Note: res_texture won't yield an error here, we need to check the result of this operation on the C side
-	local tex_buffer = buffer.create(128, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
-	resource.create_texture("/test_compressed_fail.texturec", tparams_compressed, tex_buffer)
+    -- Note: res_texture won't yield an error here, we need to check the result of this operation on the C side
+    local tex_buffer = buffer.create(128, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    resource.create_texture("/test_compressed_fail.texturec", tparams_compressed, tex_buffer)
 end
 
 function test_get_texture_info()
-	local t_id   = resource.create_texture("/test_get_texture_info.texturec", tparams)
-	local t_info = resource.get_texture_info(t_id)
+    local t_id   = resource.create_texture("/test_get_texture_info.texturec", tparams)
+    local t_info = resource.get_texture_info(t_id)
 
-	assert(t_info.width  == tparams.width)
-	assert(t_info.height == tparams.height)
-	assert(t_info.type   == tparams.type)
+    assert(t_info.width  == tparams.width)
+    assert(t_info.height == tparams.height)
+    assert(t_info.type   == tparams.type)
 
-	local t_info_by_handle = resource.get_texture_info(t_info.handle)
-	assert(t_info_by_handle.width   == 128)
-	assert(t_info_by_handle.height  == 128)
-	assert(t_info_by_handle.depth   == 1)
-	assert(t_info_by_handle.mipmaps == 1)
-	assert(t_info_by_handle.type    == resource.TEXTURE_TYPE_2D)
+    local t_info_by_handle = resource.get_texture_info(t_info.handle)
+    assert(t_info_by_handle.width   == 128)
+    assert(t_info_by_handle.height  == 128)
+    assert(t_info_by_handle.depth   == 1)
+    assert(t_info_by_handle.mipmaps == 1)
+    assert(t_info_by_handle.type    == resource.TEXTURE_TYPE_2D)
 
-	resource.release(t_id)
+    resource.release(t_id)
 
-	local t_id_cube   = resource.create_texture("/test_get_texture_info_cube.texturec", tparams_cube)
-	local t_info_cube = resource.get_texture_info(t_id_cube)
+    local t_id_cube   = resource.create_texture("/test_get_texture_info_cube.texturec", tparams_cube)
+    local t_info_cube = resource.get_texture_info(t_id_cube)
 
-	assert(t_info_cube.width   == 128)
-	assert(t_info_cube.height  == 128)
-	assert(t_info_cube.depth   == 6)
-	assert(t_info_cube.mipmaps == 1)
-	assert(t_info_cube.type    == resource.TEXTURE_TYPE_CUBE_MAP)
+    assert(t_info_cube.width   == 128)
+    assert(t_info_cube.height  == 128)
+    assert(t_info_cube.depth   == 6)
+    assert(t_info_cube.mipmaps == 1)
+    assert(t_info_cube.type    == resource.TEXTURE_TYPE_CUBE_MAP)
 
-	resource.release(t_id_cube)
+    resource.release(t_id_cube)
 
-	-- test incorrect handles by basic types
-	assert_error(function() resource.get_texture_info(nil) end)
-	assert_error(function() resource.get_texture_info(false) end)
-	assert_error(function() resource.get_texture_info("invalid_type") end)
-	assert_error(function() resource.get_texture_info(1) end)
+    -- test incorrect handles by basic types
+    assert_error(function() resource.get_texture_info(nil) end)
+    assert_error(function() resource.get_texture_info(false) end)
+    assert_error(function() resource.get_texture_info("invalid_type") end)
+    assert_error(function() resource.get_texture_info(1) end)
 
-	-- test incorrect handles by explicitly removed resource id
-	assert_error(function() resource.get_texture_info(t_id) end)
+    -- test incorrect handles by explicitly removed resource id
+    assert_error(function() resource.get_texture_info(t_id) end)
 end
 
 function update(self)
-	self.update_counter = self.update_counter + 1
+    self.update_counter = self.update_counter + 1
 
-	local tests = {
-		test_simple,
-		test_release,
-		test_wrong_ext,
-		test_already_exist,
-		test_release_not_found,
-		test_compressed,
-		test_compressed_fail,
-		test_get_texture_info,
-	}
+    local tests = {
+        test_simple,
+        test_release,
+        test_wrong_ext,
+        test_already_exist,
+        test_release_not_found,
+        test_compressed,
+        test_compressed_fail,
+        test_get_texture_info,
+    }
 
-	if tests[self.update_counter] ~= nil then
-		tests[self.update_counter]()
-	end
+    if tests[self.update_counter] ~= nil then
+        tests[self.update_counter]()
+    end
 end

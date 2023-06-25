@@ -43,21 +43,12 @@ BASE_PLATFORMS = [  'x86_64-linux',
 
 sys.dont_write_bytecode = True
 try:
-    import build_nx64
-    sys.modules['build_private'] = build_nx64
+    import build_vendor
+    sys.modules['build_private'] = build_vendor
 except ModuleNotFoundError:
     pass
 except Exception as e:
-    print("Failed to import build_nx64.py:")
-    raise e
-
-try:
-    import build_ps4
-    sys.modules['build_private'] = build_ps4
-except ModuleNotFoundError:
-    pass
-except Exception as e:
-    print("Failed to import build_ps4.py:")
+    print("Failed to import build_vendor.py:")
     raise e
 
 sys.dont_write_bytecode = False
@@ -101,7 +92,7 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.1 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
@@ -164,7 +155,7 @@ def format_exes(name, platform):
     elif platform in ['arm64-nx64']:
         prefix = ''
         suffix = ['.nss', '.nso']
-    elif platform in ['x86_64-ps4']:
+    elif platform in ['x86_64-ps4', 'x86_64-ps5']:
         prefix = ''
         suffix = ['.elf']
     else:
@@ -824,8 +815,8 @@ class Configuration(object):
                 paths = _findjslibs(jsdir)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            if platform in ['x86_64-ps4']:
-                memory_init = os.path.join(self.dynamo_home, 'ext/lib/x86_64-ps4/memory_init.o')
+            if platform in ['x86_64-ps4', 'x86_64-ps5']:
+                memory_init = os.path.join(self.dynamo_home, 'ext/lib/%s/memory_init.o' % platform)
                 self._add_files_to_zip(zip, [memory_init], self.dynamo_home, topfolder)
 
             # .proto files
@@ -1260,13 +1251,17 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = get_target_platforms()
-
-        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-        # it last, in order to preserve unix line endings in the files
-        if 'x86_64-linux' in platforms:
-            platforms.remove('x86_64-linux')
-            platforms.append('x86_64-linux')
+        platforms = None
+        # when we build the sdk in a private repo we only include the private platforms
+        if build_private.is_repo_private():
+            platforms = build_private.get_target_platforms()
+        else:
+            platforms = get_target_platforms()
+            # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+            # it last, in order to preserve unix line endings in the files
+            if 'x86_64-linux' in platforms:
+                platforms.remove('x86_64-linux')
+                platforms.append('x86_64-linux')
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')

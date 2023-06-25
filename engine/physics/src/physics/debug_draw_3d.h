@@ -15,7 +15,11 @@
 #ifndef PHYSICS_DEBUG_DRAW_H
 #define PHYSICS_DEBUG_DRAW_H
 
-#include "btBulletDynamicsCommon.h"
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+#include <LinearMath/btVector3.h>
+#include <LinearMath/btIDebugDraw.h>
 
 #include "physics.h"
 

@@ -169,7 +169,7 @@
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (future
-        (let [ret (mobdebug/eval debug-session code frame)]
+        (let [ret (mobdebug/exec debug-session code frame)]
           (cond
             (= :bad-request (:error ret))
             (console/append-console-entry! :eval-error "Bad request")

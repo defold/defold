@@ -24,7 +24,8 @@ public enum PlatformArchitectures {
     Android(new String[] {"arm64-android", "armv7-android"}, new String[] {"armv7-android","arm64-android"}),
     Web(new String[] {"js-web", "wasm-web"}, new String[] {"js-web", "wasm-web"}),
     NX64(new String[] {"arm64-nx64"}, new String[] {"arm64-nx64"}),
-    PS4(new String[] {"x86_64-ps4"}, new String[] {"x86_64-ps4"});
+    PS4(new String[] {"x86_64-ps4"}, new String[] {"x86_64-ps4"}),
+    PS5(new String[] {"x86_64-ps5"}, new String[] {"x86_64-ps5"});
 
     String[] architectures;
     String[] defaultArchitectures;

@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.adb
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
+            [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.util :as util]))
@@ -22,51 +22,24 @@
 (defmacro attempt [expr]
   `(try ~expr (catch Exception _#)))
 
-(defn- existing-path [path]
-  (when (.exists (io/file path))
-    path))
-
-(def ^:private re-path-evaluator
-  #"(?x)        # enable comments and whitespace
-  \$([A-Z_]+)   # first group matches env var syntax
-  |
-  (^\~)         # second group matches home syntax (only allowed at the beginning of the string)
-  |
-  ([^$]+)       # third group is a path, excludes `$` that means env var syntax
-  |
-  (.+)          # error group, i.e. dangling `$`s at the end of the string")
-
-(defn- evaluate-path [raw-path]
-  (reduce
-    (fn [acc [_ env home path error]]
-      (cond
-        error (reduced nil)
-        env (if-let [var (System/getenv env)]
-              (str acc var)
-              (reduced nil))
-        home (str acc (System/getProperty "user.home"))
-        path (str acc path)))
-    ""
-    (re-seq re-path-evaluator raw-path)))
-
 (defn- infer-adb-location! []
   (case (util/os)
     :macos (or
-             (some-> (evaluate-path "$ANDROID_HOME/platform-tools/adb") existing-path)
-             (some-> (attempt (process/exec! "which" "adb")) existing-path)
-             (some-> (evaluate-path "~/Library/Android/sdk/platform-tools/adb") existing-path)
-             (existing-path "/opt/homebrew/bin/adb"))
+             (some-> (fs/evaluate-path "$ANDROID_HOME/platform-tools/adb") fs/existing-path)
+             (some-> (attempt (process/exec! "which" "adb")) fs/existing-path)
+             (some-> (fs/evaluate-path "~/Library/Android/sdk/platform-tools/adb") fs/existing-path)
+             (fs/existing-path "/opt/homebrew/bin/adb"))
     :linux (or
-             (some-> (evaluate-path "$ANDROID_HOME/platform-tools/adb") existing-path)
-             (some-> (attempt (process/exec! "which" "adb")) existing-path)
-             (some-> (evaluate-path "~/Android/Sdk/platform-tools/adb") existing-path)
-             (existing-path "/usr/bin/adb")
-             (existing-path "/usr/lib/android-sdk/platform-tools/adb"))
+             (some-> (fs/evaluate-path "$ANDROID_HOME/platform-tools/adb") fs/existing-path)
+             (some-> (attempt (process/exec! "which" "adb")) fs/existing-path)
+             (some-> (fs/evaluate-path "~/Android/Sdk/platform-tools/adb") fs/existing-path)
+             (fs/existing-path "/usr/bin/adb")
+             (fs/existing-path "/usr/lib/android-sdk/platform-tools/adb"))
     :win32 (or
-             (some-> (evaluate-path "$ANDROID_HOME\\platform-tools\\adb.exe") existing-path)
-             (some-> (attempt (process/exec! "where" "adb.exe")) existing-path)
-             (some-> (evaluate-path "~\\AppData\\Local\\Android\\sdk\\platform-tools\\adb.exe") existing-path)
-             (existing-path "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe"))))
+             (some-> (fs/evaluate-path "$ANDROID_HOME\\platform-tools\\adb.exe") fs/existing-path)
+             (some-> (attempt (process/exec! "where" "adb.exe")) fs/existing-path)
+             (some-> (fs/evaluate-path "~\\AppData\\Local\\Android\\sdk\\platform-tools\\adb.exe") fs/existing-path)
+             (fs/existing-path "C:\\Program Files (x86)\\Android\\android-sdk\\platform-tools\\adb.exe"))))
 
 (defn get-adb-path
   "Find ADB path (a string) or throw if it wasn't found
@@ -74,7 +47,7 @@
   Performs file IO"
   [prefs]
   (if-let [prefs-path (not-empty (prefs/get-prefs prefs "adb-path" nil))]
-    (or (existing-path prefs-path)
+    (or (fs/existing-path prefs-path)
         (throw (ex-info (str "ADB path defined in preferences does not exist: '" prefs-path "'")
                         {:path prefs-path})))
     (or (infer-adb-location!)
@@ -114,7 +87,7 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
                 not be closed after use"
   [adb-path device apk-path out]
   {:pre [(string? (:id device))
-         (existing-path apk-path)]}
+         (fs/existing-path apk-path)]}
   (let [process (process/start! {:err :stdout} adb-path "-s" (:id device) "install" "-r" (str apk-path))]
     (process/pipe! (process/out process) out)
     (when-not (zero? (process/await-exit-code process))
