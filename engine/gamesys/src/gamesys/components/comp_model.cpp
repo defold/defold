@@ -284,21 +284,27 @@ namespace dmGameSystem
         assert(texture_unit < MAX_TEXTURE_COUNT);
         TextureResource* texture;
 
-        // Overridden textures
+        // Overridden textures (from Lua code)
         texture = component->m_Textures[texture_unit];
         if (texture)
             return texture;
-        // Overridden material
+        // Overridden material (from Lua code)
         MaterialResource* material = component->m_Material;
         if (material)
             texture = material->m_Textures[texture_unit];
         if (texture)
             return texture;
-        texture = component->m_Resource->m_Textures[texture_unit];
+
+        MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
+        // Overridden textures (from .model)
+        MaterialTextureInfo* texture_infos = material_info->m_Textures;
+        if (material_info->m_Textures && texture_unit < material_info->m_TexturesCount)
+            texture = material_info->m_Textures[texture_unit].m_Texture;
         if (texture)
             return texture;
 
-        material = component->m_Resource->m_Materials[material_index].m_Material;
+        // The textures which are set in the .material file
+        material = material_info->m_Material;
         if (material)
             texture = material->m_Textures[texture_unit];
         if (texture)
@@ -335,11 +341,12 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
             HashMaterial(&state, resource->m_Materials[i].m_Material);
+
+            dmHashUpdateBuffer32(&state, resource->m_Materials[i].m_Textures, resource->m_Materials[i].m_TexturesCount);
         }
 
         // The unused slots should be 0
         // Note: In the future, we want the textures so be set on a per-material basis
-        dmHashUpdateBuffer32(&state, resource->m_Textures, DM_ARRAY_SIZE(resource->m_Textures));
         dmHashUpdateBuffer32(&state, component->m_Textures, DM_ARRAY_SIZE(component->m_Textures));
 
         if (component->m_Material)
@@ -619,7 +626,7 @@ namespace dmGameSystem
 
             DM_PROPERTY_ADD_U32(rmtp_ModelIndexCount, buffers->m_IndexCount);
             DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
-            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex)); 
+            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex));
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {

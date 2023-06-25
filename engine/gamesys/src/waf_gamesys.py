@@ -175,17 +175,20 @@ def compile_model(task):
         msg_out = model_ddf_pb2.Model()
         msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].bldpath(), task.generator.content_root)
 
-        if msg.material:
+        if msg.material or msg.textures:
             material = model_ddf_pb2.Material()
             material.name = "unknown"
             material.material = msg.material.replace(".material", ".materialc")
-            msg_out.materials.append(material)
 
-        for i,n in enumerate(msg.textures):
-            texture = model_ddf_pb2.Texture()
-            texture.sampler = ""
-            texture.texture = transform_texture_name(task, msg.textures[i])
-            msg_out.textures.append(texture)
+            for i,n in enumerate(msg.textures):
+                if not n:
+                    continue
+                texture = model_ddf_pb2.Texture()
+                texture.sampler = ""
+                texture.texture = transform_texture_name(task, msg.textures[i])
+                material.textures.append(texture)
+
+            msg_out.materials.append(material)
 
         for i,n in enumerate(msg.materials):
             material = msg.materials[i]
