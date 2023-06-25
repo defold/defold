@@ -348,7 +348,7 @@ public class ModelImporter {
         PrintIndent(indent+1);
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
-        System.out.printf("Material: %s\n", mesh.material.name);
+        System.out.printf("Material: %s\n", mesh.material!=null?mesh.material.name:"null");
         PrintIndent(indent+1);
         System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 

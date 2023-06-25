@@ -133,10 +133,11 @@ static void OutputMaterial(Material* material, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    assert(mesh->m_Material);
-    assert(mesh->m_Material->m_Name);
+
+    const char* material_name = (mesh->m_Material && mesh->m_Material->m_Name) ? mesh->m_Material->m_Name : "null";
+
     printf("mesh  %s  vertices: %u  indices: %u  mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
-            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material->m_Name, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
+            mesh->m_Name?mesh->m_Name:"null", mesh->m_VertexCount, mesh->m_IndexCount, material_name, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
             mesh->m_Aabb.m_Min[0], mesh->m_Aabb.m_Min[1], mesh->m_Aabb.m_Min[2],
             mesh->m_Aabb.m_Max[0], mesh->m_Aabb.m_Max[1], mesh->m_Aabb.m_Max[2]);
 

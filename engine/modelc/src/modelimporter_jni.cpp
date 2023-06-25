@@ -642,7 +642,8 @@ static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmArray<job
 {
     jobject obj = env->AllocObject(types->m_MeshJNI.cls);
     SetFieldString(env, obj, types->m_MeshJNI.name, mesh->m_Name);
-    SetFieldObject(env, obj, types->m_MeshJNI.material, materials[mesh->m_Material->m_Index]);
+    if (mesh->m_Material)
+        SetFieldObject(env, obj, types->m_MeshJNI.material, materials[mesh->m_Material->m_Index]);
 
     SetFieldInt(env, obj, types->m_MeshJNI.vertexCount, mesh->m_VertexCount);
     SetFieldInt(env, obj, types->m_MeshJNI.indexCount, mesh->m_IndexCount);

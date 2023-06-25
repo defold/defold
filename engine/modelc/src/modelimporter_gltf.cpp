@@ -491,8 +491,11 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
         mesh->m_Name = CreateObjectName(prim, "mesh", i);
 
         uint32_t material_index = FindIndex(gltf_data->materials, prim->material);
-        mesh->m_Material = &scene->m_Materials[material_index];
-        mesh->m_VertexCount = 0;
+        if (material_index != INVALID_INDEX)
+        {
+            mesh->m_Material = &scene->m_Materials[material_index];
+            mesh->m_VertexCount = 0;
+        }
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
