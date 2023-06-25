@@ -638,7 +638,10 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
-        meshBuilder.setMaterialIndex(mesh.material.index);
+        if (mesh.material != null)
+            meshBuilder.setMaterialIndex(mesh.material.index);
+        else
+            meshBuilder.setMaterialIndex(0x0); // We still need to assign a material at some point!
 
         return meshBuilder.build();
     }
