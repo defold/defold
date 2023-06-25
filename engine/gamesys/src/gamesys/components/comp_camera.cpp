@@ -390,6 +390,12 @@ namespace dmGameSystem
             component->m_AspectRatio = params.m_Value.m_Number;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if ((CAMERA_PROP_PROJECTION == set_property)
+            || (CAMERA_PROP_VIEW == set_property)
+            || (CAMERA_PROP_ASPECT_RATIO == set_property))
+        {
+            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
+        }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }

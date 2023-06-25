@@ -182,6 +182,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
      * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
      * @member dmGameObject::PROPERTY_RESULT_INVALID_KEY
+     * @member dmGameObject::PROPERTY_RESULT_READ_ONLY
      */
     enum PropertyResult
     {
@@ -198,6 +199,7 @@ namespace dmGameObject
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
         PROPERTY_RESULT_INVALID_INDEX = -11,
         PROPERTY_RESULT_INVALID_KEY = -12,
+        PROPERTY_RESULT_READ_ONLY = -13,
     };
 
     /*#
