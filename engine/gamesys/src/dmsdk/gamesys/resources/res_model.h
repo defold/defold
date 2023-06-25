@@ -46,7 +46,6 @@ namespace dmGameSystem
         dmGraphics::HIndexBuffer    m_IndexBuffer;
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
-        uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
         dmGraphics::Type            m_IndexBufferElementType;
     };
 
