@@ -552,7 +552,7 @@ namespace dmGameObject
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
      * @param component_id [type: dmhash_t* Component id as out-argument
-     * @return result [type: dmGameObject::Result] RESULT_OK if the comopnent was found
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
