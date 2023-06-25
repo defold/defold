@@ -173,7 +173,7 @@ message ReleaseCameraFocus {}
 
 /*# [type:float] camera projection
  *
- * [mark:READ ONLY] The calcualted projection matrix of the camera.
+ * [mark:READ ONLY] The calculated projection matrix of the camera.
  * The type of the property is matrix4.
  *
  * @name projection
@@ -190,7 +190,7 @@ message ReleaseCameraFocus {}
 
 /*# [type:float] camera view
  *
- * [mark:READ ONLY] The calcualted view matrix of the camera.
+ * [mark:READ ONLY] The calculated view matrix of the camera.
  * The type of the property is matrix4.
  *
  * @name view
