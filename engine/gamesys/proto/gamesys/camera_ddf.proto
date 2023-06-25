@@ -207,7 +207,7 @@ message ReleaseCameraFocus {}
 
 /*# [type:float] camera aspect ratio
  *
- * The aspect ratio of the camera. Used when calculating the
+ * The ratio between the frustum width and height. Used when calculating the
  * projection of a perspective camera.
  * The type of the property is number.
  *
