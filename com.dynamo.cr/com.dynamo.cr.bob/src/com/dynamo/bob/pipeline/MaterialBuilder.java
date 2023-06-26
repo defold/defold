@@ -267,13 +267,14 @@ public class MaterialBuilder extends Builder<Void>  {
 
         for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
             MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
+            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
+
             String texture = materialSampler.getTexture();
             if (texture.isEmpty())
                 continue;
 
             MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
             samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
-            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
             materialBuilder.setSamplers(i, samplerBuilder.build());
         }
 

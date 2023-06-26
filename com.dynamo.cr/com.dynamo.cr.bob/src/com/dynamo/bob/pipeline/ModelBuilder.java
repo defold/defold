@@ -146,7 +146,8 @@ public class ModelBuilder extends Builder<Void> {
             String singleMaterial = modelDescBuilder.getMaterial();
             if (!singleMaterial.isEmpty()) {
 
-                logger.log(Level.WARNING, String.format("Model %s uses deprecated material format. Please resave in the editor!", task.input(0).getAbsPath()));
+                // TODO: Handle migration in the next MVP
+                // logger.log(Level.WARNING, String.format("Model %s uses deprecated material format. Please resave in the editor!", task.input(0).getAbsPath()));
 
                 BuilderUtil.checkResource(this.project, resource, "material", singleMaterial);
 
