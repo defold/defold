@@ -86,9 +86,10 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(defn- samplers->samplers-with-indirection-hashes [samplers max-page-count]
+(defn- build-target-samplers [samplers max-page-count]
   (mapv (fn [sampler]
-          (assoc sampler
+          (assoc sampler 
+            :name-hash (murmur/hash64 (str (:name sampler)))
             :name-indirections (mapv (fn [slice-index]
                                        (murmur/hash64 (str (:name sampler) "_" slice-index)))
                                      (range max-page-count))))
@@ -100,7 +101,7 @@
       (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
-            samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers pb-msg) max-page-count)
+            samplers-with-indirect-hashes (build-target-samplers (:samplers pb-msg) max-page-count)
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
             material-desc-with-build-resources (assoc pb-msg
                                                  :vertex-program (:resource vertex-shader-build-target)
