@@ -361,7 +361,8 @@
 
 (defn- sanitize-sampler [sampler]
   ;; Material$MaterialDesc$Sampler in map format.
-  (dissoc sampler :name-indirections)) ; Only used in built data by the runtime.
+  ;; TODO: The texture field _will_ be used in the editor, just not in this MVP
+  (dissoc sampler :name-indirections :texture :name-hash)) ; Only used in built data by the runtime.
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
