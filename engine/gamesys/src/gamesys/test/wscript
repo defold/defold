@@ -54,7 +54,8 @@ def build(bld):
                         'ComponentTypeAnim',
                         'ResourceTypeAnimationSet',
                         'ComponentTypeGui',
-                        'ResourceTypeGui','ResourceTypeGuiScript']
+                        'ResourceTypeGui','ResourceTypeGuiScript',
+                        'GraphicsAdapterNull']
 
     test_task_gen = bld.program(features = 'cxx cprogram test',
                                 includes = '../../../src ../../../proto',

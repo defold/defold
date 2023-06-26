@@ -21,6 +21,9 @@
 #include <gameobject/lua_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <particle/particle.h>
+#include "res_material.h"
+#include "res_texture.h"
+#include "res_textureset.h"
 
 namespace dmGameSystem
 {
@@ -33,7 +36,7 @@ namespace dmGameSystem
         if (fr != dmResource::RESULT_OK) {
             return fr;
         }
-        if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
         {
             dmLogError("Failed to create Gui component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
             return dmResource::RESULT_NOT_SUPPORTED;
@@ -296,4 +299,3 @@ namespace dmGameSystem
 }
 
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeGui, "guic", dmGameSystem::ResourceTypeGui_Register, 0);
-
