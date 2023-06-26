@@ -2550,7 +2550,10 @@
 
   (input aux-material-shaders GuiResourceShaders :array)
   (input material-shaders GuiResourceShaders :array)
-  (output material-shaders GuiResourceShaders :cached (g/fnk [aux-material-shaders material-shaders] (into {} (concat aux-material-shaders material-shaders))))
+  (output material-shaders GuiResourceShaders :cached (g/fnk [aux-material-shaders material-shaders material-shader]
+                                                        (into {"" material-shader} (concat aux-material-shaders material-shaders))))
+
+
   (input aux-material-names GuiResourceNames :array)
   (input material-names GuiResourceNames :array)
   (output material-names GuiResourceNames :cached (g/fnk [aux-material-names material-names] (into (sorted-set) cat (concat aux-material-names material-names))))
@@ -2848,15 +2851,11 @@
                                     (attach-texture self textures-node texture))))
 
       ;; Materials list
-      (g/make-nodes graph-id [materials-node MaterialsNode
-                              no-material [MaterialNode
-                                           :name ""
-                                           :material (workspace/resolve-resource resource (:material scene))]]
+      (g/make-nodes graph-id [materials-node MaterialsNode]
         (g/connect materials-node :_node-id self :nodes)
         (g/connect materials-node :build-errors self :build-errors)
         (g/connect materials-node :node-outline self :child-outlines)
         (g/connect materials-node :add-handler-info self :handler-infos)
-        (attach-material self materials-node no-material true)
         (for [materials-desc (:materials scene)
               :let [resource (workspace/resolve-resource resource (:material materials-desc))]]
           (g/make-nodes graph-id [material [MaterialNode :name (:name materials-desc) :material resource]]
