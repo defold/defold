@@ -25,6 +25,7 @@ def options(opt):
 
 def configure(conf):
     conf.load('waf_dynamo')
+    conf.load('java')
     waf_ddf.configure(conf)
 
     conf.recurse('src')

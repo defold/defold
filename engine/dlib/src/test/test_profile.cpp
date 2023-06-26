@@ -296,6 +296,8 @@ TEST(dmProfile, PropertyIterator)
 
     dmProfile::SetPropertyTreeCallback(&ctx, PropertyTreeCallback);
     dmProfile::Initialize(0);
+
+    if (dmProfile::IsInitialized()) // false for profile null (i.e. on unsupported platforms)
     {
         for (int i = 0; i < 2; ++i)
         {

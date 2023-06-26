@@ -207,7 +207,7 @@ waflib.Task.task_factory('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dy
 
 @extension('.vp')
 def vertexprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('vertexshader')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
@@ -223,7 +223,7 @@ waflib.Task.task_factory('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.
 
 @extension('.fp')
 def fragmentprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('fragmentshader')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)

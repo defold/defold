@@ -17,12 +17,14 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
+#include <dlib/testutil.h>
 #include <dmsdk/dlib/vmath.h>
 #include <particle/particle.h>
 #include <script/script.h>
@@ -42,11 +44,6 @@ using namespace dmVMath;
 extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
 
 // Basic
 //  - Create scene
@@ -4826,8 +4823,8 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
+    char path[128];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -5433,6 +5430,7 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

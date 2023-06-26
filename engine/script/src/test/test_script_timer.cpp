@@ -12,16 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../script.h"
 #include "../script_timer_private.h"
+#include "test_script.h"
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
+#include <testmain/testmain.h>
 
 struct TimerTestCallback
 {
@@ -59,29 +54,14 @@ uint32_t TimerTestCallback::callback_count = 0;
 uint32_t TimerTestCallback::cancel_count = 0;
 float TimerTestCallback::elapsed_time = 0.f;
 
-class ScriptTimerTest : public jc_test_base_class
+class ScriptTimerTest : public dmScriptTest::ScriptTest
 {
-protected:
-    virtual void SetUp()
+public:
+    void SetUp()
     {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-        m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
+        dmScriptTest::ScriptTest::SetUp();
         ResetTestCallback();
     }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-        dmConfigFile::Delete(m_ConfigFile);
-    }
-
-    dmConfigFile::HConfig m_ConfigFile;
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
 
 TEST_F(ScriptTimerTest, TestCreateDeleteWorld)
@@ -726,17 +706,6 @@ TEST_F(ScriptTimerTest, TestKillTimers)
     dmScript::DeleteTimerWorld(timer_world);
 }
 
-static bool RunString(lua_State* L, const char* script)
-{
-    luaL_loadstring(L, script);
-    if (lua_pcall(L, 0, LUA_MULTRET, 0) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
 static dmScript::HTimer cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
 static uint32_t cb_callback_counter = 0u;
 static float cb_elapsed_time = 0.0f;
@@ -992,7 +961,7 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
         "local data2 = timer.get_info(handle_2)\n"
         "assert(data2.delay == 2)\n"
         "assert(data2.time_remaining == 1)\n"
-        "assert(data2.repeating == false)\n";    
+        "assert(data2.repeating == false)\n";
     //2
     const char check_4[] =
         "local data1 = timer.get_info(handle_1)\n"
@@ -1055,7 +1024,7 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

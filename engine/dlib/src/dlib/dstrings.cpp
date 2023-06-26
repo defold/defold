@@ -235,7 +235,7 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 
 #if defined(DM_NO_ERRNO)
     #define DM_STRERROR_USE_POSIX
-    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "%d", errval) == -1 ? 0 : 1
+    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "Unknown error %d", errval) == -1 ? 0 : 1
 #else
     #if !(defined(DM_STRERROR_USE_POSIX) || defined(DM_STRERROR_USE_GNU))
         #if defined(ANDROID)
@@ -283,14 +283,17 @@ void dmStrError(char* dst, size_t size, int err)
 
     if (ret == 0 || ret == ERANGE)
     {
-    #if defined(_WIN32)
         // apparently windows returns a success ret value and a "Unknown error" string
         // even if it's not a supported errno
         if (dmStrCaseCmp("Unknown error", scratch) == 0)
         {
             dmSnPrintf(scratch, scratch_size, "Unknown error %d", err);
         }
-    #endif
+        // Another platform returns "error_code=0xffffffff"
+        else if (strstr(scratch, "error_code=0x") == scratch)
+        {
+            dmSnPrintf(scratch, scratch_size, "Unknown error %d", err);
+        }
     }
     else
     {
