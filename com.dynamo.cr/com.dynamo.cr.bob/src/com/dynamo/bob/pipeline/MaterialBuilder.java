@@ -272,10 +272,9 @@ public class MaterialBuilder extends Builder<Void>  {
             samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
 
             String texture = materialSampler.getTexture();
-            if (texture.isEmpty())
-                continue;
+            if (!texture.isEmpty())
+                samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
 
-            samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
             materialBuilder.setSamplers(i, samplerBuilder.build());
         }
 
