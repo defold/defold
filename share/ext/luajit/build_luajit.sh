@@ -43,13 +43,13 @@ function luajit_configure() {
 
 	COMMON_XCFLAGS="-DLUA_USERDATA_ALIGNMENT=16 "
 
-	COMMON_FLAGS_32="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL -DLUAJIT_DISABLE_GC64 "
-	COMMON_FLAGS_64="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL "
+	COMMON_MOBILE_FLAGS_32="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL -DLUAJIT_DISABLE_GC64 "
+	COMMON_MOBILE_FLAGS_64="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL "
 
 	case $CONF_TARGET in
 		arm64-ios)
 			TAR_SKIP_BIN=1
-			XFLAGS="$COMMON_FLAGS_64"
+			XFLAGS="$COMMON_MOBILE_FLAGS_64"
 			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
@@ -60,7 +60,7 @@ function luajit_configure() {
 			;;
 		x86_64-ios)
 			TAR_SKIP_BIN=1
-			XFLAGS="$COMMON_FLAGS_64"
+			XFLAGS="$COMMON_MOBILE_FLAGS_64"
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
@@ -70,7 +70,7 @@ function luajit_configure() {
 			;;
 		armv7-android)
 			TAR_SKIP_BIN=1
-			XFLAGS="$COMMON_FLAGS_32"
+			XFLAGS="$COMMON_MOBILE_FLAGS_32"
 			export CROSS=""
 			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
@@ -79,7 +79,7 @@ function luajit_configure() {
 			;;
 		arm64-android)
 			TAR_SKIP_BIN=1
-			XFLAGS="$COMMON_FLAGS_64"
+			XFLAGS="$COMMON_MOBILE_FLAGS_64"
 			export CROSS=""
 			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
@@ -224,9 +224,9 @@ case $1 in
 			export DEFOLD_ARCH="64"
 			export TARGET_CFLAGS=""
 			export XCFLAGS="${COMMON_XCFLAGS}"
-			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS ${XCFLAGS}'"
 			set -e
-			make -j1
+			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			set +e
@@ -245,17 +245,28 @@ case $1 in
 			export DEFOLD_ARCH="64"
 			export TARGET_CFLAGS=""
 			export XCFLAGS="${COMMON_XCFLAGS}"
-			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS ${XCFLAGS}'"
 			set -e
+			make clean
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			set +e
 
-			# grab our old 32 bit executable and store it in the host package
+			export DEFOLD_ARCH="32"
+			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
+
+			export HOST_CC="clang"
+			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
+			export HOST_ALDFLAGS=""
+			export TARGET_LDFLAGS=""
+
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS ${XCFLAGS}'"
 			set -e
-			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
-			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
+			make clean
+			make -j8
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			set +e
 		}
 		;;
