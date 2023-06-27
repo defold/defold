@@ -56,7 +56,7 @@
 #if defined(__APPLE__)
     #include <TargetConditionals.h>
     #include <CoreFoundation/CFBundle.h>
-#if defined(TARGET_OS_OSX)
+#if TARGET_OS_OSX
     #include <Carbon/Carbon.h>
 #endif
 #endif
