@@ -1450,7 +1450,7 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
 
-    if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+    if platform in ('x86_64-linux', 'win32', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
 
     if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
