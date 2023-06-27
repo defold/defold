@@ -792,8 +792,8 @@
                                  (node->gui-scene _node-id)))
 
   (output material-shader ShaderLifecycle (g/fnk [material-shaders material]
-                                                     (or (material-shaders material)
-                                                         (material-shaders ""))))
+                                            (or (material-shaders material)
+                                                (material-shaders ""))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
@@ -1308,6 +1308,7 @@
                                                                   [:texture-anim-datas :aux-texture-anim-datas]
                                                                   [:texture-names :aux-texture-names]
                                                                   [:material-names :aux-material-names]
+                                                                  [:material-shaders :aux-material-shaders]
                                                                   [:font-shaders :aux-font-shaders]
                                                                   [:font-datas :aux-font-datas]
                                                                   [:font-names :aux-font-names]
