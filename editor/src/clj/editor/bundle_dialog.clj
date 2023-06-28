@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -410,8 +410,8 @@
       [(Separator.)
        (labeled! "On APK Bundled" (doto (VBox.)
                                     (ui/children!
-                                      [(make-labeled-check-box "Install on connected device" "adb-install-check-box" false refresh!)
-                                       (make-labeled-check-box "Launch installed app" "adb-launch-check-box" false refresh!)])))])))
+                                      [(make-labeled-check-box "Install on connected device" "install-app-check-box" false refresh!)
+                                       (make-labeled-check-box "Launch installed app" "launch-app-check-box" false refresh!)])))])))
 
 (defn- load-android-prefs! [prefs view]
   (ui/with-controls view [keystore-text-field
@@ -420,16 +420,16 @@
                           architecture-32bit-check-box
                           architecture-64bit-check-box
                           bundle-format-choice-box
-                          adb-install-check-box
-                          adb-launch-check-box]
+                          install-app-check-box
+                          launch-app-check-box]
     (ui/value! keystore-text-field (get-string-pref prefs "bundle-android-keystore"))
     (ui/value! keystore-pass-text-field (get-string-pref prefs "bundle-android-keystore-pass"))
     (ui/value! key-pass-text-field (get-string-pref prefs "bundle-android-key-pass"))
     (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
     (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))
     (ui/value! bundle-format-choice-box (prefs/get-prefs prefs "bundle-android-bundle-format" "apk"))
-    (ui/value! adb-install-check-box (prefs/get-prefs prefs "bundle-android-adb-install" false))
-    (ui/value! adb-launch-check-box (prefs/get-prefs prefs "bundle-android-adb-launch" false))))
+    (ui/value! install-app-check-box (prefs/get-prefs prefs "bundle-android-install-app?" false))
+    (ui/value! launch-app-check-box (prefs/get-prefs prefs "bundle-android-launch-app?" false))))
 
 (defn- save-android-prefs! [prefs view]
   (ui/with-controls view [keystore-text-field
@@ -438,16 +438,16 @@
                           architecture-32bit-check-box
                           architecture-64bit-check-box
                           bundle-format-choice-box
-                          adb-install-check-box
-                          adb-launch-check-box]
+                          install-app-check-box
+                          launch-app-check-box]
     (set-string-pref! prefs "bundle-android-keystore" (ui/value keystore-text-field))
     (set-string-pref! prefs "bundle-android-keystore-pass" (ui/value keystore-pass-text-field))
     (set-string-pref! prefs "bundle-android-key-pass" (ui/value key-pass-text-field))
     (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
     (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))
     (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))
-    (prefs/set-prefs prefs "bundle-android-adb-install" (ui/value adb-install-check-box))
-    (prefs/set-prefs prefs "bundle-android-adb-launch" (ui/value adb-launch-check-box))))
+    (prefs/set-prefs prefs "bundle-android-install-app?" (ui/value install-app-check-box))
+    (prefs/set-prefs prefs "bundle-android-launch-app?" (ui/value launch-app-check-box))))
 
 (defn- get-android-options [view]
   (ui/with-controls view [architecture-32bit-check-box
@@ -456,16 +456,16 @@
                           keystore-pass-text-field
                           key-pass-text-field
                           bundle-format-choice-box
-                          adb-install-check-box
-                          adb-launch-check-box]
+                          install-app-check-box
+                          launch-app-check-box]
     {:architecture-32bit? (ui/value architecture-32bit-check-box)
      :architecture-64bit? (ui/value architecture-64bit-check-box)
      :keystore (get-file keystore-text-field)
      :keystore-pass (get-file keystore-pass-text-field)
      :key-pass (get-file key-pass-text-field)
      :bundle-format (ui/value bundle-format-choice-box)
-     :adb-install (ui/value adb-install-check-box)
-     :adb-launch (ui/value adb-launch-check-box)}))
+     :adb-install (ui/value install-app-check-box)
+     :adb-launch (ui/value launch-app-check-box)}))
 
 (defn- set-android-options! [view
                              {:keys [architecture-32bit?
@@ -484,8 +484,8 @@
                           key-pass-text-field
                           bundle-format-choice-box
                           ok-button
-                          adb-install-check-box
-                          adb-launch-check-box]
+                          install-app-check-box
+                          launch-app-check-box]
     (doto keystore-text-field
       (set-file! keystore)
       (set-field-status! (:keystore issues)))
@@ -505,11 +505,11 @@
       (ui/value! bundle-format)
       (set-field-status! (:bundle-format issues)))
     (let [install-disabled (not (string/includes? (or bundle-format "") "apk"))]
-      (doto ^CheckBox adb-install-check-box
+      (doto ^CheckBox install-app-check-box
         (ui/value! adb-install)
         (.setDisable install-disabled)
         (set-field-status! (:adb-install issues)))
-      (doto ^CheckBox adb-launch-check-box
+      (doto ^CheckBox launch-app-check-box
         (ui/value! adb-launch)
         (.setDisable (or install-disabled (not adb-install)))
         (set-field-status! (:adb-launch issues))))
@@ -581,6 +581,68 @@
       (set-generic-headers! view issues [:architecture :keystore :keystore-pass :key-pass :bundle-format]))))
 
 ;; -----------------------------------------------------------------------------
+;; macOS
+;; -----------------------------------------------------------------------------
+
+(defn- make-macos-controls [refresh! owner-window]
+  (assert (fn? refresh!))
+  (let [no-identity-label "None"
+        architecture-controls (doto (VBox.)
+                                (ui/children! [(make-labeled-check-box "x86_64" "architecture-x86_64-check-box" true refresh!)
+                                               (make-labeled-check-box "arm64" "architecture-arm64-check-box" true refresh!)]))]
+    (doto (VBox.)
+      (ui/add-style! "settings")
+      (ui/add-style! "macos")
+      (ui/children! [(labeled! "Architectures" architecture-controls)]))))
+
+(defn- load-macos-prefs! [prefs view]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
+    (ui/value! architecture-x86_64-check-box (prefs/get-prefs prefs "bundle-macos-architecture-x86_64?" true))
+    (ui/value! architecture-arm64-check-box (prefs/get-prefs prefs "bundle-macos-architecture-arm64?" true))))
+
+(defn- save-macos-prefs! [prefs view]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
+    (prefs/set-prefs prefs "bundle-macos-architecture-x86_64?" (ui/value architecture-x86_64-check-box))
+    (prefs/set-prefs prefs "bundle-macos-architecture-arm64?" (ui/value architecture-arm64-check-box))))
+
+(defn- get-macos-options [view]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
+    {:architecture-x86_64? (ui/value architecture-x86_64-check-box)
+     :architecture-arm64? (ui/value architecture-arm64-check-box)}))
+
+(defn- set-macos-options! [view {:keys [architecture-x86_64? architecture-arm64?] :as _options} issues]
+  (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box ok-button]
+    (doto architecture-x86_64-check-box
+      (ui/value! architecture-x86_64?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-arm64-check-box
+      (ui/value! architecture-arm64?)
+      (set-field-status! (:architecture issues)))
+    (ui/enable! ok-button true)))
+
+(deftype MacOSBundleOptionsPresenter [workspace view variant-choices compression-choices]
+  BundleOptionsPresenter
+  (make-views [this owner-window]
+    (let [refresh! (make-presenter-refresher this)]
+      (into [(make-generic-headers "Bundle macOS Application")
+             (make-macos-controls refresh! owner-window)]
+            (make-generic-controls refresh! variant-choices compression-choices))))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view)
+    (load-macos-prefs! prefs view))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view)
+    (save-macos-prefs! prefs view))
+  (get-options [_this]
+    (merge {:platform "x86_64-macos"}
+           (get-generic-options view)
+           (get-macos-options view)))
+  (set-options! [_this options]
+    (let [issues []]
+      (set-generic-options! view options workspace)
+      (set-macos-options! view options issues))))
+
+;; -----------------------------------------------------------------------------
 ;; iOS
 ;; -----------------------------------------------------------------------------
 
@@ -613,11 +675,28 @@
                      (labeled! "Provisioning profile" provisioning-profile-file-field)
                      (labeled! "Architectures" architecture-controls)]))))
 
+(defn- ios-post-bundle-controls [refresh!]
+  (doto (VBox.)
+    (ui/add-style! "settings")
+    (ui/add-style! "ios")
+    (ui/children!
+      [(Separator.)
+       (labeled! "On Bundled"
+                 (doto (VBox.)
+                   (ui/children!
+                     [(make-labeled-check-box "Install on connected device" "install-app-check-box" false refresh!)
+                      (make-labeled-check-box "Launch installed app" "launch-app-check-box" false refresh!)])))])))
 
 (defn- load-ios-prefs! [prefs view code-signing-identity-names]
   ;; This falls back on settings from the Sign iOS Application dialog if available,
   ;; but we will write to our own keys in the preference for these.
-  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-64bit-check-box architecture-simulator-check-box]
+  (ui/with-controls view [sign-app-check-box
+                          code-signing-identity-choice-box
+                          provisioning-profile-text-field
+                          architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          install-app-check-box
+                          launch-app-check-box]
     (ui/value! sign-app-check-box (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
     (ui/value! code-signing-identity-choice-box (or ((set code-signing-identity-names)
                                                      (or (get-string-pref prefs "bundle-ios-code-signing-identity")
@@ -626,26 +705,61 @@
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
                                                    (get-string-pref prefs "last-provisioning-profile")))
     (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-ios-architecture-64bit?" true))
-    (ui/value! architecture-simulator-check-box (prefs/get-prefs prefs "bundle-ios-architecture-simulator?" false))))
+    (ui/value! architecture-simulator-check-box (prefs/get-prefs prefs "bundle-ios-architecture-simulator?" false))
+    (ui/value! install-app-check-box (prefs/get-prefs prefs "bundle-ios-install-app?" false))
+    (ui/value! launch-app-check-box (prefs/get-prefs prefs "bundle-ios-launch-app?" false))))
 
 (defn- save-ios-prefs! [prefs view]
-  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-64bit-check-box architecture-simulator-check-box]
+  (ui/with-controls view [sign-app-check-box
+                          code-signing-identity-choice-box
+                          provisioning-profile-text-field
+                          architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          install-app-check-box
+                          launch-app-check-box]
     (prefs/set-prefs prefs "bundle-ios-sign-app?" (ui/value sign-app-check-box))
     (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
     (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))
     (prefs/set-prefs prefs "bundle-ios-architecture-64bit?" (ui/value architecture-64bit-check-box))
-    (prefs/set-prefs prefs "bundle-ios-architecture-simulator?" (ui/value architecture-simulator-check-box))))
+    (prefs/set-prefs prefs "bundle-ios-architecture-simulator?" (ui/value architecture-simulator-check-box))
+    (prefs/set-prefs prefs "bundle-ios-install-app?" (ui/value install-app-check-box))
+    (prefs/set-prefs prefs "bundle-ios-launch-app?" (ui/value launch-app-check-box))))
 
 (defn- get-ios-options [view]
-  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-64bit-check-box architecture-simulator-check-box]
+  (ui/with-controls view [sign-app-check-box
+                          code-signing-identity-choice-box
+                          provisioning-profile-text-field
+                          architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          install-app-check-box
+                          launch-app-check-box]
     {:architecture-64bit? (ui/value architecture-64bit-check-box)
      :architecture-simulator? (ui/value architecture-simulator-check-box)
      :code-signing-identity (ui/value code-signing-identity-choice-box)
      :provisioning-profile (get-file provisioning-profile-text-field)
-     :sign-app? (ui/value sign-app-check-box)}))
+     :sign-app? (ui/value sign-app-check-box)
+     :ios-deploy-install (ui/value install-app-check-box)
+     :ios-deploy-launch (ui/value launch-app-check-box)}))
 
-(defn- set-ios-options! [view {:keys [architecture-64bit? architecture-simulator? code-signing-identity provisioning-profile sign-app?] :as _options} issues code-signing-identity-names]
-  (ui/with-controls view [architecture-64bit-check-box architecture-simulator-check-box code-signing-identity-choice-box ok-button provisioning-profile-text-field sign-app-check-box]
+(defn- set-ios-options! [view
+                         {:keys [architecture-64bit?
+                                 architecture-simulator?
+                                 code-signing-identity
+                                 provisioning-profile
+                                 sign-app?
+                                 ios-deploy-install
+                                 ios-deploy-launch]
+                          :as _options}
+                         issues
+                         code-signing-identity-names]
+  (ui/with-controls view [architecture-64bit-check-box
+                          architecture-simulator-check-box
+                          code-signing-identity-choice-box
+                          ok-button
+                          provisioning-profile-text-field
+                          sign-app-check-box
+                          install-app-check-box
+                          launch-app-check-box]
     (ui/value! sign-app-check-box sign-app?)
     (doto code-signing-identity-choice-box
       (set-choice! (into [nil] code-signing-identity-names) code-signing-identity)
@@ -661,6 +775,13 @@
     (doto architecture-simulator-check-box
       (ui/value! architecture-simulator?)
       (set-field-status! (:architecture issues)))
+    (doto install-app-check-box
+      (ui/value! ios-deploy-install)
+      (set-field-status! (:ios-deploy-install issues)))
+    (doto ^CheckBox launch-app-check-box
+      (ui/value! ios-deploy-launch)
+      (.setDisable (not ios-deploy-install))
+      (set-field-status! (:ios-deploy-launch issues)))
     (ui/enable! ok-button (and (nil? (:architecture issues))
                                (or (not sign-app?)
                                    (and (some? code-signing-identity)
@@ -688,9 +809,10 @@
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      (into [(make-generic-headers "Bundle iOS Application")
-             (make-ios-controls refresh! owner-window)]
-            (make-generic-controls refresh! variant-choices compression-choices))))
+      (-> [(make-generic-headers "Bundle iOS Application")
+           (make-ios-controls refresh! owner-window)]
+          (into (make-generic-controls refresh! variant-choices compression-choices))
+          (conj (ios-post-bundle-controls refresh!)))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-ios-prefs! prefs view (get-code-signing-identity-names)))
@@ -725,7 +847,7 @@
 (defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants common-compressions))
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
-(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-macos" desktop-variants common-compressions))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (MacOSBundleOptionsPresenter. workspace view desktop-variants common-compressions))
 (defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants common-compressions))
 
 (handler/defhandler ::close :bundle-dialog

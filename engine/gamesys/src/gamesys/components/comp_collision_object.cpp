@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,8 +30,11 @@
 #include "gamesys.h"
 #include "gamesys_private.h" // ShowFullBufferError
 #include "../resources/res_collision_object.h"
+#include "../resources/res_textureset.h"
 #include "../resources/res_tilegrid.h"
 
+#include <gamesys/atlas_ddf.h>
+#include <gamesys/texture_set_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 
@@ -246,9 +249,9 @@ namespace dmGameSystem
     }
 
     /*
-     * Looks into world->m_Groups index for the speficied group_hash. It returns its position as 
+     * Looks into world->m_Groups index for the speficied group_hash. It returns its position as
      * bit index (a uint16_t with n-th bit set). If the hash is not found and we're in readonly mode
-     * it will return 0. If readonly is false though, it assigns the hash to the first empty bit slot. 
+     * it will return 0. If readonly is false though, it assigns the hash to the first empty bit slot.
      * If there are no positions are left, it returns 0.
      */
     static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash, bool readonly)
@@ -264,7 +267,7 @@ namespace dmGameSystem
                         return 1 << i;
                     }
                 }
-                else if (readonly) 
+                else if (readonly)
                 {
                     return 0;
                 } else
@@ -1680,7 +1683,7 @@ namespace dmGameSystem
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
-        
+
         uint16_t groupbit;
         if (world->m_3D)
         {
@@ -1690,20 +1693,20 @@ namespace dmGameSystem
             groupbit = dmPhysics::GetGroup2D(component->m_Object2D);
         }
         return GetLSBGroupHash(world, groupbit);
-    } 
+    }
 
     // returns false if no such collision group has been registered
     bool SetCollisionGroup(void* _world, void* _component, dmhash_t group_hash)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
-        
+
         uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
         if (!groupbit)
         {
             return false; // error. No such group.
-        } 
-        
+        }
+
         if (world->m_3D)
         {
             dmPhysics::SetGroup3D(world->m_World3D, component->m_Object3D, groupbit);
@@ -1714,17 +1717,17 @@ namespace dmGameSystem
         return true; // all good
     }
 
-    // Updates 'maskbit' with the mask value. Returns false if no such collision group has been registered. 
+    // Updates 'maskbit' with the mask value. Returns false if no such collision group has been registered.
     bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
-        
+
         uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
         if (!groupbit) {
             return false;
         }
-        
+
         if (world->m_3D)
         {
             *maskbit = dmPhysics::GetMaskBit3D(component->m_Object3D, groupbit);
@@ -1740,7 +1743,7 @@ namespace dmGameSystem
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component = (CollisionComponent*)_component;
-        
+
         uint16_t groupbit = GetGroupBitIndex(world, group_hash, true);
         if (!groupbit)
         {
@@ -1770,7 +1773,7 @@ namespace dmGameSystem
             if (index == 0)
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
-                if (world->m_3D) 
+                if (world->m_3D)
                 {
                     pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled3D(component->m_Object3D);
                 }

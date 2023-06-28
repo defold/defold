@@ -18,12 +18,30 @@ def build(bld):
 
     build_util = create_build_utility(bld.env)
 
+    # this is a library that is built for all platforms, so we let this one generate the ddf bindings
+    obj = bld.stlib(features        = 'ddf cxx',
+                    includes        = ['.', '../proto'],
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    proto_gen_py    = True,
+                    protoc_includes = '../proto',
+                    use             = 'DDF DLIB',
+                    target          = 'graphics_proto')
+
+    proto_cpp_source = bld.path.parent.ant_glob('build/proto/graphics/*.cpp')
+    proto_cpp_includes = ['../proto']
+
+    obj = bld.stlib(features        = 'cxx',
+                    includes        = ['.', 'null'] + proto_cpp_includes,
+                    source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + proto_cpp_source,
+                    use             = 'DDF DLIB',
+                    target          = 'graphics_null')
+
+    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
-        obj = bld.stlib(features        = 'ddf cxx',
-                        includes        = ['. opengl', '../proto'],
-                        source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                        proto_gen_py    = True,
-                        protoc_includes = '../proto',
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'opengl'] + proto_cpp_includes,
+                        source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + proto_cpp_source,
                         use             = 'DDF DLIB',
                         target          = 'graphics')
 
@@ -35,15 +53,14 @@ def build(bld):
     bld.add_group()
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-        obj = bld.stlib(features        = 'ddf cxx',
-                        includes        = ['. vulkan', '../proto'],
-                        proto_gen_py    = True,
-                        protoc_includes = '../proto',
+        print("platform_supports_feature", bld.env.PLATFORM, 'vulkan')
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'vulkan'] + proto_cpp_includes,
                         use             = 'DDF DLIB',
-                        source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                        source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_vulkan')
 
-        if bld.env.PLATFORM in ('arm64-nx64', 'x86_64-ps4'):
+        if bld.env.PLATFORM in ('arm64-nx64',):
             obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
         obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
@@ -61,34 +78,17 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
-    if bld.env.PLATFORM == 'x86_64-ps4':
-        obj = bld.stlib(features = 'ddf cxx',
-                       includes = ['.', '../proto'],
-                       source   = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                       proto_gen_py = True,
-                       protoc_includes = '../proto',
-                       use    = 'DDF DLIB',
-                       target = 'graphics_ps4')
-        obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
-
-    obj = bld.stlib(features        = 'ddf cxx',
-                    includes        = ['.', 'null', '../proto'],
-                    source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                    proto_gen_py    = True,
-                    protoc_includes = '../proto',
-                    use             = 'DDF DLIB',
-                    target          = 'graphics_null')
-
-    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+    if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
+        bld.recurse('ps4')
 
     obj = bld.stlib(features     = 'cxx',
-                    includes     = ['.', '../proto'],
+                    includes     = ['.'] + proto_cpp_includes,
                     use          = 'DLIB',
                     source       = 'transcoder/graphics_transcoder_null.cpp',
                     target       = 'graphics_transcoder_null')
 
     obj = bld.stlib(features     = 'cxx',
-                    includes     = ['.', '../proto'],
+                    includes     = ['.'] + proto_cpp_includes,
                     use          = 'DLIB',
                     source       = 'transcoder/graphics_transcoder_basisu.cpp',
                     target       = 'graphics_transcoder_basisu')

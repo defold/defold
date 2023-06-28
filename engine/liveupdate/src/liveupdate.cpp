@@ -227,7 +227,7 @@ namespace dmLiveUpdate
             dmLogError("Failed storing manifest to file '%s', result: %i", manifest_tmp_file_path, ddf_result);
             return RESULT_IO_ERROR;
         }
-        dmSys::Result sys_result = dmSys::RenameFile(manifest_file_path, manifest_tmp_file_path);
+        dmSys::Result sys_result = dmSys::Rename(manifest_file_path, manifest_tmp_file_path);
         if (sys_result != dmSys::RESULT_OK)
         {
             return RESULT_IO_ERROR;

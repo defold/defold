@@ -136,7 +136,7 @@ dmResource::Result WriteManifest(const char* path, dmResource::Manifest* manifes
         dmLogError("Failed storing manifest to file '%s', result: %i", manifest_tmp_file_path, ddf_result);
         return dmResource::RESULT_IO_ERROR;
     }
-    dmSys::Result sys_result = dmSys::RenameFile(path, manifest_tmp_file_path);
+    dmSys::Result sys_result = dmSys::Rename(path, manifest_tmp_file_path);
     if (sys_result != dmSys::RESULT_OK)
     {
         return dmResource::RESULT_IO_ERROR;

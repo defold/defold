@@ -12,85 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include "script.h"
+#include "test_script.h"
 
-#include <dlib/dstrings.h>
-#include <dlib/hash.h>
+#include <testmain/testmain.h>
 #include <dlib/log.h>
-#include <dlib/configfile.h>
-#include <dlib/sys.h>
-#include <resource/resource.h>
 
-extern "C"
+class ScriptSysTest : public dmScriptTest::ScriptTest
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/src/test/%s"
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
-
-class ScriptSysTest : public jc_test_base_class
-{
-protected:
-    virtual void SetUp()
-    {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
-
-        dmResource::NewFactoryParams factory_params;
-        m_ResourceFactory = dmResource::NewFactory(&factory_params, ".");
-        m_Context = dmScript::NewContext(m_ConfigFile, m_ResourceFactory, true);
-
-        dmScript::Initialize(m_Context);
-
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmConfigFile::Delete(m_ConfigFile);
-        dmResource::DeleteFactory(m_ResourceFactory);
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    dmConfigFile::HConfig m_ConfigFile;
-    dmResource::HFactory m_ResourceFactory;
-    lua_State* L;
 };
-
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
-bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
 
 TEST_F(ScriptSysTest, TestSys)
 {
@@ -118,7 +48,7 @@ TEST_F(ScriptSysTest, TestSys)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

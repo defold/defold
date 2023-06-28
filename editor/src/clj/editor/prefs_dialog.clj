@@ -117,7 +117,8 @@
             :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}
                     {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}
            {:name  "Tools"
-            :prefs [{:label "ADB path" :type :string :key "adb-path" :default "" :tooltip "Path to ADB command that might be used to start the Android app when it's bundled"}]}]
+            :prefs [{:label "ADB path" :type :string :key "adb-path" :default "" :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+                    {:label "ios-deploy path" :type :string :key "ios-deploy-path" :default "" :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
 
     (system/defold-dev?)
     (conj {:name "Dev"

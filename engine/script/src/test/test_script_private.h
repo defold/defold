@@ -35,11 +35,15 @@ namespace dmScriptTest
         jmp_buf* GetJmpBuf();
     };
 
+#if !defined(_WIN32) // It currently doesn't work on Win32, due to LuaJIT's exception handling
+
     // Designates a local scope, panic protected via a setjmp
     // Use integer JMPVAL to check the return value from setjmp()
     #define DM_SCRIPT_TEST_PANIC_SCOPE(STATE, FN, JMPVAL) \
         dmScriptTest::LuaPanicScope panic_scope(STATE, FN); \
         JMPVAL = setjmp(*panic_scope.GetJmpBuf());
+
+#endif
 }
 
 #endif // DM_TEST_SCRIPT_PRIVATE_H

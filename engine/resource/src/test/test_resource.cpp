@@ -26,10 +26,7 @@
 #include <dlib/testutil.h>
 #include <ddf/ddf.h>
 
-#if defined(_MSC_VER)
-    #define TMP_DIR "."
-    #define MOUNT_DIR "."
-#elif defined(__NX__) || defined(__SCE__)
+#if defined(DM_PLATFORM_VENDOR)
     #define TMP_DIR ""
     #define MOUNT_DIR DM_HOSTFS
 #else
@@ -52,6 +49,10 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/uri.h>
+
+static int g_HttpPort = -1;
+char g_HttpAddress[128] = "localhost";
+
 #endif
 
 
@@ -228,7 +229,16 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
 
-        m_Factory = dmResource::NewFactory(&params, GetParam());
+        const char* original_mount_path = GetParam();
+        char mountpath[512];
+        if (strstr(original_mount_path, "http") == original_mount_path)
+        {
+            dmSnPrintf(mountpath, sizeof(mountpath), original_mount_path, g_HttpAddress, g_HttpPort);
+            original_mount_path = mountpath;
+        }
+
+        m_Factory = dmResource::NewFactory(&params, original_mount_path);
+
         ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
 
@@ -547,7 +557,7 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
 const char* params_resource_paths[] = {
     "build/src/test/",
 #if defined(DM_TEST_HTTP_SUPPORTED)
-    "http://127.0.0.1:6123",
+    "http://%s:%d",
 #endif
     "dmanif:build/src/test/resources_pb.dmanifest"
 };
@@ -994,8 +1004,6 @@ static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& p
 
 TEST(RecreateTest, RecreateTest)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1014,11 +1022,8 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
-    char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s%s", tmp_dir, resource_name);
-
     char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPathf(host_name, sizeof(host_name), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1101,8 +1106,6 @@ static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParam
 
 TEST(RecreateTest, RecreateTestHttp)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1118,11 +1121,8 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
-    char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
-
     char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPathf(host_name, sizeof(host_name), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1217,8 +1217,6 @@ dmResource::Result FilenameResourceRecreate(const dmResource::ResourceRecreatePa
 
 TEST(FilenameTest, FilenameTest)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1234,10 +1232,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testfilename__.foo";
-    dmSnPrintf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
-
-    char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), filename_resource_filename);
+    const char* path = dmTestUtil::MakeHostPathf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1347,8 +1342,6 @@ void ReloadCallback(const dmResource::ResourceReloadedParams& params)
 
 TEST(RecreateTest, ReloadCallbackTest)
 {
-    const char* tmp_dir = TMP_DIR;
-
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -1360,11 +1353,8 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
-    char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
-
     char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPathf(host_name, sizeof(host_name), "%s/%s", TMP_DIR, resource_name);
 
     FILE* f;
 
@@ -1540,21 +1530,47 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 
 int main(int argc, char **argv)
 {
-    #if defined(DM_TEST_HTTP_SUPPORTED)
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+#if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
-    #endif
+
+    if(argc > 1)
+    {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        if (!dmTestUtil::GetIpFromConfig(config, g_HttpAddress, sizeof(g_HttpAddress))) {
+            dmLogError("Failed to get server ip!");
+        } else {
+            dmLogInfo("Server ip: %s:%d", g_HttpAddress, g_HttpPort);
+        }
+
+        dmConfigFile::Delete(config);
+    }
+    else
+    {
+        dmLogError("No config file specified!");
+        return 1;
+    }
+#endif
 
     dmHashEnableReverseHash(true);
-
-    dmLog::LogParams logparams;
-    dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
 
-    #if defined(DM_TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
-    #endif
+#endif
     return ret;
 }
 

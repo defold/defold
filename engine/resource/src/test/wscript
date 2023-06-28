@@ -112,14 +112,14 @@ def build(bld):
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderFile'],
                 target       = 'test_provider_file',
                 source       = 'test_provider_file.cpp',)
 
     bld.program(features     = 'cxx embed test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderArchive'],
                 target       = 'test_provider_archive',
                 source       = 'test_provider_archive.cpp',
@@ -127,7 +127,7 @@ def build(bld):
 
     bld.program(features = 'cxx embed test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
                 target       = 'test_provider_archive_mutable',
                 source       = 'test_provider_archive_mutable.cpp',
@@ -136,21 +136,21 @@ def build(bld):
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
                 defines      = defines,
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderHttp'],
                 target       = 'test_provider_http',
                 source       = 'test_provider_http.cpp')
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderZip'],
                 target       = 'test_provider_zip',
                 source       = 'test_provider_zip.cpp',)
 
     bld.program(features     = 'cxx test',
                 includes     = '.. ../../proto',
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 exported_symbols = ['ResourceProviderArchive', 'ResourceProviderZip', 'ResourceProviderFile'], # 'ResourceProviderHttp',
                 target       = 'test_provider_multi',
                 source       = 'test_provider_multi.cpp',)
@@ -160,7 +160,7 @@ def build(bld):
 
     test_resource_archive = bld.program(features     = 'cxx embed test',
                                         includes     = '.. ../../proto',
-                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                                         proto_gen_py = True,
                                         target       = 'test_resource_archive',
                                         source       = 'test_resource_archive.cpp',
@@ -169,7 +169,7 @@ def build(bld):
     test_resource = bld.program(features     = 'cxx embed test',
                                 includes     = '.. ../../proto',
                                 defines      = defines,
-                                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA resource',
+                                use          = 'TESTMAIN DDF DLIB PROFILE THREAD LUA resource',
                                 web_libs     = ['library_sys.js'],
                                 proto_gen_py = True,
                                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],

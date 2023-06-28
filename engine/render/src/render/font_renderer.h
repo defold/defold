@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -263,6 +263,20 @@ namespace dmRender
      * @return size
      */
     uint32_t GetFontMapResourceSize(HFontMap font_map);
+
+    /**
+     * Set the user data assigned to this font map
+     * @param font_map [type: HFontMap] Font map handle
+     * @param user_data [type: void*] the user data
+     */
+    void SetFontMapUserData(HFontMap font_map, void* user_data);
+
+    /**
+     * Get the user data assigned to this font map
+     * @param font_map [type: HFontMap] Font map handle
+     * @return user_data [type: void*] the user data
+     */
+    void* GetFontMapUserData(HFontMap font_map);
 }
 
 #endif // FONTRENDERER_H

@@ -1043,8 +1043,8 @@ namespace dmRig
             pose_matrices.SetSize(0);
         }
 
-        Matrix4 normal_matrix = Vectormath::Aos::inverse(world_matrix);
-        normal_matrix = Vectormath::Aos::transpose(normal_matrix);
+        Matrix4 normal_matrix = dmVMath::Inverse(world_matrix);
+        normal_matrix = dmVMath::Transpose(normal_matrix);
 
         // TODO: Currently, we only have support for a single material so we bake all meshes into one
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;

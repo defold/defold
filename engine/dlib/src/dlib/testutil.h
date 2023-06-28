@@ -21,6 +21,9 @@ namespace dmTestUtil
     void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* ssl_socket, int* test_sslsocket);
     const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t iplen);
 
+    // Prepends DM_HOSTFS to the path
+    // Returns the dst buffer
+    // dst buffer is always returned, even if truncation happened
     const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path);
 
     // Prepends DM_HOSTFS to the path

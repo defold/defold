@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
 
@@ -844,7 +845,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
         dmGui::RenderScene(scene, m_RenderParams, &t1);
         dmGui::UpdateScene(scene, 0.125f);
         dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
-        if (tinyDifference < Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal)) {
+        if (tinyDifference < dmVMath::LengthSqr(currentDiagonal - postScaleDiagonal)) {
             char animatedScale[64];
             char currentScale[64];
             dmSnPrintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
@@ -994,6 +995,7 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

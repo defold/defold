@@ -24,6 +24,7 @@ from google.protobuf import text_format
 import google.protobuf.message
 
 import gameobject.gameobject_ddf_pb2
+import gameobject.lua_ddf_pb2
 import gamesys.model_ddf_pb2
 import gamesys.texture_set_ddf_pb2
 import graphics.graphics_ddf_pb2
@@ -42,6 +43,7 @@ BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
 BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
+BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
 
 
 def print_dmanifest(manifest_file):

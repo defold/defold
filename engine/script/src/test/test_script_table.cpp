@@ -13,14 +13,16 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+
+#include <testmain/testmain.h>
+#include <dlib/align.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/align.h>
-#include <dlib/memory.h>
 #include <dlib/math.h>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
+#include <dlib/memory.h>
+
 #include "../script.h"
+#include "test_script.h"
 #include "test_script_private.h"
 #include "test/test_ddf.h"
 
@@ -33,71 +35,12 @@
 #include "data/table_tstring_v2.dat.embed.h"
 #include "data/table_tstring_v3.dat.embed.h"
 
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-
-#define PATH_FORMAT "build/src/test/%s"
-
-// See test TSTRING_GenerateData below
-// static bool RunFile(lua_State* L, const char* filename)
-// {
-//     char path[64];
-//     dmSnPrintf(path, 64, PATH_FORMAT, filename);
-//     if (luaL_dofile(L, path) != 0)
-//     {
-//         dmLogError("%s", lua_tolstring(L, -1, 0));
-//         lua_pop(L, 1); // lua error
-//         return false;
-//     }
-//     return true;
-// }
-
-static bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1); // lua error
-        return false;
-    }
-    return true;
-}
-
 class LuaTableTest* g_LuaTableTest = 0;
 
 char DM_ALIGNED(16) g_Buf[256];
 
-
-class LuaTableTest : public jc_test_base_class
+class LuaTableTest : public dmScriptTest::ScriptTest
 {
-protected:
-    virtual void SetUp()
-    {
-        g_LuaTableTest = this;
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-        top = lua_gettop(L);
-    }
-
-    virtual void TearDown()
-    {
-        ASSERT_EQ(top, lua_gettop(L));
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-        g_LuaTableTest = 0;
-
-    }
-
-    int top;
-    dmScript::HContext m_Context;
-    lua_State* L;
-
 };
 
 TEST_F(LuaTableTest, EmptyTable)
@@ -114,7 +57,7 @@ TEST_F(LuaTableTest, EmptyTable)
  * A helper function used when validating serialized data in original or v1 format.
  */
 typedef double (*TableGenFunc)(double);
-int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
+static int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
 {
     int error = 0;
     const double epsilon = 1.0e-7f;
@@ -149,7 +92,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
     return error;
 }
 
-int ReadUnsupportedVersion(lua_State* L)
+static int ReadUnsupportedVersion(lua_State* L)
 {
     dmScript::PushTable(L, (const char*)TABLE_V818192_DAT, TABLE_V818192_DAT_SIZE);
     return 1;
@@ -157,12 +100,12 @@ int ReadUnsupportedVersion(lua_State* L)
 
 
 // The v0.0 tables were generated with dense keys.
-int ReadCosTableDataOriginal(lua_State* L)
+static int ReadCosTableDataOriginal(lua_State* L)
 {
     return ReadSerializedTable(L, TABLE_COS_V0_DAT, TABLE_COS_V0_DAT_SIZE, cos, 1);
 }
 
-int ReadSinTableDataOriginal(lua_State* L)
+static int ReadSinTableDataOriginal(lua_State* L)
 {
     return ReadSerializedTable(L, TABLE_SIN_V0_DAT, TABLE_SIN_V0_DAT_SIZE, sin, 1);
 }
@@ -261,7 +204,7 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
 
 const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 * sizeof(char) + sizeof(lua_Number));
 
-int ProduceIndexOutOfBounds(lua_State *L)
+static int ProduceIndexOutOfBounds(lua_State *L)
 {
     char DM_ALIGNED(16) buf[IOOB_BUFFER_SIZE];
     lua_newtable(L);
@@ -518,10 +461,12 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
 {
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
-    {
-        printf("\nExpected error begin -->\n");
-        int scope_top = lua_gettop(L);
 
+    int scope_top = lua_gettop(L);
+
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
         static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
@@ -533,13 +478,21 @@ TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
             ASSERT_FALSE(true && "We shouldn't get here");
         }
 
-        ASSERT_EQ(1, g_CustomPanicFunctionCalled);
         ASSERT_EQ(2, count);
-
-        lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
-        printf("<-- Expected error end\n");
     }
+#else
+    try {
+        dmScript::CheckTableSize(L, -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
 
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
     lua_pop(L, 1);
 }
 
@@ -548,10 +501,11 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
     g_CustomPanicFunctionCalled = 0;
     SetupCyclicTable(L);
 
-    {
-        printf("\nExpected error begin -->\n");
-        int scope_top = lua_gettop(L);
+    int scope_top = lua_gettop(L);
 
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
         static int count = 0;
         int jmpval;
         DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
@@ -563,13 +517,21 @@ TEST_F(LuaTableTest, CyclicTable_CheckTable)
             ASSERT_FALSE(true && "We shouldn't get here");
         }
 
-        ASSERT_EQ(1, g_CustomPanicFunctionCalled);
         ASSERT_EQ(2, count);
-        lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
-
-        printf("<-- Expected error end\n");
     }
+#else
+    try {
+        dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
 
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
     lua_pop(L, 1);
 }
 
@@ -924,7 +886,7 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pop(L, 1);
 }
 
-int static ParseTruncatedTable(lua_State* L)
+static int ParseTruncatedTable(lua_State* L)
 {
     size_t buffer_len = 0;
     const char* buffer = lua_tolstring(L, -2, &buffer_len);
@@ -1082,7 +1044,7 @@ TEST_F(LuaTableTest, Stress)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

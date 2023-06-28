@@ -51,6 +51,7 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
+
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
 

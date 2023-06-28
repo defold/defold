@@ -28,15 +28,17 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_libs is None:
         extra_libs = []
 
-    if not 'PLATFORM_SOCKET' in extra_libs:
-        extra_libs.append('PLATFORM_SOCKET')
+    for lib in ('SOCKET', 'APP'):
+        if not lib in extra_libs:
+            extra_libs.append(lib)
 
     req_includes.insert(0, '..')
 
-    platform_source = ''
-    platform_source_path = '%s/test_platform.cpp' % build_util.get_target_os()
-    if os.path.exists('src/test/' + platform_source_path):
-        platform_source = ' ' + platform_source_path
+    target_os = build_util.get_target_os()
+    if target_os == 'ps5':
+        target_os = 'ps4'
+
+    platform_source = bld.path.ant_glob('%s/**/*.cpp' % target_os)
 
     req_features.append('test')
     if skip_run:
@@ -52,7 +54,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    if bld.env.PLATFORM in ('js-web','wasm-web', 'arm64-nx64', 'x86_64-ps4'):
+    if bld.env.PLATFORM in ('js-web','wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         local_libs += ['profile_null','remotery_null']
     else:
         local_libs += ['profile','remotery']
@@ -70,7 +72,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     use_lib_list = '%s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
-        'source': (name + '.cpp' + platform_source).split() + bld.path.ant_glob('../dlib/testutil.cpp'),
+        'source': (name + '.cpp').split() + platform_source + bld.path.ant_glob('../dlib/testutil.cpp'),
         'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
@@ -126,7 +128,7 @@ def build(bld):
     create_test(bld, 'test_array')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_socket', extra_libs = ['THREAD'])
     create_test(bld, 'test_time')
     create_test(bld, 'test_thread', extra_libs = ['THREAD'])
     create_test(bld, 'test_mutex', extra_libs =['THREAD'])
@@ -139,15 +141,15 @@ def build(bld):
                                         target_name = 'test_profile_null')
 
     create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
-    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'THREAD'])
+    create_test(bld, 'test_message', extra_libs = ['THREAD'])
+    create_test(bld, 'test_configfile', extra_libs = ['THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 

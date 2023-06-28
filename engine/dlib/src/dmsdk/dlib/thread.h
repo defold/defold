@@ -19,10 +19,10 @@
 
 // These headers define the dmThread::Thread and dmThread::TlsKey with the native types
 
-#if defined(_WIN32)
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dmsdk/dlib/thread_native_vendor.h>
+#elif defined(_WIN32)
     #include <dmsdk/dlib/thread_native_win32.h>
-#elif defined(__NX__)
-    #include <dmsdk/dlib/thread_native_nx64.h>
 #else
     #include <dmsdk/dlib/thread_native_posix.h>
 #endif

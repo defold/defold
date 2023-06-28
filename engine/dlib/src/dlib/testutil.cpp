@@ -80,6 +80,7 @@ const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, 
 #else
     int result = vsnprintf(dst+len, dst_len-len, path_format, argp);
 #endif
+    (void)result;
     va_end(argp);
 
     dmPath::Normalize(dst, dst, dst_len);

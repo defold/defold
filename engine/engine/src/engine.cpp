@@ -111,6 +111,11 @@ DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
 
 namespace dmEngine
 {
+#if !(defined(DM_PLATFORM_VENDOR))
+    bool PlatformInitialize() { return true; }
+    void PlatformFinalize() {}
+#endif
+
     using namespace dmVMath;
 
 #define SYSTEM_SOCKET_NAME "@system"
@@ -775,7 +780,7 @@ namespace dmEngine
             char application_support_path[DMPATH_MAX_PATH];
             char application_support_log_path[DMPATH_MAX_PATH];
             const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
-            if (dmSys::GetApplicationSavePath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
+            if (dmSys::GetApplicationSupportPath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(application_support_path, LOG_FILE_NAME, application_support_log_path, sizeof(application_support_log_path));
                 log_paths[count] = application_support_log_path;
@@ -1288,10 +1293,10 @@ namespace dmEngine
             const char* mountstr = has_host_mount ? "host:/" : "";
             char path[512];
             dmSnPrintf(path, sizeof(path), "%sbuild/default/content/reload", mountstr);
-            struct stat file_stat;
-            if (stat(path, &file_stat) == 0)
+            dmSys::StatInfo file_stat;
+            if (dmSys::RESULT_OK == dmSys::Stat(path, &file_stat))
             {
-                engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+                engine->m_LastReloadMTime = file_stat.m_ModifiedTime;
             }
         }
 
@@ -1405,11 +1410,14 @@ bail:
         }
 
         input_action.m_IsGamepad = action->m_IsGamepad;
+        input_action.m_GamepadUnknown = action->m_GamepadUnknown;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
         input_action.m_GamepadPacket = action->m_GamepadPacket;
         input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
+
+        input_action.m_UserID = action->m_UserID;
 
         input_buffer->Push(input_action);
     }
@@ -2003,6 +2011,8 @@ bail:
 
 void dmEngineInitialize()
 {
+    dmEngine::PlatformInitialize();
+
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
 #if DM_RELEASE
@@ -2036,6 +2046,8 @@ void dmEngineFinalize()
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
+
+    dmEngine::PlatformFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
