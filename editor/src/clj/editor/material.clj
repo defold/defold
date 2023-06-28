@@ -124,11 +124,24 @@
                                      (range max-page-count))))
         samplers))
 
+(defn- attribute-info->error-values [{:keys [data-type element-count error name normalize]} node-id label]
+  (filterv some?
+           [error
+            (when (not (<= 1 element-count 4))
+              (g/->error node-id label :fatal element-count
+                         (format "'%s' attribute element count must be between 1 and 4"
+                                 name)))
+            (when (and normalize
+                       (= :type-float data-type))
+              (g/->error node-id label :fatal element-count
+                         (format "'%s' attribute uses normalize with float data type"
+                                 name)))]))
+
 (g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count project-settings resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-        (keep :error attribute-infos))
+        (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
       (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
@@ -364,7 +377,8 @@
       ;; If the element count changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the
       ;; project to be saved with the updated element count.
-      (not= old-element-count new-element-count)
+      (and (not= old-element-count new-element-count)
+           (<= 1 new-element-count 4))
       (let [semantic-type (:semantic-type new-attribute)]
         (update new-attribute :values #(graphics/resize-doubles % semantic-type new-element-count)))
 
