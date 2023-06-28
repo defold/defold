@@ -753,4 +753,3 @@
 
 ;; TODO(vertex-attr):
 ;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
-;; * Validation for the vertex attributes, right now we allow _any_ value which will crash the engine. Should probably limit element-count to 1..4?
