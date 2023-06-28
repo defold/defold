@@ -253,20 +253,10 @@ case $1 in
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			set +e
 
-			export DEFOLD_ARCH="32"
-			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
-
-			export HOST_CC="clang"
-			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
-			export HOST_ALDFLAGS=""
-			export TARGET_LDFLAGS=""
-
-			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS ${XCFLAGS}'"
+			# grab our old 32 bit executable and store it in the host package
 			set -e
-			make clean
-			make -j8
-			make install
-			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
+			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 			set +e
 		}
 		;;
