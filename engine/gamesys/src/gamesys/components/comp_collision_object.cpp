@@ -1280,53 +1280,92 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
 
-        if (params.m_PropertyId == PROP_LINEAR_VELOCITY) {
+        if (params.m_PropertyId == PROP_LINEAR_VELOCITY)
+        {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            if (physics_context->m_3D) {
+            }
+            if (physics_context->m_3D)
+            {
                 dmPhysics::SetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
-            } else {
+            }
+            else
+            {
                 dmPhysics::SetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
-        } else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY) {
+        }
+        else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY)
+        {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            if (physics_context->m_3D) {
+            }
+            if (physics_context->m_3D)
+            {
                 dmPhysics::SetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
-            } else {
+            }
+            else
+            {
                 dmPhysics::SetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D, dmVMath::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
-        } else if (params.m_PropertyId == PROP_BULLET) {
+        }
+        else if (params.m_PropertyId == PROP_BULLET)
+        {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_BOOLEAN)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            if (physics_context->m_3D) {
+            }
+            if (physics_context->m_3D)
+            {
                 dmLogWarning("'bullet' property not supported in 3d physics mode");
                 return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-            } else {
+            }
+            else
+            {
                 dmPhysics::SetBullet2D(component->m_Object2D, params.m_Value.m_Bool);
             }
             return dmGameObject::PROPERTY_RESULT_OK;
-        } else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
+        }
+        else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            if (physics_context->m_3D) {
+            }
+            if (physics_context->m_3D)
+            {
                 dmPhysics::SetLinearDamping3D(component->m_Object3D, params.m_Value.m_Number);
-            } else {
+            }
+            else
+            {
                 dmPhysics::SetLinearDamping2D(component->m_Object2D, params.m_Value.m_Number);
             }
             return dmGameObject::PROPERTY_RESULT_OK;
-        } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
+        }
+        else if (params.m_PropertyId == PROP_ANGULAR_DAMPING)
+        {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            if (physics_context->m_3D) {
+            }
+            if (physics_context->m_3D)
+            {
                 dmPhysics::SetAngularDamping3D(component->m_Object3D, params.m_Value.m_Number);
-            } else {
+            }
+            else
+            {
                 dmPhysics::SetAngularDamping2D(component->m_Object2D, params.m_Value.m_Number);
             }
             return dmGameObject::PROPERTY_RESULT_OK;
-        } else {
+        }
+        else if (params.m_PropertyId == PROP_MASS)
+        {
+            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
+        }
+        else
+        {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
     }
