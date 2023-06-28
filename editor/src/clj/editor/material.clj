@@ -208,116 +208,122 @@
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-     {:navigation false
-      :sections
-      [{:title "Material"
-        :fields
-        [{:path [:name]
-          :label "Name"
-          :type :string
-          :default "New Material"}
-         {:path [:vertex-program]
-          :label "Vertex Program"
-          :type :resource :filter "vp"}
-         {:path [:fragment-program]
-          :label "Fragment Program"
-          :type :resource :filter "fp"}
-         {:path [:attributes]
-          :label "Vertex Attributes"
-          :type :table
-          :columns (let [attribute-data-type-options (protobuf/enum-values Graphics$VertexAttribute$DataType)
-                         attribute-semantic-type-options (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
-                         attribute-coordinate-space (protobuf/enum-values Graphics$CoordinateSpace)]
-                     [{:path [:name]
-                       :label "Name"
-                       :type :string}
-                      {:path [:semantic-type]
-                       :label "Semantic Type"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options attribute-semantic-type-options)
-                       :default :semantic-type-none}
-                      {:path [:data-type]
-                       :label "Data Type"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options attribute-data-type-options)
-                       :default :type-float}
-                      {:path [:element-count]
-                       :label "Count"
-                       :type :integer
-                       :default 3}
-                      {:path [:normalize]
-                       :label "Normalize"
-                       :type :boolean
-                       :default false}
-                      {:path [:coordinate-space]
-                       :label "Coordinate Space"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options attribute-coordinate-space)
-                       :default :coordinate-space-local}
-                      {:path [:values] :label "Value" :type :vec4}])}
-         {:path [:vertex-constants]
-          :label "Vertex Constants"
-          :type :table
-          :columns [{:path [:name] :label "Name" :type :string}
-                    {:path [:type]
-                     :label "Type"
-                     :type :choicebox
-                     :options (protobuf-forms/make-options constant-values)
-                     :default (ffirst constant-values)}
-                    {:path [:value] :label "Value" :type :vec4}]}
-         {:path [:fragment-constants]
-          :label "Fragment Constants"
-          :type :table
-          :columns [{:path [:name] :label "Name" :type :string}
-                    {:path [:type]
-                     :label "Type"
-                     :type :choicebox
-                     :options (protobuf-forms/make-options constant-values)
-                     :default (ffirst constant-values)}
-                    {:path [:value] :label "Value" :type :vec4}]}
-         {:path [:samplers]
-          :label "Samplers"
-          :type :table
-          :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
-                         min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
-                         mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
-                     [{:path [:name] :label "Name" :type :string}
-                      {:path [:wrap-u]
-                       :label "Wrap U"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options wrap-options)
-                       :default (ffirst wrap-options)}
-                      {:path [:wrap-v]
-                       :label "Wrap V"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options wrap-options)
-                       :default (ffirst wrap-options)}
-                      {:path [:filter-min]
-                       :label "Filter Min"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options min-options)
-                       :default (ffirst min-options)}
-                      {:path [:filter-mag]
-                       :label "Filter Mag"
-                       :type :choicebox
-                       :options (protobuf-forms/make-options mag-options)
-                       :default (ffirst mag-options)}
-                      {:path [:max-anisotropy]
-                       :label "Max Anisotropy"
-                       :type :number}])}
-         {:path [:tags]
-          :label "Tags"
-          :type :list
-          :element {:type :string :default "New Tag"}}
-         {:path [:vertex-space]
-          :label "Vertex Space"
-          :type :choicebox
-          :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
-          :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
-         {:path [:max-page-count]
-          :label "Max Atlas Pages"
-          :type :integer
-          :default 0}]}]}))
+    {:navigation false
+     :sections
+     [{:title "Material"
+       :fields
+       [{:path [:name]
+         :label "Name"
+         :type :string
+         :default "New Material"}
+        {:path [:vertex-program]
+         :label "Vertex Program"
+         :type :resource :filter "vp"}
+        {:path [:fragment-program]
+         :label "Fragment Program"
+         :type :resource :filter "fp"}
+        {:path [:attributes]
+         :label "Vertex Attributes"
+         :type :table
+         :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
+                        data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
+                        coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
+                        default-semantic-type :semantic-type-none
+                        default-element-count 3
+                        default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-element-count)]
+                    [{:path [:name]
+                      :label "Name"
+                      :type :string}
+                     {:path [:semantic-type]
+                      :label "Semantic Type"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options semantic-type-values)
+                      :default default-semantic-type}
+                     {:path [:data-type]
+                      :label "Data Type"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options data-type-values)
+                      :default :type-float}
+                     {:path [:element-count]
+                      :label "Count"
+                      :type :integer
+                      :default default-element-count}
+                     {:path [:normalize]
+                      :label "Normalize"
+                      :type :boolean
+                      :default false}
+                     {:path [:coordinate-space]
+                      :label "Coordinate Space"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options coordinate-space-values)
+                      :default :coordinate-space-local}
+                     {:path [:values]
+                      :label "Value"
+                      :type :vec4
+                      :default default-values}])}
+        {:path [:vertex-constants]
+         :label "Vertex Constants"
+         :type :table
+         :columns [{:path [:name] :label "Name" :type :string}
+                   {:path [:type]
+                    :label "Type"
+                    :type :choicebox
+                    :options (protobuf-forms/make-options constant-values)
+                    :default (ffirst constant-values)}
+                   {:path [:value] :label "Value" :type :vec4}]}
+        {:path [:fragment-constants]
+         :label "Fragment Constants"
+         :type :table
+         :columns [{:path [:name] :label "Name" :type :string}
+                   {:path [:type]
+                    :label "Type"
+                    :type :choicebox
+                    :options (protobuf-forms/make-options constant-values)
+                    :default (ffirst constant-values)}
+                   {:path [:value] :label "Value" :type :vec4}]}
+        {:path [:samplers]
+         :label "Samplers"
+         :type :table
+         :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
+                        min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
+                        mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
+                    [{:path [:name] :label "Name" :type :string}
+                     {:path [:wrap-u]
+                      :label "Wrap U"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options wrap-options)
+                      :default (ffirst wrap-options)}
+                     {:path [:wrap-v]
+                      :label "Wrap V"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options wrap-options)
+                      :default (ffirst wrap-options)}
+                     {:path [:filter-min]
+                      :label "Filter Min"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options min-options)
+                      :default (ffirst min-options)}
+                     {:path [:filter-mag]
+                      :label "Filter Mag"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options mag-options)
+                      :default (ffirst mag-options)}
+                     {:path [:max-anisotropy]
+                      :label "Max Anisotropy"
+                      :type :number}])}
+        {:path [:tags]
+         :label "Tags"
+         :type :list
+         :element {:type :string :default "New Tag"}}
+        {:path [:vertex-space]
+         :label "Vertex Space"
+         :type :choicebox
+         :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
+         :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
+        {:path [:max-page-count]
+         :label "Max Atlas Pages"
+         :type :integer
+         :default 0}]}]}))
 
 (defn- coerce-attribute [new-attribute old-attribute]
   ;; This assumes only a single property will change at a time, which is the
@@ -335,26 +341,24 @@
       (and (not= old-normalize new-normalize)
            (not= :type-float (:data-type new-attribute)))
       (let [coerce-fn
-            (cond
-              ;; Converting from normalized to non-normalized values.
-              old-normalize
-              (case (:data-type new-attribute)
-                :type-byte num/normalized->byte-double
-                :type-unsigned-byte num/normalized->ubyte-double
-                :type-short num/normalized->short-double
-                :type-unsigned-short num/normalized->ushort-double
-                :type-int num/normalized->int-double
-                :type-unsigned-int num/normalized->uint-double)
-
+            (if new-normalize
               ;; Converting from non-normalized to normalized values.
-              new-normalize
               (case (:data-type new-attribute)
                 :type-byte num/byte-range->normalized
                 :type-unsigned-byte num/ubyte-range->normalized
                 :type-short num/short-range->normalized
                 :type-unsigned-short num/ushort-range->normalized
                 :type-int num/int-range->normalized
-                :type-unsigned-int num/uint-range->normalized))]
+                :type-unsigned-int num/uint-range->normalized)
+
+              ;; Converting from normalized to non-normalized values.
+              (case (:data-type new-attribute)
+                :type-byte num/normalized->byte-double
+                :type-unsigned-byte num/normalized->ubyte-double
+                :type-short num/normalized->short-double
+                :type-unsigned-short num/normalized->ushort-double
+                :type-int num/normalized->int-double
+                :type-unsigned-int num/normalized->uint-double))]
         (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
       ;; If the element count changes, resize the default value in the material.
@@ -543,77 +547,3 @@
     :sanitize-fn sanitize-material
     :icon "icons/32/Icons_31-Material.png"
     :view-types [:cljfx-form-view :text]))
-
-(comment
-  (require 'dev)
-  (import '[com.dynamo.graphics.proto Graphics$VertexAttribute])
-
-  (let [node-id (dev/active-resource)]
-    (g/node-value node-id :save-value))
-
-  (let [node-id (dev/active-resource)
-        args (into {}
-                   (map (fn [sym]
-                          (let [label (keyword (name sym))
-                                value (g/node-value node-id label)]
-                            [label value])))
-                   '[_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space])
-        {:keys [_node-id attributes]} args]
-
-    (let [form-values
-          (into {}
-                (comp (mapcat :fields)
-                      (map (fn [field]
-                             (let [path (:path field)
-                                   args-key (util/only-or-throw path) ; [:vertex-space] -> :vertex-space
-                                   args-value (get args args-key ::not-found)]
-                               (assert (not= ::not-found args-value))
-                               (let [value (if (not= :attributes args-key)
-                                             args-value
-                                             (mapv (fn [{:keys [data-type element-count] :as attribute}]
-                                                     (let [fill-value 0.0]
-                                                       (update attribute :values coll/resize element-count fill-value)))
-                                                   args-value))]
-                                 (pair path value))))))
-                (:sections form-data))]
-      (assoc form-data
-        :values form-values
-        :form-ops {:user-data {:node-id node-id :attributes attributes}
-                   :set set-form-op
-                   :clear clear-form-op})))
-
-  (update-in
-    form-data [:sections 0 :fields]
-    (fn [fields]
-      (mapv
-        (fn [field]
-          (if (not= :attributes (first (:path field)))
-            field
-            (update
-              field :columns
-              (fn [columns]
-                (mapv
-                  (fn [column]
-                    (if (not= :values (first (:path column)))
-                      column
-                      (assoc column :NEW! :NEW!)))
-                  columns)))))
-        fields)))
-
-  (let [attribute (protobuf/str->map
-                    Graphics$VertexAttribute "
-                    name: ''
-                    data_type: TYPE_UNSIGNED_INT
-                    element_count: 1
-                    long_values {
-                      v: 4294967295
-                    }")]
-    (get-in attribute [:long-values :v 0]))
-
-  (protobuf/map->str
-    Graphics$VertexAttribute
-    {:name ""
-     :data-type :type-unsigned-int
-     :normalize true
-     :element-count 1
-     :double-values {:v [(num/byte-range->normalized 127)]}}))
