@@ -129,10 +129,10 @@
 
         put-doubles!
         (fn put-doubles!
-          [vertex-byte-offset semantic-type data-type element-count normalize vertices]
+          [vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices]
           (reduce (fn [^long vertex-byte-offset attribute-doubles]
                     (let [attribute-doubles (graphics/resize-doubles attribute-doubles semantic-type element-count)]
-                      (vtx/buf-put! buf vertex-byte-offset data-type normalize attribute-doubles))
+                      (vtx/buf-put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
                     (+ vertex-byte-offset vertex-byte-stride))
                   (long vertex-byte-offset)
                   vertices))
@@ -148,7 +148,7 @@
 
     (reduce (fn [^long attribute-byte-offset attribute]
               (let [semantic-type (:semantic-type attribute)
-                    data-type (:type attribute)
+                    buffer-data-type (:type attribute)
                     element-count (long (:components attribute))
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
@@ -165,7 +165,7 @@
                     (fn put-attribute-doubles!
                       ^long [^long vertex-byte-offset vertices]
                       (try
-                        (put-doubles! vertex-byte-offset semantic-type data-type element-count normalize vertices)
+                        (put-doubles! vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices)
                         (catch Exception e
                           (throw (decorate-attribute-exception e attribute (first vertices))))))]
 
@@ -562,13 +562,17 @@
                         edit-type (attribute-edit-type attribute-info property-type)
                         property-key (attribute-key->property-key attribute-key)
                         label (properties/keyword->name attribute-key)
+                        value (if (= g/Num property-type)
+                                (first attribute-values) ; The widget expects a number, not a vector.
+                                (graphics/resize-doubles attribute-values semantic-type expected-element-count))
+                        error (when (some? override-values)
+                                (graphics/validate-doubles override-values attribute-info _node-id property-key))
                         prop {:node-id _node-id
                               :type property-type
                               :edit-type edit-type
                               :label label
-                              :value (if (= g/Num property-type)
-                                       (first attribute-values) ; The widget expects a number, not a vector.
-                                       (graphics/resize-doubles attribute-values semantic-type expected-element-count))}]
+                              :value value
+                              :error error}]
                     ;; Insert the original material values as original-value if there is a vertex override.
                     (if (some? override-values)
                       [property-key (assoc prop :original-value material-values)]

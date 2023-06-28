@@ -64,16 +64,6 @@
     :value-type-int16 :short
     :value-type-int32 :int))
 
-(defn attribute-data-type->type [attribute-data-type]
-  (case attribute-data-type
-    :type-byte :byte
-    :type-unsigned-byte :ubyte
-    :type-short :short
-    :type-unsigned-short :ushort
-    :type-int :int
-    :type-unsigned-int :uint
-    :type-float :float))
-
 (defn attribute-name->key [^String name]
   (protobuf/field-name->key name))
 

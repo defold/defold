@@ -16,6 +16,21 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const byte-min-double -128.0)
+(def ^:const byte-max-double 127.0)
+(def ^:const ubyte-min-double 0.0)
+(def ^:const ubyte-max-double 255.0)
+(def ^:const short-min-double -32768.0)
+(def ^:const short-max-double 32767.0)
+(def ^:const ushort-min-double 0.0)
+(def ^:const ushort-max-double 65535.0)
+(def ^:const int-min-double -2147483648.0)
+(def ^:const int-max-double 2147483647.0)
+(def ^:const uint-min-double 0.0)
+(def ^:const uint-max-double 4294967295.0)
+(def ^:const float-min-double -3.4028234663852886E38)
+(def ^:const float-max-double 3.4028234663852886E38)
+
 (definline unchecked-ubyte [num]
   `(unchecked-byte (unchecked-short ~num)))
 
@@ -80,7 +95,7 @@
        (/ n# 128.0))))
 
 (definline ubyte-range->normalized [num]
-  `(/ (double ~num) 255.0))
+  `(/ (double ~num) ubyte-max-double))
 
 (definline short-range->normalized [num]
   `(let [n# (double ~num)]
@@ -89,7 +104,7 @@
        (/ n# 32768.0))))
 
 (definline ushort-range->normalized [num]
-  `(/ (double ~num) 65535.0))
+  `(/ (double ~num) ushort-max-double))
 
 (definline int-range->normalized [num]
   `(let [n# (double ~num)]
@@ -98,7 +113,7 @@
        (/ n# 2147483648.0))))
 
 (definline uint-range->normalized [num]
-  `(/ (double ~num) 4294967295.0))
+  `(/ (double ~num) uint-max-double))
 
 (definline normalized->byte-double [num]
   `(let [n# (double ~num)]
@@ -107,7 +122,7 @@
                   (* n# 128.0)))))
 
 (definline normalized->ubyte-double [num]
-  `(Math/rint (* (double ~num) 255.0)))
+  `(Math/rint (* (double ~num) ubyte-max-double)))
 
 (definline normalized->short-double [num]
   `(let [n# (double ~num)]
@@ -116,7 +131,7 @@
                   (* n# 32768.0)))))
 
 (definline normalized->ushort-double [num]
-  `(Math/rint (* (double ~num) 65535.0)))
+  `(Math/rint (* (double ~num) ushort-max-double)))
 
 (definline normalized->int-double [num]
   `(let [n# (double ~num)]
@@ -125,7 +140,7 @@
                   (* n# 2147483648.0)))))
 
 (definline normalized->uint-double [num]
-  `(Math/rint (* (double ~num) 4294967295.0)))
+  `(Math/rint (* (double ~num) uint-max-double)))
 
 (definline normalized->unchecked-byte [num]
   `(unchecked-byte (normalized->byte-double ~num)))

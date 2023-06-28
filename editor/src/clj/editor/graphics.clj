@@ -14,9 +14,12 @@
 
 (ns editor.graphics
   (:require [editor.gl.vertex2 :as vtx]
+            [editor.util :as util]
+            [editor.validation :as validation]
             [potemkin.namespaces :as namespaces]
             [util.coll :as coll :refer [pair]]
-            [util.murmur :as murmur])
+            [util.murmur :as murmur]
+            [util.num :as num])
   (:import [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
@@ -90,6 +93,31 @@
         stored-values (doubles->stored-values double-values attribute-value-keyword)]
     (pair attribute-value-keyword stored-values)))
 
+(defn doubles-outside-attribute-range-error-message [double-values attribute]
+  (let [[^double min ^double max]
+        (if (:normalize attribute)
+          (case (:data-type attribute)
+            (:type-float :type-byte :type-short :type-int) [-1.0 1.0]
+            (:type-unsigned-byte :type-unsigned-short :type-unsigned-int) [0.0 1.0])
+          (case (:data-type attribute)
+            :type-float [num/float-min-double num/float-max-double]
+            :type-byte [num/byte-min-double num/byte-max-double]
+            :type-short [num/short-min-double num/short-max-double]
+            :type-int [num/int-min-double num/int-max-double]
+            :type-unsigned-byte [num/ubyte-min-double num/ubyte-max-double]
+            :type-unsigned-short [num/ushort-min-double num/ushort-max-double]
+            :type-unsigned-int [num/uint-min-double num/uint-max-double]))]
+    (when (not-every? (fn [^double val]
+                        (<= min val max))
+                      double-values)
+      (util/format* "'%s' attribute components must be between %.0f and %.0f"
+                    (:name attribute)
+                    min
+                    max))))
+
+(defn validate-doubles [double-values attribute node-id prop-kw]
+  (validation/prop-error :fatal node-id prop-kw doubles-outside-attribute-range-error-message double-values attribute))
+
 (defn resize-doubles [double-values semantic-type element-count]
   (let [fill-value (case semantic-type
                      :semantic-type-color 1.0 ; Default to opaque white for color attributes.
@@ -101,13 +129,23 @@
 
 (def default-attribute-doubles (memoize default-attribute-doubles-raw))
 
+(defn attribute-data-type->buffer-data-type [attribute-data-type]
+  (case attribute-data-type
+    :type-byte :byte
+    :type-unsigned-byte :ubyte
+    :type-short :short
+    :type-unsigned-short :ushort
+    :type-int :int
+    :type-unsigned-int :uint
+    :type-float :float))
+
 (defn- make-attribute-bytes
   ^bytes [attribute-data-type normalize attribute-values]
   (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
         attribute-bytes (byte-array attribute-value-byte-count)
         byte-buffer (vtx/wrap-buf attribute-bytes)
-        vtx-attribute-type (vtx/attribute-data-type->type attribute-data-type)]
-    (vtx/buf-push! byte-buffer vtx-attribute-type normalize attribute-values)
+        buffer-data-type (attribute-data-type->buffer-data-type attribute-data-type)]
+    (vtx/buf-push! byte-buffer buffer-data-type normalize attribute-values)
     attribute-bytes))
 
 (defn- default-attribute-bytes-raw [semantic-type data-type element-count normalize]
@@ -150,7 +188,7 @@
    :name-key (:name-key attribute-info)
    :semantic-type (:semantic-type attribute-info)
    :coordinate-space (:coordinate-space attribute-info)
-   :type (vtx/attribute-data-type->type (:data-type attribute-info))
+   :type (attribute-data-type->buffer-data-type (:data-type attribute-info))
    :components (:element-count attribute-info)
    :normalize (:normalize attribute-info false)})
 
