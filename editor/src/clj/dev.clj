@@ -164,7 +164,9 @@
 (def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
-  (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
+  (some-> (view-of-type console/ConsoleNode)
+          (g/targets-of :lines)
+          (ffirst)))
 
 (defn node-values [node-id & labels]
   (g/with-auto-evaluation-context evaluation-context

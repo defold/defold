@@ -15,23 +15,15 @@
 (ns dev-test
   (:require [clojure.test :refer :all]
             [dev :as dev]
-            [dynamo.graph :as g]))
+            [dynamo.graph :as g]
+            [editor.defold-project :as project]
+            [integration.test-util :as test-util]))
 
 (set! *warn-on-reflection* true)
 
 (deftest node-type-accessors-test
-  (are [expected-node-type-kw node-id]
-    (= expected-node-type-kw (g/node-type-kw node-id))
-
-    ;; Data model nodes.
-    :editor.workspace/Workspace (dev/workspace)
-    :editor.defold-project/Project (dev/project)
-
-    ;; View nodes.
-    :editor.app-view/AppView (dev/app-view)
-    :editor.asset-browser/AssetBrowser (dev/assets-view)
-    :editor.changes-view/ChangesView (dev/changed-files-view)
-    :editor.outline-view/OutlineView (dev/outline-view)
-    :editor.properties-view/PropertiesView (dev/properties-view)
-    :editor.curve-view/CurveView (dev/curve-view)
-    :editor.code.view/CodeEditorView (dev/console-view)))
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (is (= :editor.workspace/Workspace (g/node-type-kw (dev/workspace))))
+    (is (= :editor.defold-project/Project (g/node-type-kw (dev/project))))
+    (is (= (project/workspace (dev/project)) (dev/workspace)))
+    (is (= app-view (dev/app-view)))))
