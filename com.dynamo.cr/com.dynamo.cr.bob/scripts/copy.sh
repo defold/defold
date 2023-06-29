@@ -20,12 +20,12 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 set -e
 mkdir -p lib/x86_64-linux
 mkdir -p lib/x86_64-macos
-#mkdir -p lib/arm64-macos
+mkdir -p lib/arm64-macos
 mkdir -p lib/x86-win32
 mkdir -p lib/x86_64-win32
 mkdir -p libexec/x86_64-linux
 mkdir -p libexec/x86_64-macos
-#mkdir -p libexec/arm64-macos
+mkdir -p libexec/arm64-macos
 mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/arm64-ios
@@ -40,12 +40,12 @@ SHA1=`git log --pretty=%H -n1`
 
 # SPIRV toolchain
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/glslc libexec/x86_64-macos/glslc
-#cp -v $DYNAMO_HOME/ext/bin/arm64-macos/glslc libexec/arm64-macos/glslc
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/glslc libexec/arm64-macos/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslc libexec/x86_64-linux/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe libexec/x86_64-win32/glslc.exe
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross libexec/x86_64-macos/spirv-cross
-#cp -v $DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross libexec/arm64-macos/spirv-cross
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross libexec/arm64-macos/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross libexec/x86_64-linux/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spirv-cross.exe
 
@@ -61,14 +61,15 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/tex
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
-#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 
 # MODELC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libmodelc_shared.so lib/x86_64-linux/libmodelc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86_64-win32/modelc_shared.dll
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libmodelc_shared.dylib lib/arm64-macos/libmodelc_shared.dylib
 
 # Win32 32
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
@@ -77,22 +78,14 @@ cp -v $DYNAMO_HOME/ext/lib/win32/wrap_oal.dll lib/x86-win32/wrap_oal.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/OpenAL32.dll lib/x86_64-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.dll
 
-
-rm -rf tmp
-mkdir -p tmp
-tar xf ../../packages/luajit-2.1.0-6c4826f-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz -C tmp
-
-cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
-cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
-cp -v tmp/bin/x86_64-macos/luajit-32 libexec/x86_64-macos/luajit-32
-cp -v tmp/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
-#cp -v tmp/bin/arm64-macos/luajit-32 libexec/arm64-macos/luajit-32
-#cp -v tmp/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
-cp -v tmp/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
-cp -v tmp/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-32 libexec/x86_64-macos/luajit-32
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-32 libexec/arm64-macos/luajit-32 # TODO create an arm32 executable
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
+cp -v $DYNAMO_HOME/ext/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 
 copy () {
@@ -105,9 +98,9 @@ copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
 copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
 copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
 copy x86_64-macos/stripped/dmengine_headless x86_64-macos/dmengine_headless
-#copy arm64-macos/stripped/dmengine arm64-macos/dmengine
-#copy arm64-macos/stripped/dmengine_release arm64-macos/dmengine_release
-#copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
+copy arm64-macos/stripped/dmengine arm64-macos/dmengine
+copy arm64-macos/stripped/dmengine_release arm64-macos/dmengine_release
+copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
 copy win32/dmengine.exe x86-win32/dmengine.exe
 copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
 copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe

@@ -173,7 +173,7 @@ TEST_F(dmHttpCacheTest, SetError)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 

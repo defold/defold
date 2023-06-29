@@ -34,6 +34,7 @@
 
 #include "resources/res_particlefx.h"
 #include "resources/res_textureset.h"
+#include "resources/res_material.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
@@ -283,9 +284,11 @@ namespace dmGameSystem
         uint32_t ro_index = pfx_world->m_RenderObjects.Size();
         pfx_world->m_RenderObjects.SetSize(ro_index+1);
 
+        dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) first->m_Material;
+
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
-        ro.m_Material = (dmRender::HMaterial) first->m_Material;
+        ro.m_Material = material_res->m_Material;
         ro.m_Textures[0] = (dmGraphics::HTexture) first->m_Texture;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = ro_vertex_count;
@@ -370,10 +373,12 @@ namespace dmGameSystem
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
 
+                    dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_data->m_Material;
+
                     write_ptr->m_WorldPosition = Point3(render_data->m_Transform.getTranslation());
                     write_ptr->m_UserData = (uintptr_t) render_data;
                     write_ptr->m_BatchKey = render_data->m_MixedHash;
-                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey((dmRender::HMaterial)render_data->m_Material);
+                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(material_res->m_Material);
                     write_ptr->m_Dispatch = dispatch;
                     write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;

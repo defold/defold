@@ -19,13 +19,13 @@ message NodeDesc
     // NOTE: Enum values must correspond to the enum values in dmGui
     enum Type
     {
-        TYPE_BOX  = 0 [(displayName) = "Box"];
-        TYPE_TEXT = 1 [(displayName) = "Text"];
-        TYPE_PIE  = 2 [(displayName) = "Pie"];
-        TYPE_TEMPLATE = 3 [(displayName) = "Template"];
-        TYPE_SPINE = 4 [(displayName) = "Spine"]; // Deprecated
+        TYPE_BOX        = 0 [(displayName) = "Box"];
+        TYPE_TEXT       = 1 [(displayName) = "Text"];
+        TYPE_PIE        = 2 [(displayName) = "Pie"];
+        TYPE_TEMPLATE   = 3 [(displayName) = "Template"];
+        TYPE_SPINE      = 4 [(displayName) = "Spine"]; // Deprecated
         TYPE_PARTICLEFX = 5 [(displayName) = "ParticleFX"];
-        TYPE_CUSTOM = 6 [(displayName) = "Custom"];
+        TYPE_CUSTOM     = 6 [(displayName) = "Custom"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -76,8 +76,8 @@ message NodeDesc
 
     enum AdjustMode
     {
-        ADJUST_MODE_FIT = 0 [(displayName) = "Fit"];
-        ADJUST_MODE_ZOOM = 1 [(displayName) = "Zoom"];
+        ADJUST_MODE_FIT     = 0 [(displayName) = "Fit"];
+        ADJUST_MODE_ZOOM    = 1 [(displayName) = "Zoom"];
         ADJUST_MODE_STRETCH = 2 [(displayName) = "Stretch"];
     };
 
@@ -155,6 +155,8 @@ message NodeDesc
     optional bool enabled                   = 45 [default = true];
     optional bool visible                   = 46 [default = true];
 
+    optional string material                = 47 [(resource)=true];
+
 }
 
 message SceneDesc
@@ -171,20 +173,30 @@ message SceneDesc
         required string name    = 1;
         required string font    = 2 [(resource)=true];
     }
+
     message TextureDesc
     {
         required string name    = 1;
         required string texture = 2 [(resource)=true];
     }
+
     message LayerDesc
     {
         required string name    = 1;
     }
+
     message LayoutDesc
     {
         required string   name  = 1;
         repeated NodeDesc nodes = 2;
     }
+
+    message MaterialDesc
+    {
+        required string name     = 1;
+        required string material = 2 [(resource)=true];
+    }
+
     message SpineSceneDesc
     {
         required string name         = 1;
@@ -203,27 +215,20 @@ message SceneDesc
         required string particlefx  = 2 [(resource)=true];
     }
 
-    required string      script                  = 1 [(resource)=true];
-    repeated FontDesc    fonts                   = 2;
-    repeated TextureDesc textures                = 3;
-    optional dmMath.Vector4 background_color     = 4;
-
-    repeated NodeDesc    nodes                   = 6;
-    repeated LayerDesc   layers                  = 7;
-
-    optional string      material                = 8 [(resource)=true, default="/builtins/materials/gui.material"];
-
-    repeated LayoutDesc  layouts                 = 9;
-
-    optional AdjustReference adjust_reference    = 10 [default = ADJUST_REFERENCE_LEGACY];
-
-    optional uint32      max_nodes               = 11 [default = 512];
-
-    repeated SpineSceneDesc spine_scenes         = 12;
-
-    repeated ParticleFXDesc particlefxs          = 13;
-
-    repeated ResourceDesc resources              = 14;
+    required string          script           = 1 [(resource)=true];
+    repeated FontDesc        fonts            = 2;
+    repeated TextureDesc     textures         = 3;
+    optional dmMath.Vector4  background_color = 4;
+    repeated NodeDesc        nodes            = 6;
+    repeated LayerDesc       layers           = 7;
+    optional string          material         = 8 [(resource)=true, default="/builtins/materials/gui.material"];
+    repeated LayoutDesc      layouts          = 9;
+    optional AdjustReference adjust_reference = 10 [default = ADJUST_REFERENCE_LEGACY];
+    optional uint32          max_nodes        = 11 [default = 512];
+    repeated SpineSceneDesc  spine_scenes     = 12;
+    repeated ParticleFXDesc  particlefxs      = 13;
+    repeated ResourceDesc    resources        = 14;
+    repeated MaterialDesc    materials        = 15;
 }
 
 /*# reports a layout change

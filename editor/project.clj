@@ -16,10 +16,10 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
+                     "jogamp" "https://jogamp.org/deployment/maven"}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
-                     [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
   :dependencies     [[org.clojure/clojure                         "1.10.0"]
@@ -30,8 +30,7 @@
                      [org.clojure/tools.namespace                 "1.2.0"]
                      [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
-                     [com.cognitect/transit-clj                   "0.8.285"
-                      :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
+                     [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
                      [com.google.protobuf/protobuf-java           "3.20.1"]
@@ -51,8 +50,7 @@
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
-                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"
-                      :exclusions [org.apache.httpcomponents/httpclient]] ; jgit -> 4.3.6, amazonica -> 4.5.2
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
                      [clj-antlr                                   "0.2.2"
                       :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
                      [org.antlr/antlr4 "4.7.2"]
@@ -67,10 +65,9 @@
 
                      [com.atlassian.commonmark/commonmark         "0.9.0"]
 
-                     [amazonica                                   "0.3.79"
-                      :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
-                     [com.amazonaws/aws-java-sdk-core             "1.11.63"]
-                     [com.amazonaws/aws-java-sdk-s3               "1.11.63"]
+                     [com.cognitect.aws/api "0.8.673"]
+                     [com.cognitect.aws/endpoints "1.1.12.478"]
+                     [com.cognitect.aws/s3 "847.2.1387.0"]
 
                      ;; bob needs javax.xml.bind, and it's removed in jdk 11
                      [javax.xml.bind/jaxb-api "2.3.0"]
@@ -112,16 +109,14 @@
                      [org.openjfx/javafx-swing "19.0.2.1" :classifier "mac"]
                      [org.openjfx/javafx-swing "19.0.2.1" :classifier "win"]
 
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-windows-amd64"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]]
 
@@ -180,18 +175,17 @@
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.awt=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED"
+                      ;; used in lsp.clj (java.lang.String sun.nio.fs.Globs.toUnixRegexPattern)
+                      "--add-opens=java.base/sun.nio.fs=ALL-UNNAMED"
                       ;; hide warnings about illegal reflective access by clojure
-                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"]
+                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
+                      ;; used in editor.scene$read_to_buffered_image
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce initialize-test-prerequisites
-                                               (do
-                                                 (com.defold.libs.ResourceUnpacker/unpackResources)
-                                                 (javafx.application.Platform/startup
-                                                   (fn []
-                                                     (com.jogamp.opengl.GLProfile/initSingleton)))))]
+  :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
                                 :jvm-opts ["-Ddefold.tests=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
@@ -221,7 +215,7 @@
                                                     [org.clojure/test.check   "0.9.0"]
                                                     [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
-                                                    [ring "1.4.0"]]
+                                                    [ring "1.9.6"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]

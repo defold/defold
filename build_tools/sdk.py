@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -80,7 +80,7 @@ PACKAGES_XCODE_TOOLCHAIN="XcodeDefault%s.xctoolchain" % VERSION_XCODE
 
 ## **********************************************************************************************
 
-# The "pattern" is the path relative to the tmp/dynamo/ext/SDKs/ folder 
+# The "pattern" is the path relative to the tmp/dynamo/ext/SDKs/ folder
 
 defold_info = defaultdict(defaultdict)
 defold_info['xcode']['version'] = VERSION_XCODE
@@ -294,7 +294,7 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
                 os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
                 os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
                 os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
-    
+
     info = {}
     info['sdk_root'] = os.path.join(windowskitsdir,'10')
     info['sdk_version'] = ucrt_version
@@ -308,11 +308,11 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
 
 def _setup_info_from_windowsinfo(windowsinfo, platform):
 
-    info = {} 
+    info = {}
     info[platform] = {}
     info[platform]['version'] = windowsinfo['sdk_version']
     info[platform]['path'] = windowsinfo['sdk_root']
-    
+
     info['msvc'] = {}
     info['msvc']['version'] = windowsinfo['vs_version']
     info['msvc']['path'] = windowsinfo['vs_root']
@@ -357,7 +357,7 @@ def check_defold_sdk(sdkfolder, platform):
         folders.append(os.path.join(sdkfolder, "linux"))
 
     if not folders:
-        log.log("No SDK folders specified for %s" %platform)
+        log.log("sdk.py: No SDK folders specified for %s" %platform)
         return False
 
     count = 0
@@ -392,7 +392,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform) # what we use for sysroot
-    
+
     elif platform in ('x86_64-linux',):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
@@ -468,9 +468,6 @@ def get_host_platform():
     elif sys.platform == 'win32':
         return '%s-win32' % machine
     elif sys.platform == 'darwin':
-        # Force x86_64 on M1 Macs for now.
-        if machine == 'arm64':
-            machine = 'x86_64'
         return '%s-macos' % machine
 
     raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))

@@ -116,9 +116,10 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(defn- samplers->samplers-with-indirection-hashes [samplers max-page-count]
+(defn- build-target-samplers [samplers max-page-count]
   (mapv (fn [sampler]
-          (assoc sampler
+          (assoc sampler 
+            :name-hash (murmur/hash64 (:name sampler))
             :name-indirections (mapv (fn [slice-index]
                                        (murmur/hash64 (str (:name sampler) "_" slice-index)))
                                      (range max-page-count))))
@@ -145,13 +146,13 @@
       (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
-            samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers base-pb-msg) max-page-count)
+            build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
             material-desc-with-build-resources (assoc base-pb-msg
                                                  :vertex-program (:resource vertex-shader-build-target)
                                                  :fragment-program (:resource fragment-shader-build-target)
-                                                 :samplers samplers-with-indirect-hashes
+                                                 :samplers build-target-samplers
                                                  :attributes build-target-attributes)]
         [(bt/with-content-hash
            {:node-id _node-id
@@ -530,7 +531,8 @@
 
 (defn- sanitize-sampler [sampler]
   ;; Material$MaterialDesc$Sampler in map format.
-  (dissoc sampler :name-indirections)) ; Only used in built data by the runtime.
+  ;; TODO: The texture field _will_ be used in the editor, just not in this MVP
+  (dissoc sampler :name-indirections :texture :name-hash)) ; Only used in built data by the runtime.
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into

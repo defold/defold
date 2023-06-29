@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,6 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/align.h>
 #include <dlib/memory.h>
@@ -91,7 +90,8 @@ namespace dmRender
     struct FontMap
     {
         FontMap()
-        : m_Texture(0)
+        : m_UserData(0)
+        , m_Texture(0)
         , m_Material(0)
         , m_Glyphs()
         , m_ShadowX(0.0f)
@@ -129,6 +129,7 @@ namespace dmRender
             dmGraphics::DeleteTexture(m_Texture);
         }
 
+        void*                   m_UserData;
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
         dmHashTable32<Glyph>    m_Glyphs;
@@ -376,6 +377,16 @@ namespace dmRender
         CleanupFontmap(tex_params);
     }
 
+    void SetFontMapUserData(HFontMap font_map, void* user_data)
+    {
+        font_map->m_UserData = user_data;
+    }
+
+    void* GetFontMapUserData(HFontMap font_map)
+    {
+        return font_map->m_UserData;
+    }
+
     dmGraphics::HTexture GetFontMapTexture(HFontMap font_map)
     {
         return font_map->m_Texture;
@@ -593,7 +604,7 @@ namespace dmRender
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
 
-        te.m_FrustumCullingRadiusSq = Vectormath::Aos::lengthSqr(cornerpoint_world - centerpoint_world);
+        te.m_FrustumCullingRadiusSq = dmVMath::LengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
 
 

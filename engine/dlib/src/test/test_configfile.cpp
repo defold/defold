@@ -21,7 +21,7 @@
 #include <jc_test/jc_test.h>
 
 // We're currently disabling some tests on win32 host
-#if defined(_WIN32) || defined(__SCE__) || defined(__NX__)
+#if defined(_WIN32) || defined(DM_PLATFORM_VENDOR)
 #define HOST_WIN32
 #endif
 
@@ -404,7 +404,7 @@ int main(int argc, char **argv)
         dmConfigFile::HConfig config;
         if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
-            dmLogError("Could not read config file '%s'", argv[1]);
+            dmLogError("Could not read config file '%s'", path);
             Usage();
             return 1;
         }

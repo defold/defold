@@ -467,6 +467,17 @@ namespace dmRender
         return 0x0;
     }
 
+    uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
+    {
+        for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& sampler = material->m_Samplers[i];
+            if (sampler.m_NameHash == name_hash)
+                return i;
+        }
+        return 0xFFFFFFFF;
+    }
+
     uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit)
     {
         Sampler* s                            = (Sampler*) sampler;

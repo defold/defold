@@ -50,14 +50,14 @@ the `do-gl` macro from `editor.gl`."
 
 (set! *warn-on-reflection* true)
 
-(defn put-byte   [^ByteBuffer bb position v] (.put       bb position v))
-(defn put-short  [^ByteBuffer bb position v] (.putShort  bb position v))
-(defn put-int    [^ByteBuffer bb position v] (.putInt    bb position v))
-(defn put-float  [^ByteBuffer bb position v] (.putFloat  bb position v))
-(defn put-double [^ByteBuffer bb position v] (.putDouble bb position v))
-(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb position (.byteValue  (Long. (bit-and v 0xff)))))
-(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb position (.shortValue (Long. (bit-and v 0xffff)))))
-(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb position (.intValue   (Long. (bit-and v 0xffffffff)))))
+(defn put-byte   [^ByteBuffer bb position v] (.put       bb ^int position ^byte v))
+(defn put-short  [^ByteBuffer bb position v] (.putShort  bb ^int position v))
+(defn put-int    [^ByteBuffer bb position v] (.putInt    bb ^int position v))
+(defn put-float  [^ByteBuffer bb position v] (.putFloat  bb ^int position v))
+(defn put-double [^ByteBuffer bb position v] (.putDouble bb ^int position v))
+(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb ^int position (.byteValue  (Long. (bit-and v 0xff)))))
+(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb ^int position (.shortValue (Long. (bit-and v 0xffff)))))
+(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb ^int position (.intValue   (Long. (bit-and v 0xffffffff)))))
 
 
 (defn get-byte   [^ByteBuffer bb position]   (.get       bb ^int position))

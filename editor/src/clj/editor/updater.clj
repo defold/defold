@@ -278,7 +278,7 @@
 (defn restart! [updater]
   (let [{:keys [launcher-path install-dir]} updater]
     (log/info :message "Restarting editor")
-    (process/start! launcher-path *command-line-args* {:directory install-dir})
+    (apply process/start! {:dir install-dir} launcher-path *command-line-args*)
     (javafx.application.Platform/exit)))
 
 (defn delete-backup-files!
@@ -336,7 +336,7 @@
                           (or "")
                           io/file
                           .getCanonicalFile)
-        protected-dirs [(io/file resources-dir "packages" "jdk-11.0.15+10")]
+        protected-dirs [(io/file resources-dir "packages" "jdk-17.0.5+8")]
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os

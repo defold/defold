@@ -110,6 +110,7 @@ namespace dmInput
         Action action;
         memset(&action, 0, sizeof(Action));
         action.m_IsGamepad = 1;
+        action.m_GamepadUnknown = gamepad_binding->m_Unknown;
 
         gamepad_binding->m_Index = gamepad_index;
 
@@ -119,6 +120,8 @@ namespace dmInput
         gamepad_binding->m_Actions.SetCapacity(64, 256);
 
         action.m_GamepadIndex = gamepad_binding->m_Index;
+        action.m_UserID       = 0;
+
         for (uint32_t i = 0; i < binding->m_DDFGamepadTriggersCount; ++i)
         {
             const dmInputDDF::GamepadTrigger& ddf_trigger = binding->m_DDFGamepadTriggersData[i];
@@ -165,13 +168,14 @@ namespace dmInput
                 dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
                 return 0x0;
             }
-            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
-            {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
-            }
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
             gamepad_binding->m_Gamepad = gamepad;
+            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
+                gamepad_binding->m_Unknown = 1;
+            }
 
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
 
@@ -395,13 +399,24 @@ namespace dmInput
         delete binding;
     }
 
+    static inline bool SupportsPlatform(const char* platform)
+    {
+        if (strcmp(DM_PLATFORM, platform) == 0)
+            return true;
+#if defined(__APPLE__)
+        if (strcmp("osx", platform) == 0)
+            return true;
+#endif
+        return false;
+    }
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf)
     {
         int count = 0;
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
-            if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
+            if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 count++;
             }
@@ -430,7 +445,7 @@ namespace dmInput
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
-            if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
+            if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 uint32_t device_id = dmHashString32(gamepad_map.m_Device);
                 if (context->m_GamepadMaps.Get(device_id) == 0x0)
@@ -772,6 +787,8 @@ namespace dmInput
                                         char device_name[128];
                                         dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
                                         action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
+
+                                        dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
                                     }
                                 }
                             }

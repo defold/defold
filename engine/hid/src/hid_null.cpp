@@ -108,4 +108,10 @@ namespace dmHID
     {
         return g_MouseVisible;
     }
+
+    // platform implementations
+    bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
+    {
+        return false;
+    }
 }

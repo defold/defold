@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+#include <testmain/testmain.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <extension/extension.h>

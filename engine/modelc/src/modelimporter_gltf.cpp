@@ -275,7 +275,8 @@ static Skin* FindSkin(Scene* scene, cgltf_data* gltf_data, cgltf_skin* gltf_skin
     return 0;
 }
 
-static uint32_t FindIndex(uintptr_t base_pointer, uintptr_t pointer)
+template<typename T>
+static uint32_t FindIndex(T* base_pointer, T* pointer)
 {
     if (!pointer)
         return INVALID_INDEX;
@@ -412,6 +413,57 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
+{
+    scene->m_MaterialsCount = gltf_data->materials_count;
+    scene->m_Materials = new Material[scene->m_MaterialsCount];
+    memset(scene->m_Materials, 0, sizeof(Material)*scene->m_MaterialsCount);
+
+    for (uint32_t i = 0; i < gltf_data->materials_count; ++i)
+    {
+        cgltf_material* gltf_material = &gltf_data->materials[i];
+        Material* material = &scene->m_Materials[i];
+        material->m_Name = CreateObjectName(gltf_material, "material", i);
+        material->m_Index = i;
+
+        // todo: load properties
+        // todo: what is "material mappings"?
+        // todo: and how is the material variant used?
+
+        // cgltf_bool has_pbr_metallic_roughness;
+        // cgltf_bool has_pbr_specular_glossiness;
+        // cgltf_bool has_clearcoat;
+        // cgltf_bool has_transmission;
+        // cgltf_bool has_volume;
+        // cgltf_bool has_ior;
+        // cgltf_bool has_specular;
+        // cgltf_bool has_sheen;
+        // cgltf_bool has_emissive_strength;
+        // cgltf_pbr_metallic_roughness pbr_metallic_roughness;
+        // cgltf_pbr_specular_glossiness pbr_specular_glossiness;
+        // cgltf_clearcoat clearcoat;
+        // cgltf_ior ior;
+        // cgltf_specular specular;
+        // cgltf_sheen sheen;
+        // cgltf_transmission transmission;
+        // cgltf_volume volume;
+        // cgltf_emissive_strength emissive_strength;
+        // cgltf_texture_view normal_texture;
+        // cgltf_texture_view occlusion_texture;
+        // cgltf_texture_view emissive_texture;
+        // cgltf_float emissive_factor[3];
+        // cgltf_alpha_mode alpha_mode;
+        // cgltf_float alpha_cutoff;
+        // cgltf_bool double_sided;
+        // cgltf_bool unlit;
+
+        // todo: extensions
+
+        // cgltf_size extensions_count;
+        // cgltf_extension* extensions;
+    }
+}
+
 static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
 {
     aabb->m_Min[0] = aabb->m_Min[1] = aabb->m_Min[2] = FLT_MAX;
@@ -426,7 +478,7 @@ static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
     }
 }
 
-static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
+static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
     model->m_Meshes = new Mesh[model->m_MeshesCount];
@@ -438,9 +490,12 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateObjectName(prim, "mesh", i);
 
-        uint32_t material_index = FindIndex((uintptr_t)gltf_data->materials, (uintptr_t)prim->material);
-        mesh->m_Material = CreateObjectName(prim->material, "material", material_index);
-        mesh->m_VertexCount = 0;
+        uint32_t material_index = FindIndex(gltf_data->materials, prim->material);
+        if (material_index != INVALID_INDEX)
+        {
+            mesh->m_Material = &scene->m_Materials[material_index];
+            mesh->m_VertexCount = 0;
+        }
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
@@ -561,7 +616,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         model->m_Name = CreateObjectName(gltf_mesh, "model", i);
         model->m_Index = i;
 
-        LoadPrimitives(model, gltf_data, gltf_mesh); // Our "Meshes"
+        LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
     }
 }
 
@@ -1119,6 +1174,7 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 {
     LoadSkins(scene, data);
     LoadNodes(scene, data);
+    LoadMaterials(scene, data);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);

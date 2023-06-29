@@ -57,8 +57,8 @@ def configure(conf):
     conf.env['STLIB_DLIB']          = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF']           = 'ddf'
     conf.env['STLIB_RESOURCE']      = 'resource'
-    conf.env['STLIB_GRAPHICS']      = 'graphics'
-    conf.env['STLIB_GRAPHICS_NULL'] = 'graphics_null'
+    conf.env['STLIB_GRAPHICS']      = ['graphics', 'graphics_proto']
+    conf.env['STLIB_GRAPHICS_NULL'] = ['graphics_null', 'graphics_proto']
     conf.env['STLIB_SCRIPT']        = 'script'
     conf.env['STLIB_EXTENSION']     = 'extension'
 

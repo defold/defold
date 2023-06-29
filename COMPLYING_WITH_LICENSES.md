@@ -37,7 +37,7 @@ The following software has licenses which require inclusion of their respective 
     * [microsoft_craziness.h](/licenses/NOTICE-microsoft_craziness) - Used when running unit tests in the engine. Not included in any builds.
     * [XHR2](/licenses/NOTICE-xhr2) - Used in HTML5 builds.
     * [xxtea-c](/licenses/NOTICE-xxtea) - Used internally in the engine to obfuscate/encode Lua source code. Included in all builds of Defold.
-    * [cgltf](/licenses/NOTICE-cgtlf) - Used when loading models in glTF format. Included in all builds.
+    * [cgltf](/licenses/NOTICE-cgltf) - Used when loading models in glTF format. Included in all builds.
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
   * BSD 2.0 license (3-clause license)
