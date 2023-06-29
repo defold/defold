@@ -633,6 +633,8 @@ namespace dmGui
 
     Result AddMaterial(HScene scene, const char* material_name, void* material);
 
+    void AssignMaterials(HScene scene);
+
     /**
      * Adds a layer with the specified name to the scene.
      * @param scene Scene to add the layer to

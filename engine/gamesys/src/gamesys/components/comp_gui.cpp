@@ -537,15 +537,20 @@ namespace dmGameSystem
             }
         }
 
-        for (uint32_t i = 0; i < scene_resource->m_Materials.Size(); ++i)
+        // JG: We can probably do this formula of adding + assigning resources to nodes for all types
         {
-            const char* name = scene_desc->m_Materials[i].m_Name;
-            dmGui::Result r = dmGui::AddMaterial(scene, name, (void*) scene_resource->m_Materials[i]);
+            for (uint32_t i = 0; i < scene_resource->m_Materials.Size(); ++i)
+            {
+                const char* name = scene_desc->m_Materials[i].m_Name;
+                dmGui::Result r = dmGui::AddMaterial(scene, name, (void*) scene_resource->m_Materials[i]);
 
-            if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to add material '%s' to GUI scene (%d)", name, r);
-                return false;
+                if (r != dmGui::RESULT_OK) {
+                    dmLogError("Unable to add material '%s' to GUI scene (%d)", name, r);
+                    return false;
+                }
             }
+
+            dmGui::AssignMaterials(scene);
         }
 
         for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
