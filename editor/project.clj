@@ -184,12 +184,7 @@
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce initialize-test-prerequisites
-                                               (do
-                                                 (com.defold.libs.ResourceUnpacker/unpackResources)
-                                                 (javafx.application.Platform/startup
-                                                   (fn []
-                                                     (com.jogamp.opengl.GLProfile/initSingleton)))))]
+  :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
                                 :jvm-opts ["-Ddefold.tests=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
