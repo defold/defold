@@ -99,14 +99,14 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Materials.m_Count; ++i)
         {
-            dmRender::HMaterial material;
-            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Materials[i].m_Material, (void**) &material);
+            MaterialResource* material_res;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Materials[i].m_Material, (void**) &material_res);
             if (r != dmResource::RESULT_OK)
             {
                 return r;
             }
 
-            resource->m_Materials.Push(material);
+            resource->m_Materials.Push(material_res);
         }
 
         // Note: For backwards compability, we add proxy textureset resources containing texures for single texture file resources (deprecated)

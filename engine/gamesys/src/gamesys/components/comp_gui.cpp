@@ -542,7 +542,8 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < scene_resource->m_Materials.Size(); ++i)
             {
                 const char* name = scene_desc->m_Materials[i].m_Name;
-                dmGui::Result r = dmGui::AddMaterial(scene, name, (void*) scene_resource->m_Materials[i]);
+                dmRender::HMaterial material = scene_resource->m_Materials[i]->m_Material;
+                dmGui::Result r = dmGui::AddMaterial(scene, name, (void*) material);
 
                 if (r != dmGui::RESULT_OK) {
                     dmLogError("Unable to add material '%s' to GUI scene (%d)", name, r);
@@ -937,6 +938,20 @@ namespace dmGameSystem
         return node_material ? (dmRender::HMaterial) node_material : gui_context->m_Material;
     }
 
+    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFontMap font_map)
+    {
+        void* node_material = dmGui::GetNodeMaterial(scene, node);
+        if (node_material)
+        {
+            return (dmRender::HMaterial) node_material;
+        }
+        else if (font_map)
+        {
+            return dmRender::GetFontMapMaterial(font_map);
+        }
+        return 0;
+    }
+
     static void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
@@ -955,6 +970,9 @@ namespace dmGameSystem
 
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             assert(node_type == dmGui::NODE_TYPE_TEXT);
+
+            dmRender::HFontMap font_map  = (dmRender::HFontMap) dmGui::GetNodeFont(scene, node);
+            dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
 
             dmRender::DrawTextParams params;
             float opacity = node_opacities[i];
@@ -1013,7 +1031,7 @@ namespace dmGameSystem
                 break;
             }
 
-            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), GetNodeMaterial(gui_context, scene, node), 0, params);
+            dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
@@ -1800,16 +1818,25 @@ namespace dmGameSystem
         dmGui::NodeType prev_node_type                = dmGui::GetNodeType(scene, first_node);
         uint32_t prev_custom_type                     = dmGui::GetNodeCustomType(scene, first_node);
         uint64_t prev_combined_type                   = GetCombinedNodeType(prev_node_type, prev_custom_type);
-        dmGraphics::HTexture prev_texture             = dmGameSystem::GetNodeTexture(scene, first_node);
-        dmRender::HMaterial prev_material             = dmGameSystem::GetNodeMaterial(gui_context, scene, first_node);
+        dmGraphics::HTexture prev_texture             = GetNodeTexture(scene, first_node);
         void* prev_font                               = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
         uint32_t prev_emitter_batch_key               = 0;
+        dmRender::HMaterial prev_material             = 0;
 
         if (prev_node_type == dmGui::NODE_TYPE_PARTICLEFX)
         {
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
             prev_emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
+        }
+        
+        if (prev_node_type == dmGui::NODE_TYPE_TEXT)
+        {
+            prev_material = GetTextNodeMaterial(gui_context, scene, first_node, (dmRender::HFontMap) prev_font);
+        }
+        else
+        {
+            prev_material = GetNodeMaterial(gui_context, scene, first_node);
         }
 
         uint32_t i = 0;
@@ -1822,16 +1849,25 @@ namespace dmGameSystem
             dmGui::NodeType node_type                = dmGui::GetNodeType(scene, node);
             uint32_t custom_type                     = dmGui::GetNodeCustomType(scene, node);
             uint64_t combined_type                   = GetCombinedNodeType(node_type, custom_type);
-            dmGraphics::HTexture texture             = dmGameSystem::GetNodeTexture(scene, node);
-            dmRender::HMaterial material             = dmGameSystem::GetNodeMaterial(gui_context, scene, node);
+            dmGraphics::HTexture texture             = GetNodeTexture(scene, node);
             void* font                               = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
             uint32_t emitter_batch_key               = 0;
+            dmRender::HMaterial material             = 0;
 
             if (node_type == dmGui::NODE_TYPE_PARTICLEFX)
             {
                 dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
                 emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
+            }
+
+            if (node_type == dmGui::NODE_TYPE_TEXT)
+            {
+                material = GetTextNodeMaterial(gui_context, scene, node, (dmRender::HFontMap) font);
+            }
+            else
+            {
+                material = GetNodeMaterial(gui_context, scene, node);
             }
 
             bool batch_change = combined_type          != prev_combined_type ||
