@@ -623,10 +623,11 @@ public class ColladaUtil {
                                                               List<Float> texcoord_list,
                                                               List<Float> bone_weights_list,
                                                               List<Integer> bone_indices_list,
-                                                              List<Integer> mesh_index_list) {
+                                                              List<Integer> mesh_index_list,
+                                                              ModelImporter.Material material) {
         ModelImporter.Mesh mesh = new ModelImporter.Mesh();
         mesh.name = "";
-        mesh.material = "";
+        mesh.material = material;
 
         mesh.positions = toFloatArray(position_list);
         if (normal_list.size() > 0)
@@ -938,13 +939,16 @@ public class ColladaUtil {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
+        ModelImporter.Material material = new ModelImporter.Material();
+
         List<ModelImporter.Mesh> allMeshes = new ArrayList<>();
         ModelImporter.Mesh miMesh = createModelImporterMesh(new ArrayList<>(Arrays.asList(baked_position_list)),
                                                             new ArrayList<>(Arrays.asList(baked_normal_list)),
                                                             new ArrayList<>(Arrays.asList(baked_texcoord_list)),
                                                             new ArrayList<>(Arrays.asList(baked_bone_weights_list)),
                                                             new ArrayList<>(Arrays.asList(baked_bone_indices_list)),
-                                                            mesh_index_list);
+                                                            mesh_index_list,
+                                                            material);
 
         if (splitMeshes && vertex_count >= 65536) {
             ModelUtil.splitMesh(miMesh, allMeshes);
@@ -953,8 +957,7 @@ public class ColladaUtil {
         }
 
         for (ModelImporter.Mesh newMesh : allMeshes) {
-            ArrayList<String> materials = new ArrayList<String>();
-            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh, materials));
+            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh));
         }
 
         String name = sceneNode != null ? sceneNode.name : null;

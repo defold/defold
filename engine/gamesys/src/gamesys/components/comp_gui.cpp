@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,15 +31,19 @@
 #include <render/font_renderer.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
+#include <gamesys/atlas_ddf.h>
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
 #include "comp_private.h"
 
-#include "../resources/res_gui.h"
-#include "../resources/res_skeleton.h"
-#include "../resources/res_meshset.h"
 #include "../resources/res_animationset.h"
+#include "../resources/res_gui.h"
+#include "../resources/res_material.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_texture.h"
+#include "../resources/res_textureset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include <particle/particle.h>
@@ -2114,8 +2118,12 @@ namespace dmGameSystem
         }
     }
 
-    static inline dmRender::HMaterial GetMaterial(GuiComponent* component, GuiSceneResource* resource) {
+    static inline MaterialResource* GetMaterialResource(GuiComponent* component, GuiSceneResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
+    static inline dmRender::HMaterial GetMaterial(GuiComponent* component, GuiSceneResource* resource) {
+        return GetMaterialResource(component, resource)->m_Material;
     }
 
     static dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
@@ -2354,7 +2362,7 @@ namespace dmGameSystem
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
         if (set_property == PROP_MATERIAL) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(gui_component, gui_component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(gui_component, gui_component->m_Resource), out_value);
         }
         else if (set_property == PROP_FONTS) {
             if (!params.m_Options.m_HasKey) {

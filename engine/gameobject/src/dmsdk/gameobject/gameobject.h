@@ -182,6 +182,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
      * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
      * @member dmGameObject::PROPERTY_RESULT_INVALID_KEY
+     * @member dmGameObject::PROPERTY_RESULT_READ_ONLY
      */
     enum PropertyResult
     {
@@ -198,6 +199,7 @@ namespace dmGameObject
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
         PROPERTY_RESULT_INVALID_INDEX = -11,
         PROPERTY_RESULT_INVALID_KEY = -12,
+        PROPERTY_RESULT_READ_ONLY = -13,
     };
 
     /*#
@@ -552,7 +554,7 @@ namespace dmGameObject
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
      * @param component_id [type: dmhash_t* Component id as out-argument
-     * @return result [type: dmGameObject::Result] RESULT_OK if the comopnent was found
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,7 @@
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../resource/src/resource_private.h"
 
+#include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
@@ -367,7 +368,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail 
+    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail
     //      -> set_texture.script::test_fail_out_of_bounds
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -3565,15 +3566,15 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     dmhash_t name_hash1 = dmHashString64("user_var1");
     dmhash_t name_hash2 = dmHashString64("user_var2");
 
-    dmRender::HMaterial material = 0;
+    dmGameSystem::MaterialResource* material = 0;
     {
         const char path_material[] = "/material/valid.materialc";
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
         ASSERT_NE((void*)0, material);
 
         dmRender::HConstant rconstant;
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash1, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash2, rconstant));
     }
 
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
@@ -3585,7 +3586,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -3594,7 +3595,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 

@@ -3318,6 +3318,64 @@ namespace dmGui
         }
     }
 
+    static void PushNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index);
+
+    static void PushNodeToTable(lua_State* L, dmGui::HScene scene, InternalNode* n)
+    {
+        dmGui::HNode node = GetNodeHandle(n);
+        dmScript::PushHash(L, n->m_NameHash);
+        LuaPushNode(L, scene, node);
+        lua_rawset(L, -3);
+        PushNodeListToTable(L, scene, n->m_ChildHead);
+    }
+
+    static void PushNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index)
+    {
+        uint32_t index = start_index;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* node = &scene->m_Nodes[index];
+            PushNodeToTable(L, scene, node);
+            index = node->m_NextIndex;
+        }
+    }
+
+    /*# get a node including its children
+     * Get a node and all its children as a Lua table.
+     *
+     * @name gui.get_tree
+     * @param node [type:node] root node to get node tree from
+     * @return clones [type:table] a table mapping node ids to the corresponding nodes
+     */
+    static int LuaGetTree(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+        lua_newtable(L);
+
+        // Set meta table to convert string indices to hashes
+        lua_createtable(L, 0, 1);
+        lua_pushcfunction(L, HashTableIndex);
+        lua_setfield(L, -2, "__index");
+        lua_setmetatable(L, -2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (!lua_isnil(L, 1))
+        {
+            dmGui::HNode hnode;
+            InternalNode* root = LuaCheckNodeInternal(L, 1, &hnode);
+            PushNodeToTable(L, scene, root);
+        }
+        else
+        {
+            PushNodeListToTable(L, scene, scene->m_RenderHead);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# resets all nodes to initial state
      * Resets all nodes in the current GUI scene to their initial state.
      * The reset only applies to static node loaded from the scene.
@@ -4279,6 +4337,7 @@ namespace dmGui
         {"set_parent",      LuaSetParent},
         {"clone",           LuaClone},
         {"clone_tree",      LuaCloneTree},
+        {"get_tree",        LuaGetTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
         {"reset_keyboard",  LuaResetKeyboard},

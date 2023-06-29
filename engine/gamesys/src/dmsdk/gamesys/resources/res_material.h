@@ -12,21 +12,21 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_MATERIAL_H
-#define DM_GAMESYS_RES_MATERIAL_H
+#ifndef DMSDK_GAMESYS_RES_MATERIAL_H
+#define DMSDK_GAMESYS_RES_MATERIAL_H
 
-#include <dmsdk/gamesys/resources/res_material.h>
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/render/render.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams& params);
-
-    dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams& params);
-
-    dmResource::Result ResMaterialRecreate(const dmResource::ResourceRecreateParams& params);
-
-    dmResource::Result ResMaterialPreload(const dmResource::ResourcePreloadParams& params);
+    struct TextureResource;
+    struct MaterialResource
+    {
+        dmRender::HMaterial m_Material;
+        // Sorted on sampler appearance in the material
+        TextureResource*    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+    };
 }
 
 #endif
