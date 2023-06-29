@@ -55,8 +55,8 @@ jobs:
   bld-eng-darwin:
     strategy:
       matrix:
-        platform: [x86_64-macos, arm64-ios, x86_64-ios]
-    runs-on: macOS-latest
+        platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
+    runs-on: macos-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
@@ -168,7 +168,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
-  bld-eng-ps4:
+  bld-eng-ps:
     strategy:
       matrix:
         platform: [x86_64-ps4]
@@ -195,7 +195,7 @@ jobs:
 # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -215,7 +215,7 @@ jobs:
       }]
 
   build-sdk:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },

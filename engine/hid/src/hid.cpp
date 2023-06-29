@@ -89,6 +89,15 @@ namespace dmHID
             return INVALID_TOUCH_DEVICE_HANDLE;
     }
 
+    bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
+    {
+        #if defined(DM_PLATFORM_VENDOR)
+            return dmHID::GetPlatformGamepadUserId(context, gamepad, out);
+        #else
+            return false;
+        #endif
+    }
+
     uint32_t GetGamepadButtonCount(HGamepad gamepad)
     {
         return gamepad->m_ButtonCount;

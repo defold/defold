@@ -564,7 +564,6 @@
       (concat
         (g/operation-label (str "Clear " (label property)))
         (let [clear-fn (get-in property [:edit-type :clear-fn])]
-          (println "CLEARING" clear-fn)
           (map (fn [node-id prop-kw]
                  (if clear-fn
                    (clear-fn node-id prop-kw)

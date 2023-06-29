@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -135,7 +135,7 @@ function cmi_unpack() {
 function cmi_patch() {
     echo cmi_patch
     if [ -f ../patch_$VERSION ]; then
-        echo "Applying patch ../patch_$VERSION" && patch -l --binary -p1 < ../patch_$VERSION
+		echo "Applying patch ../patch_$VERSION" && git apply --no-index --unsafe-paths --ignore-whitespace -v ../patch_$VERSION
     fi
 }
 
@@ -215,27 +215,48 @@ case $1 in
 	x86_64-macos)
 		export TARGET_SYS=Darwin
 		function cmi_make() {
-					export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
+			export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
 
-					# Since GC32 mode isn't supported on macOS, in the new version.
-					# We'll just use the old built executable from the previous package
-					# (we need the GC32 for generating 32 bit Lua source for 32 bit platforms: win32, armv7-android)
+			# Since GC32 mode isn't supported on macOS, in the new version.
+			# We'll just use the old built executable from the previous package
+			# (we need the GC32 for generating 32 bit Lua source for 32 bit platforms: win32, armv7-android)
 
-					export DEFOLD_ARCH="64"
-					export TARGET_CFLAGS=""
-					export XCFLAGS="${COMMON_XCFLAGS}"
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
-					set -e
-					make -j8
-					make install
-					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-					set +e
+			export DEFOLD_ARCH="64"
+			export TARGET_CFLAGS=""
+			export XCFLAGS="${COMMON_XCFLAGS}"
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+			set -e
+			make -j1
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			set +e
 
-					# grab our old 32 bit executable and store it in the host package
-					set -e
-					tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
-					cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
-					set +e
+			# grab our old 32 bit executable and store it in the host package
+			set -e
+			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
+			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
+			set +e
+		}
+		;;
+	arm64-macos)
+		export TARGET_SYS=Darwin
+		function cmi_make() {
+			export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
+			export DEFOLD_ARCH="64"
+			export TARGET_CFLAGS=""
+			export XCFLAGS="${COMMON_XCFLAGS}"
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
+			set -e
+			make -j8
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			set +e
+
+			# grab our old 32 bit executable and store it in the host package
+			set -e
+			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
+			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
+			set +e
 		}
 		;;
 esac

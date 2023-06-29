@@ -45,11 +45,15 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
         VertexProgramBuilder builder = new VertexProgramBuilder();
 
         CommandLine cmd = builder.GetShaderCommandLineOptions(args);
-        Platform platformKey = Platform.get(cmd.getOptionValue("platform", ""));
+        String platformName = cmd.getOptionValue("platform", "");
+        Platform platform = Platform.get(platformName);
+        if (platform == null) {
+            throw new CompileExceptionError(String.format("Invalid platform '%s'\n", platformName));
+        }
 
         Project project = new Project(new DefaultFileSystem());
         project.scanJavaClasses();
-        IShaderCompiler compiler = project.getShaderCompiler(platformKey);
+        IShaderCompiler compiler = project.getShaderCompiler(platform);
 
         builder.setProject(project);
         builder.soft_fail = false;

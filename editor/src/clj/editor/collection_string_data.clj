@@ -13,11 +13,58 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.collection-string-data
-  (:require [editor.protobuf :as protobuf])
+  (:require [editor.protobuf :as protobuf]
+            [editor.resource :as resource])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
+
+;; -----------------------------------------------------------------------------
+;; Validation
+;; -----------------------------------------------------------------------------
+
+(defn verify-string-decoded-embedded-component-desc!
+  "Throws an informative exception if the supplied value is not a
+  GameObject$EmbeddedComponentDesc in map format with the :data field converted
+  to a map."
+  [embedded-component-desc owning-resource]
+  (let [component-data (:data embedded-component-desc)]
+    (when-not (map? component-data)
+      (let [owning-proj-path (resource/resource->proj-path owning-resource)
+            component-id (:id embedded-component-desc)
+            component-type (:type embedded-component-desc)]
+        (throw (ex-info (format "Invalid embedded component '%s' of type '%s' in '%s'."
+                                component-id
+                                component-type
+                                owning-proj-path)
+                        {:proj-path owning-proj-path
+                         :id component-id
+                         :type component-type
+                         :data component-data}))))))
+
+(defn verify-string-decoded-embedded-instance-desc!
+  "Throws an informative exception if the supplied value is not a
+  GameObject$EmbeddedInstanceDesc in map format with the :data field converted
+  to a map. Does not ensure GameObject$EmbeddedComponentDescs inside the
+  embedded game object have been string decoded. You'll need to call
+  verify-string-decoded-embedded-component-desc! separately on the embedded
+  components."
+  [embedded-instance-desc owning-resource]
+  (let [prototype-desc (:data embedded-instance-desc)]
+    (when-not (map? prototype-desc)
+      (let [owning-proj-path (resource/resource->proj-path owning-resource)
+            game-object-instance-id (:id embedded-instance-desc)]
+        (throw (ex-info (format "Invalid embedded game object instance '%s' in '%s'."
+                                game-object-instance-id
+                                owning-proj-path)
+                        {:proj-path owning-proj-path
+                         :id game-object-instance-id
+                         :data prototype-desc}))))))
+
+;; -----------------------------------------------------------------------------
+;; Decoding embedded strings to maps.
+;; -----------------------------------------------------------------------------
 
 (defn string-decode-embedded-component-desc
   "Takes a GameObject$EmbeddedComponentDesc in map format with string :data and

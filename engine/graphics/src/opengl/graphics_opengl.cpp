@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,9 +38,9 @@
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
+#if defined(DM_PLATFORM_MACOS)
+// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+#include <Carbon/Carbon.h>
 #endif
 
 #include <dmsdk/graphics/glfw/glfw.h>
@@ -338,7 +338,7 @@ static void LogFrameBufferError(GLenum status)
     } \
 
 
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
     struct ChooseEAGLView
     {
         ChooseEAGLView() {
@@ -375,7 +375,7 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
- 
+
     // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
     //       however we might want to do this the other way around perhaps? i.e special case for webgl
     //       and load functions like this for all other platforms.
@@ -801,7 +801,7 @@ static void LogFrameBufferError(GLenum status)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-    #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
     #else
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
@@ -809,7 +809,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         bool is_desktop = false;
-#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || (defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || defined(DM_PLATFORM_MACOS)
         is_desktop = true;
 #endif
         if (is_desktop) {
@@ -977,7 +977,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_IsGles3Version = 1;
         }
 #else
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+    #if defined(DM_PLATFORM_IOS)
         // iOS
         context->m_IsGles3Version = 1;
         context->m_IsShaderLanguageGles = 1;
@@ -1031,7 +1031,15 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: OpenGL");
+            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
+        }
+
+#if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -1221,7 +1229,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_MaxTextureSize = gl_max_texture_size;
         CLEAR_GL_ERROR;
 
-#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS) || defined(ANDROID)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
         // The below seems to be the reported sweet spot for modern or semi-modern hardware
         context->m_MaxElementVertices = 1024*1024;
@@ -2572,7 +2580,7 @@ static void LogFrameBufferError(GLenum status)
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
             context->m_FrameBufferInvalidateBits = transient_buffer_types;
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+#if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
@@ -3618,7 +3626,7 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_PipelineState.m_StencilFrontOpFail      = sfail;
             context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
         }
     }
 

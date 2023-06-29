@@ -211,6 +211,9 @@ namespace dmEngine
 
     // For unit testing
     void GetStats(HEngine engine, Stats& stats);
+
+    bool PlatformInitialize();
+    void PlatformFinalize();
 }
 
 #endif // DM_ENGINE_PRIVATE_H

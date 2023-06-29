@@ -35,7 +35,7 @@ from queue import Queue
 from configparser import ConfigParser
 
 BASE_PLATFORMS = [  'x86_64-linux',
-                    'x86_64-macos', #'arm64-macos',
+                    'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
@@ -43,21 +43,12 @@ BASE_PLATFORMS = [  'x86_64-linux',
 
 sys.dont_write_bytecode = True
 try:
-    import build_nx64
-    sys.modules['build_private'] = build_nx64
+    import build_vendor
+    sys.modules['build_private'] = build_vendor
 except ModuleNotFoundError:
     pass
 except Exception as e:
-    print("Failed to import build_nx64.py:")
-    raise e
-
-try:
-    import build_ps4
-    sys.modules['build_private'] = build_ps4
-except ModuleNotFoundError:
-    pass
-except Exception as e:
-    print("Failed to import build_ps4.py:")
+    print("Failed to import build_vendor.py:")
     raise e
 
 sys.dont_write_bytecode = False
@@ -101,12 +92,12 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
-PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
+PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3 sassc-5472db213ec223a67482df2226622be372921847".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split() # sassc-5472db213ec223a67482df2226622be372921847
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
@@ -139,7 +130,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib texc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc modelc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 HOST_LIBS = "testmain dlib texc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
@@ -164,7 +155,7 @@ def format_exes(name, platform):
     elif platform in ['arm64-nx64']:
         prefix = ''
         suffix = ['.nss', '.nso']
-    elif platform in ['x86_64-ps4']:
+    elif platform in ['x86_64-ps4', 'x86_64-ps5']:
         prefix = ''
         suffix = ['.elf']
     else:
@@ -459,7 +450,7 @@ class Configuration(object):
             'x86_64-win32':   PACKAGES_WIN32_64,
             'x86_64-linux':   PACKAGES_LINUX_64,
             'x86_64-macos':   PACKAGES_MACOS_X86_64,
-            #'arm64-macos':    PACKAGES_MACOS_ARM64,
+            'arm64-macos':    PACKAGES_MACOS_ARM64,
             'arm64-ios':      PACKAGES_IOS_64,
             'x86_64-ios':     PACKAGES_IOS_X86_64,
             'armv7-android':  PACKAGES_ANDROID,
@@ -501,7 +492,7 @@ class Configuration(object):
                 installed_packages.update(package_paths)
 
         # For easier usage with the extender server, we want the linux protoc tool available
-        if target_platform in ('x86_64-macos', 'x86_64-win32', 'x86_64-linux'):
+        if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
             protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
             package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
             print("Installing %s packages " % 'x86_64-linux')
@@ -824,8 +815,8 @@ class Configuration(object):
                 paths = _findjslibs(jsdir)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            if platform in ['x86_64-ps4']:
-                memory_init = os.path.join(self.dynamo_home, 'ext/lib/x86_64-ps4/memory_init.o')
+            if platform in ['x86_64-ps4', 'x86_64-ps5']:
+                memory_init = os.path.join(self.dynamo_home, 'ext/lib/%s/memory_init.o' % platform)
                 self._add_files_to_zip(zip, [memory_init], self.dynamo_home, topfolder)
 
             # .proto files
@@ -1004,12 +995,17 @@ class Configuration(object):
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
 
-    def _get_build_flags(self):
+    def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos']
+        supported_tests['x86_64-macos'] = ['x86_64-macos']
 
-        supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+        return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
+
+    def _get_build_flags(self):
+        supports_tests = self._can_run_tests()
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
@@ -1020,7 +1016,7 @@ class Configuration(object):
         # The base libs are the libs needed to build bob, i.e. contains compiler code.
 
         platform_dependencies = {'x86_64-macos': ['x86_64-macos'],
-                                 #'arm64-macos': ['arm64-macos'],
+                                 'arm64-macos': ['arm64-macos'],
                                  'x86_64-linux': [],
                                  'x86_64-win32': ['win32']}
 
@@ -1087,8 +1083,7 @@ class Configuration(object):
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
-            skip_tests = host != self.target_platform
-            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+            self._build_engine_lib(args, lib, host)
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
@@ -1256,13 +1251,17 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = get_target_platforms()
-
-        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-        # it last, in order to preserve unix line endings in the files
-        if 'x86_64-linux' in platforms:
-            platforms.remove('x86_64-linux')
-            platforms.append('x86_64-linux')
+        platforms = None
+        # when we build the sdk in a private repo we only include the private platforms
+        if build_private.is_repo_private():
+            platforms = build_private.get_target_platforms()
+        else:
+            platforms = get_target_platforms()
+            # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+            # it last, in order to preserve unix line endings in the files
+            if 'x86_64-linux' in platforms:
+                platforms.remove('x86_64-linux')
+                platforms.append('x86_64-linux')
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
@@ -1473,13 +1472,7 @@ class Configuration(object):
 
         self.find_and_set_java_home()
 
-        if "macos" in self.host and "arm" in platform.processor():
-            print ('Detected Apple M1 CPU - running shell with x86 architecture')
-            # Submit as string because on POSIX subsequent tokens are passed to the shell - not the arch command.
-            # See: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
-            args = 'arch -arch x86_64 %s -l' % SHELL
-        else:
-            args = [SHELL, '-l']
+        args = [SHELL, '-l']
 
         process = subprocess.Popen(args, env=self._form_env(), shell=True)
         output = process.communicate()[0]

@@ -681,3 +681,18 @@
     (if fs/case-sensitive?
       (is (false? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory"))))
       (is (true? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory")))))))
+
+(deftest path-evaluator-test
+  (are [actual expected] (= expected (fs/evaluate-path actual))
+    ;; leading ~ is expanded
+    "~" (System/getProperty "user.home")
+    "~/adb" (str (System/getProperty "user.home") "/adb")
+    ;; non-leading ~ is preserved
+    "/usr/bin/~/adb" "/usr/bin/~/adb"
+    ;; $ENV vars are expanded
+    "$USER" (System/getenv "USER")
+    "/home/$USER/adb" (str "/home/" (System/getenv "USER") "/adb")
+    ;; absent env vars make the whole output collapse into nil
+    "/home/$UHHH" nil
+    "/home/$/foo" nil
+    "/home/$$" nil))
