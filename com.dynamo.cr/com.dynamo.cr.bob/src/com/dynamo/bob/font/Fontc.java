@@ -94,7 +94,7 @@ class Glyph {
 class OrderComparator implements Comparator<Glyph> {
     @Override
     public int compare(Glyph o1, Glyph o2) {
-        return (new Integer(o1.index)).compareTo(o2.index);
+        return (Integer.valueOf(o1.index)).compareTo(o2.index);
     }
 }
 

@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipFile;
@@ -182,7 +183,7 @@ public class BundlerTest {
             {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
                 checkFileExist(outputDirFile, outputApk);
-                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), new HashMap<>());
                 Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArmv7));
                 Path classesDexPath = apkZip.getPath("classes.dex");
@@ -193,7 +194,7 @@ public class BundlerTest {
             {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
                 checkFileExist(outputDirFile, outputApk);
-                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), new HashMap<>());
                 Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArm64));
                 Path classesDexPath = apkZip.getPath("classes.dex");

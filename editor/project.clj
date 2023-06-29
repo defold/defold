@@ -16,7 +16,8 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
+                     "jogamp" "https://jogamp.org/deployment/maven"}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
@@ -108,16 +109,14 @@
                      [org.openjfx/javafx-swing "19.0.2.1" :classifier "mac"]
                      [org.openjfx/javafx-swing "19.0.2.1" :classifier "win"]
 
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-windows-amd64"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]]
 
@@ -175,8 +174,12 @@
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.awt=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED"
+                      ;; used in lsp.clj (java.lang.String sun.nio.fs.Globs.toUnixRegexPattern)
+                      "--add-opens=java.base/sun.nio.fs=ALL-UNNAMED"
                       ;; hide warnings about illegal reflective access by clojure
-                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"]
+                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
+                      ;; used in editor.scene$read_to_buffered_image
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
