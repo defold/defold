@@ -30,12 +30,13 @@
 #include <gameobject/gameobject_ddf.h>
 #include <dmsdk/dlib/vmath.h>
 
-#include <gamesys/tile_ddf.h>
-#include "../gamesys.h"
 #include "../gamesys_private.h"
-#include <gamesys/tile_ddf.h>
-#include <gamesys/physics_ddf.h>
+#include "../gamesys.h"
+#include "../resources/res_material.h"
+#include "../resources/res_textureset.h"
 #include "../resources/res_tilegrid.h"
+#include <gamesys/physics_ddf.h>
+#include <gamesys/tile_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
@@ -94,7 +95,7 @@ namespace dmGameSystem
         dmArray<TileGridLayer>      m_Layers;
         uint32_t                    m_MixedHash;
         HComponentRenderConstants   m_RenderConstants;
-        dmRender::HMaterial         m_Material;
+        MaterialResource*           m_Material;
         TextureSetResource*         m_TextureSet;
         TileGridResource*           m_Resource;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
@@ -181,8 +182,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline dmRender::HMaterial GetMaterial(const TileGridComponent* component) {
+    static inline MaterialResource* GetMaterialResource(const TileGridComponent* component) {
         return component->m_Material ? component->m_Material : component->m_Resource->m_Material;
+    }
+
+    static inline dmRender::HMaterial GetMaterial(const TileGridComponent* component) {
+        return GetMaterialResource(component)->m_Material;
     }
 
     static inline TextureSetResource* GetTextureSet(const TileGridComponent* component) {
@@ -530,7 +535,7 @@ namespace dmGameSystem
         /*
          *   0----3
          *   | \  |
-         *   |  \ |   
+         *   |  \ |
          *   1____2
         */
         static int tex_coord_order[] = {
@@ -648,7 +653,7 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
         ro.m_Material = GetMaterial(first);
-        ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_Textures[0] = texture_set->m_Texture->m_Texture;
 
         if (first->m_RenderConstants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
@@ -962,7 +967,7 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
         if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component), out_value);
         }
         if (params.m_PropertyId == PROP_TILE_SOURCE)
         {

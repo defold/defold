@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,6 +39,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/mesh_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/resources/res_material.h>
 
 #include "../resources/res_mesh.h"
 
@@ -61,8 +62,8 @@ namespace dmGameSystem
         HComponentRenderConstants       m_RenderConstants;
         MeshResource*                   m_Resource;
         dmGameSystem::BufferResource*   m_BufferResource;
-        dmGraphics::HTexture            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmRender::HMaterial             m_Material;
+        TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        MaterialResource*               m_Material;
 
         // If the buffer resource property has changed (ie not same buffer resource as
         // used by the mesh resource), we need to create a specific vertex declaration
@@ -270,13 +271,45 @@ namespace dmGameSystem
         return component->m_BufferResource ? component->m_BufferResource : resource->m_BufferResource;
     }
 
-    static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
+    static inline MaterialResource* GetMaterialResource(const MeshComponent* component, const MeshResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
-        assert(index < MAX_TEXTURE_COUNT);
-        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
+    static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
+        return GetMaterialResource(component, resource)->m_Material;
+    }
+
+    static TextureResource* GetTextureResource(const MeshComponent* component, uint32_t texture_unit)
+    {
+        assert(texture_unit < MAX_TEXTURE_COUNT);
+        TextureResource* texture;
+        // Overridden textures
+        texture = component->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // Overridden material
+        MaterialResource* material = component->m_Material;
+        if (material)
+            texture = material->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // resource textures
+        texture = component->m_Resource->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // resource material
+        material = component->m_Resource->m_Material;
+        if (material)
+            texture = material->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        return 0;
+    }
+
+    static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, uint32_t index)
+    {
+        TextureResource* texture_res = GetTextureResource(component, index);
+        return texture_res ? texture_res->m_Texture : 0;
     }
 
     static inline dmGraphics::HVertexDeclaration GetVertexDeclaration(const MeshComponent* component) {
@@ -295,8 +328,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
 
         // We have to hash individually since we don't know which textures are set as properties
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            dmGraphics::HTexture texture = GetTexture(component, resource, i);
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+        {
+            dmGraphics::HTexture texture = GetTexture(component, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
 
@@ -479,8 +513,8 @@ namespace dmGameSystem
     static void FillRenderObject(dmRender::RenderObject& ro,
         const dmGraphics::PrimitiveType& primitive_type,
         const dmRender::HMaterial& material,
-        const dmGraphics::HTexture* textures_resource,
-        const dmGraphics::HTexture* textures_component,
+        const TextureResource** textures_resource,
+        const TextureResource** textures_component,
         const dmGraphics::HVertexDeclaration& vert_decl,
         const dmGraphics::HVertexBuffer& vert_buffer,
         uint32_t vert_start, uint32_t vert_count,
@@ -504,10 +538,21 @@ namespace dmGameSystem
         // }
 
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            ro.m_Textures[i] = textures_component[i] ? textures_component[i] : textures_resource[i];
+        {
+            if (textures_component[i])
+            {
+                ro.m_Textures[i] = textures_component[i]->m_Texture;
+            }
+            else if (textures_resource[i])
+            {
+                ro.m_Textures[i] = textures_resource[i]->m_Texture;
+            }
+        }
 
         if (constants)
+        {
             dmGameSystem::EnableRenderObjectConstants(&ro, constants);
+        }
     }
 
     template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_point, uint8_t component_count, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)
@@ -687,9 +732,11 @@ namespace dmGameSystem
         DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, vert_size * element_count);
 
         // since they are batched, they have the same settings as the first mesh
-        const MeshComponent* component = (MeshComponent*) buf[*begin].m_UserData;
+        const MeshComponent* component                 = (MeshComponent*) buf[*begin].m_UserData;
+        const TextureResource** mesh_resource_textures = (const TextureResource**) mr->m_Textures;
+        const TextureResource** component_textures     = (const TextureResource**) component->m_Textures;
 
-        FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, vert_buffer, 0, element_count, Matrix4::identity(), first->m_RenderConstants);
+        FillRenderObject(ro, mr->m_PrimitiveType, material, mesh_resource_textures, component_textures, vert_decl, vert_buffer, 0, element_count, Matrix4::identity(), first->m_RenderConstants);
         dmGraphics::SetVertexBufferData(vert_buffer, vert_size * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmRender::AddToRender(render_context, &ro);
     }
@@ -714,7 +761,10 @@ namespace dmGameSystem
             DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);
 
             dmGraphics::HVertexDeclaration vert_decl = GetVertexDeclaration(component);
-            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, info->m_VertexBuffer, 0, br->m_ElementCount, component->m_World, component->m_RenderConstants);
+
+            const TextureResource** mesh_resource_textures = (const TextureResource**) mr->m_Textures;
+            const TextureResource** component_textures     = (const TextureResource**) component->m_Textures;
+            FillRenderObject(ro, mr->m_PrimitiveType, material, mesh_resource_textures, component_textures, vert_decl, info->m_VertexBuffer, 0, br->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
     }
@@ -845,7 +895,7 @@ namespace dmGameSystem
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
             write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(component.m_Resource->m_Material);
+            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(component.m_Resource->m_Material->m_Material);
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
@@ -890,7 +940,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material->m_Material, ddf->m_NameHash,
                         dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompMeshSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
@@ -933,14 +983,14 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource), out_value);
         }
 
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, i), out_value);
             }
         }
 
@@ -1050,8 +1100,8 @@ namespace dmGameSystem
 
                 for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
                 {
-                    dmGraphics::HTexture texture = GetTexture(component, component->m_Resource, i);
-                    if (texture == params.m_Resource->m_Resource)
+                    dmGraphics::HTexture texture = GetTexture(component, i);
+                    if (texture == (uintptr_t) params.m_Resource->m_Resource)
                     {
                         component->m_ReHash = 1;
                         break;

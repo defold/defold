@@ -70,7 +70,7 @@ def shutdown(sht):
         os.unlink(server_config_path)
 
     start = time.time()
-    timeout = 8
+    timeout = 15
     while True:
         if time.time() - start > timeout:
             error('HTTP server failed to start within ' + timeout + ' seconds')

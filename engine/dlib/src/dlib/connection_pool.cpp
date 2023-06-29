@@ -149,6 +149,8 @@ namespace dmConnectionPool
                 break;
             case STATE_INUSE:
                 stats->m_InUse++;
+                if (c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
+                    stats->m_InUseAndValid++;
                 break;
             default:
                 assert(false);
@@ -249,49 +251,49 @@ namespace dmConnectionPool
         return false;
     }
 
-    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, int timeout, Connection* c, dmSocket::Result* sr)
+    static Result ConnectSocket(HPool pool, dmSocket::Address address, uint16_t port, int timeout, dmSocket::Socket* socket, dmSocket::Result* sr)
     {
-        *sr = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &c->m_Socket);
+        *sr = dmSocket::New(address.m_family, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, socket);
         if (*sr != dmSocket::RESULT_OK) {
             return RESULT_SOCKET_ERROR;
         }
 
         if( timeout > 0 )
         {
-            *sr = dmSocket::SetBlocking(c->m_Socket, false);
+            *sr = dmSocket::SetBlocking(*socket, false);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(c->m_Socket);
+                dmSocket::Delete(*socket);
                 return RESULT_SOCKET_ERROR;
             }
 
-            *sr = dmSocket::Connect(c->m_Socket, address, port);
+            *sr = dmSocket::Connect(*socket, address, port);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(c->m_Socket);
+                dmSocket::Delete(*socket);
                 return RESULT_SOCKET_ERROR;
             }
 
             dmSocket::Selector selector;
             dmSocket::SelectorZero(&selector);
-            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, c->m_Socket);
+            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, *socket);
 
             *sr = dmSocket::Select(&selector, timeout);
             if( *sr == dmSocket::RESULT_WOULDBLOCK )
             {
-                dmSocket::Delete(c->m_Socket);
+                dmSocket::Delete(*socket);
                 return RESULT_SOCKET_ERROR;
             }
 
-            *sr = dmSocket::SetBlocking(c->m_Socket, true);
+            *sr = dmSocket::SetBlocking(*socket, true);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(c->m_Socket);
+                dmSocket::Delete(*socket);
                 return RESULT_SOCKET_ERROR;
             }
         }
         else
         {
-            *sr = dmSocket::Connect(c->m_Socket, address, port);
+            *sr = dmSocket::Connect(*socket, address, port);
             if (*sr != dmSocket::RESULT_OK) {
-                dmSocket::Delete(c->m_Socket);
+                dmSocket::Delete(*socket);
                 return RESULT_SOCKET_ERROR;
             }
         }
@@ -299,30 +301,31 @@ namespace dmConnectionPool
         return RESULT_OK;
     }
 
-    static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, bool ssl, int timeout, Connection* c, dmSocket::Result* sr)
+    static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, bool ssl, int timeout,
+                                    dmSocket::Socket* socket, dmSSLSocket::Socket* sslsocket, dmSocket::Result* sr)
     {
         uint64_t connectstart = dmTime::GetTime();
 
-        Result r = ConnectSocket(pool, address, port, timeout, c, sr);
+        Result r = ConnectSocket(pool, address, port, timeout, socket, sr);
         if( r != RESULT_OK )
         {
-            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            *socket = dmSocket::INVALID_SOCKET_HANDLE;
             return r;
         }
 
         uint64_t handshakestart = dmTime::GetTime();
         if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
         {
-            dmSocket::Delete(c->m_Socket);
-            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            dmSocket::Delete(*socket);
+            *socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_SOCKET_ERROR;
         }
 
         if (RESULT_OK == r && ssl) {
-            dmSSLSocket::Result result = dmSSLSocket::New(c->m_Socket, host, timeout, &c->m_SSLSocket);
+            dmSSLSocket::Result result = dmSSLSocket::New(*socket, host, timeout, sslsocket);
             if (dmSSLSocket::RESULT_OK != result)
             {
-                c->m_SSLSocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
+                *sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
                 if (dmSSLSocket::RESULT_WOULDBLOCK == result)
                     *sr = dmSocket::RESULT_WOULDBLOCK;
                 else
@@ -375,20 +378,24 @@ namespace dmConnectionPool
             if (!FindSlot(pool, &index, &c)) {
                 return RESULT_OUT_OF_RESOURCES;
             }
-            c->m_State = STATE_INUSE;
+            c->m_State = STATE_INUSE; // The connection might fail, but we need to reserve this in the meantime
 
         } else {
             *sock_res = dmSocket::RESULT_HOST_NOT_FOUND; // Only error that dmSocket::getHostByName returns
             return RESULT_SOCKET_ERROR;
         }
 
-        Result r = Connect(pool, host, address, port, ssl, timeout, c, sock_res);
+        dmSocket::Socket socket = dmSocket::INVALID_SOCKET_HANDLE;
+        dmSSLSocket::Socket sslsocket = dmSSLSocket::INVALID_SOCKET_HANDLE;
+        Result r = Connect(pool, host, address, port, ssl, timeout, &socket, &sslsocket, sock_res);
 
         {
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
             if (r == RESULT_OK) {
                 *connection = MakeHandle(pool, index, c);
+                c->m_Socket = socket;
+                c->m_SSLSocket = sslsocket;
                 c->m_ID = conn_id;
                 c->m_ReuseCount = 0;
                 c->m_State = STATE_INUSE;
@@ -397,6 +404,7 @@ namespace dmConnectionPool
                 c->m_Port = port;
                 c->m_WasShutdown = 0;
             } else {
+                c->m_State = STATE_FREE;
                 DoClose(pool, c);
             }
         }
@@ -489,8 +497,10 @@ namespace dmConnectionPool
             if (c->m_State == STATE_INUSE) {
                 count++;
                 if (!c->m_WasShutdown) {
-                    assert(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE);
-                    dmSocket::Shutdown(c->m_Socket, how);
+                    // Due to threaded behavior, the connection may be in use,
+                    // but the socket's haven't been assigned yet
+                    if(c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
+                        dmSocket::Shutdown(c->m_Socket, how);
                     c->m_WasShutdown = 1;
                 }
             }

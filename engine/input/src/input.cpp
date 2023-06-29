@@ -49,6 +49,7 @@ namespace dmInput
         }
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
+        context->m_UnmappedGamepads.SetCapacity(7, 16);
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
@@ -59,6 +60,22 @@ namespace dmInput
     void DeleteContext(HContext context)
     {
         delete context;
+    }
+
+    static void MapGamePad(Binding* binding, uint32_t gamepad_index, bool connected);
+
+    static void MapGamePadCbk(void* binding, const uint32_t* gamepad_index, bool* connected)
+    {
+        MapGamePad((Binding*)binding, *gamepad_index, *connected);
+    }
+
+    void Update(HContext context)
+    {
+        if (context->m_UnmappedGamepads.Size() && context->m_Binding)
+        {
+            context->m_UnmappedGamepads.Iterate<void>(MapGamePadCbk, context->m_Binding);
+            context->m_UnmappedGamepads.Clear();
+        }
     }
 
     void SetRepeat(HContext context, float delay, float interval)
@@ -84,7 +101,7 @@ namespace dmInput
         binding->m_DDFGamepadTriggersData = 0;
         binding->m_DDFGamepadTriggersCount = 0;
 
-        dmHID::SetGamepadFuncUserdata(context->m_HidContext, (void*)binding);
+        context->m_Binding = binding;
         return binding;
     }
 
@@ -93,6 +110,7 @@ namespace dmInput
         Action action;
         memset(&action, 0, sizeof(Action));
         action.m_IsGamepad = 1;
+        action.m_GamepadUnknown = gamepad_binding->m_Unknown;
 
         gamepad_binding->m_Index = gamepad_index;
 
@@ -102,6 +120,8 @@ namespace dmInput
         gamepad_binding->m_Actions.SetCapacity(64, 256);
 
         action.m_GamepadIndex = gamepad_binding->m_Index;
+        action.m_UserID       = 0;
+
         for (uint32_t i = 0; i < binding->m_DDFGamepadTriggersCount; ++i)
         {
             const dmInputDDF::GamepadTrigger& ddf_trigger = binding->m_DDFGamepadTriggersData[i];
@@ -148,13 +168,14 @@ namespace dmInput
                 dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
                 return 0x0;
             }
-            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
-            {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
-            }
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
             gamepad_binding->m_Gamepad = gamepad;
+            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
+                gamepad_binding->m_Unknown = 1;
+            }
 
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
 
@@ -356,6 +377,8 @@ namespace dmInput
 
     void DeleteBinding(HBinding binding)
     {
+        binding->m_Context->m_Binding = 0;
+
         if (binding->m_KeyboardBinding != 0x0)
             delete binding->m_KeyboardBinding;
         if (binding->m_MouseBinding != 0x0)
@@ -376,13 +399,24 @@ namespace dmInput
         delete binding;
     }
 
+    static inline bool SupportsPlatform(const char* platform)
+    {
+        if (strcmp(DM_PLATFORM, platform) == 0)
+            return true;
+#if defined(__APPLE__)
+        if (strcmp("osx", platform) == 0)
+            return true;
+#endif
+        return false;
+    }
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf)
     {
         int count = 0;
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
-            if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
+            if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 count++;
             }
@@ -411,7 +445,7 @@ namespace dmInput
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
-            if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
+            if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 uint32_t device_id = dmHashString32(gamepad_map.m_Device);
                 if (context->m_GamepadMaps.Get(device_id) == 0x0)
@@ -479,11 +513,11 @@ namespace dmInput
         action->m_HasGamepadPacket = 0;
     }
 
-    struct UpdateContext
+    struct UpdateActionContext
     {
-        UpdateContext()
+        UpdateActionContext()
         {
-            memset(this, 0, sizeof(UpdateContext));
+            memset(this, 0, sizeof(UpdateActionContext));
         }
 
         float m_DT;
@@ -501,7 +535,7 @@ namespace dmInput
 
     void UpdateAction(void* context, const dmhash_t* id, Action* action)
     {
-        UpdateContext* update_context = (UpdateContext*)context;
+        UpdateActionContext* update_context = (UpdateActionContext*)context;
 
         float pressed_threshold = update_context->m_Context->m_PressedThreshold;
         action->m_Pressed = (action->m_PrevValue < pressed_threshold && action->m_Value >= pressed_threshold) ? 1 : 0;
@@ -547,7 +581,7 @@ namespace dmInput
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
 
         dmHID::HContext hid_context = binding->m_Context->m_HidContext;
-        UpdateContext context;
+        UpdateActionContext context;
         if (binding->m_KeyboardBinding != 0x0)
         {
             KeyboardBinding* keyboard_binding = binding->m_KeyboardBinding;
@@ -753,6 +787,8 @@ namespace dmInput
                                         char device_name[128];
                                         dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
                                         action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
+
+                                        dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
                                     }
                                 }
                             }
@@ -1164,17 +1200,8 @@ namespace dmInput
         MOUSE_BUTTON_MAP[dmInputDDF::MOUSE_BUTTON_8] = dmHID::MOUSE_BUTTON_8;
     }
 
-    bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+    static void MapGamePad(Binding* binding, uint32_t gamepad_index, bool connected)
     {
-        // Can't consume this callback yet
-        if (userdata == 0x0)
-        {
-            return false;
-        }
-
-        Binding* binding = (Binding*)userdata;
-
-        // If a new gamepad was connected we need to setup/reset the gamepad binding for it.
         if (connected)
         {
             GamepadBinding* gamepad_binding = 0x0;
@@ -1201,7 +1228,19 @@ namespace dmInput
                 }
             }
         }
+    }
 
+    bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+    {
+        Context* context = (Context*)userdata;
+        Binding* binding = (Binding*)context->m_Binding;
+        if (!binding)
+        {
+            context->m_UnmappedGamepads.Put(gamepad_index, connected);
+            return true; // Only return false if you wish to override the controller connection status!
+        }
+
+        MapGamePad(binding, gamepad_index, connected);
         return true;
     }
 }

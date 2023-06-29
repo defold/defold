@@ -35,8 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.EnumSet;
 
 import javax.imageio.ImageIO;
@@ -48,6 +46,8 @@ import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -61,6 +61,9 @@ import com.sun.jna.Pointer;
 
 
 public class TextureGenerator {
+
+    // specify what is maximum of threads TextureGenerator may use
+    public static int maxThreads = Project.getDefaultMaxCpuThreads();
 
     private static HashMap<TextureFormatAlternative.CompressionLevel, Integer> compressionLevelLUT = new HashMap<TextureFormatAlternative.CompressionLevel, Integer>();
     static {
@@ -311,7 +314,7 @@ public class TextureGenerator {
                 textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
 
                 Logger logger = Logger.getLogger(TextureGenerator.class.getName());
-                logger.log(Level.WARNING, "PVR compressed texture is not square and will be resized.");
+                logger.warning("PVR compressed texture is not square and will be resized.");
 
                 newWidth = Math.max(newWidth, newHeight);
                 newHeight = newWidth;
@@ -342,9 +345,7 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
             }
-
-            int max_threads = 8;
-            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, max_threads)) {
+            if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads)) {
                 throw new TextureGeneratorException("could not encode");
             }
 
@@ -356,12 +357,15 @@ public class TextureGenerator {
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
 
+            boolean texcBasisCompression = false;
+
             // If we're writing a .basis file, we don't actually store each mip map separately
             // In this case, we pretend that there's only one mip level
             if (texcCompressionType == CompressionType.CT_BASIS_UASTC ||
                 texcCompressionType == CompressionType.CT_BASIS_ETC1S )
             {
                 generateMipMaps = false;
+                texcBasisCompression = true;
             }
 
             int w = newWidth;
@@ -373,12 +377,24 @@ public class TextureGenerator {
                 h = Math.max(h, 1);
                 raw.addMipMapOffset(offset);
                 int size = TexcLibrary.TEXC_GetDataSizeUncompressed(texture, mipMap);
-                raw.addMipMapSize(size);
-                int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
-                if(size_compressed != 0) {
-                    size = size_compressed;
+
+                // For basis the GetDataSizeCompressed and GetDataSizeUncompressed will always return 0,
+                // so we use this hack / workaround to calculate offsets in the engine..
+                if (texcBasisCompression)
+                {
+                    size = bufferSize;
+                    raw.addMipMapSize(size);
+                    raw.addMipMapSizeCompressed(size);
                 }
-                raw.addMipMapSizeCompressed(size_compressed);
+                else
+                {
+                    raw.addMipMapSize(size);
+                    int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
+                    if(size_compressed != 0) {
+                        size = size_compressed;
+                    }
+                    raw.addMipMapSizeCompressed(size_compressed);
+                }
                 offset += size;
                 w >>= 1;
                 h >>= 1;

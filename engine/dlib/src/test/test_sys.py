@@ -13,7 +13,7 @@
 # specific language governing permissions and limitations under the License.
 
 import shutil, os
-shutil.rmtree('tmp', True)
-if not os.path.exists('tmp'):
-    os.mkdir("tmp")
+shutil.rmtree('testdir', True)
+if not os.path.exists('testdir'):
+    os.mkdir("testdir")
 

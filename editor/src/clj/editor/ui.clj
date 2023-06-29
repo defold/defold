@@ -1258,7 +1258,7 @@
     (user-data! menu-item ::menu-item-id id)
     (when command
       (.setId menu-item (name command)))
-    (when (some? key-combo)
+    (when (and (some? key-combo) (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
@@ -1356,10 +1356,27 @@
       (set-show-relative-to-window! cm true)
       (.show cm node (.getScreenX event) (.getScreenY event)))))
 
-(defn register-context-menu [^Control control menu-location]
-  (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
-    (event-handler event
-      (show-context-menu! menu-location event))))
+(defn register-context-menu
+  "Register a context menu listener on a control for the menu location
+
+  Args:
+    control          an instance of a Control
+    menu-location    keyword identifier of a menu location registered with
+                     [[editor.handler/register-menu!]]
+    focus            whether to focus on the control when the context menu is
+                     requested, default false. Focusing might be necessary in
+                     some cases because the context menu handlers are evaluated
+                     in the context of the focus owner of the scene, and some
+                     controls (e.g. Label) are not focused when a context menu
+                     is requested for them. Without a focus, any context these
+                     controls define will be lost."
+  ([control menu-location]
+   (register-context-menu control menu-location false))
+  ([^Control control menu-location focus]
+   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
+     (event-handler event
+       (when focus (.requestFocus control))
+       (show-context-menu! menu-location event)))))
 
 (defn- event-targets-tab? [^Event event]
   (some? (closest-node-with-style "tab" (.getTarget event))))
@@ -1834,24 +1851,6 @@
        (finally
          ((second ~bindings) progress/done)))))
 
-(defn make-run-later-render-progress [render-progress!]
-  (let [render-inflight (ref false)
-        last-progress (ref nil)]
-    (progress/throttle-render-progress
-      (fn [progress]
-        (let [schedule (ref false)]
-          (dosync
-            (ref-set schedule (not @render-inflight))
-            (ref-set render-inflight true)
-            (ref-set last-progress progress))
-          (when @schedule
-            (run-later
-              (let [progress-snapshot (ref nil)]
-                (dosync
-                  (ref-set progress-snapshot @last-progress)
-                  (ref-set render-inflight false))
-                (render-progress! @progress-snapshot)))))))))
-
 (defn- set-scene-disable! [^Scene scene disable?]
   (when-some [root (.getRoot scene)]
     (.setDisable root disable?)
@@ -1896,19 +1895,6 @@
   (reify EventHandler
     (handle [this event] (f event))))
 
-(defmacro defcommand
-  "Create a command with the given category and id. Binds
-the resulting command to the named variable.
-
-Label should be a human-readable string. It will appear
-directly in the UI (unless there is a translation for it.)
-
-If you use the same category-id and command-id more than once,
-this will create independent entities that refer to the same underlying
-command."
-  [name category-id command-id label]
-  `(def ^:command ~name [~label ~category-id ~command-id]))
-
 (defprotocol Future
   (cancel [this])
   (restart [this]))
@@ -1942,7 +1928,7 @@ command."
                                      (when (or (nil? interval) (> delta interval))
                                        (run-later
                                          (try
-                                           (tick-fn this (* elapsed 1e-9))
+                                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
                                            (reset! last (- now (if interval
                                                                  (- delta interval)
                                                                  0)))
@@ -2026,7 +2012,7 @@ command."
           root-pane ^Pane (.getRoot scene)
           menu-bar (doto (MenuBar.)
                      (.setUseSystemMenuBar true))
-          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _] (refresh scene)))]
+          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _ _] (refresh scene)))]
       (.. root-pane getChildren (add menu-bar))
       (register-menubar scene menu-bar (main-menu-id))
       (refresh scene)

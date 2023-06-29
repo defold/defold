@@ -65,6 +65,7 @@ import com.dynamo.bob.TexcLibrary.CompressionType;
 
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
@@ -164,6 +165,10 @@ public class Fontc {
 
     public InputFontFormat getInputFormat() {
         return inputFormat;
+    }
+
+    private boolean isBitmapFont(FontDesc fd) {
+        return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
     }
 
     public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
@@ -365,7 +370,7 @@ public class Fontc {
         // Shadow_spread is the maximum distance to the glyph outline.
         float sdf_shadow_spread = 0.0f;
 
-        if (this.fontDesc.getFont().toLowerCase().endsWith("fnt"))
+        if (isBitmapFont(this.fontDesc))
         {
             padding = 0;
             cell_padding = 1;
@@ -940,7 +945,7 @@ public class Fontc {
         this.fontDesc = fontDesc;
         this.fontMapBuilder = FontMap.newBuilder();
 
-        if (fontDesc.getFont().toLowerCase().endsWith("fnt")) {
+        if (isBitmapFont(fontDesc)) {
             FNTBuilder(fontStream);
         } else {
             TTFBuilder(fontStream);

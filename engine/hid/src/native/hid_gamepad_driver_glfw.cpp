@@ -119,8 +119,6 @@ namespace dmHID
 
         driver->m_Devices.Push(new_device);
 
-        SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, true);
-
         return gp;
     }
 
@@ -140,14 +138,18 @@ namespace dmHID
 
     static void GLFWGamepadCallback(int gamepad_id, int connected)
     {
-        GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+        Gamepad* gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+        if (gp == 0)
+        {
+            return;
+        }
+        SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, connected);
     }
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
         int id                = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
         int glfw_joystick     = GLFW_JOYSTICKS[id];
-        bool prev_connected   = gamepad->m_Connected;
         GamepadPacket& packet = gamepad->m_Packet;
 
         gamepad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
@@ -211,7 +213,10 @@ namespace dmHID
 
     static void GLFWGamepadDriverDestroy(HContext context, GamepadDriver* driver)
     {
-        delete driver;
+        GLFWGamepadDriver* glfw_driver = (GLFWGamepadDriver*) driver;
+        assert(g_GLFWGamepadDriver == glfw_driver);
+        delete glfw_driver;
+        g_GLFWGamepadDriver = 0;
     }
 
     GamepadDriver* CreateGamepadDriverGLFW(HContext context)

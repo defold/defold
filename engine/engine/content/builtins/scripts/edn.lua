@@ -34,19 +34,14 @@ local escape_char_map = {
   ["\t" ] = "\\t",
 }
 
-local function str(val)
+local function str(val, val_type, metatable)
   local success, error_or_result = pcall(function()
-    local mt = debug.getmetatable(val)
-    if mt then
-      if mt.__metatable == NodeProxy then
-        return string.format("%s%p", val, val)
-      elseif type(val) == "table" and mt.__tostring then
+    if metatable then
+      if val_type == "table" and metatable.__tostring then
         return string.format("%s %p", val, val)
       end
-      return tostring(val)
-    else
-      return tostring(val)
     end
+    return tostring(val)
   end)
   if success then
     return error_or_result
@@ -82,30 +77,38 @@ end
 
 local strings_cache = {}
 local strings_cache_count = 0
-local function encode_string(val)
+local function encode_string(val, val_type)
   if strings_cache[val] then
     return strings_cache[val]
   end
-  local str = '"'..val:gsub('[%z\1-\31\\"]', escape_char)..'"'
-  strings_cache[val] = str
+  local result = '"'..val:gsub('[%z\1-\31\\"]', escape_char)..'"'
+  strings_cache[val] = result
   strings_cache_count = strings_cache_count + 1
-  return str
+  return result
 end
 
-local function encode_table(val)
+local function encode_table(val, val_type)
   return string.format('#lua/ref"%p"', val)
 end
 
-local function encode_userdata(val)
-  return '#lua/userdata"'..str(val)..'"'
+local function encode_userdata(val, val_type, metatable)
+  return '#lua/userdata"'..str(val, val_type, metatable)..'"'
 end
 
-local function encode_function(val)
-  return '#lua/function"'..str(val)..'"'
+local function encode_function(val, val_type, metatable)
+  return '#lua/function"'..tostring(val)..'"'
 end
 
-local function encode_thread(val)
-  return '#lua/thread"'..str(val)..'"'
+local function encode_thread(val, val_type, metatable)
+  return '#lua/thread"'..tostring(val)..'"'
+end
+
+local function encode_script(val, val_type)
+  return '#lua/ref"' .. tostring(val) .. '"'
+end
+
+local function encode_node(val, val_type)
+  return string.format('#lua/userdata"%s %p"', tostring(val), val)
 end
 
 local type_to_primitive_encoder = {
@@ -119,75 +122,126 @@ local type_to_primitive_encoder = {
   ["thread"] = encode_thread
 }
 
-local function fail_on_unexpected_type(x)
-  error("unexpected type '" .. type(x) .. "'")
+local has_data_in_registry = {
+  [GOScriptInstance] = true,
+  [GuiScriptInstance] = true,
+  [RenderScriptInstance] = true,
+}
+
+local metatable_to_primitive_encoder = {
+  [GOScriptInstance] = encode_script,
+  [GuiScriptInstance] = encode_script,
+  [RenderScriptInstance] = encode_script,
+  [NodeProxy] = encode_node
+}
+
+local function fail_on_unexpected_type(x, val_type)
+  error("unexpected type '" .. val_type .. "'")
 end
 
 local function encode_as_primitive(val)
-  local encoder = type_to_primitive_encoder[type(val)] or fail_on_unexpected_type
-  return encoder(val)
+  local val_type = type(val)
+  local mt = debug.getmetatable(val)
+  local encoder = (mt and metatable_to_primitive_encoder[mt.__metatable]) or type_to_primitive_encoder[val_type] or fail_on_unexpected_type
+  return encoder(val, val_type, mt)
 end
 
-local function encode_table(val)
+local function encode_edn_table(ref, ref_table)
   local encoded_kvs = {}
-  for k, v in pairs(val) do
-    encoded_kvs[#encoded_kvs + 1] = encode_as_primitive(k) .. " " .. encode_as_primitive(v)
+  for k, v in pairs(ref_table) do
+    encoded_kvs[#encoded_kvs + 1] = encode_as_primitive(k)
+    encoded_kvs[#encoded_kvs + 1] = encode_as_primitive(v)
   end
-  return "#lua/table{:content [" .. table.concat(encoded_kvs, " ") .. "] :string " .. encode_string(str(val)) .. "}"
+  local encoded_str = encode_string(str(ref, type(ref), debug.getmetatable(ref)))
+  return "#lua/table{:content [" .. table.concat(encoded_kvs, " ") .. "] :string " .. encoded_str .. "}"
 end
 
-local function encode_refs(refs)
+local function encode_refs(ref_to_table)
   local encoded_refs = {}
-  local val
-  for i = 1, #refs do
-    val = refs[i]
-    encoded_refs[i] = encode_as_primitive(val).." "..encode_table(val)
+  for ref, ref_table in pairs(ref_to_table) do
+    encoded_refs[#encoded_refs + 1] = encode_as_primitive(ref)
+    encoded_refs[#encoded_refs + 1] = encode_edn_table(ref, ref_table)
   end
   return "{" .. table.concat(encoded_refs, " ") .. "}"
 end
 
-local function collect_refs(depth, val, refs, dups)
-  if type(val) == "table" then
-    if depth < 100 and not dups[val] then
-      dups[val] = true
-      refs[#refs + 1] = val
-      local next_depth = depth + 1
-      for k, v in pairs(val) do
-        collect_refs(next_depth, k, refs, dups)
-        collect_refs(next_depth, v, refs, dups)
+local function collect_refs(depth, val, internal_graph, edge_refs_set, registry)
+  local val_type = type(val)
+  local ref_table
+  if val_type == "table" then
+    ref_table = val
+  elseif val_type == "userdata" then
+    local mt = debug.getmetatable(val)
+    if mt and has_data_in_registry[mt.__metatable] then
+      ref_table = registry[mt.__get_instance_data_table_ref(val)]
+    end
+  end
+  if ref_table then
+    if depth > 0 then
+      if not internal_graph[val] then
+        internal_graph[val] = ref_table
+        local next_depth = depth - 1
+        for k, v in pairs(ref_table) do
+          collect_refs(next_depth, k, internal_graph, edge_refs_set, registry)
+          collect_refs(next_depth, v, internal_graph, edge_refs_set, registry)
+        end
       end
+    else -- depth 0, add to edges
+      edge_refs_set[val] = true
     end
   end
 end
 
-local function encode_structure(val)
-  local dups = {}
-  local refs = {}
-  collect_refs(0, val, refs, dups)
-  local encoded_refs = encode_refs(refs)
-  local str = "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encoded_refs .. "}"
+---Build a references graph for a value up to a certain depth for serialization
+---@param val any value to analyze
+---@param params {maxlevel: integer?} params table, where maxlevel is max depth level of serialization
+---@return table<any, table> internal_graph mapping from found references to a table of its contents
+---@return table<string, any> edge_refs mapping from hexademical pointer strings to references that were found but will not be serialized
+function M.analyze(val, params)
+  local depth = params.maxlevel or 16
+  local internal_graph = {}
+  local edge_refs_set = {}
+  collect_refs(depth, val, internal_graph, edge_refs_set, debug.getregistry())
+  local edge_refs = {}
+  for edge_ref, _ in pairs(edge_refs_set) do
+    edge_refs[string.format("%p", edge_ref)] = edge_ref
+  end
+  return internal_graph, edge_refs
+end
+
+---Serialize a val to EDN, along with its internal graph that can be obtained with analyze
+---@param val any
+---@param internal_graph table<any, table> reference graph obtained from analyze
+---@return string edn serialized object graph
+function M.serialize(val, internal_graph)
+  local result = "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encode_refs(internal_graph) .. "}"
   if strings_cache_count > 5000000 then
     strings_cache_count = 0
     strings_cache = {}
   end
-  return str
+  return result
 end
 
-function M.encode(val)
+---Build a val reference graph up to a certain depth and serialize it to EDN
+---@param val any value to serialize
+---@param params {maxlevel: integer?} params table, where maxlevel is max depth level of serialization
+---@return string edn serialized object graph
+function M.encode(val, params)
   local err_trace
-  local success, error_or_result = xpcall(
-  function ()
-    return encode_structure(val)
-  end,
-  function (err)
-    err_trace = debug.traceback();
-    return err
-  end)
-  if success then
-    return error_or_result
+  local ok, result = xpcall(
+    function()
+      local graph = M.analyze(val, params)
+      return M.serialize(val, graph)
+    end,
+    function(err)
+      err_trace = debug.traceback()
+      return err
+    end)
+  if ok then
+    return result
   else
-    print("Debugger: " .. error_or_result)
-    if err_trace ~= nil then
+    print("Debugger: " .. result)
+    if err_trace then
       print(err_trace)
     end
     return encode_nil()

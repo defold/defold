@@ -92,7 +92,7 @@ GLFWAPI struct android_app* glfwGetAndroidApp(void);
 GLFWAPI android_app* glfwGetAndroidApp(void);
 #endif
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
 
     // See documentation in engine.h
     typedef void (*EngineInit)(void* ctx);

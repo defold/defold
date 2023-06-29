@@ -1,39 +1,51 @@
 #! /usr/bin/env python
-from waf_dynamo import copy_file_task
-import waflib.Options
+import os
+from waflib.Options import options
 
 def configure(conf):
     pass
 
 def build(bld):
 
+    java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
+    if 'linux' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
+    if 'win32' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
+    if 'macos' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
     texc_sources = bld.path.ant_glob("*.cpp")
 
     # The static library for the tests
-    texc = bld.stlib(features = 'cxx cstaticlib',
+    texc = bld.stlib(features = 'c cxx',
                    source = texc_sources,
                    includes = ['.'],
                    target   = 'texc')
 
-    remove_flags = {}
-    remove_flags['CXXFLAGS'] = []
-    remove_flags['LINKFLAGS'] = []
-    extra_encoder_flags = []
-    if bld.env['PLATFORM'] == 'x86_64-macos':
-        # SSE4.1 was added in 10.12
-        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
-        remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
-        extra_encoder_flags += ['-mmacosx-version-min=10.12']
-
-    texc_shared = bld.shlib(features     = 'cxx cshlib skip_asan remove_flags',
+    texc_shared = bld.shlib(features     = 'cxx cshlib skip_asan',
                             source       = texc_sources,
                             includes     = ['.'],
-                            remove_flags = remove_flags,
                             target       = 'texc_shared',
                             use          = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
-    texc_shared.env.append_unique('CXXFLAGS', extra_encoder_flags)
-    texc_shared.env.append_unique('LINKFLAGS', extra_encoder_flags)
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
-    bld.recurse('test')
+
+    classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.13.0.jar'),
+                 os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.13.0.jar')]
+
+    bld(features='javac seq',
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
+
+    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+
+    bld(features='jar seq',
+        basedir='java',
+        destfile='texturecompiler.jar')
+
+    bld.install_files('${PREFIX}/share/java', 'texturecompiler.jar')
+
+    if not options.skip_build_tests:
+        bld.recurse('test')

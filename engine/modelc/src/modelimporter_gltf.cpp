@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <algorithm> // std::sort
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/hash.h>
@@ -37,6 +38,10 @@
 
 namespace dmModelImporter
 {
+struct GltfData
+{
+    cgltf_data* m_Data;
+};
 
 static void OutputTransform(const dmTransform::Transform& transform)
 {
@@ -234,11 +239,6 @@ static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, floa
     return out;
 }
 
-
-
-static void DestroyGltf(void* opaque_scene_data);
-
-
 static uint32_t FindNodeIndex(cgltf_node* node, uint32_t nodes_count, cgltf_node* nodes)
 {
     for (uint32_t i = 0; i < nodes_count; ++i)
@@ -265,21 +265,21 @@ static dmTransform::Transform ToTransform(const float* m)
     return dmTransform::ToTransform(mat);
 }
 
-static Skin* FindSkin(Scene* scene, const char* name)
+static Skin* FindSkin(Scene* scene, cgltf_data* gltf_data, cgltf_skin* gltf_skin)
 {
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
     {
-        Skin* skin = &scene->m_Skins[i];
-        if (strcmp(name, skin->m_Name) == 0)
-            return skin;
+        if (gltf_skin == &gltf_data->skins[i])
+            return &scene->m_Skins[i];
     }
     return 0;
 }
 
-static uint32_t FindIndex(uintptr_t base_pointer, uintptr_t pointer)
+template<typename T>
+static uint32_t FindIndex(T* base_pointer, T* pointer)
 {
     if (!pointer)
-        return 0xFFFFFFFF;
+        return INVALID_INDEX;
     return (uint32_t)(pointer - base_pointer);
 }
 
@@ -299,10 +299,20 @@ static char* CreateObjectName(T* object, const char* prefix, uint32_t index)
 }
 
 template <>
-static char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
+char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
 {
     (void)object;
     return CreateNameFromHash("mesh", index);
+}
+
+template <>
+char* CreateObjectName<>(cgltf_buffer* object, const char* prefix, uint32_t index)
+{
+    if (object && object->name)
+        return strdup(object->name);
+    if (object && object->uri)
+        return strdup(object->uri);
+    return CreateNameFromHash("buffer", index);
 }
 
 static void UpdateWorldTransforms(Node* node)
@@ -332,6 +342,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
         Node* node = &scene->m_Nodes[i];
         node->m_Name = CreateObjectName(gltf_node, "node", i);
+        node->m_NameHash = dmHashString64(node->m_Name);
         node->m_Index = i;
 
         // We link them together later
@@ -344,7 +355,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         node->m_Skin = 0;
         if (gltf_node->skin)
         {
-            node->m_Skin = FindSkin(scene, gltf_node->skin->name);
+            node->m_Skin = FindSkin(scene, gltf_data, gltf_node->skin);
         }
 
         if (gltf_node->has_translation)
@@ -402,6 +413,57 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
+{
+    scene->m_MaterialsCount = gltf_data->materials_count;
+    scene->m_Materials = new Material[scene->m_MaterialsCount];
+    memset(scene->m_Materials, 0, sizeof(Material)*scene->m_MaterialsCount);
+
+    for (uint32_t i = 0; i < gltf_data->materials_count; ++i)
+    {
+        cgltf_material* gltf_material = &gltf_data->materials[i];
+        Material* material = &scene->m_Materials[i];
+        material->m_Name = CreateObjectName(gltf_material, "material", i);
+        material->m_Index = i;
+
+        // todo: load properties
+        // todo: what is "material mappings"?
+        // todo: and how is the material variant used?
+
+        // cgltf_bool has_pbr_metallic_roughness;
+        // cgltf_bool has_pbr_specular_glossiness;
+        // cgltf_bool has_clearcoat;
+        // cgltf_bool has_transmission;
+        // cgltf_bool has_volume;
+        // cgltf_bool has_ior;
+        // cgltf_bool has_specular;
+        // cgltf_bool has_sheen;
+        // cgltf_bool has_emissive_strength;
+        // cgltf_pbr_metallic_roughness pbr_metallic_roughness;
+        // cgltf_pbr_specular_glossiness pbr_specular_glossiness;
+        // cgltf_clearcoat clearcoat;
+        // cgltf_ior ior;
+        // cgltf_specular specular;
+        // cgltf_sheen sheen;
+        // cgltf_transmission transmission;
+        // cgltf_volume volume;
+        // cgltf_emissive_strength emissive_strength;
+        // cgltf_texture_view normal_texture;
+        // cgltf_texture_view occlusion_texture;
+        // cgltf_texture_view emissive_texture;
+        // cgltf_float emissive_factor[3];
+        // cgltf_alpha_mode alpha_mode;
+        // cgltf_float alpha_cutoff;
+        // cgltf_bool double_sided;
+        // cgltf_bool unlit;
+
+        // todo: extensions
+
+        // cgltf_size extensions_count;
+        // cgltf_extension* extensions;
+    }
+}
+
 static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
 {
     aabb->m_Min[0] = aabb->m_Min[1] = aabb->m_Min[2] = FLT_MAX;
@@ -416,7 +478,7 @@ static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
     }
 }
 
-static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
+static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
     model->m_Meshes = new Mesh[model->m_MeshesCount];
@@ -428,9 +490,12 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateObjectName(prim, "mesh", i);
 
-        uint32_t material_index = FindIndex((uintptr_t)gltf_data->materials, (uintptr_t)prim->material);
-        mesh->m_Material = CreateObjectName(prim->material, "material", material_index);
-        mesh->m_VertexCount = 0;
+        uint32_t material_index = FindIndex(gltf_data->materials, prim->material);
+        if (material_index != INVALID_INDEX)
+        {
+            mesh->m_Material = &scene->m_Materials[material_index];
+            mesh->m_VertexCount = 0;
+        }
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
@@ -551,7 +616,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         model->m_Name = CreateObjectName(gltf_mesh, "model", i);
         model->m_Index = i;
 
-        LoadPrimitives(model, gltf_data, gltf_mesh); // Our "Meshes"
+        LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
     }
 }
 
@@ -567,6 +632,95 @@ static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
             return i;
     }
     return INVALID_INDEX;
+}
+
+// Once the bones have been reassigned their new logical, depth-first index
+// We can sort it on index
+struct BoneSortPred
+{
+    bool operator()(const Bone& a, const Bone& b) const
+    {
+        int indexa = a.m_Index == INVALID_INDEX ? -1 : a.m_Index;
+        int indexb = b.m_Index == INVALID_INDEX ? -1 : b.m_Index;
+        return indexa < indexb;
+    }
+};
+
+struct BoneSortInfo
+{
+    uint32_t m_Index;     // The index in the hierarchy (depth first!)
+    uint32_t m_OldIndex;
+};
+
+struct BoneInfoSortPred
+{
+    bool operator()(const BoneSortInfo& a, const BoneSortInfo& b) const
+    {
+        return a.m_Index < b.m_Index;
+    }
+};
+
+static void CalcIndicesDepthFirst(BoneSortInfo* infos, const Bone* bone, uint32_t* index)
+{
+    infos[bone->m_Index].m_OldIndex = bone->m_Index;
+    infos[bone->m_Index].m_Index = (*index)++;
+
+    if (!bone->m_Children)
+        return;
+    for (uint32_t i = 0; i < bone->m_Children->Size(); ++i)
+    {
+        CalcIndicesDepthFirst(infos, (*bone->m_Children)[i], index);
+    }
+}
+
+static void SortSkinBones(Skin* skin)
+{
+    BoneSortInfo* infos = new BoneSortInfo[skin->m_BonesCount];
+
+    uint32_t index_iter = 0;
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    {
+        Bone* bone = &skin->m_Bones[i];
+        if (bone->m_ParentIndex == INVALID_INDEX)
+        {
+            CalcIndicesDepthFirst(infos, bone, &index_iter);
+        }
+    }
+
+    std::sort(infos, infos + skin->m_BonesCount, BoneInfoSortPred());
+
+    // build the remap array
+    skin->m_BoneRemap = new uint32_t[skin->m_BonesCount];
+    bool indices_differ = false;
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    {
+        uint32_t index_old = infos[i].m_OldIndex;
+        uint32_t index_new = infos[i].m_Index;
+        skin->m_BoneRemap[index_old] = index_new;
+
+        indices_differ |= index_old != index_new;
+    }
+    // If the indices don't differ, then we don't need to update the meshes bone indices either
+    if (!indices_differ)
+    {
+        delete[] skin->m_BoneRemap;
+        skin->m_BoneRemap = 0;
+    }
+
+    // do the remapping
+    if (skin->m_BoneRemap)
+    {
+        for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+        {
+            Bone& bone = skin->m_Bones[i];
+            bone.m_Index = skin->m_BoneRemap[bone.m_Index];
+            bone.m_ParentIndex = bone.m_ParentIndex != INVALID_INDEX ? skin->m_BoneRemap[bone.m_ParentIndex] : INVALID_INDEX;
+        }
+
+        std::sort(skin->m_Bones, skin->m_Bones + skin->m_BonesCount, BoneSortPred());
+    }
+
+    delete[] infos;
 }
 
 static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
@@ -598,6 +752,17 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
             bone->m_Name = CreateObjectName(gltf_joint, "bone", j);
             bone->m_Index = j;
             bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
+
+            if (bone->m_ParentIndex != INVALID_INDEX)
+            {
+                Bone* parent = &skin->m_Bones[bone->m_ParentIndex];
+                if (parent->m_Children == 0)
+                    parent->m_Children = new dmArray<Bone*>();
+                if (parent->m_Children->Full())
+                    parent->m_Children->OffsetCapacity(4);
+                parent->m_Children->Push(bone);
+            }
+
             // Cannot translate the bones here, since they're not created yet
             // bone->m_Node = ...
 
@@ -610,6 +775,8 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
                 assert(false);
             }
         }
+
+        SortSkinBones(skin);
 
         // LOAD SKELETON?
     }
@@ -716,8 +883,30 @@ static void LinkNodesWithBones(Scene* scene, cgltf_data* gltf_data)
         for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
         {
             cgltf_node* gltf_joint = gltf_skin->joints[j];
-            Bone* bone = &skin->m_Bones[j];
+
+            Bone* bone = 0;
+            for (uint32_t b = 0; b < gltf_skin->joints_count; ++b)
+            {
+                if (strcmp(skin->m_Bones[b].m_Name, gltf_joint->name) == 0)
+                {
+                    bone = &skin->m_Bones[b];
+                    break;
+                }
+            }
             bone->m_Node = TranslateNode(gltf_joint, gltf_data, scene);
+        }
+    }
+}
+
+static void RemapMeshBoneIndices(Skin* skin, Mesh* mesh)
+{
+    uint32_t* remap_table = skin->m_BoneRemap;
+    for (uint32_t i = 0; i < mesh->m_VertexCount; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            uint32_t old_index = mesh->m_Bones[i*4+j];
+            mesh->m_Bones[i*4+j] = remap_table[old_index];
         }
     }
 }
@@ -736,6 +925,15 @@ static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
         assert(index < gltf_data->meshes_count);
 
         node->m_Model = &scene->m_Models[index];
+
+        // We need to compensate for any bone index remapping
+        if (node->m_Skin && node->m_Skin->m_BoneRemap)
+        {
+            for (uint32_t j = 0; j < node->m_Model->m_MeshesCount; ++j)
+            {
+                RemapMeshBoneIndices(node->m_Skin, &node->m_Model->m_Meshes[j]);
+            }
+        }
     }
 }
 
@@ -846,13 +1044,15 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     scene->m_Animations = new Animation[scene->m_AnimationsCount];
 
     // first, count number of animated nodes we have
-    for (uint32_t i = 0; i < gltf_data->animations_count; ++i)
+    for (uint32_t a = 0; a < gltf_data->animations_count; ++a)
     {
-        cgltf_animation* gltf_animation = &gltf_data->animations[i];
-        Animation* animation = &scene->m_Animations[i];
+        cgltf_animation* gltf_animation = &gltf_data->animations[a];
+        Animation* animation = &scene->m_Animations[a];
 
-        animation->m_Name = CreateObjectName(gltf_animation, "animation", i);
+        animation->m_Name = CreateObjectName(gltf_animation, "animation", a);
 
+        // Here we want to create a many individual tracks for different bones (name.type): "a.rot", "b.rot", "a.pos", "b.scale"...
+        // into a list of tracks that holds all 3 types: [a: {rot, pos, scale}, b: {rot, pos, scale}...]
         dmHashTable64<uint32_t> node_name_to_index;
         animation->m_NodeAnimationsCount = CountAnimatedNodes(gltf_animation, node_name_to_index);
         animation->m_NodeAnimations = new NodeAnimation[animation->m_NodeAnimationsCount];
@@ -862,15 +1062,14 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         {
             cgltf_animation_channel* channel = &gltf_animation->channels[i];
 
-            const char* node_name = channel->target_node->name;
-            dmhash_t node_name_hash = dmHashString64(node_name);
+            Node* node = TranslateNode(channel->target_node, gltf_data, scene);
+            dmhash_t node_name_hash = node->m_NameHash;
 
             uint32_t* node_index = node_name_to_index.Get(node_name_hash);
             assert(node_index != 0);
 
             NodeAnimation* node_animation = &animation->m_NodeAnimations[*node_index];
-            if (node_animation->m_Node == 0)
-                node_animation->m_Node = TranslateNode(channel->target_node, gltf_data, scene);
+            node_animation->m_Node = node;
 
             LoadChannel(node_animation, channel);
 
@@ -879,34 +1078,103 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-
-Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
+// Based on cgltf.h: cgltf_load_buffers(...)
+static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path)
 {
-    cgltf_options options;
-    memset(&options, 0, sizeof(cgltf_options));
-
-    cgltf_data* data = NULL;
-    cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
-
-    if (result == cgltf_result_success)
-        result = cgltf_load_buffers(&options, data, 0);
-
-    if (result == cgltf_result_success)
-        result = cgltf_validate(data);
-
-    if (result != cgltf_result_success)
+    if (options == NULL)
     {
-        printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
-        return 0;
+        return cgltf_result_invalid_options;
     }
 
-    Scene* scene = new Scene;
-    memset(scene, 0, sizeof(Scene));
-    scene->m_OpaqueSceneData = (void*)data;
-    scene->m_DestroyFn = DestroyGltf;
+    if (data->buffers_count && data->buffers[0].data == NULL && data->buffers[0].uri == NULL && data->bin)
+    {
+        if (data->bin_size < data->buffers[0].size)
+        {
+            return cgltf_result_data_too_short;
+        }
 
+        data->buffers[0].data = (void*)data->bin;
+        data->buffers[0].data_free_method = cgltf_data_free_method_none;
+    }
+
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (data->buffers[i].data)
+        {
+            continue;
+        }
+
+        const char* uri = data->buffers[i].uri;
+
+        if (uri == NULL)
+        {
+            continue;
+        }
+
+        if (strncmp(uri, "data:", 5) == 0)
+        {
+            const char* comma = strchr(uri, ',');
+
+            if (comma && comma - uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
+            {
+                cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, comma + 1, &data->buffers[i].data);
+                data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
+
+                if (res != cgltf_result_success)
+                {
+                    return res;
+                }
+            }
+            else
+            {
+                return cgltf_result_unknown_format;
+            }
+        }
+        else if (strstr(uri, "://") == NULL && gltf_path)
+        {
+            cgltf_result res = cgltf_load_buffer_file(options, data->buffers[i].size, uri, gltf_path, &data->buffers[i].data);
+            data->buffers[i].data_free_method = cgltf_data_free_method_file_release;
+
+            if (res != cgltf_result_success)
+            {
+                return res;
+            }
+        }
+        // DEFOLD
+        else if (!gltf_path)
+        {
+            continue; // we allow the code to supply the buffers later
+        }
+        // END DEFOLD
+        else
+        {
+            return cgltf_result_unknown_format;
+        }
+    }
+
+    return cgltf_result_success;
+}
+
+static bool HasUnresolvedBuffersInternal(cgltf_data* data)
+{
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (!data->buffers[i].data)
+            return true;
+    }
+    return false;
+}
+
+bool HasUnresolvedBuffers(Scene* scene)
+{
+    return HasUnresolvedBuffersInternal((cgltf_data*)scene->m_OpaqueSceneData);
+}
+
+static void LoadScene(Scene* scene, cgltf_data* data)
+{
     LoadSkins(scene, data);
     LoadNodes(scene, data);
+    LoadMaterials(scene, data);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);
@@ -916,13 +1184,109 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     // Make sure the skins have only one root node
     GenerateRootBone(scene);
+}
+
+static bool LoadFinalizeGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    LoadScene(scene, data->m_Data);
+    return true;
+}
+
+static bool ValidateGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_result result = cgltf_validate(data->m_Data);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to validate gltf file: %s (%d)\n", GetResultStr(result), result);
+    }
+    return result == cgltf_result_success;
+}
+
+static void DestroyGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_free(data->m_Data);
+    delete data;
+}
+
+Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
+{
+    cgltf_options options;
+    memset(&options, 0, sizeof(cgltf_options));
+
+    cgltf_data* data = NULL;
+    cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
+
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
+        return 0;
+    }
+
+    // resolve as many buffers as possible
+    result = ResolveBuffers(&options, data, 0);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        return 0;
+    }
+
+    Scene* scene = new Scene;
+    memset(scene, 0, sizeof(Scene));
+    GltfData* scenedata = new GltfData;
+    scenedata->m_Data = data;
+
+    scene->m_OpaqueSceneData = scenedata;
+    scene->m_LoadFinalizeFn = LoadFinalizeGltf;
+    scene->m_ValidateFn = ValidateGltf;
+    scene->m_DestroyFn = DestroyGltf;
+
+    scene->m_BuffersCount = data->buffers_count;
+    scene->m_Buffers = new Buffer[scene->m_BuffersCount];
+
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        scene->m_Buffers[i].m_Uri = CreateObjectName(data->buffers, "buffer", i);
+        scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
+        scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
+    }
+
+    if (!NeedsResolve(scene))
+    {
+        LoadFinalizeGltf(scene);
+        ValidateGltf(scene);
+    }
 
     return scene;
 }
 
-static void DestroyGltf(void* opaque_scene_data)
+void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t bufferdata_size)
 {
-    cgltf_free((cgltf_data*)opaque_scene_data);
+    GltfData* scenedata = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_data* data = scenedata->m_Data;
+
+    cgltf_options _options;
+    cgltf_options* options = &_options;
+    memset(options, 0, sizeof(cgltf_options));
+
+    for (cgltf_size i = 0; i < scene->m_BuffersCount; ++i)
+    {
+        Buffer* scenebuffer = &scene->m_Buffers[i];
+        if (strcmp(scenebuffer->m_Uri, uri) == 0)
+        {
+            void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
+            cgltf_buffer* buffer = &data->buffers[i];
+
+            buffer->data = memory_alloc(options->memory.user_data, buffer->size);
+            buffer->data_free_method = cgltf_data_free_method_memory_free;
+
+            memcpy(buffer->data, bufferdata, bufferdata_size);
+            scenebuffer->m_Buffer = buffer->data;
+            return;
+        }
+    }
 }
 
 }

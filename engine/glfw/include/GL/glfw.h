@@ -160,7 +160,7 @@ extern "C" {
  * (which is not a nice solution for portable programs).
  */
 #if defined(__APPLE_CC__)
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 #include <OpenGLES/ES3/gl.h>
 #else
  #include <OpenGL/gl3.h>
@@ -462,6 +462,7 @@ typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
+typedef void (GLFWCALL * GLFWdevicechangedfun)(int);
 typedef void (GLFWCALL * GLFWtouchfun)(int,int,int,int);
 
 
@@ -607,6 +608,7 @@ typedef void (GLFWCALL * GLFWwindowiconifyfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowIconifyCallback( GLFWwindowiconifyfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetGamepadCallback( GLFWgamepadfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetDeviceChangedCallback( GLFWdevicechangedfun cbfun );
 
 #ifdef __cplusplus
 }

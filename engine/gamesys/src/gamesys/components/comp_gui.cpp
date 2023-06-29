@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,15 +31,19 @@
 #include <render/font_renderer.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
+#include <gamesys/atlas_ddf.h>
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
 #include "comp_private.h"
 
-#include "../resources/res_gui.h"
-#include "../resources/res_skeleton.h"
-#include "../resources/res_meshset.h"
 #include "../resources/res_animationset.h"
+#include "../resources/res_gui.h"
+#include "../resources/res_material.h"
+#include "../resources/res_meshset.h"
+#include "../resources/res_skeleton.h"
+#include "../resources/res_texture.h"
+#include "../resources/res_textureset.h"
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include <particle/particle.h>
@@ -537,7 +541,7 @@ namespace dmGameSystem
             const char* name = scene_desc->m_Textures[i].m_Name;
 
             void* texture_source;
-            dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
+            dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture->m_Texture;
             dmGui::NodeTextureType texture_source_type;
 
             if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
@@ -548,7 +552,7 @@ namespace dmGameSystem
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (void*)texture;
+                texture_source      = (void*) texture;
             }
 
             dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
@@ -903,7 +907,7 @@ namespace dmGameSystem
             TextureSetResource* texture_set_res = (TextureSetResource*) result;
             assert(texture_set_res);
 
-            return texture_set_res->m_Texture;
+            return texture_set_res->m_Texture->m_Texture;
         }
 
         return (dmGraphics::HTexture) result;
@@ -1018,7 +1022,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material = gui_context->m_Material;
-        ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
+        ro.m_Textures[0] = (dmGraphics::HTexture) first_emitter_render_data->m_Texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
@@ -1963,8 +1967,8 @@ namespace dmGameSystem
             out_data->m_TexCoords = (const float*) texture_set->m_TexCoords.m_Data;
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
-            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
-            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture);
+            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture->m_Texture);
+            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture->m_Texture);
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
@@ -2089,8 +2093,12 @@ namespace dmGameSystem
         }
     }
 
-    static inline dmRender::HMaterial GetMaterial(GuiComponent* component, GuiSceneResource* resource) {
+    static inline MaterialResource* GetMaterialResource(GuiComponent* component, GuiSceneResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
+    static inline dmRender::HMaterial GetMaterial(GuiComponent* component, GuiSceneResource* resource) {
+        return GetMaterialResource(component, resource)->m_Material;
     }
 
     static dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
@@ -2215,6 +2223,7 @@ namespace dmGameSystem
             gui_input_action.m_ScreenDY = params.m_InputAction->m_ScreenDY;
             gui_input_action.m_GamepadIndex = params.m_InputAction->m_GamepadIndex;
             gui_input_action.m_IsGamepad = params.m_InputAction->m_IsGamepad;
+            gui_input_action.m_GamepadUnknown = params.m_InputAction->m_GamepadUnknown;
             gui_input_action.m_GamepadDisconnected = params.m_InputAction->m_GamepadDisconnected;
             gui_input_action.m_GamepadConnected = params.m_InputAction->m_GamepadConnected;
             gui_input_action.m_GamepadPacket = params.m_InputAction->m_GamepadPacket;
@@ -2223,6 +2232,7 @@ namespace dmGameSystem
             gui_input_action.m_AccY = params.m_InputAction->m_AccY;
             gui_input_action.m_AccZ = params.m_InputAction->m_AccZ;
             gui_input_action.m_AccelerationSet = params.m_InputAction->m_AccelerationSet;
+            gui_input_action.m_UserID = params.m_InputAction->m_UserID;
 
             gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
             int tc = params.m_InputAction->m_TouchCount;
@@ -2327,7 +2337,7 @@ namespace dmGameSystem
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
         if (set_property == PROP_MATERIAL) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(gui_component, gui_component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(gui_component, gui_component->m_Resource), out_value);
         }
         else if (set_property == PROP_FONTS) {
             if (!params.m_Options.m_HasKey) {
@@ -2383,7 +2393,7 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGraphics::HTexture texture = texture_source->m_Texture;
+                dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
                 dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
                 if (r != dmGui::RESULT_OK) {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);

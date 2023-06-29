@@ -31,6 +31,8 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
+import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
@@ -38,6 +40,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.bob.util.MurmurHash;
 
+@ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends Builder<Void>  {
 
@@ -74,6 +77,38 @@ public class MaterialBuilder extends Builder<Void>  {
         return selected;
     }
 
+    private ShaderDesc.Shader getSpirvShader(ShaderDesc shaderDesc) {
+        for (int i=0; i < shaderDesc.getShadersCount(); i++) {
+            ShaderDesc.Shader shader = shaderDesc.getShaders(i);
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_SPIRV) {
+                return shader;
+            }
+        }
+        return null;
+    }
+
+    private void validateSpirvShaders(ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) throws CompileExceptionError {
+        ShaderDesc.Shader spirvVertex = getSpirvShader(vertexBuildContext.desc);
+        if (spirvVertex == null) {
+            return;
+        }
+        ShaderDesc.Shader spirvFragment = getSpirvShader(fragmentBuildContext.desc);
+
+
+        for (ShaderDesc.ResourceBinding input : spirvFragment.getInputsList()) {
+            boolean input_found = false;
+            for (ShaderDesc.ResourceBinding output : spirvVertex.getOutputsList()) {
+                if (output.getNameHash() == input.getNameHash()) {
+                    input_found = true;
+                    break;
+                }
+            }
+            if (!input_found) {
+                throw new CompileExceptionError(String.format("Input of fragment shader '%s' not written by vertex shader", input.getName()));
+            }
+        }
+    }
+
     private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext ctx, String inExt, String outExt) throws IOException, CompileExceptionError {
 
         ShaderDesc.Language shaderLanguage = findTextureArrayShaderLanguage(ctx.desc);
@@ -94,7 +129,7 @@ public class MaterialBuilder extends Builder<Void>  {
             return;
         }
 
-        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderProgramBuilder.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
+        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderCompilerHelpers.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
 
         // JG: AAaah this should not be here, but we need to know of the parsed array samplers for building the indirection map..
         variantBuildResult.shaderBuilder.setVariantTextureArray(true);
@@ -197,6 +232,17 @@ public class MaterialBuilder extends Builder<Void>  {
         task.addInput(vertexProgramOutputResource);
         task.addInput(fragmentProgramOutputResource);
 
+        for (MaterialDesc.Sampler materialSampler : materialBuilder.getSamplersList()) {
+            String texture = materialSampler.getTexture();
+            if (texture.isEmpty())
+                continue;
+            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
+            Task<?> embedTask = this.project.createTask(res);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
+            }
+        }
+
         return task.build();
     }
 
@@ -209,6 +255,8 @@ public class MaterialBuilder extends Builder<Void>  {
         ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
         ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());
 
+        validateSpirvShaders(vertexBuildContext, fragmentBuildContext);
+
         applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
 
         BuilderUtil.checkResource(this.project, res, "vertex program", vertexBuildContext.buildPath);
@@ -216,6 +264,19 @@ public class MaterialBuilder extends Builder<Void>  {
 
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
+
+        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
+            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
+
+            MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
+            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
+
+            String texture = materialSampler.getTexture();
+            if (!texture.isEmpty())
+                samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
+
+            materialBuilder.setSamplers(i, samplerBuilder.build());
+        }
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());

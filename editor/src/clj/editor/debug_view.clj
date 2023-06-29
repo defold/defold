@@ -169,7 +169,7 @@
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (future
-        (let [ret (mobdebug/eval debug-session code frame)]
+        (let [ret (mobdebug/exec debug-session code frame)]
           (cond
             (= :bad-request (:error ret))
             (console/append-console-entry! :eval-error "Bad request")
@@ -420,7 +420,7 @@
 (defn- make-update-timer
   [project debug-view]
   (let [state   (volatile! {})
-        tick-fn (fn [timer _]
+        tick-fn (fn [timer _ _]
                   (when-not (ui/ui-disabled?)
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.

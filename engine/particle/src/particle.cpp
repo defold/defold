@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>

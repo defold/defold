@@ -16,43 +16,31 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
-            [editor.fxui :as fxui]
-            [editor.handler :as handler]
-            [editor.icons :as icons]
-            [editor.ui :as ui]
-            [editor.prefs :as prefs]
-            [editor.resource :as resource]
-            [editor.resource-watch :as resource-watch]
-            [editor.workspace :as workspace]
+            [editor.app-view :as app-view]
             [editor.dialogs :as dialogs]
             [editor.disk-availability :as disk-availability]
-            [editor.app-view :as app-view])
-  (:import [com.defold.editor Start]
+            [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
+            [editor.handler :as handler]
+            [editor.icons :as icons]
+            [editor.prefs :as prefs]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-watch :as resource-watch]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
+  (:import [com.defold.control TreeCell]
            [editor.resource FileResource]
-           [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent Event EventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets]
-           [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.input DragEvent TransferMode MouseEvent]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem TreeView Menu MenuItem SeparatorMenuItem MenuBar Tab ProgressBar ContextMenu SelectionMode]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent KeyCombination ContextMenuEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
-           [javafx.scene.paint Color]
-           [javafx.stage Stage FileChooser]
-           [javafx.util Callback]
            [java.io File]
            [java.nio.file Path Paths]
-           [java.util.prefs Preferences]
-           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [org.apache.commons.io FilenameUtils]
-           [com.defold.control TreeCell]))
+           [javafx.collections FXCollections ObservableList]
+           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.input DragEvent MouseEvent TransferMode]
+           [javafx.scene Node]
+           [javafx.scene.control SelectionMode TreeItem TreeView]
+           [javafx.scene.input MouseEvent]
+           [javafx.stage Stage]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -112,6 +100,8 @@
     :command :referencing-files}
    {:label "Dependencies..."
     :command :dependencies}
+   {:label "Show Overrides"
+    :command :show-overrides}
    {:label :separator}
    {:label "New"
     :command :new-file
@@ -454,6 +444,16 @@
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
 
+(defn replace-template-name
+  ^String [^String template ^String name]
+  (let [escaped-name (protobuf/escape-string name)]
+    (string/replace template "{{NAME}}" escaped-name)))
+
+(defn- create-template-file! [^String template ^File new-file]
+  (let [base-name (FilenameUtils/getBaseName (.getPath new-file))
+        contents (replace-template-name template base-name)]
+    (spit new-file contents)))
+
 (handler/defhandler :new-file :global
   (label [user-data] (if-not user-data
                        "New..."
@@ -475,7 +475,8 @@
              rt (:resource-type user-data)]
          (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
-             (spit new-file (workspace/template workspace rt))
+             (let [template (workspace/template workspace rt)]
+               (create-template-file! template new-file))
              (workspace/resource-sync! workspace)
              (let [resource-map (g/node-value workspace :resource-map)
                    new-resource-path (resource/file->proj-path project-path new-file)
@@ -486,7 +487,7 @@
            (when (not user-data)
              (sort-by (comp string/lower-case :label)
                       (keep (fn [[_ext resource-type]]
-                              (when (workspace/template workspace resource-type)
+                              (when (workspace/has-template? workspace resource-type)
                                 {:label (or (:label resource-type) (:ext resource-type))
                                  :icon (:icon resource-type)
                                  :style (resource/ext-style-classes (:ext resource-type))

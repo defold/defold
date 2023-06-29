@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,22 @@
 #include <dlib/log.h>
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
+
+/*****************************************************************************************************************
+ * JG: When we update to newer MVK we need to do these changes to get validation layers to work (for MVK at least):
+ * in g_extension_names:
+ *   - add VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+ * use this validation layer:
+ *   - static const char* DM_VULKAN_LAYER_VALIDATION = "VK_LAYER_KHRONOS_validation";
+ * add this in g_validation_layer_ext:
+ *   - VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+ * in vulkan_graphics, we need to add these:
+ *   - device_extensions.OffsetCapacity(2);
+ *   - device_extensions.Push("VK_KHR_portability_subset");
+ *   - device_extensions.Push("VK_KHR_get_physical_device_properties2");
+ * in graphics_vulkan_context, need this flag:
+ *   - vk_instance_create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+ *****************************************************************************************************************/
 
 namespace dmGraphics
 {
@@ -38,12 +54,12 @@ namespace dmGraphics
         VK_EXT_METAL_SURFACE_EXTENSION_NAME,
     #endif
     };
+
     static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
     static const char* g_validation_layers[1];
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
-
-    extern Context* g_VulkanContext;
+    extern VulkanContext* g_VulkanContext;
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
@@ -127,9 +143,9 @@ namespace dmGraphics
         }
     }
 
-    uint32_t VulkanGetWindowRefreshRate(HContext context)
+    uint32_t VulkanGetWindowRefreshRate(HContext _context)
     {
-        if (context->m_WindowOpened)
+        if (((VulkanContext*) _context)->m_WindowOpened)
         {
             return glfwGetWindowRefreshRate();
         }
@@ -139,8 +155,9 @@ namespace dmGraphics
         }
     }
 
-    WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
+    WindowResult VulkanOpenWindow(HContext _context, WindowParams* params)
     {
+        VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
@@ -181,12 +198,14 @@ namespace dmGraphics
         context->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
         context->m_WindowIconifyCallback         = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
+        context->m_CurrentRenderTarget           = context->m_MainRenderTarget;
 
         return WINDOW_RESULT_OK;
     }
 
-    void VulkanCloseWindow(HContext context)
+    void VulkanCloseWindow(HContext _context)
     {
+        VulkanContext* context = (VulkanContext*) _context;
         if (context->m_WindowOpened)
         {
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
@@ -195,54 +214,7 @@ namespace dmGraphics
 
             glfwCloseWindow();
 
-            context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
-
-            DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
-            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
-
-            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
-
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
-
-            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-            {
-                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
-            }
-
-            for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
-            {
-                DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
-            }
-
-            for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
-            {
-                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
-            }
-
-            for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
-            {
-                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
-            }
-
-            for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
-            {
-                FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
-            }
-
-            for (size_t i = 0; i < g_max_frames_in_flight; i++) {
-                FrameResource& frame_resource = context->m_FrameResources[i];
-                vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
-                vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
-                vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
-            }
-
-            DestroySwapChain(vk_device, context->m_SwapChain);
-            DestroyLogicalDevice(&context->m_LogicalDevice);
-            DestroyPhysicalDevice(&context->m_PhysicalDevice);
+            VulkanDestroyResources(context);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
@@ -262,7 +234,7 @@ namespace dmGraphics
 
     void VulkanIconifyWindow(HContext context)
     {
-        if (context->m_WindowOpened)
+        if (((VulkanContext*) context)->m_WindowOpened)
         {
             glfwIconifyWindow();
         }
@@ -270,7 +242,7 @@ namespace dmGraphics
 
     uint32_t VulkanGetWindowState(HContext context, WindowState state)
     {
-        if (context->m_WindowOpened)
+        if (((VulkanContext*) context)->m_WindowOpened)
         {
             return glfwGetWindowParam(state);
         }
@@ -287,22 +259,22 @@ namespace dmGraphics
 
     uint32_t VulkanGetWidth(HContext context)
     {
-        return context->m_Width;
+        return ((VulkanContext*) context)->m_Width;
     }
 
     uint32_t VulkanGetHeight(HContext context)
     {
-        return context->m_Height;
+        return ((VulkanContext*) context)->m_Height;
     }
 
     uint32_t VulkanGetWindowWidth(HContext context)
     {
-        return context->m_WindowWidth;
+        return ((VulkanContext*) context)->m_WindowWidth;
     }
 
     uint32_t VulkanGetWindowHeight(HContext context)
     {
-        return context->m_WindowHeight;
+        return ((VulkanContext*) context)->m_WindowHeight;
     }
 
     float VulkanGetDisplayScaleFactor(HContext context)
@@ -318,8 +290,10 @@ namespace dmGraphics
         *height = h;
     }
 
-    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
+    void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
+        VulkanContext* context = (VulkanContext*) _context;
+
         if (context->m_WindowOpened)
         {
             context->m_Width  = width;
@@ -330,7 +304,7 @@ namespace dmGraphics
             context->m_WindowWidth  = window_width;
             context->m_WindowHeight = window_height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
+            SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
 
             // The callback is not called from glfw when the size is set manually
             if (context->m_WindowResizeCallback)
@@ -342,7 +316,7 @@ namespace dmGraphics
 
     void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
-        if (context->m_WindowOpened)
+        if (((VulkanContext*) context)->m_WindowOpened)
         {
             VulkanSetWindowSize(context, width, height);
         }
@@ -350,7 +324,7 @@ namespace dmGraphics
 
     void NativeSwapBuffers(HContext context)
     {
-    #if (defined(__arm__) || defined(__arm64__))
+    #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
         glfwSwapBuffers();
     #endif
     }

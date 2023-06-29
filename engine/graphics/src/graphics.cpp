@@ -3,19 +3,20 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
 #include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
 #endif
 #include <string.h>
@@ -109,17 +110,97 @@ namespace dmGraphics
         return true;
     }
 
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
     static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
-            case ADAPTER_TYPE_NULL:   return "null";
-            case ADAPTER_TYPE_OPENGL: return "opengl";
-            case ADAPTER_TYPE_VULKAN: return "vulkan";
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
             default: break;
         }
         return "<unknown adapter type>";
     }
+
+    const char* GetTextureTypeLiteral(TextureType texture_type)
+    {
+        switch(texture_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            default:break;
+        }
+        return "<unknown texture type>";
+    }
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR0_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR1_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR2_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_COLOR3_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_DEPTH_BIT);
+            GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
+            default:break;
+        }
+        return "<unknown buffer type>";
+    }
+
+    const char* GetAssetTypeLiteral(AssetType type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_TEXTURE);
+            GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
+            default:break;
+        }
+        return "<unknown asset type>";
+    }
+
+    const char* GetTextureFormatLiteral(TextureFormat format)
+    {
+        switch(format)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_LUMINANCE);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_LUMINANCE_ALPHA);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_16BPP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_16BPP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_DEPTH);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_STENCIL);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_ETC1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ETC2);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_BC1);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC3);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R_BC4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG_BC5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC7);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            default:break;
+        }
+        return "<unknown texture format>";
+    }
+
+    #undef GRAPHICS_ENUM_TO_STR_CASE
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -161,6 +242,7 @@ namespace dmGraphics
         return g_functions.m_NewContext(params);
     }
 
+
     static inline BufferType GetAttachmentBufferType(RenderTargetAttachment attachment)
     {
         static AttachmentToBufferType g_AttachmentToBufferType;
@@ -201,33 +283,6 @@ namespace dmGraphics
         }
         assert(selected_shader);
         return selected_shader;
-    }
-
-    const char* GetTextureTypeLiteral(TextureType texture_type)
-    {
-        switch(texture_type)
-        {
-            case TEXTURE_TYPE_2D:       return "TEXTURE_TYPE_2D";
-            case TEXTURE_TYPE_2D_ARRAY: return "TEXTURE_TYPE_2D_ARRAY";
-            case TEXTURE_TYPE_CUBE_MAP: return "TEXTURE_TYPE_CUBE_MAP";
-            default:break;
-        }
-        return "<unknown texture type>";
-    }
-
-    const char* GetBufferTypeLiteral(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
-            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
-            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
-            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default:break;
-        }
-        return "<unknown buffer type>";
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
@@ -280,6 +335,45 @@ namespace dmGraphics
         delete stream_declaration;
     }
 
+    #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
+    const char* TextureFormatToString(TextureFormat format)
+    {
+        switch(format)
+        {
+            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE_ALPHA);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_4BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG_BC5);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC7);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG32F);
+            default:break;
+        }
+        return "UNKNOWN_FORMAT";
+    }
+    #undef DM_TEXTURE_FORMAT_TO_STR_CASE
+
     // For estimating resource size
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
     {
@@ -321,23 +415,76 @@ namespace dmGraphics
         }
     }
 
+    uint32_t GetGraphicsTypeDataSize(Type type)
+    {
+        if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == TYPE_SHORT || type == TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == TYPE_INT || type == TYPE_UNSIGNED_INT || type == TYPE_FLOAT)
+        {
+            return 4;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return 16;
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return 64;
+        }
+        assert(0 && "Unsupported data type");
+        return 0;
+    }
+
+    Type GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type)
+    {
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
+            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
+            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            default: break;
+        }
+
+        // Not supported
+        return (Type) 0xffffffff;
+    }
+
+    bool IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type)
+    {
+        return uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
+               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
+               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
+               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+    }
+
     bool IsTextureFormatCompressed(dmGraphics::TextureFormat format)
     {
         switch(format)
         {
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
-        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
-        case dmGraphics::TEXTURE_FORMAT_R_BC4:
-        case dmGraphics::TEXTURE_FORMAT_RG_BC5:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
-            return true;
-        default:
-            return false;
+            case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
+            case dmGraphics::TEXTURE_FORMAT_R_BC4:
+            case dmGraphics::TEXTURE_FORMAT_RG_BC5:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -440,29 +587,6 @@ namespace dmGraphics
         return ps;
     }
 
-    void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value)
-    {
-        switch (state)
-        {
-            case STATE_DEPTH_TEST:
-                pipeline_state.m_DepthTestEnabled = value;
-                break;
-            case STATE_STENCIL_TEST:
-                pipeline_state.m_StencilEnabled = value;
-                break;
-            case STATE_BLEND:
-                pipeline_state.m_BlendEnabled = value;
-                break;
-            case STATE_CULL_FACE:
-                pipeline_state.m_CullFaceEnabled = value;
-                break;
-            case STATE_POLYGON_OFFSET_FILL:
-                pipeline_state.m_PolygonOffsetFillEnabled = value;
-                break;
-            default: assert(0 && "EnableState: State not supported");
-        }
-    }
-
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
@@ -510,6 +634,44 @@ namespace dmGraphics
 
         #undef TEST_AND_RETURN
         return format;
+    }
+
+    void SetPipelineStateValue(dmGraphics::PipelineState& pipeline_state, State state, uint8_t value)
+    {
+        switch(state)
+        {
+            case STATE_DEPTH_TEST:
+                pipeline_state.m_DepthTestEnabled = value;
+            break;
+            case STATE_STENCIL_TEST:
+                pipeline_state.m_StencilEnabled = value;
+            break;
+            case STATE_BLEND:
+                pipeline_state.m_BlendEnabled = value;
+            break;
+            case STATE_CULL_FACE:
+                pipeline_state.m_CullFaceEnabled = value;
+            break;
+            case STATE_POLYGON_OFFSET_FILL:
+                pipeline_state.m_PolygonOffsetFillEnabled = value;
+            break;
+            default:
+                assert(0 && "EnableState: State not supported");
+            break;
+        }
+    }
+
+    void RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
+    {
+        for(uint32_t px=0; px < num_pixels; px++)
+        {
+            rgba[0] = rgb[0];
+            rgba[1] = rgb[1];
+            rgba[2] = rgb[2];
+            rgba[3] = 255;
+            rgba+=4;
+            rgb+=3;
+        }
     }
 
     void DeleteContext(HContext context)
@@ -649,14 +811,6 @@ namespace dmGraphics
     {
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapVertexBuffer(buffer, access);
-    }
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        return g_functions.m_UnmapVertexBuffer(buffer);
-    }
     uint32_t GetMaxElementsVertices(HContext context)
     {
         return g_functions.m_GetMaxElementsVertices(context);
@@ -676,14 +830,6 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
-    }
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapIndexBuffer(buffer, access);
-    }
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        return g_functions.m_UnmapIndexBuffer(buffer);
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
@@ -929,6 +1075,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHeight(texture);
     }
+    uint16_t GetTextureDepth(HTexture texture)
+    {
+        return g_functions.m_GetTextureDepth(texture);
+    }
     uint16_t GetOriginalTextureWidth(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureWidth(texture);
@@ -936,6 +1086,10 @@ namespace dmGraphics
     uint16_t GetOriginalTextureHeight(HTexture texture)
     {
         return g_functions.m_GetOriginalTextureHeight(texture);
+    }
+    uint8_t GetTextureMipmapCount(HTexture texture)
+    {
+        return g_functions.m_GetTextureMipmapCount(texture);
     }
     TextureType GetTextureType(HTexture texture)
     {
@@ -993,8 +1147,13 @@ namespace dmGraphics
     {
         return g_functions.m_GetNumTextureHandles(texture);
     }
+    bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
+    {
+        assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
+        return g_functions.m_IsAssetHandleValid(context, asset_handle);
+    }
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);

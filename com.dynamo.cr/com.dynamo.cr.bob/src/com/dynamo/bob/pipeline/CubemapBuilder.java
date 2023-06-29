@@ -19,13 +19,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.EnumSet;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
@@ -37,6 +37,8 @@ import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
 public class CubemapBuilder extends Builder<Void> {
+
+    private static Logger logger = Logger.getLogger(CubemapBuilder.class.getName());
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -69,7 +71,7 @@ public class CubemapBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TextureImage[] textures = new TextureImage[6];
         try {
@@ -88,6 +90,9 @@ public class CubemapBuilder extends Builder<Void> {
                 //
                 // So for cube map textures we don't flip on any axis, meaning the texture data begin at the
                 // upper left corner of the input image.
+
+
+                // NOTE: Setting the same input for more than one side will cause a NPE when generating!
                 TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(FlipAxis.class));
                 textures[i] = texture;
             }

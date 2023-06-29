@@ -110,26 +110,25 @@ platforms:
     javacCmd:       'javac -d {{classesDir}} {{#javaFlags}}{{{.}}} {{/javaFlags}} -classpath {{classPath}} @{{sourcesListFile}}'
     jarCmd:         'jar cf {{outputJar}} -C {{classesDir}} .'
 
-  x86_64-osx:
+  osx:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_13_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_13_CLANG_VERSION}}"
-        MACOS_VERSION:          "{{env.MACOS_12_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_13_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_12_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_13_VERSION}}.sdk"
     context:
-        frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-macos", "{{dynamo_home}}/ext/lib/x86_64-macos", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
-        defines:    ["DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
-        systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
-        flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64", "-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
-        linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64", "-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
-        cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64", "-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
+        frameworks:     ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
+        libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
+        defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
+        systemIncludes: ["{{env.SYSROOT}}/usr/include/c++/v1"]
+        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
+        linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
+        cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
         symbols:        ["AudioDecoderTremolo"]
@@ -156,6 +155,20 @@ platforms:
     manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
+  arm64-osx:
+    context:
+        libPaths:       ["{{dynamo_home}}/lib/arm64-macos", "{{dynamo_home}}/ext/lib/arm64-macos"]
+        flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+
+  x86_64-osx:
+    context:
+        libPaths:       ["{{dynamo_home}}/lib/x86_64-macos", "{{dynamo_home}}/ext/lib/x86_64-macos"]
+        flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+
   x86-osx:
     # Intentionally left empty to allow users to have old versions in their manifests
 
@@ -166,13 +179,12 @@ platforms:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_13_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_13_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_15_VERSION}}"
+        IOS_VERSION:            "{{env.IOS_16_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_15_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_16_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
@@ -211,13 +223,12 @@ platforms:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_13_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_13_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_15_VERSION}}"
+        IOS_VERSION:            "{{env.IOS_16_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
-        LD_LIBRARY_PATH:        "{{env.LIB_TAPI_1_6_PATH}}:{{env.LD_LIBRARY_PATH}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_15_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_16_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
@@ -264,6 +275,7 @@ platforms:
         PATH:                   "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_33}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
         NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
         NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK25_API_VERSION}}-clang++"
+        ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_33}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
@@ -290,13 +302,13 @@ platforms:
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
     libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
-    javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
+    javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     dxCmd: 'd8 --main-dex-list {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
     aapt2compileCmd: 'aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
-    aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
+    aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
     manifestName:     'AndroidManifest.xml'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
@@ -311,6 +323,7 @@ platforms:
         PATH:                   "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_33}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
         NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
         NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK25_API_VERSION}}-clang++"
+        ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_33}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
@@ -337,14 +350,14 @@ platforms:
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
     libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
-    javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
+    javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     # mainDexList is automatically created by listing all classes inside the engine jars
     dxCmd: 'd8 --main-dex-list {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
     aapt2compileCmd: 'aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
-    aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
+    aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
     manifestName:     'AndroidManifest.xml'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
@@ -443,7 +456,7 @@ platforms:
         flags:          ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-gcodeview", "-O2", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++"]
         linkFlags:      ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         cxxLinkShFlags: ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/safeseh:no"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
         symbols:        []
 
     exePrefix:      ''
@@ -481,7 +494,7 @@ platforms:
         flags:          ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-gcodeview", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++"]
         linkFlags:      ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         cxxLinkShFlags: ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/safeseh:no"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
         symbols:        []
 
     exePrefix:      ''

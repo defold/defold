@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -43,6 +43,9 @@
 #include <dmsdk/gameobject/script.h>
 #include <dmsdk/gamesys/render_constants.h>
 
+#include <dmsdk/gamesys/resources/res_material.h>
+#include <dmsdk/gamesys/resources/res_textureset.h>
+
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Sprite, 0, FrameReset, "# components", &rmtp_Components);
 DM_PROPERTY_U32(rmtp_SpriteVertexCount, 0, FrameReset, "# vertices", &rmtp_Sprite);
@@ -70,7 +73,7 @@ namespace dmGameSystem
         SpriteResource*             m_Resource;
         HComponentRenderConstants   m_RenderConstants;
         TextureSetResource*         m_TextureSet;
-        dmRender::HMaterial         m_Material;
+        MaterialResource*           m_Material;
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
         uint32_t                    m_CurrentAnimationFrame;
@@ -128,6 +131,7 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_ANIMATION = dmHashString64("animation");
+    static const dmhash_t SPRITE_PROP_FRAME_COUNT = dmHashString64("frame_count");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
@@ -235,16 +239,20 @@ namespace dmGameSystem
         return result;
     }
 
-    static inline dmRender::HMaterial GetMaterial(const SpriteComponent* component, const SpriteResource* resource) {
+    static inline MaterialResource* GetMaterialResource(const SpriteComponent* component, const SpriteResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, const SpriteResource* resource) {
-        return component->m_TextureSet ? component->m_TextureSet : resource->m_TextureSet;
+    static inline dmRender::HMaterial GetMaterial(const SpriteComponent* component, const SpriteResource* resource) {
+        return GetMaterialResource(component, resource)->m_Material;
+    }
+
+    static inline TextureSetResource* GetTextureSet(const SpriteComponent* component) {
+        return component->m_TextureSet ? component->m_TextureSet : component->m_Resource->m_TextureSet;
     }
 
     static void UpdateCurrentAnimationFrame(SpriteComponent* component) {
-        TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+        TextureSetResource* texture_set = GetTextureSet(component);
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
@@ -280,7 +288,7 @@ namespace dmGameSystem
 
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
-        TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+        TextureSetResource* texture_set = GetTextureSet(component);
         uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation);
         if (anim_id)
         {
@@ -329,7 +337,7 @@ namespace dmGameSystem
         SpriteResource* resource = component->m_Resource;
         dmGameSystemDDF::SpriteDesc* ddf = resource->m_DDF;
         dmRender::HMaterial material = GetMaterial(component, resource);
-        TextureSetResource* texture_set = GetTextureSet(component, resource);
+        TextureSetResource* texture_set = GetTextureSet(component);
         dmHashInit32(&state, reverse);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
@@ -377,7 +385,8 @@ namespace dmGameSystem
             component->m_Size[1] = component->m_Resource->m_DDF->m_Size.getY();
         }
 
-        PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
+        PlayAnimation(component, resource->m_DefaultAnimation,
+                component->m_Resource->m_DDF->m_Offset, component->m_Resource->m_DDF->m_PlaybackRate);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -474,8 +483,17 @@ namespace dmGameSystem
                 vertices->x = p.getX();
                 vertices->y = p.getY();
                 vertices->z = p.getZ();
-                vertices->u = us[x];
-                vertices->v = vs[y];
+
+                if (uv_rotated)
+                {
+                    vertices->u = us[y];
+                    vertices->v = vs[x];
+                }
+                else
+                {
+                    vertices->u = us[x];
+                    vertices->v = vs[y];
+                }
                 vertices->p = (float) page_index;
                 vertices++;
             }
@@ -544,7 +562,7 @@ namespace dmGameSystem
         {
             uint32_t component_index                            = (uint32_t)buf[*i].m_UserData;
             const SpriteComponent* component                    = (const SpriteComponent*) &components[component_index];
-            TextureSetResource* texture_set                     = GetTextureSet(component, component->m_Resource);
+            TextureSetResource* texture_set                     = GetTextureSet(component);
             dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
             dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
@@ -655,8 +673,8 @@ namespace dmGameSystem
                     int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
                     CreateVertexDataSlice9(vertices, indices, sprite_world->m_Is16BitIndex,
                         w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, tc,
-                        dmGraphics::GetTextureWidth(texture_set->m_Texture),
-                        dmGraphics::GetTextureHeight(texture_set->m_Texture),
+                        dmGraphics::GetTextureWidth(texture_set->m_Texture->m_Texture),
+                        dmGraphics::GetTextureHeight(texture_set->m_Texture->m_Texture),
                         page_index, flipx, flipy);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
@@ -731,7 +749,7 @@ namespace dmGameSystem
         assert(first->m_Enabled);
 
         SpriteResource* resource = first->m_Resource;
-        TextureSetResource* texture_set = GetTextureSet(first, resource);
+        TextureSetResource* texture_set = GetTextureSet(first);
 
         // Although we generally like to preallocate it, we cannot since we
         // 1) don't want to preallocate max_sprite number of render objects and
@@ -760,7 +778,9 @@ namespace dmGameSystem
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = GetMaterial(first, resource);
-        ro.m_Textures[0] = texture_set->m_Texture;
+        // TODO: set all textures from the materials
+        // See comp_model.cpp
+        ro.m_Textures[0] = texture_set->m_Texture->m_Texture;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
 
@@ -835,10 +855,10 @@ namespace dmGameSystem
                 Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(world * local, size);
+                c->m_World = dmVMath::AppendScale(world * local, size);
                 // we need to consider the full scale here
                 // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         } else
@@ -850,10 +870,10 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(w, size);
+                c->m_World = dmVMath::AppendScale(w, size);
                 // we need to consider the full scale here
                 // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         }
@@ -900,7 +920,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_Playing)
                 continue;
 
-            TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+            TextureSetResource* texture_set = GetTextureSet(component);
             dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
@@ -959,7 +979,7 @@ namespace dmGameSystem
 
             if (component->m_Playing && component->m_AddedToUpdate)
             {
-                TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+                TextureSetResource* texture_set = GetTextureSet(component);
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
@@ -1004,7 +1024,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
 
-            TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+            TextureSetResource* texture_set = GetTextureSet(component);
             if (texture_set->m_TextureSet->m_UseGeometries != 0)
             {
                 dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
@@ -1233,6 +1253,14 @@ namespace dmGameSystem
         return component->m_PlaybackRate;
     }
 
+    static inline float GetAnimationFrameCount(SpriteComponent* component)
+    {
+        TextureSetResource* texture_set                     = GetTextureSet(component);
+        dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
+        dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+        return (float)(animation_ddf->m_End - animation_ddf->m_Start);
+    }
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -1333,19 +1361,24 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource), out_value);
         }
         else if (get_property == PROP_IMAGE)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component), out_value);
         }
         else if (get_property == PROP_TEXTURE[0])
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Texture, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component)->m_Texture, out_value);
         }
         else if (get_property == SPRITE_PROP_ANIMATION)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_CurrentAnimation);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == SPRITE_PROP_FRAME_COUNT)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(GetAnimationFrameCount(component));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component);
@@ -1399,7 +1432,8 @@ namespace dmGameSystem
             // Since the animation referred to the old texture, we need to update it
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                uint32_t* anim_id =  GetTextureSet(component, component->m_Resource)->m_AnimationIds.Get(component->m_CurrentAnimation);
+                TextureSetResource* texture_set = GetTextureSet(component);
+                uint32_t* anim_id =  texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
                 if (anim_id)
                 {
                     PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
@@ -1409,9 +1443,17 @@ namespace dmGameSystem
                     component->m_Playing = 0;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
+                    dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+                    if (texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID) {
+                        component->m_AnimationID = 0;
+                    }
                 }
             }
             return res;
+        }
+        else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == SPRITE_PROP_ANIMATION))
+        {
+            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component);
     }
@@ -1482,7 +1524,7 @@ namespace dmGameSystem
                     {
                         // Since the size is baked into the matrix, we divide by it here
                         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
+                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
                     }
                     break;
                 case 3:

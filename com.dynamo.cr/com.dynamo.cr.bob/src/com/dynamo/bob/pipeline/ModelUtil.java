@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,8 +37,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Vector;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Vector;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -66,7 +67,9 @@ import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
+import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
+import com.dynamo.bob.pipeline.ModelImporter.Material;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
 import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Model;
@@ -84,18 +87,27 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
-    public static Scene loadScene(byte[] content, String path, Options options) {
+    public static Scene loadScene(byte[] content, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
         if (options == null)
             options = new Options();
-        Scene scene = ModelImporter.LoadFromBuffer(options, path, content);
+
+        Scene scene = ModelImporter.LoadFromBuffer(options, path, content, dataResolver);
+
+        for (ModelImporter.Buffer buffer : scene.buffers)
+        {
+            if (buffer.buffer == null)
+                throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
+        }
+
         if (scene != null)
             return loadInternal(scene, options);
+
         return scene;
     }
 
-    public static Scene loadScene(InputStream stream, String path, Options options) throws IOException {
+    public static Scene loadScene(InputStream stream, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, path, options);
+        return loadScene(bytes, path, options, dataResolver);
     }
 
     public static void unloadScene(Scene scene) {
@@ -212,11 +224,11 @@ public class ModelUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation,
-                                                    int boneIndex, double duration, double startTime, double sampleRate) {
+                                                    Bone bone, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.name));
 
         {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
@@ -248,8 +260,9 @@ public class ModelUtil {
         }
     }
 
-    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        Scene scene = loadScene(content, suffix, options);
+    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ModelImporter.DataResolver dataResolver,
+                                        ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
+        Scene scene = loadScene(content, suffix, options, dataResolver);
         loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
 
@@ -351,7 +364,7 @@ public class ModelUtil {
                     continue;
                 }
 
-                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone.index, animation.duration, startTime, sampleRate);
+                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
@@ -363,14 +376,11 @@ public class ModelUtil {
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
-        HashSet<String> materials = new HashSet<>();
-
-        for (Model model : scene.models) {
-            for (Mesh mesh : model.meshes) {
-                materials.add(mesh.material);
-            }
+        ArrayList<String> materials = new ArrayList<>();
+        for (Material material : scene.materials) {
+            materials.add(material.name);
         }
-        return new ArrayList<String>(materials);
+        return materials;
     }
 
     public static ByteBuffer create16BitIndices(int[] indices) {
@@ -572,7 +582,7 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    public static Rig.Mesh loadMesh(Mesh mesh, ArrayList<String> materials) {
+    public static Rig.Mesh loadMesh(Mesh mesh) {
 
         String name = mesh.name;
 
@@ -628,25 +638,20 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
-        int material_index = 0;
-        for (int i = 0; i < materials.size(); ++i) {
-            String material = materials.get(i);
-            if (material.equals(mesh.material)) {
-                material_index = i;
-                break;
-            }
-        }
-        meshBuilder.setMaterialIndex(material_index);
+        if (mesh.material != null)
+            meshBuilder.setMaterialIndex(mesh.material.index);
+        else
+            meshBuilder.setMaterialIndex(0x0); // We still need to assign a material at some point!
 
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials) {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<ModelImporter.Bone> skeleton) {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, materials));
+            modelBuilder.addMeshes(loadMesh(mesh));
         }
 
         modelBuilder.setId(MurmurHash.hash64(model.name));
@@ -655,16 +660,15 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials,
-                                            ArrayList<Rig.Model> models) {
+    private static void loadModelInstances(Node node, ArrayList<ModelImporter.Bone> skeleton, ArrayList<Rig.Model> models) {
 
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton, materials));
+            models.add(loadModel(node, node.model, skeleton));
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, materials, models);
+            loadModelInstances(child, skeleton, models);
         }
     }
 
@@ -726,8 +730,7 @@ public class ModelUtil {
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
         ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
 
-        ArrayList<String> materials = loadMaterialNames(scene);
-        meshSetBuilder.addAllMaterials(materials);
+        meshSetBuilder.addAllMaterials(loadMaterialNames(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
@@ -736,7 +739,7 @@ public class ModelUtil {
                 continue;
             }
 
-            loadModelInstances(modelNode, skeleton, materials, models);
+            loadModelInstances(modelNode, skeleton, models);
             break; // TODO: Support more than one root node
         }
         meshSetBuilder.addAllModels(models);
@@ -768,8 +771,8 @@ public class ModelUtil {
         return skeleton;
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options) {
-        Scene scene = loadScene(content, suffix, options);
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
+        Scene scene = loadScene(content, suffix, options, dataResolver);
         return loadSkeleton(scene);
     }
 
@@ -824,6 +827,12 @@ public class ModelUtil {
         skeletonBuilder.addAllBones(ddfBones);
     }
 
+    // For editor in a migration period
+    public static ModelImporter.DataResolver createFileDataResolver(File cwd) {
+        return new ModelImporter.FileDataResolver(cwd);
+    }
+
+
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
@@ -843,7 +852,20 @@ public class ModelUtil {
             long timeStart = System.currentTimeMillis();
 
             InputStream is = new FileInputStream(file);
-            scene = loadScene(is, file.getPath(), new ModelImporter.Options());
+            byte[] bytes = IOUtils.toByteArray(is);
+
+            ModelImporter.FileDataResolver dataResolver = new ModelImporter.FileDataResolver();
+            scene = loadScene(bytes, file.getPath(), new ModelImporter.Options(), dataResolver);
+
+            // **********************************
+            for (ModelImporter.Buffer buffer : scene.buffers) {
+                if (buffer.buffer == null)
+                {
+                    System.out.printf("Unresolved buffer: %s\n");
+                }
+            }
+            // **********************************
+
 
             long timeEnd = System.currentTimeMillis();
             System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
@@ -873,8 +895,9 @@ public class ModelUtil {
             System.out.printf("--------------------------------------------\n");
             System.out.printf("Scene Bones:\n");
 
+            int bone_count = 0;
             for (Bone bone : scene.skins[0].bones) {
-                System.out.printf("  Scene Bone: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone.name, bone.index,
+                System.out.printf("  Scene Bone %d: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone_count++, bone.name, bone.index,
                                             ModelImporter.AddressOf(bone), ModelImporter.AddressOf(bone.node),
                                             bone.parent != null ? bone.parent.name : "");
                 System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(bone.node.local));
@@ -897,9 +920,8 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         System.out.printf("Materials:\n");
-        ArrayList<String> materials = loadMaterialNames(scene);
-        for (String material : materials) {
-            System.out.printf("  Material: %s\n", material);
+        for (Material material : scene.materials) {
+            System.out.printf("  Material: %s\n", material.name, material.index);
         }
         System.out.printf("--------------------------------------------\n");
 

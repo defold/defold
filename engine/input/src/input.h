@@ -41,10 +41,12 @@ namespace dmInput
         char         m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t     m_TextCount;
         uint32_t     m_HasText;
-        uint32_t m_GamepadIndex;
+        uint32_t     m_GamepadIndex;
+        uint32_t     m_UserID;
         dmHID::GamepadPacket m_GamepadPacket;
 
         uint32_t m_IsGamepad : 1;
+        uint32_t m_GamepadUnknown : 1;
         uint32_t m_GamepadDisconnected : 1;
         uint32_t m_GamepadConnected : 1;
         uint32_t m_HasGamepadPacket : 1;
@@ -79,6 +81,7 @@ namespace dmInput
 
     HContext NewContext(const NewContextParams& params);
     void DeleteContext(HContext context);
+    void Update(HContext context);
     void SetRepeat(HContext context, float delay, float interval);
 
     HBinding NewBinding(HContext context);

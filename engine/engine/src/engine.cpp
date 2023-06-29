@@ -111,6 +111,11 @@ DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
 
 namespace dmEngine
 {
+#if !(defined(DM_PLATFORM_VENDOR))
+    bool PlatformInitialize() { return true; }
+    void PlatformFinalize() {}
+#endif
+
     using namespace dmVMath;
 
 #define SYSTEM_SOCKET_NAME "@system"
@@ -715,7 +720,6 @@ namespace dmEngine
 
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
 
         // Accelerometer
         int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
@@ -776,7 +780,7 @@ namespace dmEngine
             char application_support_path[DMPATH_MAX_PATH];
             char application_support_log_path[DMPATH_MAX_PATH];
             const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
-            if (dmSys::GetApplicationSavePath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
+            if (dmSys::GetApplicationSupportPath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(application_support_path, LOG_FILE_NAME, application_support_log_path, sizeof(application_support_log_path));
                 log_paths[count] = application_support_log_path;
@@ -952,8 +956,6 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        dmHID::Init(engine->m_HidContext);
-
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
 #if defined(__EMSCRIPTEN__)
@@ -1004,6 +1006,11 @@ namespace dmEngine
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
+
+        dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
+
+        // Any connected devices are registered here.
+        dmHID::Init(engine->m_HidContext);
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
@@ -1253,9 +1260,10 @@ namespace dmEngine
             }
         }
 
-        script_lib_context.m_Factory    = engine->m_Factory;
-        script_lib_context.m_Register   = engine->m_Register;
-        script_lib_context.m_HidContext = engine->m_HidContext;
+        script_lib_context.m_Factory         = engine->m_Factory;
+        script_lib_context.m_Register        = engine->m_Register;
+        script_lib_context.m_HidContext      = engine->m_HidContext;
+        script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
 
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
@@ -1288,10 +1296,10 @@ namespace dmEngine
             const char* mountstr = has_host_mount ? "host:/" : "";
             char path[512];
             dmSnPrintf(path, sizeof(path), "%sbuild/default/content/reload", mountstr);
-            struct stat file_stat;
-            if (stat(path, &file_stat) == 0)
+            dmSys::StatInfo file_stat;
+            if (dmSys::RESULT_OK == dmSys::Stat(path, &file_stat))
             {
-                engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+                engine->m_LastReloadMTime = file_stat.m_ModifiedTime;
             }
         }
 
@@ -1405,11 +1413,14 @@ bail:
         }
 
         input_action.m_IsGamepad = action->m_IsGamepad;
+        input_action.m_GamepadUnknown = action->m_GamepadUnknown;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
         input_action.m_GamepadPacket = action->m_GamepadPacket;
         input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
+
+        input_action.m_UserID = action->m_UserID;
 
         input_buffer->Push(input_action);
     }
@@ -1542,6 +1553,7 @@ bail:
                     return;
                 }
 
+                dmInput::Update(engine->m_InputContext);
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
                 engine->m_InputBuffer.SetSize(0);
@@ -2002,6 +2014,8 @@ bail:
 
 void dmEngineInitialize()
 {
+    dmEngine::PlatformInitialize();
+
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
 #if DM_RELEASE
@@ -2035,6 +2049,8 @@ void dmEngineFinalize()
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
+
+    dmEngine::PlatformFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])

@@ -21,6 +21,9 @@
 #include <gameobject/lua_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <particle/particle.h>
+#include "res_material.h"
+#include "res_texture.h"
+#include "res_textureset.h"
 
 namespace dmGameSystem
 {
@@ -33,7 +36,7 @@ namespace dmGameSystem
         if (fr != dmResource::RESULT_OK) {
             return fr;
         }
-        if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
         {
             dmLogError("Failed to create Gui component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
             return dmResource::RESULT_NOT_SUPPORTED;
@@ -103,21 +106,27 @@ namespace dmGameSystem
             TextureSetResource* texture_set_resource;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture_set_resource);
             if (r != dmResource::RESULT_OK)
+            {
                 return r;
+            }
+
             dmResource::ResourceType resource_type;
             r = dmResource::GetType(factory, texture_set_resource, &resource_type);
             if (r != dmResource::RESULT_OK)
+            {
                 return r;
+            }
+
             GuiSceneTextureSetResource tsr;
             if(resource_type != resource_type_textureset)
             {
                 tsr.m_TextureSet = 0;
-                tsr.m_Texture = (dmGraphics::HTexture) texture_set_resource;
+                tsr.m_Texture = (TextureResource*) texture_set_resource;
             }
             else
             {
                 tsr.m_TextureSet = texture_set_resource;
-                tsr.m_Texture = texture_set_resource->m_Texture;
+                tsr.m_Texture    = texture_set_resource->m_Texture;
             }
             resource->m_GuiTextureSets.Push(tsr);
         }
@@ -290,4 +299,3 @@ namespace dmGameSystem
 }
 
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeGui, "guic", dmGameSystem::ResourceTypeGui_Register, 0);
-

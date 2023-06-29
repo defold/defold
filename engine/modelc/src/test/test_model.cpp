@@ -4,22 +4,33 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <string.h>
 
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+static void* BufferResolveUri(const char* dirname, const char* uri, uint32_t* file_size)
+{
+    char path[512];
+    dmStrlCpy(path, dirname, sizeof(path));
+    dmStrlCat(path, "/", sizeof(path));
+    dmStrlCat(path, uri, sizeof(path));
+
+    return dmModelImporter::ReadFile(path, file_size);
+}
 
 static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Options& options)
 {
@@ -29,7 +40,36 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         return 0;
 
     const char* suffix = strrchr(path, '.') + 1;
+
+    char dirname[512];
+    dmStrlCpy(dirname, path, sizeof(dirname));
+    char* c = strrchr(dirname, '/');
+    if (!c)
+        c = strrchr(dirname, '\\');
+    if (c)
+        *c = 0;
+
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+
+    if (dmModelImporter::NeedsResolve(scene))
+    {
+        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        {
+            if (scene->m_Buffers[i].m_Buffer)
+                continue;
+
+            uint32_t buffermem_size = 0;
+            void* buffermem = BufferResolveUri(dirname, scene->m_Buffers[i].m_Uri, &buffermem_size);
+            dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, buffermem, buffermem_size);
+            free(buffermem);
+        }
+
+        assert(!dmModelImporter::NeedsResolve(scene));
+    }
+
+    bool result = dmModelImporter::LoadFinalize(scene);
+    if (result)
+        result = dmModelImporter::Validate(scene);
 
     free(mem);
 
@@ -46,6 +86,10 @@ TEST(ModelGLTF, Load)
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    bool result = dmModelImporter::LoadFinalize(scene);
+    ASSERT_TRUE(result);
+    result = dmModelImporter::Validate(scene);
+    ASSERT_TRUE(result);
 
     ASSERT_NE((void*)0, scene);
 
@@ -114,6 +158,49 @@ TEST(ModelGLTF, VertexColor3Float)
     free(mem);
 }
 
+TEST(ModelGLTF, ExternalBuffer)
+{
+    const char* path = "./src/test/assets/triangle/gltf/Triangle.gltf";
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    ASSERT_EQ(1, scene->m_BuffersCount);
+    ASSERT_STREQ("simpleTriangle.bin", scene->m_Buffers[0].m_Uri);
+
+    ASSERT_EQ(1, scene->m_NodesCount);
+    ASSERT_EQ(1, scene->m_ModelsCount);
+
+    dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
+    uint32_t vcount = mesh->m_VertexCount;
+    ASSERT_EQ(3, vcount);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
+// Some tests are simply loading the file to make sure it doesn't crash
+
+static dmModelImporter::Scene* TestLoading(const char* path)
+{
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+    return scene;
+}
+
+// #7369 Find skin crash
+TEST(ModelCrashtest, FindSkinCrash)
+{
+    dmModelImporter::Scene* scene = TestLoading("./src/test/assets/findskin/findskin_crash.glb");
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+
+    ASSERT_EQ(1, scene->m_BuffersCount);
+    ASSERT_STREQ("buffer_0", scene->m_Buffers[0].m_Uri);
+
+    ASSERT_EQ(1, scene->m_SkinsCount);
+    ASSERT_STREQ("skin_0", scene->m_Skins[0].m_Name);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 
 static int TestStandalone(const char* path)
 {
@@ -121,6 +208,9 @@ static int TestStandalone(const char* path)
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    if (!scene)
+        return 1;
 
     uint64_t tend = dmTime::GetTime();
     printf("Model %s loaded in %.3f seconds.\n", path, float(tend-tstart)/1000000.0f);
@@ -142,4 +232,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

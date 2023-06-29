@@ -3,34 +3,80 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "res_rig_scene.h"
 #include "res_model.h"
 #include "res_meshset.h"
+#include "res_material.h"
+
+#include <gamesys/model_ddf.h>
 
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <dlib/dstrings.h>
 #include <dlib/memory.h>
+#include <graphics/graphics.h>
+#include <render/render.h>
 #include <dmsdk/dlib/transform.h>
 #include <rig/rig.h>
 #include <algorithm> // std::sort
 
-
 namespace dmGameSystem
 {
+    static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource);
+
+    // TODO: Sorting+flattening the structure could be done in the pipeline
     struct MeshSortPred
     {
         inline bool operator() (const MeshInfo& p1, const MeshInfo& p2)
         {
             return p1.m_Mesh->m_MaterialIndex < p2.m_Mesh->m_MaterialIndex;
+        }
+    };
+
+    // We could sort them in the pipeline, but then we'd have to read the mesh data
+    // for compiling each model which we might not want
+    struct MaterialSortPred
+    {
+        dmRigDDF::MeshSet* m_MeshSet;
+        MaterialSortPred(dmRigDDF::MeshSet* mesh_set) : m_MeshSet(mesh_set) {}
+        int FindMaterial(const char* s)
+        {
+            for (int i = 0; i < m_MeshSet->m_Materials.m_Count; ++i)
+            {
+                if (strcmp(s, m_MeshSet->m_Materials.m_Data[i]) == 0)
+                    return i;
+            }
+            return -1;
+        }
+        inline bool operator() (const MaterialInfo& mat1, const MaterialInfo& mat2)
+        {
+            int i1 = FindMaterial(mat1.m_Name);
+            int i2 = FindMaterial(mat2.m_Name);
+            return i1 < i2;
+        }
+    };
+
+    // We could sort them in the pipeline, but then we'd have to read the material data
+    // for compiling each model which we might not want
+    struct TextureSortPred
+    {
+        dmGraphics::HProgram m_Program;
+        TextureSortPred(dmGraphics::HProgram program) : m_Program(program) {}
+
+        bool operator ()(const dmModelDDF::Texture* a, const dmModelDDF::Texture* b) const
+        {
+            uintptr_t ia = dmGraphics::GetUniformLocation(m_Program, a->m_Sampler);
+            uintptr_t ib = dmGraphics::GetUniformLocation(m_Program, b->m_Sampler);
+            return ia < ib;
         }
     };
 
@@ -63,6 +109,7 @@ namespace dmGameSystem
         std::sort(resource->m_Meshes.Begin(), resource->m_Meshes.End(), MeshSortPred());
     }
 
+    // TODO: Now that we don't split meshes at runtime, we should move this code to the build pipeline /MAWE
     static dmRig::RigModelVertex* CreateVertexData(const dmRigDDF::Mesh* mesh, dmRig::RigModelVertex* out_write_ptr)
     {
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
@@ -161,7 +208,7 @@ namespace dmGameSystem
     {
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
-            dmRender::HMaterial material = resource->m_Materials[i];
+            dmRender::HMaterial material = resource->m_Materials[i].m_Material->m_Material;
             if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
                 return false;
         }
@@ -178,65 +225,60 @@ namespace dmGameSystem
         FlattenMeshes(resource, mesh_set);
         CreateBuffers(context, resource);
 
-        resource->m_Materials.SetCapacity(mesh_set->m_Materials.m_Count);
-        for (uint32_t i = 0; i < mesh_set->m_Materials.m_Count; ++i)
+        uint32_t material_count = dmMath::Max(resource->m_Model->m_Materials.m_Count, mesh_set->m_Materials.m_Count);
+        resource->m_Materials.SetCapacity(material_count);
+        for (uint32_t i = 0; i < material_count; ++i)
         {
-            // TODO: Map the model materials to the mesh materials!
-            dmRender::HMaterial material;
-            result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &material);
+            uint32_t material_index = i;
+
+            // This case may come up if we use an old model which hasn't mapped between mesh materials properly
+            // I.e. the model only has one "default" material
+            if (i >= resource->m_Model->m_Materials.m_Count)
+                material_index = 0;
+            dmModelDDF::Material* model_material = &resource->m_Model->m_Materials[material_index];
+
+            MaterialInfo info;
+            memset(&info, 0, sizeof(info));
+
+            result = dmResource::Get(factory, model_material->m_Material, (void**) &info.m_Material);
             if (result != dmResource::RESULT_OK)
             {
                 return result;
             }
 
-            // TODO: Get the proper materials
-            // Currently the Model only has support for one material
-            resource->m_Materials.Push(material);
-        }
+            info.m_Name = strdup(model_material->m_Name);
 
-        if (resource->m_Materials.Empty())
-        {
-            dmRender::HMaterial material;
-            result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &material);
-            if (result != dmResource::RESULT_OK)
+            // Currently, we don't support overriding the textures per-material on the model level
+            info.m_TexturesCount = model_material->m_Textures.m_Count;
+            info.m_Textures = new MaterialTextureInfo[info.m_TexturesCount];
+            memset(info.m_Textures, 0, sizeof(MaterialTextureInfo)*info.m_TexturesCount);
+            for (uint32_t t = 0; t < info.m_TexturesCount; ++t)
             {
-                dmLogError("Failed to load material: %s\n", resource->m_Model->m_Material);
-                return dmResource::RESULT_INVALID_DATA;
+                dmModelDDF::Texture* texture = &model_material->m_Textures[t];
+
+                MaterialTextureInfo* texture_info = &info.m_Textures[t];
+                result = dmResource::Get(factory, texture->m_Texture, (void**) &texture_info->m_Texture);
+                if (result != dmResource::RESULT_OK)
+                {
+                    return result;
+                }
+
+                texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
             }
 
             if (resource->m_Materials.Full())
                 resource->m_Materials.OffsetCapacity(1);
-            resource->m_Materials.Push(material);
+            resource->m_Materials.Push(info);
         }
 
-        dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
-        for (uint32_t i = 0; i < resource->m_Model->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            const char* texture_path = resource->m_Model->m_Textures[i];
-            if (*texture_path != 0)
-            {
-                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
-                if (r != dmResource::RESULT_OK)
-                {
-                    if (result == dmResource::RESULT_OK) {
-                        result = r;
-                    }
-                } else {
-                    r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
-                    if (r != dmResource::RESULT_OK) {
-                       result = r;
-                    }
-                }
-            }
-        }
+        // Sort the materials so that they have the same indices as specified in the MeshSet list of materials
+        std::sort(resource->m_Materials.Begin(), resource->m_Materials.End(), MaterialSortPred(mesh_set));
+
         if (result != dmResource::RESULT_OK)
         {
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-                if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
+            ReleaseResources(factory, resource);
             return result;
         }
-        memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
         {
@@ -275,16 +317,18 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
-            dmResource::Release(factory, resource->m_Materials[i]);
+            MaterialInfo* material = &resource->m_Materials[i];
+            free((void*)material->m_Name);
+            dmResource::Release(factory, material->m_Material);
+
+            for (uint32_t t = 0; t < material->m_TexturesCount; ++t)
+            {
+                if (material->m_Textures[t].m_Texture) dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
+            }
+            delete[] material->m_Textures;
+            material->m_TexturesCount = 0;
         }
         resource->m_Materials.SetSize(0);
-
-        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (resource->m_Textures[i])
-                dmResource::Release(factory, (void*)resource->m_Textures[i]);
-            resource->m_Textures[i] = 0x0;
-        }
     }
 
     dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams& params)
@@ -296,14 +340,17 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
-        for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        for (uint32_t i = 0; i < ddf->m_Materials.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i]);
+            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Materials[i].m_Material);
+
+            for (uint32_t j = 0; j < ddf->m_Materials[i].m_Textures.m_Count && j < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++j)
+            {
+                dmResource::PreloadHint(params.m_HintInfo, ddf->m_Materials[i].m_Textures[j].m_Texture);
+            }
         }
 
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_RigScene);
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;

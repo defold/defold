@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <stdint.h>
@@ -272,12 +271,4 @@ TEST_F(FactoryTest, FactoryCreateCallback)
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0x0, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }

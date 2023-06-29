@@ -331,7 +331,7 @@ public class TestHttpServer extends AbstractHandler
             Server server = new Server();
             
             ServerConnector connector = new ServerConnector(server);
-            connector.setIdleTimeout(1000); // millis
+            connector.setIdleTimeout(10000); // millis
             server.addConnector(connector);
 
             SecureRequestCustomizer src = new SecureRequestCustomizer();
@@ -347,11 +347,14 @@ public class TestHttpServer extends AbstractHandler
             sslContextFactory.setKeyStorePassword("defold");
 
             ServerConnector sslConnector = new ServerConnector(server, sslContextFactory, connectionFactory);
-            sslConnector.setIdleTimeout(1000); // millis
+            sslConnector.setIdleTimeout(10000); // millis
             server.addConnector(sslConnector);
 
             TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory, connectionFactory);
-            testsslConnector.setIdleTimeout(1000); // millis
+            testsslConnector.setHandshakeTimeout(10000); // millis
+            testsslConnector.setMaxIdleTime(10000); // millis
+            testsslConnector.setKeystore("src/test/data/keystore");
+            testsslConnector.setKeyPassword("defold");
             server.addConnector(testsslConnector);
 
             HandlerList handlerList = new HandlerList();

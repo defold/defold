@@ -20,7 +20,6 @@
                      "jogamp" "https://jogamp.org/deployment/maven"}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
-                     [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
   :dependencies     [[org.clojure/clojure                         "1.10.0"]
@@ -31,8 +30,7 @@
                      [org.clojure/tools.namespace                 "1.2.0"]
                      [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
-                     [com.cognitect/transit-clj                   "0.8.285"
-                      :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
+                     [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
                      [com.google.protobuf/protobuf-java           "3.20.1"]
@@ -52,8 +50,7 @@
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
-                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"
-                      :exclusions [org.apache.httpcomponents/httpclient]] ; jgit -> 4.3.6, amazonica -> 4.5.2
+                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
                      [clj-antlr                                   "0.2.2"
                       :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
                      [org.antlr/antlr4 "4.7.2"]
@@ -68,10 +65,9 @@
 
                      [com.atlassian.commonmark/commonmark         "0.9.0"]
 
-                     [amazonica                                   "0.3.79"
-                      :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
-                     [com.amazonaws/aws-java-sdk-core             "1.11.63"]
-                     [com.amazonaws/aws-java-sdk-s3               "1.11.63"]
+                     [com.cognitect.aws/api "0.8.673"]
+                     [com.cognitect.aws/endpoints "1.1.12.478"]
+                     [com.cognitect.aws/s3 "847.2.1387.0"]
 
                      ;; bob needs javax.xml.bind, and it's removed in jdk 11
                      [javax.xml.bind/jaxb-api "2.3.0"]
@@ -223,7 +219,7 @@
                                                     [org.clojure/test.check   "0.9.0"]
                                                     [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
-                                                    [ring "1.4.0"]]
+                                                    [ring "1.9.6"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]

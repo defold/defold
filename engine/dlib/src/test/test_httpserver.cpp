@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
+#include "../dlib/atomic.h"
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -40,9 +41,9 @@ public:
     int m_ContentOffset;
     std::string m_RequestMethod, m_Resource;
     std::string m_Content;
-    volatile bool m_Quit;
     std::string m_ClientData;
-    volatile bool m_ServerStarted;
+    int32_atomic_t m_Quit;
+    int32_atomic_t m_ServerStarted;
 
     static void HttpHeader(void* user_data, const char* key, const char* value)
     {
@@ -98,7 +99,7 @@ public:
         }
         else if (strstr(self->m_Resource.c_str(), "/quit"))
         {
-            self->m_Quit = true;
+            dmAtomicStore32(&self->m_Quit, 1);
         }
         else if (strstr(self->m_Resource.c_str(), "/post"))
         {
@@ -136,24 +137,30 @@ public:
         self->m_ClientData.append((const char*) content_data, content_data_size);
     }
 
+#define T_ASSERT_LE(_A, _B) \
+    if ( !((_A) < (_B)) ) { \
+        printf("%s:%d: ASSERT: %s < %s: %d < %d", __FILE__, __LINE__, #_A, #_B, (int)(_A), (int)(_B)); \
+    } \
+    assert( (_A) < (_B) );
+
     static void ServerThread(void* user_data)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
-        self->m_ServerStarted = true;
+        dmAtomicStore32(&self->m_ServerStarted, 1);
         int iter = 0;
-        while (!self->m_Quit && iter < 10000)
+        while (!dmAtomicGet32(&self->m_Quit) && iter < 10000)
         {
             dmHttpServer::Update(self->m_Server);
             dmTime::Sleep(1000 * 10);
             ++iter;
         }
-        ASSERT_LE(iter, 10000);
+        T_ASSERT_LE(iter, 10000);
     }
 
     virtual void SetUp()
     {
-        m_Quit = false;
-        m_ServerStarted = false;
+        m_Quit = 0;
+        m_ServerStarted = 0;
         m_ClientData = "";
         dmHttpServer::NewParams params;
         params.m_ConnectionTimeout = 30;
@@ -286,7 +293,7 @@ TEST_F(dmHttpServerTest, TestServer)
     int python_result = -1;
     dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, &python_result, "test");
     int iter = 0;
-    while (!m_Quit && iter < 1000)
+    while (!dmAtomicGet32(&m_Quit) && iter < 1000)
     {
         dmHttpServer::Update(m_Server);
         dmTime::Sleep(1000 * 10);
@@ -304,7 +311,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
 {
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this, "test");
 
-    while (!m_ServerStarted)
+    while (!dmAtomicGet32(&m_ServerStarted))
     {
         dmTime::Sleep(10 * 1000);
     }

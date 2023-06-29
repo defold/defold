@@ -26,7 +26,7 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux/**/*.cpp')
-    elif 'macos' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
+    elif build_util.get_target_os() in ['macos', 'ios']:
         source_dirs.append('dlib/darwin/**/*.cpp')
         source_dirs.append('dlib/*.mm')
     elif 'win32' in bld.env.PLATFORM:
@@ -37,7 +37,7 @@ def build(bld):
         source_dirs.append('dlib/js/**/*.cpp')
     elif 'nx64' in bld.env.PLATFORM:
         platform_source_dirs.append('dlib/nx64/**/*.cpp')
-    elif 'ps4' in bld.env.PLATFORM:
+    elif bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         platform_source_dirs.append('dlib/ps4/**/*.cpp')
 
     extra_defines = ['ZLIB_CONST']
@@ -77,9 +77,25 @@ def build(bld):
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
                                                     'mutex.cpp',
-                                                    'sys.cpp',
+                                                    'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
+
+    if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
+        source_files = remove_files(source_files, ['condition_variable.cpp',
+                                                    'file_descriptor_posix.cpp',
+                                                    'mutex_posix.cpp',
+                                                    'socket_posix.cpp',
+                                                    'thread_posix.cpp',
+                                                    'sys_posix.cpp'])
+
+    if 'win32' in bld.env.PLATFORM:
+        source_files = remove_files(source_files, ['time_posix.cpp'])
+        source_files = remove_files(source_files, ['thread_posix.cpp'])
+        source_files = remove_files(source_files, ['mutex_posix.cpp'])
+    else:
+        source_files = remove_files(source_files, ['thread_win32.cpp'])
+        source_files = remove_files(source_files, ['mutex_win32.cpp'])
 
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
@@ -162,7 +178,7 @@ def build(bld):
     libprofile_includes = '. ./dlib/profile ./remotery'
     libprofile_defines = ['VALGRIND'] + extra_defines
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         libprofile = bld.stlib(features     = libprofile_features,
                                includes     = libprofile_includes,
                                defines      = libprofile_defines,
@@ -192,14 +208,14 @@ def build(bld):
 
     remotery_defines = []
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         libremotery = bld.stlib(features     = 'c cxx',
                                 includes     = '. ./remotery/lib',
                                 target       = 'remotery',
                                 source       = bld.path.ant_glob('remotery/lib/*.c'),
                                 defines      = ['VALGRIND'] + extra_defines + remotery_defines)
 
-        if build_util.get_target_os() not in ['osx', 'ios']:
+        if build_util.get_target_os() not in ['macos', 'ios']:
             libremotery.source = [x for x in libremotery.source if not x.abspath().endswith('.mm')]
 
         libremotery_noasan = bld.stlib(features  = 'c cxx skip_asan',
@@ -208,7 +224,7 @@ def build(bld):
                                        defines   = ['VALGRIND'] + extra_defines + remotery_defines,
                                        target    = 'remotery_noasan')
 
-        if build_util.get_target_os() not in ['osx', 'ios']:
+        if build_util.get_target_os() not in ['macos', 'ios']:
             libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.abspath().endswith('.mm')]
 
     libremotery_null = bld.stlib(features    = 'c cxx',
@@ -223,7 +239,7 @@ def build(bld):
                                         defines   = ['VALGRIND'] + extra_defines + remotery_defines,
                                         target    = 'remotery_null_noasan')
 
-    if build_util.get_target_os() not in ['osx', 'ios']:
+    if build_util.get_target_os() not in ['macos', 'ios']:
         libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.abspath().endswith('.mm')]
 
     # ******************************************************************
@@ -234,7 +250,7 @@ def build(bld):
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                use = ['PLATFORM_SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
+                                use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 
@@ -251,30 +267,20 @@ def build(bld):
 
     # Basis libraries
 
-    extra_encoder_flags = []
-    if bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos'):
-        # SSE4.1 was added in 10.12
-        if not 'CXXFLAGS' in remove_flags:
-            remove_flags['CXXFLAGS'] = []
-        remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
-        extra_encoder_flags += ['-mmacosx-version-min=10.12']
-
     # For the texture compiler
     basis_flags = ['BASISD_SUPPORT_KTX2_ZSTD=0'] #+ ['BASISU_FORCE_DEVEL_MESSAGES=1']
     if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos'):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
 
     # for desktop only
-    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos','x86_64-linux'):
-        basis_encoder = bld.stlib(features = 'c cxx skip_asan remove_flags',
+    if bld.env.IS_TARGET_DESKTOP:
+        basis_encoder = bld.stlib(features = 'c cxx skip_asan',
                                     includes = ['basis'],
                                     source = bld.path.ant_glob("basis/encoder/**/*.c") +
                                              bld.path.ant_glob("basis/encoder/**/*.cpp") +
                                              bld.path.ant_glob("basis/transcoder/**/*.cpp"),
                                     target = 'basis_encoder',
-                                    remove_flags = remove_flags,
                                     defines = ['DM_BASIS_ENCODER','MINIZ_NO_STDIO'] + basis_flags)
-        basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
 
         if new_opt_level:
             basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
@@ -349,7 +355,9 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/opaque_handle_container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
@@ -395,8 +403,18 @@ def build(bld):
         if os.path.exists('src/' + srcpath):
             bld.install_files(tgtpath, srcpath)
 
-    platform_include_dir = 'dlib/%s' % platform
-    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/endian.h')
-    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/mutex.h')
-    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/spinlocktypes.h')
-    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/memory.h')
+    platforms = [platform]
+    if platform == 'ps5':
+        platforms.append('ps4')
+
+    # is this a private platform?
+    if is_platform_private(bld.env.PLATFORM):
+        bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
+        bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
+
+    for p in platforms:
+        platform_include_dir = 'dlib/%s' % p
+        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/endian.h')
+        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/mutex.h')
+        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/spinlocktypes.h')
+        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/memory.h')

@@ -4,21 +4,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
-import java.io.FileNotFoundException;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.util.List;
-import java.util.Arrays;
 import java.lang.reflect.Method;
-import java.io.FileNotFoundException;
 
 public class ModelImporter {
 
@@ -68,8 +58,9 @@ public class ModelImporter {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Scene LoadFromBufferInternal(String path, byte[] buffer);
+    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
+    public static native void TestException(String message);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -146,10 +137,20 @@ public class ModelImporter {
             if (z > max.z) max.z = z;
         }
     }
+    public static class Material {
+        public String           name;
+        public int              index;
+
+        public Material() {
+            name = "";
+            index = 0;
+        }
+    }
 
     public static class Mesh {
         public String      name;
-        public String      material;
+        public Material    material;
+
         public Aabb        aabb;
 
         public float[]     positions; // float3
@@ -229,6 +230,10 @@ public class ModelImporter {
         public float            duration;
     }
 
+    public static class Buffer {
+        public String           uri;
+        public byte[]           buffer;
+    }
     public static class Scene {
 
         public Node[]         nodes;
@@ -236,21 +241,17 @@ public class ModelImporter {
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
+        public Material[]     materials;
+        public Buffer[]       buffers;
     }
 
-    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
-    {
-        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes);
-        return scene;
+    public interface DataResolver {
+        public byte[] getData(String path, String uri);
     }
 
-    public static Scene LoadFromPath(Options options, String path) throws FileNotFoundException, IOException
+    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, DataResolver data_resolver)
     {
-        InputStream inputStream = new FileInputStream(new File(path));
-        byte[] bytes = new byte[inputStream.available()];
-        inputStream.read(bytes);
-
-        return LoadFromBuffer(options, path, bytes);
+        return ModelImporter.LoadFromBufferInternal(path, bytes, data_resolver);
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -334,13 +335,20 @@ public class ModelImporter {
         System.out.printf("\n");
     }
 
+    private static void DebugPrintMaterial(Material material, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Material: %s\n", material.name);
+        // PrintIndent(indent+1);
+        // System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
+    }
+
     private static void DebugPrintMesh(Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
         PrintIndent(indent+1);
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
-        System.out.printf("Material: %s\n", mesh.material);
+        System.out.printf("Material: %s\n", mesh.material!=null?mesh.material.name:"null");
         PrintIndent(indent+1);
         System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
@@ -421,6 +429,44 @@ public class ModelImporter {
         }
     }
 
+    public static byte[] ReadFile(File file) throws IOException
+    {
+        InputStream inputStream = new FileInputStream(file);
+        byte[] bytes = new byte[inputStream.available()];
+        inputStream.read(bytes);
+        return bytes;
+    }
+
+    public static byte[] ReadFile(String path) throws IOException
+    {
+        return ReadFile(new File(path));
+    }
+
+    public static class FileDataResolver implements DataResolver
+    {
+        File cwd = null;
+
+        FileDataResolver() {}
+        FileDataResolver(File _cwd) {
+            cwd = _cwd;
+        }
+
+        public byte[] getData(String path, String uri) {
+            File file;
+            if (cwd != null)
+                file = new File(cwd, path);
+            else
+                file = new File(path);
+            File bufferFile = new File(file.getParentFile(), uri);
+            try {
+                return ReadFile(bufferFile);
+            } catch (Exception e) {
+                System.out.printf("Failed to read file '%s': %s\n", uri, e);
+                return null;
+            }
+        }
+    };
+
     // Used for testing the importer. Usage:
     //   ./src/com/dynamo/bob/pipeline/test_model_importer.sh <model path>
     public static void main(String[] args) throws IOException {
@@ -431,18 +477,43 @@ public class ModelImporter {
             return;
         }
 
-        String path = args[0];       // .glb
+        // TODO: Setup a java test suite for the model importer
+        for (int i = 0; i < args.length; ++i)
+        {
+            if (args[i].equalsIgnoreCase("--test-exception"))
+            {
+                ModelImporter.TestException("Testing exception: " + args[i+1]);
+                return; // exit code 0
+            }
+        }
 
-        System.out.printf("Testing\n");
-
+        String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
-        Scene scene = LoadFromPath(new Options(), path);
+        FileDataResolver buffer_resolver = new FileDataResolver();
+        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);
 
         long timeEnd = System.currentTimeMillis();
 
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        if (scene == null)
+            return;
+
+        System.out.printf("--------------------------------\n");
+
+        for (Buffer buffer : scene.buffers) {
+            System.out.printf("Buffer: uri: %s  data: %s\n", buffer.uri, buffer.buffer);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Material material : scene.materials)
+        {
+            DebugPrintMaterial(material, 0);
+        }
 
         System.out.printf("--------------------------------\n");
 

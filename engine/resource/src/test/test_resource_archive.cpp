@@ -18,18 +18,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
 #include <dlib/testutil.h>
-
-// TODO: replace with dmEndian
-#if defined(_WIN32)
-#include <winsock2.h>
-#elif defined(__NX__)
-#include <arpa/inet.h>
-#else
-#include <netinet/in.h>
-#endif
-#define C_TO_JAVA ntohl
-#define JAVA_TO_C htonl
-//#include <dlib/endian.h>
+#include <testmain/testmain.h>
 
 #include "../resource_archive.h"
 #include "../resource_private.h"
@@ -124,7 +113,7 @@ void FreeLiveUpdateEntries(dmResourceArchive::LiveUpdateEntries*& liveupdate_ent
 uint32_t GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
 {
     uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + ENTRY_SIZE * num_entries_to_be_added;
-    arci_data = malloc(index_alloc_size);
+    arci_data = (void*)new uint8_t[index_alloc_size];
     memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
     return index_alloc_size;
 }
@@ -134,15 +123,15 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
 {
     uint32_t num_lu_entries = 2 - num_entries_to_keep; // 2 LiveUpdate resources in archive in total
     ASSERT_EQ(true, num_lu_entries >= 0);
-    arci_data = malloc(RESOURCES_ARCI_SIZE - ENTRY_SIZE * num_lu_entries);
+    arci_data = (void*)new uint8_t[RESOURCES_ARCI_SIZE - ENTRY_SIZE * num_lu_entries];
     // Init archive container including LU resources
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    uint32_t entry_count = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataCount);
-    uint32_t hash_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
-    uint32_t entries_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataOffset);
+    uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+    uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
+    uint32_t entries_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
     dmResourceArchive::EntryData* entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entries_offset);
 
     // Construct "bundled" archive
@@ -154,7 +143,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     for (uint32_t i = 0; i < entry_count; ++i)
     {
         dmResourceArchive::EntryData& e = entries[i];
-        bool is_lu_entry = JAVA_TO_C(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
+        bool is_lu_entry = dmEndian::ToNetwork(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
         if (!is_lu_entry || lu_entries_to_copy > 0)
         {
             if (is_lu_entry)
@@ -171,17 +160,17 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
         }
     }
     dmResourceArchive::ArchiveIndex* ai = (dmResourceArchive::ArchiveIndex*)arci_data;
-    ai->m_EntryDataOffset = C_TO_JAVA(entries_offset - num_lu_entries * dmResourceArchive::MAX_HASH);
-    ai->m_EntryDataCount = C_TO_JAVA(entry_count - num_lu_entries);
+    ai->m_EntryDataOffset = dmEndian::ToHost(entries_offset - num_lu_entries * dmResourceArchive::MAX_HASH);
+    ai->m_EntryDataCount = dmEndian::ToHost(entry_count - num_lu_entries);
 
-    arci_size = sizeof(dmResourceArchive::ArchiveIndex) + JAVA_TO_C(ai->m_EntryDataCount) * (ENTRY_SIZE);
+    arci_size = sizeof(dmResourceArchive::ArchiveIndex) + dmEndian::ToNetwork(ai->m_EntryDataCount) * (ENTRY_SIZE);
 
     dmResourceArchive::Delete(archive);
 }
 
 void FreeMutableIndexData(void*& arci_data)
 {
-    free(arci_data);
+    delete[] (uint8_t*)arci_data; // it is new[] uint8_t from the resource_archive.cpp
 }
 
 bool IsLiveUpdateResource(dmhash_t lu_path_hash)
@@ -766,8 +755,11 @@ TEST(dmResourceArchive, Wrap_Compressed)
 TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = DM_HOSTFS "build/src/test/resources.arci";
-    const char* resource_path = DM_HOSTFS "build/src/test/resources.arcd";
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/resources.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/resources.arcd");
+
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
@@ -801,8 +793,10 @@ TEST(dmResourceArchive, LoadFromDisk)
 TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = DM_HOSTFS "build/src/test/missing-archive.arci";
-    const char* resource_path = DM_HOSTFS "build/src/test/resources.arcd";
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/missing-archive.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/resources.arcd");
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
@@ -810,8 +804,10 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = DM_HOSTFS "build/src/test/resources_compressed.arci";
-    const char* resource_path = DM_HOSTFS "build/src/test/resources_compressed.arcd";
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/resources_compressed.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/resources_compressed.arcd");
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
@@ -875,6 +871,7 @@ TEST(dmResourceArchive, ResourceDecryption)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     return ret;

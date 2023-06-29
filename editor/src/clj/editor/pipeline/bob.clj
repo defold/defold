@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,9 +31,10 @@
     [util.http-util :as http-util])
   (:import
     [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob.logging LogHelper]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
-    [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
+    [java.io File InputStream OutputStream PrintStream PrintWriter]
     [java.net URI URL]
     [java.nio.charset StandardCharsets]
     [org.apache.commons.io FilenameUtils]
@@ -42,17 +43,7 @@
 (set! *warn-on-reflection* true)
 
 (defn set-verbose-logging! [enable]
-  (doto (.getDeclaredField Bob "verbose")
-    (.setAccessible true)
-    (.setBoolean nil enable)))
-
-;; Disable verbose logging in Bob by default. Doing this here will let us know
-;; if the verbose field is no longer in Bob. We enable verbose logging while a
-;; Bob build is in progress, but disable it otherwise because it can be a lot.
-(try
-  (set-verbose-logging! false)
-  (catch Exception e
-    (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
+  (LogHelper/setVerboseLogging enable))
 
 (def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
@@ -186,28 +177,27 @@
       (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
       (PrintStream. true StandardCharsets/UTF_8)))
 
-(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! show-build-log-stream! task-cancelled?]
+(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! log-output-stream task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
          (map? bob-args)
          (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
          (ifn? render-progress!)
-         (ifn? show-build-log-stream!)
+         (instance? OutputStream log-output-stream)
          (ifn? task-cancelled?)]}
   (reset! build-in-progress-atom true)
   (let [prev-out System/out
-        prev-err System/err]
-    (with-open [log-stream (PipedInputStream.)
-                log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
-                build-out (PrintStream-on
+        prev-err System/err
+        ;; Don't close the writer because we don't own the log output stream,
+        ;; hence we must not close it. Instead, we will only flush it in the end
+        log-stream-writer (PrintWriter. log-output-stream true StandardCharsets/UTF_8)]
+    (with-open [build-out (PrintStream-on
                             #(doseq [line (util/split-lines %)]
-                               (when (string/starts-with? line "Bob: ")
-                                 (.println log-stream-writer (subs line 5)))))
+                               (.println log-stream-writer line)))
                 build-err (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))]
       (try
-        (show-build-log-stream! log-stream)
         (System/setOut build-out)
         (System/setErr build-err)
         (if (and (some #(= "build" %) bob-commands)
@@ -237,9 +227,10 @@
         (catch Throwable error
           {:exception error})
         (finally
-          (reset! build-in-progress-atom false)
           (System/setOut prev-out)
-          (System/setErr prev-err))))))
+          (System/setErr prev-err)
+          (.flush log-stream-writer)
+          (reset! build-in-progress-atom false))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
@@ -324,6 +315,17 @@
               "mobileprovisioning" provisioning-profile-path
               "identity" code-signing-identity))))))
 
+(def ^:private macos-architecture-option->bob-architecture-string
+  {:architecture-x86_64? "x86_64-macos"
+   :architecture-arm64? "arm64-macos"})
+
+(defn- macos-bundle-bob-args [bundle-options]
+  (let [bob-architectures (for [[option-key bob-architecture] macos-architecture-option->bob-architecture-string
+                                :when (bundle-options option-key)]
+                            bob-architecture)
+        bob-args {"architectures" (string/join "," bob-architectures)}]
+    bob-args))
+
 (def bundle-bob-commands ["distclean" "build" "bundle"])
 
 (defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
@@ -332,7 +334,7 @@
 (defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
-(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (macos-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :windows [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) {"architectures" (bundle-options :platform)}))
 
 ;; -----------------------------------------------------------------------------
