@@ -27,6 +27,10 @@
 extern "C" void dmSysPumpMessageQueue();
 #endif
 
+#if defined(__APPLE__)
+    #include <TargetConditionals.h>
+#endif
+
 namespace dmSys
 {
     EngineInfo g_EngineInfo;
@@ -141,7 +145,7 @@ namespace dmSys
 
     Result RmTree(const char* path)
     {
-    #if defined(__linux__) || defined(_WIN32) || (defined(__MACH__) && !(defined(__arm__) || defined(__arm64__))) || defined(DM_PLATFORM_VENDOR)
+    #if defined(__linux__) || defined(_WIN32) || (defined(TARGET_OS_OSX) && TARGET_OS_OSX) || defined(DM_PLATFORM_VENDOR)
         bool call_before = false;
         Result result = IterateTree(path, true, call_before, 0, Iterate_RemoveFile);
         if (result != RESULT_OK) {
@@ -226,4 +230,3 @@ namespace dmSys
 #endif
     }
 } // namespace
-

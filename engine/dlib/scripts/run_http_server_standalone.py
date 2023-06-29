@@ -24,9 +24,10 @@ if os.path.exists(server_config_path):
     os.unlink(server_config_path)
 
 start = time.time()
+timeout = 8
 while True:
-    if time.time() - start > 5:
-        error('HTTP server failed to start within 5 seconds')
+    if time.time() - start > timeout:
+        error('HTTP server failed to start within ' + timeout + ' seconds')
         sys.exit(1)
     try:
         if not os.path.exists(server_config_path):

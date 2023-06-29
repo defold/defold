@@ -201,6 +201,14 @@ public class Project {
         return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
+    public String getSystemEnv(String name) {
+        return System.getenv(name);
+    }
+
+    public String getSystemProperty(String name) {
+        return System.getProperty(name);
+    }
+
     public String getLocalResourceCacheDirectory() {
         return option("resource-cache-local", null);
     }
@@ -210,11 +218,11 @@ public class Project {
     }
 
     public String getRemoteResourceCacheUser() {
-        return option("resource-cache-remote-user", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_USER"));
+        return option("resource-cache-remote-user", getSystemEnv("DM_BOB_RESOURCE_CACHE_REMOTE_USER"));
     }
 
     public String getRemoteResourceCachePass() {
-        return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+        return option("resource-cache-remote-pass", getSystemEnv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
     }
 
     public int getMaxCpuThreads() {
@@ -1747,7 +1755,7 @@ run:
                     String password = parts.length > 1 ? parts[1] : "";
                     if (password.startsWith("__") && password.endsWith("__")) {
                         String envKey = password.substring(2, password.length() - 2);
-                        String envValue = System.getenv(envKey);
+                        String envValue = getSystemEnv(envKey);
                         if (envValue != null) {
                             basicAuthData = username + ":" + envValue;
                         }

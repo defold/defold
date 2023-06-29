@@ -65,7 +65,7 @@ def _start_server(self, local_ip, port, configname=None):
     return proc, configfile
 
 def _wait_for_server(self, local_ip, port):
-    timeout = 5 # seconds
+    timeout = 8 # seconds
     start = time.time()
     while True:
         if time.time() - start > timeout:
