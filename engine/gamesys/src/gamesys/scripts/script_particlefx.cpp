@@ -81,7 +81,7 @@ namespace dmGameSystem
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
 
-        EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
+        EmitterStateChangedScriptData& data = *(EmitterStateChangedScriptData*)(user_data);
 
         if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
         {
