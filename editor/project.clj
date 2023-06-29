@@ -169,7 +169,6 @@
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
                       "-Dfile.encoding=UTF-8"
-                      "--illegal-access=warn"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.awt=ALL-UNNAMED"
@@ -184,9 +183,8 @@
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
-                                :resource-paths ["test/resources"]
-                                :jvm-opts ["-Ddefold.tests=true"]}
+  :profiles          {:test {:resource-paths ["test/resources"]
+                             :jvm-opts ["-Ddefold.tests=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
