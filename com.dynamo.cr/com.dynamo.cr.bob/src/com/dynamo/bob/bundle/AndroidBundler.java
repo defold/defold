@@ -117,7 +117,7 @@ public class AndroidBundler implements IBundler {
     private static void extractFile(File zipFile, String fileName, File outputFile) throws IOException {
         // Wrap the file system in a try-with-resources statement
         // to auto-close it when finished and prevent a memory leak
-        try (FileSystem fileSystem = FileSystems.newFileSystem(zipFile.toPath(), null)) {
+        try (FileSystem fileSystem = FileSystems.newFileSystem(zipFile.toPath(), new HashMap<>())) {
             Path fileToExtract = fileSystem.getPath(fileName);
             Files.copy(fileToExtract, outputFile.toPath());
         }
