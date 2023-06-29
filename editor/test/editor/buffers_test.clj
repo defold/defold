@@ -14,14 +14,8 @@
 
 (ns editor.buffers-test
   (:require [clojure.test :refer :all]
-            [editor.buffers :as buffers]
-            [editor.buffers :as buffers]
-            [editor.buffers :as buffers]
-            [editor.buffers :as buffers]
-            [editor.buffers :as buffers]
-            [editor.buffers :as buffers]
-            [support.test-support :refer [array=]]
-            [editor.buffers :as b])
+            [editor.buffers :as b]
+            [support.test-support :refer [array=]])
   (:import [java.nio ByteBuffer]))
 
 (defn- buffer-with-contents ^ByteBuffer [byte-values]
@@ -208,8 +202,8 @@
     (:byte :ubyte) #(.get ^ByteBuffer %1 ^long %2)))
 
 (defn- buffer->data-fn [data-type]
-  (let [primitive-type-kw (buffers/primitive-type-kw data-type)
-        element-byte-size (buffers/type-size data-type)
+  (let [primitive-type-kw (b/primitive-type-kw data-type)
+        element-byte-size (b/type-size data-type)
         element-at-offset-fn (element-at-offset-fn data-type)]
     (fn buffer->data [^ByteBuffer buffer]
       (into (vector-of primitive-type-kw)
@@ -222,7 +216,7 @@
         (range 0 (.capacity buffer) Byte/BYTES)))
 
 (defn- out-data-fn [data-type]
-  (partial vector-of (buffers/primitive-type-kw data-type)))
+  (partial vector-of (b/primitive-type-kw data-type)))
 
 (defn- limits [data-type normalize]
   (let [out-min
@@ -290,7 +284,7 @@
 (deftest put-floats!-test
   (let [min Float/MIN_VALUE
         max Float/MAX_VALUE
-        element-byte-size (buffers/type-size :float)
+        element-byte-size (b/type-size :float)
         buffer->data (buffer->data-fn :float)
         out-data (out-data-fn :float)
         buf (make-buffer (* 4 element-byte-size))]
@@ -304,7 +298,7 @@
   (doseq [normalize [false true]
           data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
     (let [[in-min in-max out-min out-max] (limits data-type normalize)
-          element-byte-size (buffers/type-size data-type)
+          element-byte-size (b/type-size data-type)
           buffer->data (buffer->data-fn data-type)
           out-data (out-data-fn data-type)
           buf (make-buffer (* 4 element-byte-size))]
@@ -318,7 +312,7 @@
 (deftest push-floats!-test
   (let [min Float/MIN_VALUE
         max Float/MAX_VALUE
-        element-byte-size (buffers/type-size :float)
+        element-byte-size (b/type-size :float)
         buffer->data (buffer->data-fn :float)
         out-data (out-data-fn :float)
         buf (make-buffer (* 4 element-byte-size))]
@@ -333,7 +327,7 @@
   (doseq [normalize [false true]
           data-type [:double :float :int :uint :short :ushort :byte :ubyte]]
     (let [[in-min in-max out-min out-max] (limits data-type normalize)
-          element-byte-size (buffers/type-size data-type)
+          element-byte-size (b/type-size data-type)
           buffer->data (buffer->data-fn data-type)
           out-data (out-data-fn data-type)
           buf (make-buffer (* 4 element-byte-size))]

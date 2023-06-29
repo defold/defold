@@ -750,6 +750,3 @@
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
     :label "Sprite"))
-
-;; TODO(vertex-attr):
-;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).

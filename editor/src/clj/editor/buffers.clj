@@ -97,14 +97,14 @@
 (defn type-size
   ^long [type]
   (case type
-    :ubyte  Byte/BYTES
-    :byte   Byte/BYTES
+    :ubyte Byte/BYTES
+    :byte Byte/BYTES
     :ushort Short/BYTES
-    :short  Short/BYTES
-    :uint   Integer/BYTES
-    :int    Integer/BYTES
-    :long   Long/BYTES
-    :float  Float/BYTES
+    :short Short/BYTES
+    :uint Integer/BYTES
+    :int Integer/BYTES
+    :long Long/BYTES
+    :float Float/BYTES
     :double Double/BYTES))
 
 (defn item-byte-size
