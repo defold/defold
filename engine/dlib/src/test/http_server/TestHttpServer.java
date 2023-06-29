@@ -351,10 +351,7 @@ public class TestHttpServer extends AbstractHandler
             server.addConnector(sslConnector);
 
             TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory, connectionFactory);
-            testsslConnector.setHandshakeTimeout(10000); // millis
-            testsslConnector.setMaxIdleTime(10000); // millis
-            testsslConnector.setKeystore("src/test/data/keystore");
-            testsslConnector.setKeyPassword("defold");
+            testsslConnector.setIdleTimeout(10000); // millis
             server.addConnector(testsslConnector);
 
             HandlerList handlerList = new HandlerList();
