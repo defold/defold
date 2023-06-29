@@ -294,6 +294,7 @@ namespace dmGui
         params->m_MaxNodes       = 512;
         params->m_MaxAnimations  = 128;
         params->m_MaxTextures    = 32;
+        params->m_MaxMaterials   = 8;
         params->m_MaxFonts       = 4;
         params->m_MaxParticlefxs = 128;
         // 256 is a hard cap for max layers, we use 8 bits in the render key (see LAYER_RANGE above)
@@ -345,6 +346,7 @@ namespace dmGui
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
+        scene->m_Materials.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
         scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefx);
@@ -738,6 +740,27 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return 0;
         }
         return *font;
+    }
+
+    Result AddMaterial(HScene scene, const char* material_name, void* material)
+    {
+        if (scene->m_Materials.Full())
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
+        uint64_t name_hash = dmHashString64(material_name);
+        scene->m_Materials.Put(name_hash, (dmRender::HMaterial) material);
+        return RESULT_OK;
+    }
+
+    void AssignMaterials(HScene scene)
+    {
+        InternalNode* nodes = scene->m_Nodes.Begin();
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            nodes[i].m_Node.m_Material = (void*) scene->m_Materials.Get(nodes[i].m_Node.m_MaterialNameHash);
+        }
     }
 
     Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype)
@@ -2900,6 +2923,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getY();
     }
 
+    void* GetNodeMaterial(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Material;
+    }
+
     void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2917,6 +2946,23 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET ? n->m_Node.m_FlipbookAnimHash : 0x0;
+    }
+
+    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
+    {
+        dmhash_t material_id_hash = dmHashString64(material_id);
+
+        InternalNode* n = GetNode(scene, node);
+
+        dmRender::HMaterial* material = scene->m_Materials.Get(material_id_hash);
+        if (material == 0)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        n->m_Node.m_MaterialNameHash = material_id_hash;
+        n->m_Node.m_Material         = (void*) *material;
+        return RESULT_OK;
     }
 
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)

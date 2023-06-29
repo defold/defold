@@ -49,6 +49,7 @@ namespace dmGameSystem
         dmArray<dmhash_t>               m_FontMapPaths;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
         dmArray<dmParticle::HPrototype> m_ParticlePrototypes;
+        dmArray<MaterialResource*>      m_Materials;
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
         MaterialResource*               m_Material;
