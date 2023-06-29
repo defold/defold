@@ -472,7 +472,7 @@
                      (make-test-server-launcher
                        {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
                         "initialized" (constantly nil)
-                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "Fail!" {})))
+                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "This exception should be correctly handled by lsp test" {})))
                         "shutdown" (constantly nil)
                         "exit" (constantly nil)})}})
               _ (Thread/sleep 100)

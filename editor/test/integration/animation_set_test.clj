@@ -51,7 +51,6 @@
                                                                           (map remove-empty-channels)
                                                                           (apply merge-with (constantly ::conflicting-data)))])))]
           (testing "Bone exists in skeleton"
-            (prn "MAWE BONE ID" bone-id)
             (is (some #(= bone-id %) bone-list)))
 
           (testing "Channels are not animated by multiple tracks"
