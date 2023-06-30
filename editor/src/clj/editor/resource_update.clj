@@ -91,12 +91,12 @@
                        resources)
         [kept replaced] (if force-replacement
                           [nil in-graph]
-                          (let [{replaced true kept false}
+                          (let [{replaced false kept true}
                                 (g/with-auto-evaluation-context evaluation-context
                                   (group-by (fn [[resource old-node]]
                                               (keep-existing-node? old-node resource evaluation-context))
                                             in-graph))]
-                            [replaced kept]))
+                            [kept replaced]))
         transfer-overrides replaced
         transfer-outgoing-arcs (mapv (fn [[resource old-node]]
                                        [resource (gu/explicit-outputs old-node)])

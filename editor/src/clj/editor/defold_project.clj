@@ -651,7 +651,7 @@
                 (perform-sub-selection project all-sub-selections))))))
 
       ;; invalidating outputs is the only change that does not reset the undo history
-      (when (some seq (vals (dissoc plan :invalidate-outputs)))
+      (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
         (g/reset-undo! (graph project)))
 
       (du/when-metrics

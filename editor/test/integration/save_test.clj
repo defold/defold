@@ -176,11 +176,6 @@
                 ;; We don't have a read-fn. Print a line diff.
                 (print-line-diff!)))))))))
 
-(defn- save-all! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
     :dirty?))
@@ -307,7 +302,7 @@
                 (f node-id)
                 (is (true? (dirty? node-id))))))
           (is (not (clean?)))
-          (save-all! project)
+          (test-util/save-project! project)
           (is (clean?)))))))
 
 (defn- setup-scratch

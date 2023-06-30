@@ -719,6 +719,15 @@ ordinary paths."
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
+(defn prepend-resource-listener! [workspace progress-span listener]
+  ;; Used from tests that need to interrogate the resource change plan before it
+  ;; is executed.
+  (swap! (g/node-value workspace :resource-listeners)
+         (fn [resource-listener-entries]
+           (let [resource-listener-entry [progress-span listener]]
+             (into [resource-listener-entry]
+                   resource-listener-entries)))))
+
 (g/deftype UriVec [URI])
 
 (g/defnode Workspace

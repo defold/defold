@@ -119,11 +119,6 @@
               value))]
     (util/deep-keep-kv util/with-sorted-keys value-fn output)))
 
-(defn- save-project! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
 (defn- set-non-editable-directories! [project-root-path non-editable-directory-proj-paths]
   (shared-editor-settings/write-config!
     project-root-path
@@ -246,7 +241,7 @@
                        :build-targets {:chair (g/node-value chair :build-targets)
                                        :room (g/node-value room :build-targets)
                                        :house (g/node-value house :build-targets)}}]
-                  (save-project! project)
+                  (tu/save-project! project)
                   (set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state

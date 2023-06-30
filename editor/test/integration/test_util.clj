@@ -1061,3 +1061,8 @@
   ([settings-resource-node-id setting-path value evaluation-context]
    (g/transact
      (set-setting settings-resource-node-id setting-path value evaluation-context))))
+
+(defn save-project! [project]
+  (let [save-data (project/dirty-save-data project)]
+    (project/write-save-data-to-disk! save-data nil)
+    (project/invalidate-save-data-source-values! save-data)))

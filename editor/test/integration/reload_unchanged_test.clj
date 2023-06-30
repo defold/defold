@@ -14,7 +14,6 @@
 
 (ns integration.reload-unchanged-test
   (:require [clojure.java.io :as io]
-            [clojure.set :as set]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code.resource :as code.resource]
@@ -26,7 +25,7 @@
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [touch-until-new-mtime valid-node-value with-clean-system]]))
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime valid-node-value with-clean-system]]))
 
 (set! *warn-on-reflection* true)
 
@@ -41,7 +40,7 @@
                  (and (= :file (resource/source-type resource))
                       (not (resource/internal? resource)))))))
 
-(defn- touch-resources! [resources]
+(defn- touch-and-resource-sync! [resources]
   (doseq [resource resources]
     (touch-until-new-mtime (io/as-file resource)))
   (when-some [workspace (some resource/workspace resources)]
@@ -57,6 +56,14 @@
   (->> resource-node-ids
        (map resource-node/resource)
        (resources->proj-paths)))
+
+(defn- save-data->proj-path [save-data]
+  (resource/proj-path (:resource save-data)))
+
+(defn- save-datas->proj-path-set [save-datas]
+  (into (sorted-set)
+        (map save-data->proj-path)
+        save-datas))
 
 (defmulti ^:private edit-resource-node
   (fn [node-id]
@@ -91,104 +98,236 @@
 (defmethod edit-resource-node "sprite" [node-id]
   (g/set-property node-id :blend-mode :blend-mode-mult))
 
-(deftest keep-existing-nodes-test
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
-          project (test-util/setup-project! workspace)
-          resource-change-plans-atom (atom [])
-          file-resources (all-file-resources workspace)
+(defn- resource-changes [resource-change-plan]
+  {:kept (resources->proj-paths (:kept resource-change-plan))
+   :reloaded (resources->proj-paths (:new resource-change-plan))
+   :invalidated (resource-node-ids->proj-paths (:invalidate-outputs resource-change-plan))})
 
-          stateful-file-resources
-          (into #{}
-                (remove #(:stateless? (resource/resource-type %)))
-                file-resources)
+(defn- expect-reloaded [project touched-resources reloaded-proj-paths]
+  {:pre [(coll? touched-resources)
+         (vector? reloaded-proj-paths)]}
+  (let [stateful-resources
+        (into #{}
+              (remove #(:stateless? (resource/resource-type %)))
+              touched-resources)
 
-          ;; We expect the outputs on all stateless resource nodes to be
-          ;; invalidated. It would be nice to only do this if their contents
-          ;; have changed, but there is no way for us to tell if they've been
-          ;; modified or not, since we don't keep any state for them at all.
-          stateless-resource-node-ids
-          (sort
-            (eduction
-              (remove stateful-file-resources)
-              (map #(project/get-resource-node project %))
-              file-resources))
+        ;; We expect the outputs on all stateless resource nodes to be
+        ;; invalidated. It would be nice to only do this if their contents have
+        ;; changed, but there is no way for us to tell if they've been modified
+        ;; or not, since we don't keep any state for them at all.
+        stateless-resource-node-ids
+        (sort
+          (eduction
+            (remove stateful-resources)
+            (map #(project/get-resource-node project %))
+            touched-resources))]
 
-          expect-reloaded
-          (fn expect-reloaded [reloaded-proj-paths]
-            {:kept (filterv (complement (set reloaded-proj-paths))
-                            (resources->proj-paths stateful-file-resources))
-             :reloaded reloaded-proj-paths
-             :invalidated (resource-node-ids->proj-paths stateless-resource-node-ids)})
+    {:kept (filterv (complement (set reloaded-proj-paths))
+                    (resources->proj-paths stateful-resources))
+     :reloaded reloaded-proj-paths
+     :invalidated (resource-node-ids->proj-paths stateless-resource-node-ids)}))
 
-          resource-changes
-          (fn resource-changes [resource-change-plan]
-            {:kept (resources->proj-paths (:kept resource-change-plan))
-             :reloaded (resources->proj-paths (:new resource-change-plan))
-             :invalidated (resource-node-ids->proj-paths (:invalidate-outputs resource-change-plan))})]
+(def ^:private lazy-loaded-editable-file-proj-paths
+  ["/.gitattributes"
+   "/.gitignore"
+   "/editable/json.json"
+   "/editable/script_api.script_api"
+   "/editable/xml.xml"])
 
-      ;; Add a resource listener, so we can get the resulting resource change plans.
-      (workspace/add-resource-listener!
-        workspace 1
+(def ^:private lazy-loaded-non-editable-file-proj-paths
+  ["/non-editable/json.json"
+   "/non-editable/script_api.script_api"
+   "/non-editable/xml.xml"])
+
+(def ^:private lazy-loaded-file-proj-paths
+  (-> (into lazy-loaded-editable-file-proj-paths
+            lazy-loaded-non-editable-file-proj-paths)
+      (sort)
+      (vec)))
+
+(defn- make-resource-change-plans-atom! [project]
+  ;; Add a resource listener to the workspace, so we can get the resulting
+  ;; resource change plans. We need to be the first listener in the list so that
+  ;; we get the resulting resource change plan before it is executed.
+  (let [resource-change-plans-atom (atom [])
+        workspace (project/workspace project)
+
+        observing-resource-listener
         (reify resource/ResourceListener
           (handle-changes [_this changes _render-progress!]
             (let [nodes-by-resource-path (valid-node-value project :nodes-by-resource-path)
                   resource-change-plan (resource-update/resource-change-plan nodes-by-resource-path changes)]
-              (swap! resource-change-plans-atom conj resource-change-plan)))))
+              (swap! resource-change-plans-atom conj resource-change-plan))))
 
-      (testing "Nodes aren't reloaded unless the contents of the file has changed."
-        ;; Touch all the files in the project.
-        (touch-resources! (all-file-resources workspace))
+        progress-span 1
+        resource-listeners (workspace/prepend-resource-listener! workspace progress-span observing-resource-listener)]
+    (is (= 2 (count resource-listeners)) "There should only have been one resource listener before us.")
+    resource-change-plans-atom))
 
-        ;; Ensure we have no significant changes to the graph in the resource change plan.
+(defn- perform-edits-to-all-editable-files [project]
+  (into []
+        (mapcat (fn [[editable-resource-node-id]]
+                  (edit-resource-node editable-resource-node-id)))
+        (g/sources-of project :save-data)))
+
+(defn- perform-edits-to-all-editable-files! [project]
+  (g/transact (perform-edits-to-all-editable-files project))
+
+  ;; Sanity-check: Ensure all editable files are now considered dirty.
+  ;; If this fails, our tests here aren't covering everything.
+  (is (= (save-datas->proj-path-set (project/all-save-data project))
+         (save-datas->proj-path-set (project/dirty-save-data project)))))
+
+(deftest keep-existing-nodes-no-false-positives-test
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
+          project (test-util/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          resource-change-plans-atom (make-resource-change-plans-atom! project)
+
+          resource+edited-contents
+          (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (perform-edits-to-all-editable-files! project)
+            (into []
+                  (map (fn [save-data]
+                         (let [resource (:resource save-data)
+                               content (:content save-data)]
+                           (assert (resource/file-resource? resource))
+                           (assert (string? content))
+                           [resource content])))
+                  (sort-by #(resource/proj-path (:resource %))
+                           (project/dirty-save-data project))))]
+
+      ;; Simulate external changes to all the editable files in the project.
+      (doseq [[resource content] resource+edited-contents]
+        (spit-until-new-mtime resource content))
+
+      (workspace/resource-sync! workspace)
+
+      ;; Ensure all the externally edited resources are reloaded in the
+      ;; resulting resource change plan.
+      (let [externally-edited-resources (mapv first resource+edited-contents)
+            externally-edited-proj-paths (mapv resource/proj-path externally-edited-resources)]
         (when (is (= 1 (count @resource-change-plans-atom)))
-          ;; These files are all lazy-loaded, so they will have no on-disk state
-          ;; to compare against yet. Thus, we expect their nodes to be replaced.
-          (is (= (expect-reloaded ["/.gitattributes"
-                                   "/.gitignore"
-                                   "/editable/json.json"
-                                   "/editable/script_api.script_api"
-                                   "/editable/xml.xml"
-                                   "/non-editable/json.json"
-                                   "/non-editable/script_api.script_api"
-                                   "/non-editable/xml.xml"])
+          (is (= (expect-reloaded project externally-edited-resources externally-edited-proj-paths)
+                 (resource-changes (@resource-change-plans-atom 0)))))))))
+
+(deftest keep-existing-nodes-touch-before-save-test
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
+          project (test-util/setup-project! workspace)
+          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+
+      (testing "Only nodes whose file contents have changed on disk are reloaded."
+        ;; Touch all the files in the project.
+        (let [touched-resources (all-file-resources workspace)]
+          (touch-and-resource-sync! touched-resources)
+
+          ;; Ensure we have no significant changes in the resource change plan.
+          (when (is (= 1 (count @resource-change-plans-atom)))
+            ;; We expect all lazy-loaded files to be reloaded, since they will
+            ;; not have been loaded and thus have no on-disk state to compare
+            ;; against.
+            (is (= (expect-reloaded project touched-resources lazy-loaded-file-proj-paths)
+                   (resource-changes (@resource-change-plans-atom 0)))))))
+
+      (testing "Only nodes whose file contents have changed on disk lose unsaved edits."
+        ;; Perform unsaved edits on all editable files in the project.
+        (perform-edits-to-all-editable-files! project)
+
+        ;; Touch all the files in the project.
+        (let [touched-resources (all-file-resources workspace)]
+          (touch-and-resource-sync! touched-resources)
+
+          ;; Ensure we have no significant changes in the resource change plan.
+          (when (is (= 2 (count @resource-change-plans-atom)))
+            ;; We expect the non-editable lazy-loaded files to be reloaded, as
+            ;; they have no on-disk state to compare against. But the editable
+            ;; lazy-loaded files will have been loaded as a result of the edit,
+            ;; so we do not expect them to be reloaded here.
+            (is (= (expect-reloaded project touched-resources lazy-loaded-non-editable-file-proj-paths)
+                   (resource-changes (@resource-change-plans-atom 1))))))))))
+
+(deftest keep-existing-nodes-touch-after-save-test
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
+          project (test-util/setup-project! workspace)
+          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+
+      ;; Perform edits on all editable files in the project.
+      (perform-edits-to-all-editable-files! project)
+
+      ;; Save the edits to disk.
+      (test-util/save-project! project)
+
+      ;; Ensure no files are considered dirty after saving.
+      (is (= #{} (save-datas->proj-path-set (project/dirty-save-data project))))
+
+      ;; Touch all the files in the project.
+      (let [touched-resources (all-file-resources workspace)]
+        (touch-and-resource-sync! touched-resources)
+
+        ;; Ensure we have no significant changes in the resource change plan.
+        (when (is (= 1 (count @resource-change-plans-atom)))
+          ;; We expect the non-editable lazy-loaded files to be reloaded, as
+          ;; they have no on-disk state to compare against. But the editable
+          ;; lazy-loaded files will have been loaded as a result of the edit, so
+          ;; we do not expect them to be reloaded here.
+          (is (= (expect-reloaded project touched-resources lazy-loaded-non-editable-file-proj-paths)
+                 (resource-changes (@resource-change-plans-atom 0)))))))))
+
+(deftest keep-existing-nodes-undo-after-save-test
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
+          project (test-util/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+
+      ;; Perform edits on all editable files in the project.
+      (perform-edits-to-all-editable-files! project)
+
+      ;; Touch all files except the lazy-loaded non-editable ones. We don't want
+      ;; to trigger a reload of these files for this test, as it will cause the
+      ;; undo queue to be cleared due to the necessary node replacements.
+      (let [touch-resource? (comp (complement (set lazy-loaded-non-editable-file-proj-paths)) resource/proj-path)
+            touched-resources (filterv touch-resource? (all-file-resources workspace))]
+        (touch-and-resource-sync! touched-resources)
+
+        ;; Ensure we have no significant changes in the resource change plan.
+        (when (is (= 1 (count @resource-change-plans-atom)))
+          (is (= (expect-reloaded project touched-resources [])
                  (resource-changes (@resource-change-plans-atom 0))))))
 
-      (testing "Unsaved edits aren't lost unless the file changed on disk."
-        (let [editable-resource-node-ids
-              (mapv first (g/sources-of project :save-data))
+      ;; Ensure the undo queue is intact.
+      (is (= 1 (g/undo-stack-count project-graph)))
 
-              editable-resources
-              (->> editable-resource-node-ids
-                   (map resource-node/resource)
-                   (sort-by resource/proj-path))]
+      ;; Ensure all editable files are considered dirty before saving.
+      (is (= (save-datas->proj-path-set (project/all-save-data project))
+             (save-datas->proj-path-set (project/dirty-save-data project))))
 
-          ;; Perform unsaved edits on all editable files in the project.
-          (g/transact
-            (into []
-                  (mapcat edit-resource-node)
-                  editable-resource-node-ids))
+      ;; Save the edits to disk.
+      (test-util/save-project! project)
 
-          ;; Sanity-check: Ensure all editable files are now considered dirty.
-          ;; If this fails, our tests here aren't covering everything.
-          (let [editable-proj-paths (into (sorted-set)
-                                          (map resource/proj-path)
-                                          editable-resources)
-                dirty-proj-paths (into (sorted-set)
-                                       (map (comp resource/proj-path :resource))
-                                       (project/dirty-save-data project))]
-            (is (= #{} (set/difference editable-proj-paths dirty-proj-paths))))
+      ;; Ensure no files are considered dirty after saving.
+      (is (= #{} (save-datas->proj-path-set (project/dirty-save-data project))))
 
-          ;; Touch all the files in the project.
-          (touch-resources! (all-file-resources workspace))
+      ;; Undo our changes past the point of the save.
+      (is (= 1 (g/undo-stack-count project-graph)))
+      (g/undo! project-graph)
 
-          ;; Ensure we have no significant changes to the graph in the resource change plan.
-          (when (is (= 2 (count @resource-change-plans-atom)))
-            ;; Remember, these files are all lazy-loaded, so unless they have
-            ;; been edited, they will have no on-disk state to compare against.
-            ;; Since we've not made edits to any of the non-editable files, they
-            ;; remain in the list, but the edited lazy-loaded files do not.
-            (is (= (expect-reloaded ["/non-editable/json.json"
-                                     "/non-editable/script_api.script_api"
-                                     "/non-editable/xml.xml"])
-                   (resource-changes (@resource-change-plans-atom 1))))))))))
+      ;; Ensure all editable files are now considered dirty again.
+      (is (= (save-datas->proj-path-set (project/all-save-data project))
+             (save-datas->proj-path-set (project/dirty-save-data project))))
+
+      ;; Touch all the files in the project.
+      (let [touched-resources (all-file-resources workspace)]
+        (touch-and-resource-sync! touched-resources)
+
+        ;; Ensure we have no significant changes in the resource change plan.
+        (when (is (= 2 (count @resource-change-plans-atom)))
+          ;; We expect the non-editable lazy-loaded files to be reloaded, as
+          ;; they have no on-disk state to compare against. But the editable
+          ;; lazy-loaded files will have been loaded as a result of the edit, so
+          ;; we do not expect them to be reloaded here.
+          (is (= (expect-reloaded project touched-resources lazy-loaded-non-editable-file-proj-paths)
+                 (resource-changes (@resource-change-plans-atom 1)))))))))
