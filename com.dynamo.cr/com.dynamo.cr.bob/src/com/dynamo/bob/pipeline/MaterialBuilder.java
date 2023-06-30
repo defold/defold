@@ -250,7 +250,7 @@ public class MaterialBuilder extends Builder<Void>  {
     private void buildVertexAttributes(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
         for (int i=0; i < materialBuilder.getAttributesCount(); i++) {
             VertexAttribute materialAttribute = materialBuilder.getAttributes(i);
-            materialBuilder.setAttributes(i, GraphicsUtil.buildVertexAttribute(materialAttribute, materialAttribute.getDataType()));
+            materialBuilder.setAttributes(i, GraphicsUtil.buildVertexAttribute(materialAttribute, materialAttribute));
         }
     }
 

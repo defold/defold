@@ -44,7 +44,7 @@
   (ffirst (g/targets-of (workspace) :resource-map)))
 
 (defn app-view []
-  (ffirst (g/targets-of (project) :_node-id)))
+  (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
 
 (defn active-resource []
   (->> (g/node-value (project) :selected-node-ids-by-resource-node)
@@ -164,7 +164,9 @@
 (def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
-  (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
+  (some-> (view-of-type console/ConsoleNode)
+          (g/targets-of :lines)
+          (ffirst)))
 
 (defn node-values [node-id & labels]
   (g/with-auto-evaluation-context evaluation-context

@@ -14,29 +14,19 @@
 
 (ns editor.gl.vertex2
   (:require [clojure.string :as str]
+            [editor.buffers :as buffers]
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [editor.protobuf :as protobuf]
-            [editor.scene-cache :as scene-cache]
-            [internal.util :as util])
-  (:import [com.jogamp.common.nio Buffers]
+            [editor.scene-cache :as scene-cache])
+  (:import [clojure.lang Counted]
+           [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
-           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
+           [java.nio Buffer ByteBuffer IntBuffer]))
 
 (set! *warn-on-reflection* true)
-
-(defn type-size
-  ^long [type]
-  (case type
-    :ubyte  Buffers/SIZEOF_BYTE
-    :byte   Buffers/SIZEOF_BYTE
-    :ushort Buffers/SIZEOF_SHORT
-    :short  Buffers/SIZEOF_SHORT
-    :uint   Buffers/SIZEOF_INT
-    :int    Buffers/SIZEOF_INT
-    :float  Buffers/SIZEOF_FLOAT
-    :double Buffers/SIZEOF_DOUBLE))
+(set! *unchecked-math* :warn-on-boxed)
 
 (def gl-types
   {:ubyte   GL/GL_UNSIGNED_BYTE
@@ -74,16 +64,6 @@
     :value-type-int16 :short
     :value-type-int32 :int))
 
-(defn attribute-data-type->type [attribute-data-type]
-  (case attribute-data-type
-    :type-byte :byte
-    :type-unsigned-byte :ubyte
-    :type-short :short
-    :type-unsigned-short :ushort
-    :type-int :int
-    :type-unsigned-int :uint
-    :type-float :float))
-
 (defn attribute-name->key [^String name]
   (protobuf/field-name->key name))
 
@@ -109,246 +89,80 @@
   (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^:unsynchronized-mutable ^long version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
-  (flipped? [this] (= 0 (.position buf)))
+  (flipped? [_this] (= 0 (.position buf)))
   (clear! [this] (.clear buf) this)
-  (position! [this position] (.position buf (int (* position buf-items-per-vertex))) this)
-  (version [this] version)
+  (position! [this position] (.position buf (int (* (int position) buf-items-per-vertex))) this)
+  (version [_this] version)
 
-  clojure.lang.Counted
-  (count [this] (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
-                  (/ item-count buf-items-per-vertex))))
-
-(defn buffer-item-byte-size
-  ^long [^Buffer buffer]
-  (condp instance? buffer
-    ByteBuffer 1
-    DoubleBuffer 8
-    FloatBuffer 4
-    IntBuffer 4
-    LongBuffer 8
-    ShortBuffer 2))
+  Counted
+  (count [_this]
+    (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
+      (/ item-count buf-items-per-vertex))))
 
 (defn- buffer-items-per-vertex
   ^long [^Buffer buffer vertex-description]
   (let [^long vertex-byte-size (:size vertex-description)
-        buffer-item-byte-size (buffer-item-byte-size buffer)]
+        buffer-item-byte-size (buffers/item-byte-size buffer)]
     (/ vertex-byte-size buffer-item-byte-size)))
 
 (defn- buffer-size-in-bytes
   ^long [^Buffer buffer]
-  (* (buffer-item-byte-size buffer) (.limit buffer)))
+  (* (buffers/item-byte-size buffer) (.limit buffer)))
 
 (defn wrap-vertex-buffer
   [vertex-description usage ^Buffer buffer]
   (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
     (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
+(defn wrap-buf
+  ^ByteBuffer [^bytes byte-array]
+  (buffers/little-endian (buffers/wrap-byte-array byte-array)))
+
+(defn make-buf
+  ^ByteBuffer [byte-capacity]
+  (buffers/little-endian (buffers/new-byte-buffer byte-capacity)))
+
 (defn make-vertex-buffer
   [vertex-description usage ^long capacity]
   (let [nbytes (* capacity ^long (:size vertex-description))
-        buf (doto (ByteBuffer/allocateDirect nbytes)
-              (.order ByteOrder/LITTLE_ENDIAN))]
+        buf (make-buf nbytes)]
     (wrap-vertex-buffer vertex-description usage buf)))
 
 ;; low-level access
 
-(defn buf-blit!
-  ^ByteBuffer [^ByteBuffer buf ^long byte-offset ^bytes bytes]
-  (let [old-position (.position buf)]
-    (.position buf byte-offset)
-    (.put buf bytes)
-    (.position buf old-position)))
+(definline buf-blit! [buffer byte-offset bytes]
+  `(buffers/blit! ~buffer ~byte-offset ~bytes))
 
-(defn buf-put!
-  (^ByteBuffer [^ByteBuffer buf ^long byte-offset numbers]
-   (doseq [n numbers]
-     (.putFloat buf byte-offset n)))
-  (^ByteBuffer [^ByteBuffer buf byte-offset data-type normalize numbers]
-   (let [byte-offset (int byte-offset)]
-     (if normalize
-       ;; Normalized.
-       (case data-type
-         :float
-         (reduce (fn [^long byte-offset n]
-                   (.putFloat buf byte-offset n)
-                   (+ byte-offset Float/BYTES))
-                 byte-offset
-                 numbers)
+(definline buf-put-floats! [buffer byte-offset numbers]
+  `(buffers/put-floats! ~buffer ~byte-offset ~numbers))
 
-         :double
-         (reduce (fn [^long byte-offset n]
-                   (.putDouble buf byte-offset n)
-                   (+ byte-offset Double/BYTES))
-                 byte-offset
-                 numbers)
-
-         :byte
-         (reduce (fn [^long byte-offset n]
-                   (.put buf byte-offset (byte (Math/floor (* n 127.5))))
-                   (inc byte-offset))
-                 byte-offset
-                 numbers)
-
-         :ubyte
-         (reduce (fn [^long byte-offset n]
-                   (.put buf byte-offset (byte (Math/floor (- (* n 255.5) 128.0))))
-                   (inc byte-offset))
-                 byte-offset
-                 numbers)
-
-         :short
-         (reduce (fn [^long byte-offset n]
-                   (.putShort buf byte-offset (Math/floor (* n 32767.5)))
-                   (+ byte-offset Short/BYTES))
-                 byte-offset
-                 numbers)
-
-         :ushort
-         (reduce (fn [^long byte-offset n]
-                   (.putShort buf byte-offset (Math/floor (- (* n 65535.5) 32768.0)))
-                   (+ byte-offset Short/BYTES))
-                 byte-offset
-                 numbers)
-
-         :int
-         (reduce (fn [^long byte-offset n]
-                   (.putInt buf byte-offset (Math/floor (* n 2147483647.5)))
-                   (+ byte-offset Integer/BYTES))
-                 byte-offset
-                 numbers)
-
-         :uint
-         (reduce (fn [^long byte-offset n]
-                   (.putInt buf byte-offset (Math/floor (- (* n 4294967295.5) 2147483648.0)))
-                   (+ byte-offset Integer/BYTES))
-                 byte-offset
-                 numbers))
-
-       ;; Not normalized.
-       (case data-type
-         :float
-         (reduce (fn [^long byte-offset n]
-                   (.putFloat buf byte-offset n)
-                   (+ byte-offset Float/BYTES))
-                 byte-offset
-                 numbers)
-
-         :double
-         (reduce (fn [^long byte-offset n]
-                   (.putDouble buf byte-offset n)
-                   (+ byte-offset Double/BYTES))
-                 byte-offset
-                 numbers)
-
-         (:byte :ubyte)
-         (reduce (fn [^long byte-offset n]
-                   (.put buf byte-offset (byte n))
-                   (inc byte-offset))
-                 byte-offset
-                 numbers)
-
-         (:short :ushort)
-         (reduce (fn [^long byte-offset n]
-                   (.putShort buf byte-offset n)
-                   (+ byte-offset Short/BYTES))
-                 byte-offset
-                 numbers)
-
-         (:int :uint)
-         (reduce (fn [^long byte-offset n]
-                   (.putInt buf byte-offset n)
-                   (+ byte-offset Integer/BYTES))
-                 byte-offset
-                 numbers))))
-   buf))
+(definline buf-put! [buf byte-offset data-type normalize numbers]
+  `(buffers/put! ~buf ~byte-offset ~data-type ~normalize ~numbers))
 
 (defn put!
-  (^VertexBuffer [^VertexBuffer vbuf ^long byte-offset numbers]
-   (buf-put! (.buf vbuf) byte-offset numbers)
-   vbuf)
-  (^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
-   (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
-   vbuf))
+  ^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
+  (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
+  vbuf)
 
-(defn buf-push!
-  (^ByteBuffer [^ByteBuffer buf numbers]
-   (doseq [n numbers]
-     (.putFloat buf n)))
-  (^ByteBuffer [^ByteBuffer buf data-type normalize numbers]
-   (if normalize
-     ;; Normalized.
-     (case data-type
-       :float
-       (doseq [n numbers]
-         (.putFloat buf n))
+(definline buf-push-floats! [buffer numbers]
+  `(buffers/push-floats! ~buffer ~numbers))
 
-       :double
-       (doseq [n numbers]
-         (.putDouble buf n))
-
-       :byte
-       (doseq [^double n numbers]
-         (.put buf (byte (Math/floor (* n 127.5)))))
-
-       :ubyte
-       (doseq [^double n numbers]
-         (.put buf (byte (Math/floor (- (* n 255.5) 128.0)))))
-
-       :short
-       (doseq [^double n numbers]
-         (.putShort buf (Math/floor (* n 32767.5))))
-
-       :ushort
-       (doseq [^double n numbers]
-         (.putShort buf (Math/floor (- (* n 65535.5) 32768.0))))
-
-       :int
-       (doseq [^double n numbers]
-         (.putInt buf (Math/floor (* n 2147483647.5))))
-
-       :uint
-       (doseq [^double n numbers]
-         (.putInt buf (Math/floor (- (* n 4294967295.5) 2147483648.0)))))
-
-     ;; Not normalized.
-     (case data-type
-       :float
-       (doseq [n numbers]
-         (.putFloat buf n))
-
-       :double
-       (doseq [n numbers]
-         (.putDouble buf n))
-
-       (:byte :ubyte)
-       (doseq [n numbers]
-         (.put buf (byte n)))
-
-       (:short :ushort)
-       (doseq [n numbers]
-         (.putShort buf n))
-
-       (:int :uint)
-       (doseq [n numbers]
-         (.putInt buf n))))
-   buf))
+(definline buf-push! [buf data-type normalize numbers]
+  `(buffers/push! ~buf ~data-type ~normalize ~numbers))
 
 (defn push!
-  (^VertexBuffer [^VertexBuffer vbuf numbers]
-   (buf-push! (.buf vbuf) numbers)
-   vbuf)
-  (^VertexBuffer [^VertexBuffer vbuf data-type normalize numbers]
-   (buf-push! (.buf vbuf) data-type normalize numbers)
-   vbuf))
+  ^VertexBuffer [^VertexBuffer vbuf data-type normalize numbers]
+  (buf-push! (.buf vbuf) data-type normalize numbers)
+  vbuf)
 
 ;; vertex description
 
 (defn attribute-size
   ^long [{:keys [^long components type]}]
-  (* components (type-size type)))
+  (* components (buffers/type-size type)))
 
 (defn- attribute-sizes
   [attributes]
@@ -370,7 +184,7 @@
 
 (defn- attribute-components
   [attributes]
-  (for [{:keys [name components] :as attribute} attributes
+  (for [{:keys [components] :as attribute} attributes
         n (range components)]
     (-> attribute
         (update :name str (nth ["-x" "-y" "-z" "-w"] n))
@@ -378,7 +192,7 @@
 
 (defn make-put-fn
   [attributes]
-  (let [args (for [{:keys [name type] :as component} (attribute-components attributes)]
+  (let [args (for [{:keys [name] :as component} (attribute-components attributes)]
                (assoc component :arg (symbol name)))]
     `(fn [~(with-meta 'vbuf {:tag `VertexBuffer}) ~@(map :arg args)]
        (doto ~(with-meta '(.buf vbuf) {:tag `ByteBuffer})
@@ -393,14 +207,14 @@
                                               :ushort `Short
                                               :uint   `Integer)})]
                (case type
-                :byte   `(.put       ~arg)
-                :short  `(.putShort  ~arg)
-                :int    `(.putInt    ~arg)
-                :float  `(.putFloat  ~arg)
-                :double `(.putDouble ~arg)
-                :ubyte  `(.put       (.byteValue  (Long. (bit-and ~arg 0xff))))
-                :ushort `(.putShort  (.shortValue (Long. (bit-and ~arg 0xffff))))
-                :uint   `(.putInt    (.intValue   (Long. (bit-and ~arg 0xffffffff))))))))
+                 :byte   `(.put       ~arg)
+                 :short  `(.putShort  ~arg)
+                 :int    `(.putInt    ~arg)
+                 :float  `(.putFloat  ~arg)
+                 :double `(.putDouble ~arg)
+                 :ubyte  `(.put       (.byteValue  (Long/valueOf (bit-and ~arg 0xff))))
+                 :ushort `(.putShort  (.shortValue (Long/valueOf (bit-and ~arg 0xffff))))
+                 :uint   `(.putInt    (.intValue   (Long/valueOf (bit-and ~arg 0xffffffff))))))))
        ~'vbuf)))
 
 (def ^:private type-component-counts
@@ -451,11 +265,17 @@
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (mapv #(shader/get-attrib-location shader gl (:name %)) attribs))
+  (let [attribute-infos (shader/attribute-infos shader gl)]
+    (mapv (fn [attrib]
+            (let [attribute-name (:name attrib)]
+              (if-some [attribute-info (get attribute-infos attribute-name)]
+                (:index attribute-info)
+                -1)))
+          attribs)))
 
 (defn- vertex-attrib-pointer
   [^GL2 gl attrib loc stride offset]
-  (let [{:keys [name components type normalize]} attrib]
+  (let [{:keys [components type normalize]} attrib]
     (when (not= -1 loc)
       (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalize ^int stride ^long offset))))
 
@@ -481,10 +301,6 @@
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
 
-(defn- find-attribute-index [attribute-name attributes]
-  (util/first-index-where (fn [attribute] (= attribute-name (:name attribute)))
-                          attributes))
-
 (defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
@@ -509,19 +325,19 @@
 
 (defrecord VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader]
   GlBind
-  (bind [_this gl render-args]
+  (bind [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
 
-  (unbind [_this gl render-args]
+  (unbind [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
 (defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
   GlBind
-  (bind [_this gl render-args]
+  (bind [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
     (bind-index-buffer! gl request-id index-buffer))
 
-  (unbind [_this gl render-args]
+  (unbind [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
     (unbind-index-buffer! gl)))
 

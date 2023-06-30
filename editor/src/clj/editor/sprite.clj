@@ -94,6 +94,24 @@
       :world-transform world-transform
       :vertex-attribute-bytes vertex-attribute-bytes)))
 
+(defn- renderable-data->world-position-v3 [renderable-data]
+  (let [local-positions (:position-data renderable-data)
+        world-transform (:world-transform renderable-data)]
+    (geom/transf-p world-transform local-positions)))
+
+(defn- renderable-data->world-position-v4 [renderable-data]
+  (let [local-positions (:position-data renderable-data)
+        world-transform (:world-transform renderable-data)]
+    (geom/transf-p4 world-transform local-positions)))
+
+(defn- decorate-attribute-exception [exception attribute vertex]
+  (ex-info "Failed to encode vertex attribute."
+           (-> attribute
+               (select-keys [:name :semantic-type :type :components :normalize :coordinate-space])
+               (assoc :vertex vertex)
+               (assoc :vertex-elements (count vertex)))
+           exception))
+
 (defn- into-vertex-buffer [^VertexBuffer vbuf renderables]
   (let [renderable-datas (mapv renderable-data renderables)
         vertex-description (.vertex-description vbuf)
@@ -109,13 +127,14 @@
                   vertex-byte-offset
                   vertices))
 
-        put-numbers!
-        (fn put-numbers!
-          ^long [^long vertex-byte-offset vtx-attribute-type normalize vertices]
-          (reduce (fn [^long vertex-byte-offset attribute-numbers]
-                    (vtx/buf-put! buf vertex-byte-offset vtx-attribute-type normalize attribute-numbers)
+        put-doubles!
+        (fn put-doubles!
+          [vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices]
+          (reduce (fn [^long vertex-byte-offset attribute-doubles]
+                    (let [attribute-doubles (graphics/resize-doubles attribute-doubles semantic-type element-count)]
+                      (vtx/buf-put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
                     (+ vertex-byte-offset vertex-byte-stride))
-                  vertex-byte-offset
+                  (long vertex-byte-offset)
                   vertices))
 
         put-renderables!
@@ -128,27 +147,40 @@
                   renderable-datas))]
 
     (reduce (fn [^long attribute-byte-offset attribute]
-              (let [vtx-attribute-type (:type attribute)
+              (let [semantic-type (:semantic-type attribute)
+                    buffer-data-type (:type attribute)
+                    element-count (long (:components attribute))
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
 
-                    put-attribute-numbers!
-                    (fn put-attribute-numbers!
+                    put-attribute-bytes!
+                    (fn put-attribute-bytes!
                       ^long [^long vertex-byte-offset vertices]
-                      (put-numbers! vertex-byte-offset vtx-attribute-type normalize vertices))]
-                (case (:semantic-type attribute)
+                      (try
+                        (put-bytes! vertex-byte-offset vertices)
+                        (catch Exception e
+                          (throw (decorate-attribute-exception e attribute (first vertices))))))
+
+                    put-attribute-doubles!
+                    (fn put-attribute-doubles!
+                      ^long [^long vertex-byte-offset vertices]
+                      (try
+                        (put-doubles! vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices)
+                        (catch Exception e
+                          (throw (decorate-attribute-exception e attribute (first vertices))))))]
+
+                (case semantic-type
                   :semantic-type-position
                   (if (= (:coordinate-space attribute) :coordinate-space-local)
-                    (put-renderables! attribute-byte-offset :position-data put-attribute-numbers!)
-                    (put-renderables! attribute-byte-offset
-                                      (fn [renderable-data]
-                                        (let [local-positions (:position-data renderable-data)
-                                              world-transform (:world-transform renderable-data)]
-                                          (geom/transf-p4 world-transform local-positions)))
-                                      put-attribute-numbers!))
+                    (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!)
+                    (let [renderable-data->world-position
+                          (case element-count
+                            3 renderable-data->world-position-v3
+                            4 renderable-data->world-position-v4)]
+                      (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!)))
 
                   :semantic-type-texcoord
-                  (put-renderables! attribute-byte-offset :uv-data put-attribute-numbers!)
+                  (put-renderables! attribute-byte-offset :uv-data put-attribute-doubles!)
 
                   :semantic-type-page-index
                   (put-renderables! attribute-byte-offset
@@ -156,7 +188,7 @@
                                       (let [vertex-count (count (:position-data renderable-data))
                                             page-index (:page-index renderable-data)]
                                         (repeat vertex-count [(double page-index)])))
-                                    put-attribute-numbers!)
+                                    put-attribute-doubles!)
 
                   ;; Default case.
                   (put-renderables! attribute-byte-offset
@@ -164,7 +196,7 @@
                                       (let [vertex-count (count (:position-data renderable-data))
                                             attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)]
                                         (repeat vertex-count attribute-bytes)))
-                                    put-bytes!))
+                                    put-attribute-bytes!))
 
                 (+ attribute-byte-offset
                    (vtx/attribute-size attribute))))
@@ -176,7 +208,7 @@
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
   (.transform wt pt)
-  [(.x pt) (.y pt) (.z pt) cr cg cb 1])
+  (vector-of :float (.x pt) (.y pt) (.z pt) cr cg cb 1.0))
 
 (defn- conj-outline-quad! [^ByteBuffer buf ^Matrix4d wt ^Point3d pt width height cr cg cb]
   (let [x1 (* 0.5 width)
@@ -188,21 +220,21 @@
         v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (doto buf
-      (vtx/buf-push! v0)
-      (vtx/buf-push! v1)
-      (vtx/buf-push! v1)
-      (vtx/buf-push! v2)
-      (vtx/buf-push! v2)
-      (vtx/buf-push! v3)
-      (vtx/buf-push! v3)
-      (vtx/buf-push! v0))))
+      (vtx/buf-push-floats! v0)
+      (vtx/buf-push-floats! v1)
+      (vtx/buf-push-floats! v1)
+      (vtx/buf-push-floats! v2)
+      (vtx/buf-push-floats! v2)
+      (vtx/buf-push-floats! v3)
+      (vtx/buf-push-floats! v3)
+      (vtx/buf-push-floats! v0))))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (let [outline-points (map (fn [[x y]]
                               (gen-outline-vertex world-transform tmp-point x y cr cg cb))
                             line-data)]
     (doseq [outline-point outline-points]
-      (vtx/buf-push! buf outline-point))))
+      (vtx/buf-push-floats! buf outline-point))))
 
 (defn- gen-outline-vertex-buffer [renderables count]
   (let [tmp-point (Point3d.)
@@ -266,11 +298,30 @@
              0
              renderables))
 
-(declare ^:private get-attribute-values)
-
-(defn- get-attribute-values-from-node [material-attribute vertex-attribute-overrides]
-  (or (vertex-attribute-overrides (:name-key material-attribute))
-      (:values material-attribute)))
+(def ^:private attribute-key->default-attribute-info
+  (into {}
+        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+               (let [attribute-key (graphics/attribute-name->key name)
+                     values (graphics/default-attribute-doubles semantic-type element-count)
+                     bytes (graphics/default-attribute-bytes semantic-type data-type element-count normalize)
+                     attribute-info (assoc attribute
+                                      :name-key attribute-key
+                                      :values values
+                                      :bytes bytes)]
+                 [attribute-key attribute-info])))
+        [{:name "position"
+          :semantic-type :semantic-type-position
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :element-count 4}
+         {:name "texcoord0"
+          :semantic-type :semantic-type-texcoord
+          :data-type :type-float
+          :element-count 2}
+         {:name "page_index"
+          :semantic-type :semantic-type-page-index
+          :data-type :type-float
+          :element-count 1}]))
 
 (defn render-sprites [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
@@ -280,33 +331,14 @@
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            shader-bound-attribute? (comp boolean (shader/get-attribute-infos shader gl) :name)
+            shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
             material-attribute-infos (:material-attribute-infos user-data)
-            declared-material-attribute-keyword? (into #{} (map :name-key) material-attribute-infos)
-            manufactured-attributes (cond-> []
-
-                                            (not (declared-material-attribute-keyword? :position))
-                                            (conj {:name "position"
-                                                   :name-key :position
-                                                   :semantic-type :semantic-type-position
-                                                   :coordinate-space :coordinate-space-world
-                                                   :data-type :type-float
-                                                   :element-count 4})
-
-                                            (not (declared-material-attribute-keyword? :texcoord0))
-                                            (conj {:name "texcoord0"
-                                                   :name-key :texcoord0
-                                                   :semantic-type :semantic-type-texcoord
-                                                   :data-type :type-float
-                                                   :element-count 2})
-
-                                            (not (declared-material-attribute-keyword? :page-index))
-                                            (conj {:name "page_index"
-                                                   :name-key :page-index
-                                                   :semantic-type :semantic-type-page-index
-                                                   :data-type :type-float
-                                                   :element-count 1}))
-            all-attributes (into manufactured-attributes material-attribute-infos)
+            declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
+            manufactured-attribute-infos (into []
+                                               (comp (remove declared-material-attribute-key?)
+                                                     (map attribute-key->default-attribute-info))
+                                               [:position :texcoord0 :page-index])
+            all-attributes (into manufactured-attribute-infos material-attribute-infos)
             shader-bound-attributes (filterv shader-bound-attribute? all-attributes)
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
             vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
@@ -332,22 +364,33 @@
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
       (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
-(defn- pb-overridden-attributes [material-attribute-infos vertex-attribute-overrides strip-optional?]
-  (let [overridden-material-attribute-infos (filter #(contains? vertex-attribute-overrides (:name-key %))
-                                                    material-attribute-infos)
-        pb-vertex-attributes (mapv (fn [material-attribute-info]
-                                     (let [overridden-value ((:name-key material-attribute-info) vertex-attribute-overrides)
-                                           value-keyword (graphics/attribute-data-type->attribute-value-keyword (:data-type material-attribute-info))]
-                                       (if (true? strip-optional?)
-                                         ;; Keep just the value and the attribute name (only used when saving)
-                                         {value-keyword {:v overridden-value}
-                                          :name (:name material-attribute-info)}
-                                         ;; Otherwise, just remove a few specific items
-                                         (-> material-attribute-info
-                                             (assoc value-keyword {:v overridden-value})
-                                             (dissoc :name-hash :bytes :name-key :values)))))
-                                   overridden-material-attribute-infos)]
-    pb-vertex-attributes))
+(defn- save-value-attributes [material-attribute-infos vertex-attribute-overrides]
+  (into []
+        (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
+                (when-some [override-values (get vertex-attribute-overrides name-key)]
+                  ;; Ensure our saved values have the expected element-count.
+                  ;; If the material has been edited, this might have changed,
+                  ;; but specialized widgets like the one we use to edit color
+                  ;; properties may also produce a different element count from
+                  ;; what the material dictates.
+                  (let [resized-values (graphics/resize-doubles override-values semantic-type element-count)
+                        [attribute-value-keyword stored-values] (graphics/doubles->storage resized-values data-type normalize)]
+                    {:name name
+                     attribute-value-keyword {:v stored-values}}))))
+        material-attribute-infos))
+
+(defn- build-target-attributes [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
+  (into []
+        (keep (fn [{:keys [name-key] :as attribute-info}]
+                ;; The values in vertex-attribute-overrides are ignored - we
+                ;; only use it to check if we have an override value. The output
+                ;; bytes are taken from the vertex-attribute-bytes map. They
+                ;; have already been coerced to the expected size.
+                (when (contains? vertex-attribute-overrides name-key)
+                  (let [attribute-bytes (get vertex-attribute-bytes name-key)]
+                    (graphics/attribute-info->build-target-attribute
+                      (assoc attribute-info :bytes attribute-bytes))))))
+        material-attribute-infos))
 
 ; Node defs
 
@@ -356,7 +399,7 @@
            :default-animation default-animation
            :material (resource/resource->proj-path material)
            :blend-mode blend-mode
-           :attributes (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides true)}
+           :attributes (save-value-attributes material-attribute-infos vertex-attribute-overrides)}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -434,7 +477,7 @@
         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-attribute-infos material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate vertex-attribute-overrides]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-attribute-infos material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -453,27 +496,22 @@
                                              :slice9 slice9
                                              :offset offset
                                              :playback-rate playback-rate
-                                             :attributes (graphics/attributes->build-target (pb-overridden-attributes material-attribute-infos vertex-attribute-overrides false))}
+                                             :attributes (build-target-attributes material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)}
                                             [:tile-set :material])]))
-(defn- fill-with-zeros [values expected-count]
-  (let [trailing-vec-with-zeros (repeat (- expected-count (count values)) 0)]
-    (vec (concat values trailing-vec-with-zeros))))
 
-(defn- get-attribute-property-type [attribute]
-  (let [attribute-element-count (:element-count attribute)
-        attribute-semantic-type (:semantic-type attribute)]
-    (cond (= attribute-semantic-type :semantic-type-color) types/Color
-          (= attribute-element-count 1) g/Num
-          (= attribute-element-count 2) types/Vec2
-          (= attribute-element-count 3) types/Vec3
-          (= attribute-element-count 4) types/Vec4)))
+(defn- attribute-property-type [attribute]
+  (case (:semantic-type attribute)
+    :semantic-type-color types/Color
+    (case (int (:element-count attribute))
+      1 g/Num
+      2 types/Vec2
+      3 types/Vec3
+      4 types/Vec4)))
 
-(defn- get-attribute-expected-element-count [attribute]
-  (let [attribute-element-count (:element-count attribute)
-        attribute-semantic-type (:semantic-type attribute)]
-    (if (= attribute-semantic-type :semantic-type-color)
-      4
-      attribute-element-count)))
+(defn- attribute-expected-element-count [attribute]
+  (case (:semantic-type attribute)
+    :semantic-type-color 4
+    (:element-count attribute)))
 
 (defn- attribute-update-property [current-property-value attribute new-value]
   (assoc current-property-value (:name-key attribute) new-value))
@@ -481,63 +519,88 @@
 (defn- attribute-clear-property [current-property-value attribute]
   (dissoc current-property-value (:name-key attribute)))
 
-(defn- get-attribute-edit-type [attribute prop-type]
-  (let [attribute-semantic-type (:semantic-type attribute)
+(defn- attribute-edit-type [attribute property-type]
+  (let [attribute-element-count (:element-count attribute)
+        attribute-semantic-type (:semantic-type attribute)
         attribute-update-fn (fn [_evaluation-context self _old-value new-value]
-                              (g/update-property self :vertex-attribute-overrides attribute-update-property attribute new-value))
+                              (let [values (if (= g/Num property-type)
+                                             (vector-of :double new-value)
+                                             new-value)]
+                                (g/update-property self :vertex-attribute-overrides attribute-update-property attribute values)))
         attribute-clear-fn (fn [self _property-label]
-                              (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
-    (if (= attribute-semantic-type :semantic-type-color)
-      {:type types/Color
-       :ignore-alpha? false
-       :set-fn attribute-update-fn
-       :clear-fn attribute-clear-fn}
-      {:type prop-type
-       :set-fn attribute-update-fn
-       :clear-fn attribute-clear-fn})))
+                             (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
+    (cond-> {:type property-type
+             :set-fn attribute-update-fn
+             :clear-fn attribute-clear-fn}
 
-(defn- attributes->intermediate-backing [attributes]
-  (into {}
-        (map (fn [attribute]
-               [(vtx/attribute-name->key (:name attribute))
-                (graphics/attribute->any-values attribute)]))
-        attributes))
+            (= attribute-semantic-type :semantic-type-color)
+            (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
 
-(defn- attribute->outline-key [attribute-info]
-  (keyword (str "attribute_" (name (:name-key attribute-info)))))
+(defn- attribute-key->property-key-raw [attribute-key]
+  (keyword (str "attribute_" (name attribute-key))))
+
+(def ^:private attribute-key->property-key (memoize attribute-key->property-key-raw))
+
+(def ^:private attribute-info->property-key (comp attribute-key->property-key :name-key))
+
+(defn- editable-attribute-info? [attribute-info]
+  (case (:semantic-type attribute-info)
+    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
+    true))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
-  (let [attribute-property-keys (map attribute->outline-key material-attribute-infos)
-        attribute-properties (map (fn [attribute]
-                                    (let [attribute-values (get-attribute-values-from-node attribute vertex-attribute-overrides)
-                                          attribute-type (get-attribute-property-type attribute)
-                                          attribute-expected-value-count (get-attribute-expected-element-count attribute)
-                                          attribute-edit-type (get-attribute-edit-type attribute attribute-type)
-                                          attribute-key (:name-key attribute)
-                                          attribute-property-key (attribute->outline-key attribute)
-                                          attribute-prop {:node-id _node-id
-                                                          :type attribute-type
-                                                          :edit-type attribute-edit-type
-                                                          :value (fill-with-zeros attribute-values attribute-expected-value-count)
-                                                          :label (properties/keyword->name attribute-key)}]
-                                      ;; Insert the original material values as original-value if there is a vertex override
-                                      (if (contains? vertex-attribute-overrides attribute-key)
-                                        {attribute-property-key (assoc attribute-prop :original-value (:values attribute))}
-                                        {attribute-property-key attribute-prop})))
-                                  material-attribute-infos)]
+  (let [attribute-properties
+        (keep (fn [attribute-info]
+                (when (editable-attribute-info? attribute-info)
+                  (let [attribute-key (:name-key attribute-info)
+                        semantic-type (:semantic-type attribute-info)
+                        material-values (:values attribute-info)
+                        override-values (vertex-attribute-overrides attribute-key)
+                        attribute-values (or override-values material-values)
+                        property-type (attribute-property-type attribute-info)
+                        expected-element-count (attribute-expected-element-count attribute-info)
+                        edit-type (attribute-edit-type attribute-info property-type)
+                        property-key (attribute-key->property-key attribute-key)
+                        label (properties/keyword->name attribute-key)
+                        value (if (= g/Num property-type)
+                                (first attribute-values) ; The widget expects a number, not a vector.
+                                (graphics/resize-doubles attribute-values semantic-type expected-element-count))
+                        error (when (some? override-values)
+                                (graphics/validate-doubles override-values attribute-info _node-id property-key))
+                        prop {:node-id _node-id
+                              :type property-type
+                              :edit-type edit-type
+                              :label label
+                              :value value
+                              :error error}]
+                    ;; Insert the original material values as original-value if there is a vertex override.
+                    (if (some? override-values)
+                      [property-key (assoc prop :original-value material-values)]
+                      [property-key prop]))))
+              material-attribute-infos)]
     (-> _declared-properties
         (update :properties into attribute-properties)
-        (update :display-order into attribute-property-keys))))
+        (update :display-order into (map first) attribute-properties))))
 
-(g/defnk produce-vertex-attribute-bytes [material-attribute-infos vertex-attribute-overrides]
-  (into {}
-        (map (fn [material-attribute-info]
-               (let [name-key (:name-key material-attribute-info)
-                     bytes (if-some [override-values (get vertex-attribute-overrides name-key)]
-                             (.array (graphics/make-attribute-byte-buffer (:data-type material-attribute-info) override-values))
-                             (:bytes material-attribute-info))]
-                 [name-key bytes])))
-        material-attribute-infos))
+(g/defnk produce-vertex-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
+  (let [vertex-attribute-bytes
+        (into {}
+              (map (fn [{:keys [name-key] :as attribute-info}]
+                     (let [override-values (get vertex-attribute-overrides name-key)
+                           [bytes error] (if (nil? override-values)
+                                           [(:bytes attribute-info) (:error attribute-info)]
+                                           (let [{:keys [element-count semantic-type]} attribute-info
+                                                 resized-values (graphics/resize-doubles override-values semantic-type element-count)
+                                                 [bytes error-message :as bytes+error-message] (graphics/attribute->bytes+error-message attribute-info resized-values)]
+                                             (if (nil? error-message)
+                                               bytes+error-message
+                                               (let [property-key (attribute-key->property-key name-key)
+                                                     error (g/->error _node-id property-key :fatal override-values error-message)]
+                                                 [bytes error]))))]
+                       [name-key (or error bytes)])))
+              material-attribute-infos)]
+    (g/precluding-errors (vals vertex-attribute-bytes)
+      vertex-attribute-bytes)))
 
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
@@ -621,10 +684,6 @@
             (default {})
             (dynamic visible (g/constantly false)))
 
-  (property attributes g/Any
-            (default [])
-            (dynamic visible (g/constantly false)))
-
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any)
@@ -659,7 +718,14 @@
 
 (defn load-sprite [project self resource sprite]
   (let [image (workspace/resolve-resource resource (:tile-set sprite))
-        material (workspace/resolve-resource resource (:material sprite))]
+        material (workspace/resolve-resource resource (:material sprite))
+
+        vertex-attribute-overrides
+        (into {}
+              (map (fn [attribute]
+                     [(graphics/attribute-name->key (:name attribute))
+                      (graphics/attribute->any-doubles attribute)]))
+              (:attributes sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self :default-animation (:default-animation sprite))
@@ -671,7 +737,7 @@
       (g/set-property self :image image)
       (g/set-property self :offset (:offset sprite))
       (g/set-property self :playback-rate (:playback-rate sprite))
-      (g/set-property self :vertex-attribute-overrides (attributes->intermediate-backing (:attributes sprite))))))
+      (g/set-property self :vertex-attribute-overrides vertex-attribute-overrides))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -684,7 +750,3 @@
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
     :label "Sprite"))
-
-;; TODO(vertex-attr):
-;; * Verify editor protobuf to map conversion handles OneOf fields correctly (add tests?).
-;; * Validation for the vertex attributes, right now we allow _any_ value which will crash the engine. Should probably limit to 1..4?
