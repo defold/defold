@@ -74,7 +74,6 @@ namespace dmGameSystem
         HComponentRenderConstants   m_RenderConstants;
         TextureSetResource*         m_TextureSet;
         MaterialResource*           m_Material;
-        dmGraphics::HVertexDeclaration m_VertexDeclaration;
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
         uint32_t                    m_CurrentAnimationFrame;
@@ -83,7 +82,6 @@ namespace dmGameSystem
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
         float                       m_PlaybackRate;
-        uint16_t                    m_VertexStride;
         uint16_t                    m_ComponentIndex;
         uint16_t                    m_AnimPingPong : 1;
         uint16_t                    m_AnimBackwards : 1;
@@ -103,7 +101,6 @@ namespace dmGameSystem
         dmObjectPool<SpriteComponent>   m_Components;
         dmArray<dmRender::RenderObject*> m_RenderObjects;
         dmArray<float>                  m_BoundingVolumes;
-        dmHashTable32<dmGraphics::HVertexDeclaration> m_VertexDeclarations; // TODO: move to a central location (renderer? gamesys?)
         uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         uint8_t*                        m_VertexBufferData;
@@ -360,13 +357,6 @@ namespace dmGameSystem
         return -1;
     }
 
-    static void SetVertexDeclaration(SpriteWorld* sprite_world, SpriteComponent* component, dmGraphics::HContext graphics_context)
-    {
-        dmRender::HMaterial material   = GetMaterial(component, component->m_Resource);
-        component->m_VertexDeclaration = dmRender::GetVertexDeclaration(material);
-        component->m_VertexStride      = dmGraphics::GetVertexDeclarationStride(component->m_VertexDeclaration);
-    }
-
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -405,7 +395,6 @@ namespace dmGameSystem
         }
 
         SpriteContext* sprite_context = (SpriteContext*) params.m_Context;
-        SetVertexDeclaration(sprite_world, component, dmRender::GetGraphicsContext(sprite_context->m_RenderContext));
         PlayAnimation(component, resource->m_DefaultAnimation,
                 component->m_Resource->m_DDF->m_Offset, component->m_Resource->m_DDF->m_PlaybackRate);
 
@@ -644,7 +633,7 @@ namespace dmGameSystem
         }
     }
 
-    static void CreateVertexData(SpriteWorld* sprite_world, SpriteAttributeInfo* material_attribute_info, uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    static void CreateVertexData(SpriteWorld* sprite_world, SpriteAttributeInfo* material_attribute_info, uint32_t vertex_stride, uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("CreateVertexData");
 
@@ -677,7 +666,6 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
             uint32_t* frame_indices                             = texture_set_ddf->m_FrameIndices.m_Data;
             uint32_t* page_indices                              = texture_set_ddf->m_PageIndices.m_Data;
-            uint16_t vertex_stride                              = component->m_VertexStride;
             uint32_t sprite_attribute_count                     = component->m_Resource->m_DDF->m_Attributes.m_Count;
 
             // Fill in the custom sprite attributes (if specified), otherwise we will just use the material attributes as-is
@@ -878,7 +866,9 @@ namespace dmGameSystem
 
         dmRender::RenderObject& ro = *sprite_world->m_RenderObjects[sprite_world->m_RenderObjectsInUse++];
 
-        dmRender::HMaterial material = GetMaterial(first, resource);
+        dmRender::HMaterial material           = GetMaterial(first, resource);
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
+        uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
 
         SpriteAttributeInfo material_attribute_info;
         FillMaterialAttributeInfos(material, &material_attribute_info);
@@ -888,13 +878,13 @@ namespace dmGameSystem
         uint8_t* ib_begin = (uint8_t*)sprite_world->m_IndexBufferWritePtr;
         uint8_t* vb_iter  = vb_begin;
         uint8_t* ib_iter  = ib_begin;
-        CreateVertexData(sprite_world, &material_attribute_info, &vb_iter, &ib_iter, buf, begin, end);
+        CreateVertexData(sprite_world, &material_attribute_info, vertex_stride, &vb_iter, &ib_iter, buf, begin, end);
 
         sprite_world->m_VertexBufferWritePtr = vb_iter;
         sprite_world->m_IndexBufferWritePtr = ib_iter;
 
         ro.Init();
-        ro.m_VertexDeclaration = first->m_VertexDeclaration;
+        ro.m_VertexDeclaration = vx_decl;
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = material;
@@ -1148,9 +1138,12 @@ namespace dmGameSystem
 
             TextureSetResource* texture_set = GetTextureSet(component);
 
+            dmRender::HMaterial material           = GetMaterial(component, component->m_Resource);
+            dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
+            uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
-            uint32_t vertex_stride = component->m_VertexStride;
-            vertex_memsize        += vertex_stride - vertex_memsize % vertex_stride;
+            vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
 
             if (texture_set->m_TextureSet->m_UseGeometries != 0)
             {
@@ -1188,15 +1181,6 @@ namespace dmGameSystem
         sprite_world->m_VertexCount      = num_vertices;
         sprite_world->m_IndexCount       = num_indices;
         sprite_world->m_VertexMemorySize = vertex_memsize;
-
-        static bool did_print = false;
-
-        if (!did_print)
-        {
-            dmLogInfo("Vertex Size: %d", sprite_world->m_VertexMemorySize);
-        }
-
-        did_print = true;
     }
 
     dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
