@@ -837,8 +837,8 @@
 (defn- make-html5-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [architecture-controls (doto (VBox.)
-                                (ui/children! [(make-labeled-check-box "asm.js" "architecture-js-web-check-box" true refresh!)
-                                               (make-labeled-check-box "WebAssembly (wasm)" "architecture-wasm-web-check-box" false refresh!)]))]
+                                (ui/children! [(make-labeled-check-box "asm.js" "architecture-js-web-check-box" false refresh!)
+                                               (make-labeled-check-box "WebAssembly (wasm)" "architecture-wasm-web-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "html5")
@@ -846,8 +846,8 @@
 
 (defn- load-html5-prefs! [prefs view]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
-    (ui/value! architecture-js-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-js-web?" true))
-    (ui/value! architecture-wasm-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-wasm-web?" false))))
+    (ui/value! architecture-js-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-js-web?" false))
+    (ui/value! architecture-wasm-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-wasm-web?" true))))
 
 (defn- save-html5-prefs! [prefs view]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
