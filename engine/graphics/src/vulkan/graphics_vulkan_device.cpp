@@ -17,8 +17,6 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
-#include <dlib/log.h> // REMOVE
-
 namespace dmGraphics
 {
     void InitializeVulkanTexture(Texture* t)
@@ -916,8 +914,6 @@ bail:
 
         VkVertexInputBindingDescription vk_vx_input_description;
         memset(&vk_vx_input_description, 0, sizeof(vk_vx_input_description));
-
-        uint32_t stride = vertexDeclaration->m_Stride;
 
         vk_vx_input_description.binding   = 0;
         vk_vx_input_description.stride    = vertexDeclaration->m_Stride;
