@@ -3,34 +3,92 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_EXTENSION
-#define DMSDK_EXTENSION
+#ifndef DMSDK_EXTENSION_H
+#define DMSDK_EXTENSION_H
 
-#include <string.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
 
-extern "C"
-{
+#if defined(__cplusplus)
+extern "C" {
+#endif
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
+#if defined(__cplusplus)
 }
+#endif
 
 
-namespace dmWebServer
+// C API
+typedef enum dmExtensionResult
 {
-    typedef struct Server* HServer;
-}
+    RESULT_OK = 0,
+    RESULT_INIT_ERROR = -1,
+} dmExtensionResult;
 
+typedef enum dmExtensionEventID
+{
+    EVENT_ID_ACTIVATEAPP,
+    EVENT_ID_DEACTIVATEAPP,
+    EVENT_ID_ICONIFYAPP,
+    EVENT_ID_DEICONIFYAPP,
+} dmExtensionEventID;
+
+typedef enum dmExtensionCallbackType
+{
+    CALLBACK_PRE_RENDER,
+    CALLBACK_POST_RENDER,
+} dmExtensionCallbackType;
+
+
+typedef struct dmExtensionAppParams
+{
+    dmConfigFileHConfig   m_ConfigFile; // here for backwards compatibility
+} dmExtensionAppParams;
+
+void dmExtensionAppParams_Init(dmExtensionAppParams* params);
+
+typedef struct dmExtensionParams
+{
+    dmConfigFileHConfig     m_ConfigFile;
+    lua_State*              m_L;
+} dmExtensionParams;
+
+void dmExtensionParams_Init(struct dmExtensionParams* params);
+
+typedef struct dmExtensionEvent
+{
+    enum dmExtensionEventID m_Event;
+} dmExtensionEvent;
+
+struct dmExtensionDesc;
+
+void dmExtensionRegister(struct dmExtensionDesc* desc,
+    uint32_t desc_size,
+    const char *name,
+    dmExtensionResult (*app_init)(dmExtensionAppParams*),
+    dmExtensionResult (*app_finalize)(dmExtensionAppParams*),
+    dmExtensionResult (*initialize)(dmExtensionParams*),
+    dmExtensionResult (*finalize)(dmExtensionParams*),
+    dmExtensionResult (*update)(dmExtensionParams*),
+    void              (*on_event)(dmExtensionParams*, const dmExtensionEvent*)
+);
+
+typedef dmExtensionResult (*dmExtensionFCallback)(dmExtensionParams* params);
+
+int dmExtensionRegisterCallback(dmExtensionCallbackType callback_type, dmExtensionFCallback func);
+
+
+#if defined(__cplusplus)
 namespace dmExtension
 {
     /*# SDK Extension API documentation
@@ -43,6 +101,8 @@ namespace dmExtension
      * @path engine/dlib/src/dmsdk/extension/extension.h
      */
 
+    #define DM_ENUM_COPY(_ENUM, _NAME)  _NAME = _ENUM :: _NAME
+
     /*# result enumeration
      *
      * Result enumeration.
@@ -53,10 +113,11 @@ namespace dmExtension
      * @member dmExtension::RESULT_INIT_ERROR
      *
      */
+    //typedef dmExtensionResult Result;
     enum Result
     {
-        RESULT_OK = 0,
-        RESULT_INIT_ERROR = -1,
+        DM_ENUM_COPY(dmExtensionResult, RESULT_OK),
+        DM_ENUM_COPY(dmExtensionResult, RESULT_INIT_ERROR),
     };
 
     /*# application level callback data
@@ -69,14 +130,14 @@ namespace dmExtension
      * @struct
      * @name dmExtension::AppParams
      * @member m_ConfigFile [type:dmConfigFile::HConfig]
-     * @member m_WebServer [type:dmWebServer::HServer] Only valid in debug builds, where the engine service is running. 0 otherwise.
      *
      */
-    struct AppParams
-    {
-        AppParams();
-        dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
-    };
+    typedef dmExtensionAppParams AppParams;
+    // struct AppParams
+    // {
+    //     AppParams();
+    //     dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
+    // };
 
     /*# extension level callback data
      *
@@ -89,12 +150,13 @@ namespace dmExtension
      * @member m_L [type:lua_State*]
      *
      */
-    struct Params
-    {
-        Params();
-        dmConfigFile::HConfig   m_ConfigFile;
-        lua_State*              m_L;
-    };
+    typedef dmExtensionParams Params;
+    // struct Params
+    // {
+    //     Params();
+    //     dmConfigFile::HConfig   m_ConfigFile;
+    //     lua_State*              m_L;
+    // };
 
     /*# event id enumeration
      *
@@ -112,10 +174,10 @@ namespace dmExtension
      */
     enum EventID
     {
-        EVENT_ID_ACTIVATEAPP,
-        EVENT_ID_DEACTIVATEAPP,
-        EVENT_ID_ICONIFYAPP,
-        EVENT_ID_DEICONIFYAPP,
+        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_ACTIVATEAPP),
+        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_DEACTIVATEAPP),
+        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_ICONIFYAPP),
+        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_DEICONIFYAPP),
     };
 
     /*# extra callback enumeration
@@ -130,8 +192,8 @@ namespace dmExtension
      */
     enum CallbackType
     {
-        CALLBACK_PRE_RENDER,
-        CALLBACK_POST_RENDER,
+        DM_ENUM_COPY(dmExtensionCallbackType, CALLBACK_PRE_RENDER),
+        DM_ENUM_COPY(dmExtensionCallbackType, CALLBACK_POST_RENDER),
     };
 
     /*# event callback data
@@ -340,7 +402,14 @@ namespace dmExtension
      * @param delegate an id<UIApplicationDelegate>
      */
     void UnregisteriOSUIApplicationDelegate(void* delegate);
+
+    #undef DM_ENUM_COPY
 }
+
+#endif // __cplusplus
+
+
+
 
 /*# Set if the platform is iPhoneOS [icon:ios]
  *
@@ -397,4 +466,4 @@ namespace dmExtension
  */
 
 
-#endif // #ifndef DMSDK_EXTENSION
+#endif // #ifndef DMSDK_EXTENSION_H

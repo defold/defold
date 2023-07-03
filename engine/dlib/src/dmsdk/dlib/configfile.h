@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,9 @@
 
 #include <stdint.h>
 
+typedef struct dmConfigFileConfig* dmConfigFileHConfig;
+
+#if defined(__cplusplus)
 namespace dmConfigFile
 {
     /*# SDK ConfigFile API documentation
@@ -39,7 +42,7 @@ namespace dmConfigFile
      * @typedef
      * @name dmConfigFile::HConfig
      */
-    typedef struct Config* HConfig;
+    typedef dmConfigFileHConfig HConfig;
 
     /*# get config value as string
      *
@@ -181,5 +184,7 @@ namespace dmConfigFile
         DM_REGISTER_CONFIGFILE_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)), name, create, destroy, get_string, get_int, get_float);
 
 }
+
+#endif // __cplusplus
 
 #endif // DMSDK_CONFIGFILE_H

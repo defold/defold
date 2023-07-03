@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,6 +30,21 @@
 #include "sys.h"
 #include "static_assert.h"
 
+struct dmConfigFileEntry
+{
+    uint64_t m_Key;
+    uint32_t m_ValueIndex;
+    dmConfigFileEntry(uint64_t k, uint32_t i) :
+        m_Key(k), m_ValueIndex(i)
+    {
+    }
+};
+
+struct dmConfigFileConfig
+{
+    dmArray<dmConfigFileEntry>  m_Entries;
+    dmArray<char>               m_StringBuffer;
+};
 namespace dmConfigFile
 {
     struct PluginDesc
@@ -74,22 +89,6 @@ namespace dmConfigFile
 
     const int32_t CATEGORY_MAX_SIZE = 512;
 
-    struct Entry
-    {
-        uint64_t m_Key;
-        uint32_t m_ValueIndex;
-        Entry(uint64_t k, uint32_t i) :
-            m_Key(k), m_ValueIndex(i)
-        {
-        }
-    };
-
-    struct Config
-    {
-        dmArray<Entry> m_Entries;
-        dmArray<char>  m_StringBuffer;
-    };
-
     struct Context
     {
         Context()
@@ -106,8 +105,8 @@ namespace dmConfigFile
         char            m_CategoryBuffer[CATEGORY_MAX_SIZE];
         uint32_t        m_Line;
 
-        dmArray<Entry>  m_Entries;
-        dmArray<char>   m_StringBuffer;
+        dmArray<dmConfigFileEntry>  m_Entries;
+        dmArray<char>               m_StringBuffer;
     };
 
     void ParseError(Context* context, Result result)
@@ -236,11 +235,11 @@ namespace dmConfigFile
         return s;
     }
 
-    static bool ContainsKey(const dmArray<Entry>& entries, uint64_t key_hash)
+    static bool ContainsKey(const dmArray<dmConfigFileEntry>& entries, uint64_t key_hash)
     {
         for (uint32_t i = 0; i < entries.Size(); ++i)
         {
-            const Entry*e = &entries[i];
+            const dmConfigFileEntry*e = &entries[i];
             if (e->m_Key == key_hash)
             {
                 return true;
@@ -264,7 +263,7 @@ namespace dmConfigFile
         {
             context->m_Entries.OffsetCapacity(32);
         }
-        context->m_Entries.Push(Entry(key_hash, i));
+        context->m_Entries.Push(dmConfigFileEntry(key_hash, i));
     }
 
     static void AddEntryWithHashedKey(Context* context, uint64_t key_hash, const char* value)
@@ -274,7 +273,7 @@ namespace dmConfigFile
         {
             context->m_Entries.OffsetCapacity(32);
         }
-        context->m_Entries.Push(Entry(key_hash, i));
+        context->m_Entries.Push(dmConfigFileEntry(key_hash, i));
     }
 
     static void ParseLiteral(Context* context, char* buf, int buf_len)
@@ -473,7 +472,7 @@ namespace dmConfigFile
                 }
             }
 
-            Config* c = new Config();
+            dmConfigFileConfig* c = new dmConfigFileConfig();
 
             if (context.m_Entries.Size() > 0)
             {
@@ -675,7 +674,7 @@ namespace dmConfigFile
         uint64_t key_hash = dmHashString64(key);
         for (uint32_t i = 0; i < config->m_Entries.Size(); ++i)
         {
-            const Entry*e = &config->m_Entries[i];
+            const dmConfigFileEntry*e = &config->m_Entries[i];
             if (e->m_Key == key_hash)
             {
                 return &config->m_StringBuffer[e->m_ValueIndex];
