@@ -1112,7 +1112,8 @@ namespace dmGameSystem
         uint32_t num_indices     = 0;
         uint32_t vertex_memsize  = 0;
 
-        for (uint32_t i = 0; i < components.Size(); ++i)
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* component = &components[i];
             if (!component->m_Enabled || !component->m_AddedToUpdate)

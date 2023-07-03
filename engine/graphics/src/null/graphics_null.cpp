@@ -867,6 +867,9 @@ namespace dmGraphics
 
     static uint32_t NullGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
+        // TODO: We don't take alignment into account here. It is assumed to be tightly packed
+        //       as opposed to other graphic adapters which requires a 4 byte minumum alignment per stream.
+        //       Might need some investigation on impact, or adjustment in the future..
         uint32_t stride = 0;
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
