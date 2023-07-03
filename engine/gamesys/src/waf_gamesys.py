@@ -667,3 +667,20 @@ def tileset_file(self, node):
     obj_ext = '.t.texturesetc'
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
+
+waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.material')
+def tileset_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    material = self.create_task('material')
+    material.env['CLASSPATH'] = os.pathsep.join(classpath)
+    material.set_inputs(node)
+    obj_ext = '.materialc'
+    out = node.change_ext(obj_ext)
+    material.set_outputs(out)
+

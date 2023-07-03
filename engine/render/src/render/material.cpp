@@ -134,7 +134,7 @@ namespace dmRender
 
             num_attribute_byte_size += dmGraphics::GetTypeSize(base_type) * element_count;
 
-        #if 0 // Debugging
+        #if 1 // Debugging
             dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
             dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d, valueIndex: %d",
                 (int) type, element_count, num_values, location, material_attribute.m_ValueIndex);
@@ -538,7 +538,7 @@ namespace dmRender
         return material->m_FragmentProgram;
     }
 
-    int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
+    static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
     {
         dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
         for (int i = 0; i < attributes.Size(); ++i)
@@ -645,6 +645,8 @@ namespace dmRender
             return;
         }
 
+        bool update_attributes = false;
+
         for (int i = 0; i < attributes_count; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute_in = attributes[i];
@@ -660,6 +662,14 @@ namespace dmRender
             graphics_attribute.m_ElementCount               = graphics_attribute_in.m_ElementCount;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
             graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
+
+            update_attributes = true;
+        }
+
+        // If the incoming attributes don't match any of the attributes from the shader, we don't need to do anything more
+        if (!update_attributes)
+        {
+            return;
         }
 
         // Need to readjust value indices since the layout could have changed

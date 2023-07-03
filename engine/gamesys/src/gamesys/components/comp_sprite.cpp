@@ -445,14 +445,12 @@ namespace dmGameSystem
         uint32_t material_attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
 
-        infos->m_NumInfos = 0;
-        for (int i = 0; i < dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT); ++i)
+        infos->m_NumInfos = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        for (int i = 0; i < infos->m_NumInfos; ++i)
         {
-            SpriteAttributeInfo::Info& info = infos->m_Infos[infos->m_NumInfos];
-
-            info.m_Attribute = material_attributes + i;
+            SpriteAttributeInfo::Info& info = infos->m_Infos[i];
+            info.m_Attribute                = material_attributes + i;
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
-            infos->m_NumInfos++;
         }
     }
 
@@ -487,7 +485,9 @@ namespace dmGameSystem
                     memcpy(vertices_write_ptr, &page_index, info->m_ValueByteSize);
                 } break;
                 default:
+                {
                     memcpy(vertices_write_ptr, info->m_ValuePtr, info->m_ValueByteSize);
+                } break;
             }
 
             vertices_write_ptr += info->m_ValueByteSize;
@@ -653,7 +653,7 @@ namespace dmGameSystem
             uint32_t* page_indices                              = texture_set_ddf->m_PageIndices.m_Data;
             uint32_t sprite_attribute_count                     = component->m_Resource->m_DDF->m_Attributes.m_Count;
 
-            // Fill in the custom sprite attributes (if specified), otherwise we will just use the material attributes as-is
+            // Fill in the custom sprite attributes (if specified), otherwise fallck to use the material attributes
             SpriteAttributeInfo* sprite_attribute_info_ptr = material_attribute_info;
             if (sprite_attribute_count > 0)
             {
@@ -1225,7 +1225,6 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
                     uint32_t vertex_data_size = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
-                    // uint32_t vertex_size = ; // sizeof(SpriteVertex) * vertex_count;
 
                     if (vertex_data_size)
                     {
