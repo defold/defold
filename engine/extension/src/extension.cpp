@@ -26,15 +26,15 @@ void dmExtensionParams_Init(dmExtensionParams* params)
     memset(params, 0, sizeof(*params));
 }
 
-void Register(struct dmExtensionDesc* desc,
+void dmExtensionRegister(struct dmExtensionDesc* desc,
     uint32_t desc_size,
     const char *name,
-    dmExtensionResult (*app_init)(dmExtensionAppParams*),
-    dmExtensionResult (*app_finalize)(dmExtensionAppParams*),
-    dmExtensionResult (*initialize)(dmExtensionParams*),
-    dmExtensionResult (*finalize)(dmExtensionParams*),
-    dmExtensionResult (*update)(dmExtensionParams*),
-    void              (*on_event)(dmExtensionParams*, const dmExtensionEvent*))
+    FExtensionAppInit       app_init,
+    FExtensionAppFinalize   app_finalize,
+    FExtensionInitialize    initialize,
+    FExtensionFinalize      finalize,
+    FExtensionUpdate        update,
+    FExtensionOnEvent       on_event)
 {
     DM_STATIC_ASSERT(dmExtension::m_ExtensionDescBufferSize >= sizeof(dmExtensionDesc), Invalid_Struct_Size);
 

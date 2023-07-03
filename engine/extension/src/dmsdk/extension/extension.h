@@ -72,16 +72,22 @@ typedef struct dmExtensionEvent
 
 struct dmExtensionDesc;
 
+typedef dmExtensionResult (*FExtensionAppInit)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionAppFinalize)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionInitialize)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionFinalize)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionUpdate)(dmExtensionAppParams*);
+typedef void              (*FExtensionOnEvent)(dmExtensionParams*, const dmExtensionEvent*);
+
 void dmExtensionRegister(struct dmExtensionDesc* desc,
     uint32_t desc_size,
     const char *name,
-    dmExtensionResult (*app_init)(dmExtensionAppParams*),
-    dmExtensionResult (*app_finalize)(dmExtensionAppParams*),
-    dmExtensionResult (*initialize)(dmExtensionParams*),
-    dmExtensionResult (*finalize)(dmExtensionParams*),
-    dmExtensionResult (*update)(dmExtensionParams*),
-    void              (*on_event)(dmExtensionParams*, const dmExtensionEvent*)
-);
+    FExtensionAppInit       app_init,
+    FExtensionAppFinalize   app_finalize,
+    FExtensionInitialize    initialize,
+    FExtensionFinalize      finalize,
+    FExtensionUpdate        update,
+    FExtensionOnEvent       on_event);
 
 typedef dmExtensionResult (*dmExtensionFCallback)(dmExtensionParams* params);
 
@@ -265,11 +271,23 @@ namespace dmExtension
         // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
         // The bug only happens when the symbol is in a static library though
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
-            dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
+            dmExtensionRegister((dmExtensionDesc*) &desc, desc_size, name, \
+                            (FExtensionAppInit)app_init, \
+                            (FExtensionAppFinalize)app_final, \
+                            (FExtensionInitialize)init, \
+                            (FExtensionFinalize)final, \
+                            (FExtensionUpdate)update, \
+                            (FExtensionOnEvent)on_event); \
         }
     #else
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
-            dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
+            dmExtensionRegister((dmExtensionDesc*) &desc, desc_size, name,  \
+                            (FExtensionAppInit)app_init, \
+                            (FExtensionAppFinalize)app_final, \
+                            (FExtensionInitialize)init, \
+                            (FExtensionFinalize)final, \
+                            (FExtensionUpdate)update, \
+                            (FExtensionOnEvent)on_event); \
             }\
             int symbol ## Wrapper(void) { symbol(); return 0; } \
             __pragma(section(".CRT$XCU",read)) \
