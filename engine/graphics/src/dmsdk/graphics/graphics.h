@@ -338,6 +338,10 @@ namespace dmGraphics
      * @member TYPE_SAMPLER_2D
      * @member TYPE_SAMPLER_CUBE
      * @member TYPE_SAMPLER_2D_ARRAY
+     * @member TYPE_FLOAT_VEC2
+     * @member TYPE_FLOAT_VEC3
+     * @member TYPE_FLOAT_MAT2
+     * @member TYPE_FLOAT_MAT3
      */
     enum Type
     {
