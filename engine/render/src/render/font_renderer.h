@@ -56,6 +56,7 @@ namespace dmRender
         uint32_t    m_Frame;
     };
 
+    /*
     struct DM_ALIGNED(16) GlyphVertex
     {
         // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
@@ -67,6 +68,7 @@ namespace dmRender
         float m_SdfParams[4];
         float m_LayerMasks[3];
     };
+    */
 
     /**
      * Font map parameters supplied to NewFontMap

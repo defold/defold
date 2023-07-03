@@ -166,7 +166,11 @@ namespace dmRender
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         void*                               m_ClientBuffer;
-        dmGraphics::HVertexDeclaration      m_VertexDecl;
+        // dmGraphics::HVertexDeclaration      m_VertexDecl;
+
+        uint32_t                            m_VertexBufferDataEnd;
+        uint32_t                            m_MaxBufferSize;
+
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;

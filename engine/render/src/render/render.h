@@ -32,6 +32,18 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
+    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
+
+    // Font streams
+    static const dmhash_t VERTEX_STREAM_FACE_COLOR    = dmHashString64("face_color");
+    static const dmhash_t VERTEX_STREAM_OUTLINE_COLOR = dmHashString64("outline_color");
+    static const dmhash_t VERTEX_STREAM_SHADOW_COLOR  = dmHashString64("shadow_color");
+    static const dmhash_t VERTEX_STREAM_SDF_PARAMS    = dmHashString64("sdf_params");
+    static const dmhash_t VERTEX_STREAM_LAYER_MASK    = dmHashString64("layer_mask");
+
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
     typedef uint64_t                        HSampler;

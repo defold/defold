@@ -167,6 +167,30 @@ namespace dmRender
         uint8_t                 m_LayerMask;
     };
 
+    struct AttributeInfo
+    {
+        struct Info
+        {
+            const dmGraphics::VertexAttribute* m_Attribute;
+            const uint8_t*                     m_ValuePtr;
+            uint32_t                           m_ValueByteSize;
+        } m_Infos[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+
+        uint8_t m_NumInfos;
+    };
+
+    struct DM_ALIGNED(16) GlyphVertexDefault
+    {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
+        float m_Position[4];
+        float m_UV[2];
+        float m_FaceColor[4];
+        float m_OutlineColor[4];
+        float m_ShadowColor[4];
+        float m_SdfParams[4];
+        float m_LayerMasks[3];
+    };
+
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
 
     static void InitFontmap(FontMapParams& params, dmGraphics::TextureParams& tex_params, uint8_t init_val)
@@ -197,6 +221,21 @@ namespace dmRender
         }
 
         return filter;
+    }
+
+    static void FillMaterialAttributeInfos(dmRender::HMaterial material, AttributeInfo* infos)
+    {
+        const dmGraphics::VertexAttribute* material_attributes;
+        uint32_t material_attributes_count;
+        dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
+
+        infos->m_NumInfos = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        for (int i = 0; i < infos->m_NumInfos; ++i)
+        {
+            AttributeInfo::Info& info = infos->m_Infos[i];
+            info.m_Attribute          = material_attributes + i;
+            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+        }
     }
 
     HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
@@ -404,26 +443,32 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
     {
-        DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
+        // DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
         DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
 
         TextContext& text_context = render_context->m_TextContext;
 
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
-        uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_MaxVertexCount;
+        uint32_t buffer_size = sizeof(GlyphVertexDefault) * text_context.m_MaxVertexCount;
         text_context.m_ClientBuffer = 0x0;
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
         text_context.m_Frame = 0;
         text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
+        text_context.m_VertexBufferDataEnd = 0;
+        text_context.m_MaxBufferSize = 0; // buffer_size;
 
+        /*
         dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
-        if (r != dmMemory::RESULT_OK) {
+        if (r != dmMemory::RESULT_OK)
+        {
             dmLogError("Could not allocate text vertex buffer of size %u (%d).", buffer_size, r);
             return;
         }
+        */
 
+        /*
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(render_context->m_GraphicsContext);
         dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
@@ -434,9 +479,11 @@ namespace dmRender
         dmGraphics::AddVertexStream(stream_declaration, "layer_mask", 3, dmGraphics::TYPE_FLOAT, false);
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, stream_declaration, sizeof(GlyphVertex));
+        */
+
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+        // dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
         // Arbitrary number
         const uint32_t max_batches = 128;
@@ -456,8 +503,9 @@ namespace dmRender
             ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             ro.m_SetBlendFactors = 1;
             ro.m_VertexBuffer = text_context.m_VertexBuffer;
-            ro.m_VertexDeclaration = text_context.m_VertexDecl;
+            // ro.m_VertexDeclaration = text_context.m_VertexDecl;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+
             text_context.m_RenderObjects.Push(ro);
             text_context.m_ConstantBuffers.Push(dmRender::NewNamedConstantBuffer());
         }
@@ -472,7 +520,7 @@ namespace dmRender
         }
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
-        dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
+        // dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
 
     DrawTextParams::DrawTextParams()
@@ -570,6 +618,22 @@ namespace dmRender
         text_context->m_TextBuffer.Push('\0');
 
         material = material ? material : GetFontMapMaterial(font_map);
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
+        uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
+        uint32_t max_default_byte_size = vertex_stride * text_context->m_MaxVertexCount;
+        if (max_default_byte_size > text_context->m_MaxBufferSize)
+        {
+            dmMemory::AlignedFree(text_context->m_ClientBuffer);
+            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context->m_ClientBuffer, 16, max_default_byte_size);
+            if (r != dmMemory::RESULT_OK)
+            {
+                dmLogError("Could not allocate text vertex buffer of size %u (%d).", max_default_byte_size, r);
+                return;
+            }
+            text_context->m_MaxBufferSize = max_default_byte_size;
+        }
+
         TextEntry te;
         te.m_Transform = params.m_WorldTransform;
         te.m_StringOffset = offset;
@@ -722,7 +786,54 @@ namespace dmRender
         }
     }
 
-    static int CreateFontVertexDataInternal(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, GlyphVertex* vertices, uint32_t num_vertices)
+    static void WriteTextVertex(uint8_t* vertex_write_ptr, const AttributeInfo& attributes, const GlyphVertexDefault& vertex)
+    {
+        for (int i = 0; i < attributes.m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttribute* vertex_attribute = attributes.m_Infos[i].m_Attribute;
+            const uint8_t* value_ptr = attributes.m_Infos[i].m_ValuePtr;
+            uint32_t value_byte_size = attributes.m_Infos[i].m_ValueByteSize;
+
+            dmhash_t name_hash = vertex_attribute->m_NameHash;
+
+            if (name_hash == VERTEX_STREAM_POSITION)
+            {
+                memcpy(vertex_write_ptr, vertex.m_Position, value_byte_size);
+            }
+            else if (name_hash == VERTEX_STREAM_TEXCOORD0)
+            {
+                memcpy(vertex_write_ptr, vertex.m_UV, value_byte_size);
+            }
+            else if (name_hash == VERTEX_STREAM_FACE_COLOR)
+            {
+                memcpy(vertex_write_ptr, vertex.m_FaceColor, value_byte_size);
+            }
+            else if (name_hash == VERTEX_STREAM_OUTLINE_COLOR)
+            {
+                memcpy(vertex_write_ptr, vertex.m_OutlineColor, value_byte_size);
+            }
+            else if (name_hash == VERTEX_STREAM_SHADOW_COLOR)
+            {
+                memcpy(vertex_write_ptr, vertex.m_ShadowColor, value_byte_size);
+            }
+            else if (name_hash == VERTEX_STREAM_SDF_PARAMS)
+            {
+                memcpy(vertex_write_ptr, vertex.m_SdfParams, value_byte_size);
+            }
+            else if (name_hash == VERTEX_STREAM_LAYER_MASK)
+            {
+                memcpy(vertex_write_ptr, vertex.m_LayerMasks, value_byte_size);
+            }
+            else
+            {
+                memcpy(vertex_write_ptr, value_ptr, value_byte_size);
+            }
+
+            vertex_write_ptr += value_byte_size;
+        }
+    }
+
+    static int CreateFontVertexDataInternal(TextContext& text_context, HFontMap font_map, const AttributeInfo& attributes, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices, uint32_t vertex_stride)
     {
         float width = te.m_Width;
         if (!te.m_LineBreak) {
@@ -762,6 +873,8 @@ namespace dmRender
         float sdf_shadow  = font_map->m_SdfShadow;
         // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
         float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
+
+        dmVMath::Vector4 sdf_params(sdf_edge_value, sdf_outline, sdf_smoothing, sdf_shadow);
 
         uint32_t vertexindex        = 0;
         uint32_t valid_glyph_count  = 0;
@@ -870,22 +983,24 @@ namespace dmRender
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                     int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - ascent;
 
-                    if (!g->m_InCache) {
+                    if (!g->m_InCache)
+                    {
                         AddGlyphToCache(font_map, text_context, g, px_cell_offset_y);
                     }
 
-                    if (g->m_InCache) {
+                    if (g->m_InCache)
+                    {
                         g->m_Frame = text_context.m_Frame;
 
                         uint32_t face_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
 
                         // Set face vertices first, this will always hold since we can't have less than 1 layer
-                        GlyphVertex& v1_layer_face = vertices[face_index];
-                        GlyphVertex& v2_layer_face = vertices[face_index + 1];
-                        GlyphVertex& v3_layer_face = vertices[face_index + 2];
-                        GlyphVertex& v4_layer_face = vertices[face_index + 3];
-                        GlyphVertex& v5_layer_face = vertices[face_index + 4];
-                        GlyphVertex& v6_layer_face = vertices[face_index + 5];
+                        GlyphVertexDefault v1_layer_face; // = vertices[face_index];
+                        GlyphVertexDefault v2_layer_face; // = vertices[face_index + 1];
+                        GlyphVertexDefault v3_layer_face; // = vertices[face_index + 2];
+                        GlyphVertexDefault v4_layer_face; // = vertices[face_index + 3];
+                        GlyphVertexDefault v5_layer_face; // = vertices[face_index + 4];
+                        GlyphVertexDefault v6_layer_face; // = vertices[face_index + 5];
 
                         (Vector4&) v1_layer_face.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
                         (Vector4&) v2_layer_face.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
@@ -933,14 +1048,15 @@ namespace dmRender
 
                         #undef SET_VERTEX_FONT_PROPERTIES
 
-                        v4_layer_face = v3_layer_face;
-                        v5_layer_face = v2_layer_face;
+                        // v4_layer_face = v3_layer_face;
+                        // v5_layer_face = v2_layer_face;
 
                         #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
                             v.m_LayerMasks[0] = f; \
                             v.m_LayerMasks[1] = o; \
                             v.m_LayerMasks[2] = s;
 
+                        /*
                         // Set outline vertices
                         if (HAS_LAYER(layer_mask,OUTLINE))
                         {
@@ -967,7 +1083,9 @@ namespace dmRender
                             SET_VERTEX_LAYER_MASK(v5_layer_outline,0,1,0)
                             SET_VERTEX_LAYER_MASK(v6_layer_outline,0,1,0)
                         }
+                        */
 
+                        /*
                         // Set shadow vertices
                         if (HAS_LAYER(layer_mask,SHADOW))
                         {
@@ -1003,20 +1121,36 @@ namespace dmRender
                             SET_VERTEX_LAYER_MASK(v5_layer_shadow,0,0,1)
                             SET_VERTEX_LAYER_MASK(v6_layer_shadow,0,0,1)
                         }
+                        */
 
                         // If we only have one layer, we need to set the mask to (1,1,1)
                         // so that we can use the same calculations for both single and multi.
                         // The mask is set last for layer 1 since we copy the vertices to
                         // all other layers to avoid re-calculating their data.
                         uint8_t is_one_layer = layer_count > 1 ? 0 : 1;
-                        SET_VERTEX_LAYER_MASK(v1_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v2_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v3_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v4_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v5_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v6_layer_face,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v1_layer_face, 1, is_one_layer, is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v2_layer_face, 1, is_one_layer, is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v3_layer_face, 1, is_one_layer, is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v4_layer_face, 1, is_one_layer, is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v5_layer_face, 1, is_one_layer, is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v6_layer_face, 1, is_one_layer, is_one_layer)
 
                         #undef SET_VERTEX_LAYER_MASK
+
+                        uint8_t* v1_vertex_ptr = vertices + face_index * vertex_stride;
+                        uint8_t* v2_vertex_ptr = vertices + (face_index + 1) * vertex_stride;
+                        uint8_t* v3_vertex_ptr = vertices + (face_index + 2) * vertex_stride;
+                        uint8_t* v4_vertex_ptr = vertices + (face_index + 3) * vertex_stride;
+                        uint8_t* v5_vertex_ptr = vertices + (face_index + 4) * vertex_stride;
+                        uint8_t* v6_vertex_ptr = vertices + (face_index + 5) * vertex_stride;
+
+                        WriteTextVertex(v1_vertex_ptr, attributes, v1_layer_face);
+                        WriteTextVertex(v2_vertex_ptr, attributes, v2_layer_face);
+                        WriteTextVertex(v3_vertex_ptr, attributes, v3_layer_face);
+                        WriteTextVertex(v6_vertex_ptr, attributes, v6_layer_face);
+
+                        memcpy(v4_vertex_ptr, v3_vertex_ptr, vertex_stride);
+                        memcpy(v5_vertex_ptr, v2_vertex_ptr, vertex_stride);
 
                         vertexindex += vertices_per_quad;
                     }
@@ -1054,11 +1188,27 @@ namespace dmRender
             cache_cell_height_ratio = ((float) font_map->m_CacheCellHeight) / cache_height;
         }
 
-        GlyphVertex* vertices = (GlyphVertex*)text_context.m_ClientBuffer;
+        uint8_t* vertices = (uint8_t*) text_context.m_ClientBuffer;
 
         if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size()) {
             dmLogWarning("Fontrenderer: Render object count reached limit (%d)", text_context.m_RenderObjectIndex);
             return;
+        }
+
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(first_te.m_Material);
+        uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
+        AttributeInfo material_attributes;
+        FillMaterialAttributeInfos(first_te.m_Material, &material_attributes);
+
+        uint8_t* write_ptr = vertices + text_context.m_VertexBufferDataEnd;
+        const uint32_t vb_buffer_offset = text_context.m_VertexBufferDataEnd;
+        uint32_t vertex_offset = vb_buffer_offset / vertex_stride;
+
+        if (vb_buffer_offset % vertex_stride != 0)
+        {
+            write_ptr                          = vertices + vertex_offset * vertex_stride;
+            text_context.m_VertexBufferDataEnd = vertex_offset * vertex_stride;
         }
 
         dmRender::HNamedConstantBuffer constants_buffer = text_context.m_ConstantBuffers[text_context.m_RenderObjectIndex];
@@ -1070,9 +1220,10 @@ namespace dmRender
         ro->m_SetBlendFactors = 1;
         ro->m_Material = first_te.m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
-        ro->m_VertexStart = text_context.m_VertexIndex;
+        ro->m_VertexStart = vertex_offset;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
+        ro->m_VertexDeclaration = vx_decl;
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
 
@@ -1082,16 +1233,26 @@ namespace dmRender
 
         ro->m_ConstantBuffer = constants_buffer;
 
+        uint32_t vertex_count = 0;
+
         for (uint32_t *i = begin;i != end; ++i)
         {
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-            int num_indices = CreateFontVertexDataInternal(text_context, font_map, text, te, im_recip, ih_recip, &vertices[text_context.m_VertexIndex], text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            int num_indices = CreateFontVertexDataInternal(text_context, font_map, material_attributes,
+                text, te, im_recip, ih_recip, write_ptr,
+                text_context.m_MaxVertexCount - text_context.m_VertexIndex, vertex_stride);
             text_context.m_VertexIndex += num_indices;
+
+            vertex_count += num_indices;
+
+            write_ptr += vertex_stride;
         }
 
-        ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
+        ro->m_VertexCount = vertex_count;
+
+        text_context.m_VertexBufferDataEnd += vertex_stride * ro->m_VertexCount;
 
         dmRender::AddToRender(render_context, ro);
     }
@@ -1108,15 +1269,16 @@ namespace dmRender
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
-                    uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                    uint32_t buffer_size = text_context.m_VertexBufferDataEnd; // sizeof(GlyphVertex) * text_context.m_VertexIndex;
+
+                    // dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
                     uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
                     DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
-                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, num_vertices * sizeof(GlyphVertex));
+                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, buffer_size);
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:
@@ -1163,6 +1325,7 @@ namespace dmRender
                 text_context.m_VertexIndex = 0;
                 text_context.m_VerticesFlushed = 0;
                 text_context.m_TextEntriesFlushed = 0;
+                text_context.m_VertexBufferDataEnd = 0;
             }
 
             uint32_t count = text_context.m_TextEntries.Size() - text_context.m_TextEntriesFlushed;
