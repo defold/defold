@@ -143,6 +143,7 @@
 
   :protobuf-includes ["../engine/gameobject/proto"
                       "../engine/gamesys/proto"
+                      "../engine/graphics/proto"
                       "../engine/ddf/src"
                       "../engine/script/src"
                       ~(str (System/getenv "DYNAMO_HOME") "/ext/include")]

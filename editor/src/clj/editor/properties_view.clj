@@ -290,9 +290,14 @@
                         (ui/editable! color-picker (not read-only?)))]
 
     (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
-                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]
+                                              v        [(math/round-with-precision (.getRed c) 0.001)
+                                                        (math/round-with-precision (.getGreen c) 0.001)
+                                                        (math/round-with-precision (.getBlue c) 0.001)
+                                                        (math/round-with-precision (.getOpacity c) 0.001)]
                                               values (if (:ignore-alpha? edit-type)
-                                                       (map #(assoc %1 3 %2) (repeat v) (map last (properties/values (property-fn))))
+                                                       (mapv #(assoc %1 3 %2)
+                                                             (repeat v)
+                                                             (map last (properties/values (property-fn))))
                                                        (repeat v))]
                                           (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))

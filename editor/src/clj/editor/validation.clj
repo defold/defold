@@ -87,7 +87,7 @@
                "'%s' must be between %d and %d"
                "'%s' must be between %f and %f")]
     (when (not (<= min v max))
-      (format tmpl name min max))))
+      (util/format* tmpl name min max))))
 
 (def prop-0-1? (partial prop-outside-range? [0.0 1.0]))
 
