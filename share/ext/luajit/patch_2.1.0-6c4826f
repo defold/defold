@@ -1,14 +1,39 @@
-diff -ruw '--exclude=.git' repo_a/src/jit/bcsave.lua repo_b/src/jit/bcsave.lua
---- repo_a/src/jit/bcsave.lua	2022-11-23 16:31:02.967041400 +0100
-+++ repo_b/src/jit/bcsave.lua	2022-11-23 16:31:10.766042100 +0100
+diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
+--- repo_a/src/Makefile	2023-06-27 09:57:32
++++ repo_b/src/Makefile	2023-06-27 09:57:36
+@@ -71,10 +71,10 @@
+ # as dynamic mode.
+ #
+ # Mixed mode creates a static + dynamic library and a statically linked luajit.
+-BUILDMODE= mixed
++#BUILDMODE= mixed
+ #
+ # Static mode creates a static library and a statically linked luajit.
+-#BUILDMODE= static
++BUILDMODE= static
+ #
+ # Dynamic mode creates a dynamic library and a dynamically linked luajit.
+ # Note: this executable will only run when the library is installed!
+@@ -320,7 +320,7 @@
+     $(error missing: export MACOSX_DEPLOYMENT_TARGET=XX.YY)
+   endif
+   TARGET_STRIP+= -x
+-  TARGET_XCFLAGS+= -DLUAJIT_UNWIND_EXTERNAL
++  TARGET_XCFLAGS+= -DLUAJIT_UNWIND_INTERNAL
+   TARGET_XSHLDFLAGS= -dynamiclib -single_module -undefined dynamic_lookup -fPIC
+   TARGET_DYNXLDOPTS=
+   TARGET_XSHLDFLAGS+= -install_name $(TARGET_DYLIBPATH) -compatibility_version $(MAJVER).$(MINVER) -current_version $(MAJVER).$(MINVER).$(RELVER)
+diff -ruw --exclude=.git repo_a/src/jit/bcsave.lua repo_b/src/jit/bcsave.lua
+--- repo_a/src/jit/bcsave.lua	2023-06-27 09:57:32
++++ repo_b/src/jit/bcsave.lua	2023-06-27 09:57:36
 @@ -702,4 +702,3 @@
  return {
    start = docmd -- Process -b command line option.
  }
 -
-diff -ruw '--exclude=.git' repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
---- repo_a/src/lj_alloc.c	2022-11-23 16:31:02.983038400 +0100
-+++ repo_b/src/lj_alloc.c	2022-11-23 16:31:10.767042100 +0100
+diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
+--- repo_a/src/lj_alloc.c	2023-06-27 09:57:32
++++ repo_b/src/lj_alloc.c	2023-06-27 09:57:36
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -18,9 +43,9 @@ diff -ruw '--exclude=.git' repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
  
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
-diff -ruw '--exclude=.git' repo_a/src/lj_err.c repo_b/src/lj_err.c
---- repo_a/src/lj_err.c	2022-11-23 16:31:03.124038500 +0100
-+++ repo_b/src/lj_err.c	2022-11-23 16:31:10.648041700 +0100
+diff -ruw --exclude=.git repo_a/src/lj_err.c repo_b/src/lj_err.c
+--- repo_a/src/lj_err.c	2023-06-27 09:57:32
++++ repo_b/src/lj_err.c	2023-06-27 09:57:36
 @@ -777,6 +777,7 @@
  {
    if (L->status == LUA_ERRERR+1)  /* Don't touch the stack during lua_open. */
@@ -29,9 +54,9 @@ diff -ruw '--exclude=.git' repo_a/src/lj_err.c repo_b/src/lj_err.c
    setstrV(L, L->top++, lj_err_str(L, LJ_ERR_ERRMEM));
    lj_err_throw(L, LUA_ERRMEM);
  }
-diff -ruw '--exclude=.git' repo_a/src/lj_jit.h repo_b/src/lj_jit.h
---- repo_a/src/lj_jit.h	2022-11-23 16:31:03.019040700 +0100
-+++ repo_b/src/lj_jit.h	2022-11-23 16:31:10.767042100 +0100
+diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
+--- repo_a/src/lj_jit.h	2023-06-27 09:57:32
++++ repo_b/src/lj_jit.h	2023-06-27 09:57:36
 @@ -447,11 +447,11 @@
    int32_t retdepth;	/* Return frame depth (count of RETF). */
  
@@ -46,10 +71,10 @@ diff -ruw '--exclude=.git' repo_a/src/lj_jit.h repo_b/src/lj_jit.h
  #endif
  
    IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
-diff -ruw '--exclude=.git' repo_a/src/lj_obj.h repo_b/src/lj_obj.h
---- repo_a/src/lj_obj.h	2022-11-23 16:31:03.024040800 +0100
-+++ repo_b/src/lj_obj.h	2022-11-23 16:31:10.768042000 +0100
-@@ -320,16 +320,23 @@
+diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
+--- repo_a/src/lj_obj.h	2023-06-27 09:57:32
++++ repo_b/src/lj_obj.h	2023-06-27 09:57:36
+@@ -320,15 +320,22 @@
  /* -- Userdata object ----------------------------------------------------- */
  
  /* Userdata object. Payload follows. */
@@ -69,15 +94,14 @@ diff -ruw '--exclude=.git' repo_a/src/lj_obj.h repo_b/src/lj_obj.h
 +  #endif
 +
  } GCudata;
- 
-+LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
 +
++LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
+ 
  /* Userdata types. */
  enum {
-   UDTYPE_USERDATA,	/* Regular userdata. */
-diff -ruw '--exclude=.git' repo_a/src/nxbuild.bat repo_b/src/nxbuild.bat
---- repo_a/src/nxbuild.bat	2022-11-23 16:31:03.124038500 +0100
-+++ repo_b/src/nxbuild.bat	2022-11-23 16:31:10.769041900 +0100
+diff -ruw --exclude=.git repo_a/src/nxbuild.bat repo_b/src/nxbuild.bat
+--- repo_a/src/nxbuild.bat	2023-06-27 09:57:32
++++ repo_b/src/nxbuild.bat	2023-06-27 09:57:36
 @@ -121,6 +121,7 @@
  @set TARGETLIB=libluajit_%TARGETLIB_SUFFIX%.a
  :BUILD
@@ -86,9 +110,9 @@ diff -ruw '--exclude=.git' repo_a/src/nxbuild.bat repo_b/src/nxbuild.bat
  @if "%1" neq "noamalg" goto :AMALG
  for %%f in (lj_*.c lib_*.c) do (
    %LJCOMPILE% %%f
-diff -ruw '--exclude=.git' repo_a/src/ps4build.bat repo_b/src/ps4build.bat
---- repo_a/src/ps4build.bat	2022-11-23 16:31:03.052039300 +0100
-+++ repo_b/src/ps4build.bat	2022-11-23 16:31:10.770041700 +0100
+diff -ruw --exclude=.git repo_a/src/ps4build.bat repo_b/src/ps4build.bat
+--- repo_a/src/ps4build.bat	2023-06-27 09:57:32
++++ repo_b/src/ps4build.bat	2023-06-27 09:57:36
 @@ -78,7 +78,7 @@
  @set LJLIB="%SCE_ORBIS_SDK_DIR%\host_tools\bin\orbis-ar" rcus
  @set INCLUDE=""
@@ -98,9 +122,9 @@ diff -ruw '--exclude=.git' repo_a/src/ps4build.bat repo_b/src/ps4build.bat
  
  @if "%1" neq "debug" goto :NODEBUG
  @shift
-diff -ruw '--exclude=.git' repo_a/src/ps5build.bat repo_b/src/ps5build.bat
---- repo_a/src/ps5build.bat	2022-11-23 16:31:03.052039300 +0100
-+++ repo_b/src/ps5build.bat	2022-11-23 16:31:10.770041700 +0100
+diff -ruw --exclude=.git repo_a/src/ps5build.bat repo_b/src/ps5build.bat
+--- repo_a/src/ps5build.bat	2023-06-27 09:57:32
++++ repo_b/src/ps5build.bat	2023-06-27 09:57:36
 @@ -74,11 +74,11 @@
  @if errorlevel 1 goto :BAD
  

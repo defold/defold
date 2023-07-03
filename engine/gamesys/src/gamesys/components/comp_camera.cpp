@@ -49,6 +49,8 @@ namespace dmGameSystem
         float m_NearZ;
         float m_FarZ;
         float m_OrthographicZoom;
+        dmVMath::Matrix4 m_View;
+        dmVMath::Matrix4 m_Projection;
         uint32_t m_AutoAspectRatio : 1;
         uint32_t m_AddedToUpdate : 1;
         uint32_t m_OrthographicProjection : 1;
@@ -65,6 +67,46 @@ namespace dmGameSystem
     static const dmhash_t CAMERA_PROP_NEAR_Z = dmHashString64("near_z");
     static const dmhash_t CAMERA_PROP_FAR_Z = dmHashString64("far_z");
     static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM = dmHashString64("orthographic_zoom");
+    static const dmhash_t CAMERA_PROP_PROJECTION = dmHashString64("projection");
+    static const dmhash_t CAMERA_PROP_VIEW = dmHashString64("view");
+    static const dmhash_t CAMERA_PROP_ASPECT_RATIO = dmHashString64("aspect_ratio");
+
+
+    void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
+    {
+        float width = (float)dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(render_context));
+        float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
+
+        float aspect_ratio = camera->m_AspectRatio;
+        if (camera->m_AutoAspectRatio)
+        {
+            aspect_ratio = width / height;
+        }
+
+        dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
+        if (camera->m_OrthographicProjection)
+        {
+            float display_scale = dmGraphics::GetDisplayScaleFactor(dmRender::GetGraphicsContext(render_context));
+            float zoom = camera->m_OrthographicZoom;
+            float zoomed_width = width / display_scale / zoom;
+            float zoomed_height = height / display_scale / zoom;
+
+            float left = -zoomed_width / 2;
+            float right = zoomed_width / 2;
+            float bottom = -zoomed_height / 2;
+            float top = zoomed_height / 2;
+            camera->m_Projection = Matrix4::orthographic(left, right, bottom, top, camera->m_NearZ, camera->m_FarZ);
+        }
+        else
+        {
+            camera->m_Projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
+        }
+
+        dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
+        Point3 look_at = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        Vector3 up = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
+        camera->m_View = Matrix4::lookAt(pos, look_at, up);
+    }
 
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -103,6 +145,8 @@ namespace dmGameSystem
         camera.m_OrthographicZoom = cam_resource->m_DDF->m_OrthographicZoom;
         camera.m_AddedToUpdate = 0;
         camera.m_ComponentIndex = params.m_ComponentIndex;
+        dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
+        CompCameraUpdateViewProjection(&camera, render_context);
         w->m_Cameras.Push(camera);
         *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
         return dmGameObject::CREATE_RESULT_OK;
@@ -158,47 +202,15 @@ namespace dmGameSystem
         if (camera != 0x0 && camera->m_AddedToUpdate)
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
-            float width = (float)dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(render_context));
-            float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
-
-            float aspect_ratio = camera->m_AspectRatio;
-            if (camera->m_AutoAspectRatio)
-            {
-                aspect_ratio = width / height;
-            }
-
-            dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
-            dmVMath::Matrix4 projection;
-            if (camera->m_OrthographicProjection)
-            {
-                float display_scale = dmGraphics::GetDisplayScaleFactor(dmRender::GetGraphicsContext(render_context));
-                float zoom = camera->m_OrthographicZoom;
-                float zoomed_width = width / display_scale / zoom;
-                float zoomed_height = height / display_scale / zoom;
-
-                float left = -zoomed_width / 2;
-                float right = zoomed_width / 2;
-                float bottom = -zoomed_height / 2;
-                float top = zoomed_height / 2;
-                projection = Matrix4::orthographic(left, right, bottom, top, camera->m_NearZ, camera->m_FarZ);
-            }
-            else
-            {
-                projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
-            }
-
-            dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
-            Point3 look_at = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
-            Vector3 up = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
-            dmVMath::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
+            CompCameraUpdateViewProjection(camera, render_context);
 
             // Send the matrices to the render script
 
             dmhash_t message_id = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
 
             dmGameSystemDDF::SetViewProjection set_view_projection;
-            set_view_projection.m_View = view;
-            set_view_projection.m_Projection = projection;
+            set_view_projection.m_View = camera->m_View;
+            set_view_projection.m_Projection = camera->m_Projection;
 
             dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
             if (go_result != dmGameObject::RESULT_OK)
@@ -221,8 +233,8 @@ namespace dmGameSystem
             // JG: What does this TODO mean here?
             // Set matrices immediately
             // TODO: Remove this once render scripts are implemented everywhere
-            dmRender::SetProjectionMatrix(render_context, projection);
-            dmRender::SetViewMatrix(render_context, view);
+            dmRender::SetProjectionMatrix(render_context, camera->m_Projection);
+            dmRender::SetViewMatrix(render_context, camera->m_View);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -301,6 +313,8 @@ namespace dmGameSystem
         camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera->m_OrthographicProjection = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera->m_OrthographicZoom = cam_resource->m_DDF->m_OrthographicZoom;
+        dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
+        CompCameraUpdateViewProjection(camera, render_context);
     }
 
     dmGameObject::PropertyResult CompCameraGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -326,6 +340,21 @@ namespace dmGameSystem
         else if (CAMERA_PROP_ORTHOGRAPHIC_ZOOM == get_property)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_OrthographicZoom);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_PROJECTION == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Projection);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_VIEW == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_View);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_ASPECT_RATIO == get_property)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_AspectRatio);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
@@ -355,6 +384,17 @@ namespace dmGameSystem
         {
             component->m_OrthographicZoom = params.m_Value.m_Number;
             return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_ASPECT_RATIO == set_property)
+        {
+            component->m_AspectRatio = params.m_Value.m_Number;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if ((CAMERA_PROP_PROJECTION == set_property)
+            || (CAMERA_PROP_VIEW == set_property)
+            || (CAMERA_PROP_ASPECT_RATIO == set_property))
+        {
+            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }

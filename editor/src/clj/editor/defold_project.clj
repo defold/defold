@@ -804,9 +804,13 @@
   "Creates transaction steps for creating `connections` between the
   corresponding node for `path-or-resource` and `consumer-node`. If
   there is no corresponding node for `path-or-resource`, transactions
-  for creating and loading the node will be included. Returns map with
-  transactions in :tx-data and node-id corresponding to
-  `path-or-resource` in :node-id"
+  for creating and loading the node will be included. Returns a map with
+  following keys:
+    :tx-data          transactions steps
+    :node-id          node id corresponding to `path-or-resource`
+    :created-in-tx    boolean indicating if this node will be created after
+                      applying this transaction and does not exist yet in the
+                      system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
   ;; TODO: This is typically run from a property setter, where currently the
   ;; evaluation-context does not contain a cache. This makes resource lookups
@@ -816,11 +820,13 @@
   ;; This has been reported as DEFEDIT-1411.
   (g/with-auto-evaluation-context default-evaluation-context
     (when-some [resource (resolve-path-or-resource project path-or-resource default-evaluation-context)]
-      (let [[node-id creation-tx-data] (if-some [existing-resource-node-id (get-resource-node project resource default-evaluation-context)]
+      (let [existing-resource-node-id (get-resource-node project resource default-evaluation-context)
+            [node-id creation-tx-data] (if existing-resource-node-id
                                          [existing-resource-node-id nil]
                                          (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
             node-type (resource-node-type resource)]
         {:node-id node-id
+         :created-in-tx (not existing-resource-node-id)
          :tx-data (concat
                     creation-tx-data
                     (when (or creation-tx-data *load-cache*)

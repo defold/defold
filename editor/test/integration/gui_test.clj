@@ -182,7 +182,7 @@
   (test-util/with-loaded-project
    (let [gui-scene-node   (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value gui-scene-node :node-outline)
-         gui-font-node (get-in outline [:children 2 :children 0 :node-id])
+         gui-font-node (get-in outline [:children 3 :children 0 :node-id])
          old-font (font-resource-node project gui-font-node)
          new-font (project/get-resource-node project "/fonts/big_score.font")]
      (is (some? (g/node-value gui-font-node :font-data)))
@@ -194,7 +194,7 @@
 (deftest gui-font-validation
   (test-util/with-loaded-project
    (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
-         gui-font-node (:node-id (test-util/outline gui-scene-node [2 0]))]
+         gui-font-node (:node-id (test-util/outline gui-scene-node [3 0]))]
      (is (nil? (test-util/prop-error gui-font-node :font)))
      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
        (test-util/with-prop [gui-font-node :font v]

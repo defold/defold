@@ -1451,6 +1451,10 @@ namespace dmGameSystem
             }
             return res;
         }
+        else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == SPRITE_PROP_ANIMATION))
+        {
+            return dmGameObject::PROPERTY_RESULT_READ_ONLY;
+        }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component);
     }
 

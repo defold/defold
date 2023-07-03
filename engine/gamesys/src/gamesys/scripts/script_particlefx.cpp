@@ -81,7 +81,7 @@ namespace dmGameSystem
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
 
-        EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
+        EmitterStateChangedScriptData& data = *(EmitterStateChangedScriptData*)(user_data);
 
         if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
         {
@@ -94,6 +94,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(data.m_CallbackInfo))
         {
+            dmLogError("Failed to setup state changed callback (has the calling script been destroyed?)");
             dmScript::DestroyCallback(data.m_CallbackInfo);
             data.m_CallbackInfo = 0x0;
             return;

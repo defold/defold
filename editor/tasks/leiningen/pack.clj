@@ -94,7 +94,6 @@
   {"linux-amd64"      "x86_64-linux"
    "macosx-universal" "x86_64-macos"
    "windows-amd64"    "x86_64-win32"
-   "windows-i586"     "x86-win32"
    "windows-x64"      "x86_64-win32"})
 
 (defn jar-file
@@ -109,8 +108,8 @@
 
 (defn jogl-native-dep?
   [[artifact version & {:keys [classifier]}]]
-  (and (#{'com.metsci.ext.org.jogamp.gluegen/gluegen-rt
-          'com.metsci.ext.org.jogamp.jogl/jogl-all} artifact)
+  (and (#{'org.jogamp.gluegen/gluegen-rt
+          'org.jogamp.jogl/jogl-all} artifact)
        classifier))
 
 (defn extract-jogl-native-dep

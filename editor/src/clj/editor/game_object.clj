@@ -278,14 +278,18 @@
                            [comp-node tx-data]
                            (if override?
                              (let [workspace (project/workspace project)]
-                               (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                               (when-some [{connect-tx-data :tx-data
+                                            comp-node :node-id
+                                            created-in-tx :created-in-tx} (project/connect-resource-node evaluation-context project new-resource self [])]
                                  [comp-node
                                   (concat
                                     connect-tx-data
                                     (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
                                                 (fn [evaluation-context id-mapping]
                                                   (let [or-comp-node (get id-mapping comp-node)
-                                                        comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
+                                                        comp-props (if created-in-tx
+                                                                     {}
+                                                                     (:properties (g/node-value comp-node :_properties evaluation-context)))]
                                                     (concat
                                                       (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
                                                         (for [[from to] [[:_node-id :source-id]

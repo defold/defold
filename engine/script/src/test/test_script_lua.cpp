@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1011,6 +1011,7 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
     // Test checking something that isn't boolean
     /////////////////////////////////////////////
 
+    int top = lua_gettop(L);
     printf("\nExpected error begin -->\n");
 #if !defined(_WIN32)
     {
@@ -1042,7 +1043,7 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
 
     ASSERT_TRUE(g_panic_function_called);
 
-    lua_pop(L, 3);
+    lua_pop(L, lua_gettop(L) - top); // There is no guarantuee how many items are left on the stack
 
     /////////////////////////////////////
     // Test PushBoolean with simple value
