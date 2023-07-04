@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,7 @@
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../resource/src/resource_private.h"
 
+#include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
@@ -25,6 +26,8 @@
 #include <dlib/time.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/testutil.h>
+#include <testmain/testmain.h>
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -36,7 +39,7 @@
 
 using namespace dmVMath;
 
-#if !defined(__SCE__)
+#if !defined(DM_TEST_EXTERN_INIT_FUNCTIONS)
     bool GameSystemTest_PlatformInit()
     {
         return true;
@@ -54,8 +57,6 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-const char* ROOT = DM_HOSTFS "build/src/gamesys/test";
-
 static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
@@ -66,27 +67,15 @@ static bool RunString(lua_State* L, const char* script)
     return true;
 }
 
-static void WrapIoFunctions(lua_State* L)
-{
-    RunString(L,
-        "local function new_open(path, attrs)\n" \
-        "    return io._old_open('" DM_HOSTFS "' .. path, attrs)\n" \
-        "end\n" \
-        "if io._old_open == nil then\n" \
-        "    io._old_open = io.open;\n" \
-        "    io.open = new_open;\n" \
-        "end\n");
-}
-
 bool CopyResource(const char* src, const char* dst)
 {
     char src_path[128];
-    dmSnPrintf(src_path, sizeof(src_path), "%s/%s", ROOT, src);
+    dmTestUtil::MakeHostPathf(src_path, sizeof(src_path), "build/src/gamesys/test/%s", src);
     FILE* src_f = fopen(src_path, "rb");
     if (src_f == 0x0)
         return false;
     char dst_path[128];
-    dmSnPrintf(dst_path, sizeof(dst_path), "%s/%s", ROOT, dst);
+    dmTestUtil::MakeHostPathf(dst_path, sizeof(dst_path), "build/src/gamesys/test/%s", dst);
     FILE* dst_f = fopen(dst_path, "wb");
     if (dst_f == 0x0)
     {
@@ -110,7 +99,7 @@ bool CopyResource(const char* src, const char* dst)
 bool UnlinkResource(const char* name)
 {
     char path[128];
-    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, name);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", name);
     return dmSys::Unlink(path) == 0;
 }
 
@@ -212,8 +201,6 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    WrapIoFunctions(scriptlibcontext.m_LuaState);
-
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -226,6 +213,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     void* resource = 0x0;
     dmhash_t res_hash = dmHashString64("/test_simple.texturec");
     dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
+    ASSERT_NE((dmResource::SResourceDescriptor*)0, rd);
     ASSERT_EQ(2, rd->m_ReferenceCount);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
@@ -352,8 +340,6 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-    WrapIoFunctions(scriptlibcontext.m_LuaState);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
@@ -382,7 +368,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail 
+    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail
     //      -> set_texture.script::test_fail_out_of_bounds
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -438,7 +424,7 @@ TEST_P(ComponentTest, Test)
     const char* go_name = GetParam();
     dmGameObjectDDF::PrototypeDesc* go_ddf;
     char path[128];
-    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, go_name);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
     const char* component_name = go_ddf->m_Components[0].m_Component;
@@ -483,7 +469,7 @@ TEST_P(ComponentTest, TestReloadFail)
     const char* go_name = GetParam();
     dmGameObjectDDF::PrototypeDesc* go_ddf;
     char path[128];
-    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, go_name);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
     const char* component_name = go_ddf->m_Components[0].m_Component;
@@ -710,9 +696,6 @@ TEST_F(SoundTest, UpdateSoundResource)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-    // Since the script uses "io.open()" we want to override the path
-    WrapIoFunctions(scriptlibcontext.m_LuaState);
-
     const char* go_path = "/sound/updated_sound.goc";
     dmhash_t comp_name = dmHashString64("dynamic-sound"); // id of soundc component
     dmhash_t prop_name = dmHashString64("sound"); // property of sound data resource within a sound component
@@ -875,7 +858,7 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 }
 
 // Test that go.delete() does not influence other sprite animations in progress
-TEST_F(SpriteAnimTest, GoDeletion)
+TEST_F(SpriteTest, GoDeletion)
 {
     // Spawn 3 dumy game objects with one sprite in each
     dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -914,7 +897,7 @@ TEST_F(SpriteAnimTest, GoDeletion)
 }
 
 // Test that animation done event reaches either callback or onmessage
-TEST_F(SpriteAnimTest, FlipbookAnim)
+TEST_F(SpriteTest, FlipbookAnim)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -952,6 +935,22 @@ TEST_F(SpriteAnimTest, FlipbookAnim)
 
     ASSERT_EQ(2, num_finished);
     ASSERT_EQ(1, num_messages);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, FrameCount)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -3567,15 +3566,15 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     dmhash_t name_hash1 = dmHashString64("user_var1");
     dmhash_t name_hash2 = dmHashString64("user_var2");
 
-    dmRender::HMaterial material = 0;
+    dmGameSystem::MaterialResource* material = 0;
     {
         const char path_material[] = "/material/valid.materialc";
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
         ASSERT_NE((void*)0, material);
 
         dmRender::HConstant rconstant;
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash1, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash2, rconstant));
     }
 
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
@@ -3587,7 +3586,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -3596,7 +3595,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 
@@ -3702,6 +3701,8 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 

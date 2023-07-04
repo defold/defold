@@ -89,7 +89,9 @@
         (is (= [[:on-initialized
                  {:text-document-sync {:open-close true
                                        :change :incremental}
-                  :pull-diagnostics :none}]
+                  :pull-diagnostics :none
+                  :goto-definition false
+                  :find-references false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -470,7 +472,7 @@
                      (make-test-server-launcher
                        {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
                         "initialized" (constantly nil)
-                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "Fail!" {})))
+                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "This exception should be correctly handled by lsp test" {})))
                         "shutdown" (constantly nil)
                         "exit" (constantly nil)})}})
               _ (Thread/sleep 100)

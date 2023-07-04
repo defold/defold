@@ -21,7 +21,7 @@ We rely on this script being able to output the unaltered text.
 
 import os, sys, platform
 
-PLATFORMS_PRIVATE = ('x86_64-ps4', 'arm64-nx64')
+PLATFORMS_PRIVATE = ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64')
 
 # We use this function to determine if we should skip this platform
 def can_build_private_platform(repository, platform):

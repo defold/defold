@@ -49,8 +49,7 @@ def configure(conf):
 def build(bld):
     global test_context
 
-    is_desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'x86_64-linux', 'x86_64-win32')
-    if not is_desktop:
+    if not bld.env.IS_TARGET_DESKTOP:
         return
 
     bld.recurse('src')

@@ -275,7 +275,8 @@ static Skin* FindSkin(Scene* scene, cgltf_data* gltf_data, cgltf_skin* gltf_skin
     return 0;
 }
 
-static uint32_t FindIndex(uintptr_t base_pointer, uintptr_t pointer)
+template<typename T>
+static uint32_t FindIndex(T* base_pointer, T* pointer)
 {
     if (!pointer)
         return INVALID_INDEX;
@@ -412,6 +413,57 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
+{
+    scene->m_MaterialsCount = gltf_data->materials_count;
+    scene->m_Materials = new Material[scene->m_MaterialsCount];
+    memset(scene->m_Materials, 0, sizeof(Material)*scene->m_MaterialsCount);
+
+    for (uint32_t i = 0; i < gltf_data->materials_count; ++i)
+    {
+        cgltf_material* gltf_material = &gltf_data->materials[i];
+        Material* material = &scene->m_Materials[i];
+        material->m_Name = CreateObjectName(gltf_material, "material", i);
+        material->m_Index = i;
+
+        // todo: load properties
+        // todo: what is "material mappings"?
+        // todo: and how is the material variant used?
+
+        // cgltf_bool has_pbr_metallic_roughness;
+        // cgltf_bool has_pbr_specular_glossiness;
+        // cgltf_bool has_clearcoat;
+        // cgltf_bool has_transmission;
+        // cgltf_bool has_volume;
+        // cgltf_bool has_ior;
+        // cgltf_bool has_specular;
+        // cgltf_bool has_sheen;
+        // cgltf_bool has_emissive_strength;
+        // cgltf_pbr_metallic_roughness pbr_metallic_roughness;
+        // cgltf_pbr_specular_glossiness pbr_specular_glossiness;
+        // cgltf_clearcoat clearcoat;
+        // cgltf_ior ior;
+        // cgltf_specular specular;
+        // cgltf_sheen sheen;
+        // cgltf_transmission transmission;
+        // cgltf_volume volume;
+        // cgltf_emissive_strength emissive_strength;
+        // cgltf_texture_view normal_texture;
+        // cgltf_texture_view occlusion_texture;
+        // cgltf_texture_view emissive_texture;
+        // cgltf_float emissive_factor[3];
+        // cgltf_alpha_mode alpha_mode;
+        // cgltf_float alpha_cutoff;
+        // cgltf_bool double_sided;
+        // cgltf_bool unlit;
+
+        // todo: extensions
+
+        // cgltf_size extensions_count;
+        // cgltf_extension* extensions;
+    }
+}
+
 static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
 {
     aabb->m_Min[0] = aabb->m_Min[1] = aabb->m_Min[2] = FLT_MAX;
@@ -426,7 +478,7 @@ static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
     }
 }
 
-static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
+static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
     model->m_Meshes = new Mesh[model->m_MeshesCount];
@@ -438,9 +490,12 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateObjectName(prim, "mesh", i);
 
-        uint32_t material_index = FindIndex((uintptr_t)gltf_data->materials, (uintptr_t)prim->material);
-        mesh->m_Material = CreateObjectName(prim->material, "material", material_index);
-        mesh->m_VertexCount = 0;
+        uint32_t material_index = FindIndex(gltf_data->materials, prim->material);
+        if (material_index != INVALID_INDEX)
+        {
+            mesh->m_Material = &scene->m_Materials[material_index];
+            mesh->m_VertexCount = 0;
+        }
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
@@ -561,7 +616,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         model->m_Name = CreateObjectName(gltf_mesh, "model", i);
         model->m_Index = i;
 
-        LoadPrimitives(model, gltf_data, gltf_mesh); // Our "Meshes"
+        LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
     }
 }
 
@@ -579,6 +634,8 @@ static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
     return INVALID_INDEX;
 }
 
+// Once the bones have been reassigned their new logical, depth-first index
+// We can sort it on index
 struct BoneSortPred
 {
     bool operator()(const Bone& a, const Bone& b) const
@@ -591,8 +648,7 @@ struct BoneSortPred
 
 struct BoneSortInfo
 {
-    Bone*    m_Bone;
-    uint32_t m_Rank;     // The depth in the hierarchy
+    uint32_t m_Index;     // The index in the hierarchy (depth first!)
     uint32_t m_OldIndex;
 };
 
@@ -600,25 +656,35 @@ struct BoneInfoSortPred
 {
     bool operator()(const BoneSortInfo& a, const BoneSortInfo& b) const
     {
-        return a.m_Rank < b.m_Rank;
+        return a.m_Index < b.m_Index;
     }
 };
 
-static uint32_t FindRank(Bone* bones, Bone* bone)
+static void CalcIndicesDepthFirst(BoneSortInfo* infos, const Bone* bone, uint32_t* index)
 {
-    if (bone->m_ParentIndex == INVALID_INDEX)
-        return 0;
-    return 1 + FindRank(bones, &bones[bone->m_ParentIndex]);
+    infos[bone->m_Index].m_OldIndex = bone->m_Index;
+    infos[bone->m_Index].m_Index = (*index)++;
+
+    if (!bone->m_Children)
+        return;
+    for (uint32_t i = 0; i < bone->m_Children->Size(); ++i)
+    {
+        CalcIndicesDepthFirst(infos, (*bone->m_Children)[i], index);
+    }
 }
 
 static void SortSkinBones(Skin* skin)
 {
     BoneSortInfo* infos = new BoneSortInfo[skin->m_BonesCount];
+
+    uint32_t index_iter = 0;
     for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
     {
-        infos[i].m_Bone = &skin->m_Bones[i];
-        infos[i].m_Rank = FindRank(skin->m_Bones, infos[i].m_Bone);
-        infos[i].m_OldIndex = i;
+        Bone* bone = &skin->m_Bones[i];
+        if (bone->m_ParentIndex == INVALID_INDEX)
+        {
+            CalcIndicesDepthFirst(infos, bone, &index_iter);
+        }
     }
 
     std::sort(infos, infos + skin->m_BonesCount, BoneInfoSortPred());
@@ -629,8 +695,10 @@ static void SortSkinBones(Skin* skin)
     for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
     {
         uint32_t index_old = infos[i].m_OldIndex;
-        skin->m_BoneRemap[index_old] = i;
-        indices_differ |= index_old != i;
+        uint32_t index_new = infos[i].m_Index;
+        skin->m_BoneRemap[index_old] = index_new;
+
+        indices_differ |= index_old != index_new;
     }
     // If the indices don't differ, then we don't need to update the meshes bone indices either
     if (!indices_differ)
@@ -684,6 +752,17 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
             bone->m_Name = CreateObjectName(gltf_joint, "bone", j);
             bone->m_Index = j;
             bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
+
+            if (bone->m_ParentIndex != INVALID_INDEX)
+            {
+                Bone* parent = &skin->m_Bones[bone->m_ParentIndex];
+                if (parent->m_Children == 0)
+                    parent->m_Children = new dmArray<Bone*>();
+                if (parent->m_Children->Full())
+                    parent->m_Children->OffsetCapacity(4);
+                parent->m_Children->Push(bone);
+            }
+
             // Cannot translate the bones here, since they're not created yet
             // bone->m_Node = ...
 
@@ -1095,6 +1174,7 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 {
     LoadSkins(scene, data);
     LoadNodes(scene, data);
+    LoadMaterials(scene, data);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);

@@ -157,14 +157,24 @@ QUERY_PROJECT_NUMBER = r"""
 def pprint(d):
     print(json.dumps(d, indent=4, sort_keys=True))
 
+def _print_errors(response):
+    for error in response['errors']:
+        print(error['message'])
+
 def get_project(name):
     query = QUERY_PROJECT_NUMBER % name
     response = github.query(query, token)
+    if 'errors' in response:
+        _print_errors(response)
+        sys.exit(1)
     return response["data"]["organization"]["projectsV2"]["nodes"][0]
 
 def get_issues_and_prs(project):
     query = QUERY_PROJECT_ISSUES_AND_PRS % project.get("number")
     response = github.query(query, token)
+    if 'errors' in response:
+        _print_errors(response)
+        sys.exit(1)
     response = response["data"]["organization"]["projectV2"]["items"]["nodes"]
     return response
 

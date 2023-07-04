@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>

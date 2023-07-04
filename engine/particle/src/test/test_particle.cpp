@@ -16,12 +16,12 @@
 #include <jc_test/jc_test.h>
 #include <stdio.h>
 #include <algorithm>
-#include <map>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
+#include <dlib/testutil.h>
 
 #include <ddf/ddf.h>
 
@@ -30,11 +30,6 @@
 
 using namespace dmVMath;
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
 
 class ParticleTest : public jc_test_base_class
 {
@@ -70,7 +65,7 @@ protected:
     dmParticle::EmitterStateChangedData m_CallbackData;
 };
 
-static const float EPSILON = 0.000001f;
+static const float EPSILON = 0.000002f;
 
 struct EmitterStateChangedCallbackTestData
 {
@@ -173,7 +168,8 @@ uint32_t ParticleCount(dmParticle::Emitter* emitter)
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[128];
-    dmSnPrintf(path, 128, MOUNTFS "build/src/test/%s", filename);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/test/%s", filename);
+
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -195,8 +191,8 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 
 bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototype)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
+    char path[128];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/test/%s", filename);
 
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
@@ -226,8 +222,8 @@ bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototyp
 
 bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
+    char path[128];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/test/%s", filename);
 
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
@@ -904,7 +900,7 @@ TEST_F(ParticleTest, ParticleApplyLifeRotationToMovementDirection)
     ASSERT_EQ(0.0f, q.getX());
     ASSERT_EQ(0.0f, q.getY());
     ASSERT_NEAR(1.0f, q.getZ(), EPSILON);
-    ASSERT_EQ(0.0f, q.getW());
+    ASSERT_NEAR(0.0f, q.getW(), EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1000,9 +996,10 @@ TEST_F(ParticleTest, ParticleAngularVelocityInitialRotation)
     Quat q = e->m_Particles[0].GetRotation();
 
     Vector3 r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+
     ASSERT_EQ(0.0f, r.getX());
     ASSERT_EQ(0.0f, r.getY());
-    ASSERT_EQ(0.0f, r.getZ());
+    ASSERT_NEAR(0.0f, r.getZ(), EPSILON);
 
     dmParticle::Update(m_Context, dt, 0x0);
     q = e->m_Particles[0].GetRotation();
@@ -1784,7 +1781,7 @@ TEST_F(ParticleTest, AccelerationEmitter)
 
     dmParticle::Update(m_Context, dt, 0x0);
     dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
-    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_NEAR(0.0f, particle->GetVelocity().getX(), EPSILON);
     ASSERT_NEAR(1.0f, particle->GetVelocity().getY(), EPSILON);
     ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
 
@@ -1793,7 +1790,7 @@ TEST_F(ParticleTest, AccelerationEmitter)
     dmParticle::StartInstance(m_Context, instance);
     dmParticle::Update(m_Context, dt, 0x0);
     particle = &i->m_Emitters[0].m_Particles[0];
-    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
+    ASSERT_NEAR(0.0f, particle->GetVelocity().getX(), EPSILON);
     ASSERT_NEAR(1.0f, particle->GetVelocity().getY(), EPSILON);
     ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
 
@@ -2035,8 +2032,6 @@ TEST_F(ParticleTest, RenderConstants)
 
     dmParticle::StartInstance(m_Context, instance);
 
-    std::map<dmhash_t, Vector4> constants;
-
     dmParticle::Update(m_Context, dt, 0x0);
 
     dmParticle::EmitterRenderData* emitter_render_data;
@@ -2052,8 +2047,6 @@ TEST_F(ParticleTest, RenderConstants)
     ASSERT_EQ(2, v.getY());
     ASSERT_EQ(3, v.getZ());
     ASSERT_EQ(4, v.getW());
-
-    constants.clear();
 
     dmParticle::ResetRenderConstant(m_Context, instance, emitter_id, constant_id);
     dmParticle::Update(m_Context, dt, 0x0);

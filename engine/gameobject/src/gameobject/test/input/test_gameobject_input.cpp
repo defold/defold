@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <dmsdk/dlib/vmath.h>
@@ -305,12 +304,4 @@ TEST_F(InputTest, TestDeleteFocusInstance)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }

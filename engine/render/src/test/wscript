@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 
 def build(bld):
-    libs = 'TESTMAIN PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL LUA render'
+    libs = 'TESTMAIN SOCKET APP GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL LUA render'
     exported_symbols = ['GraphicsAdapterNull']
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_render.cpp',
+                source = ['test_render.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
                 web_libs = ['library_sys.js', 'library_script.js'],
@@ -13,7 +13,7 @@ def build(bld):
                 target = 'test_render')
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_display_profiles.cpp',
+                source = ['test_display_profiles.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
                 web_libs = ['library_sys.js', 'library_script.js'],
@@ -21,7 +21,7 @@ def build(bld):
                 target = 'test_display_profiles')
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_material.cpp',
+                source = ['test_material.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
                 web_libs = ['library_sys.js', 'library_script.js'],
@@ -29,7 +29,7 @@ def build(bld):
                 target = 'test_material')
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_render_script.cpp',
+                source = ['test_render_script.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
                 web_libs = ['library_sys.js', 'library_script.js'],

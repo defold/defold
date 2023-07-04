@@ -44,7 +44,7 @@ def build(bld):
     texc_sources = bld.path.ant_glob("texc*.cpp")
 
     # The static library for the tests
-    texc = bld.stlib(features = 'cxx',
+    texc = bld.stlib(features = 'c cxx',
                    source = texc_sources,
                    includes = ['.'],
                    target   = 'texc')
@@ -58,8 +58,8 @@ def build(bld):
     # ******************************************************************************************
     # JAVA: texturecompiler.jar
 
-    classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.10.0.jar'),
-                 os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.10.0.jar')]
+    classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.13.0.jar'),
+                 os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.13.0.jar')]
 
     bld(features='javac seq',
         classpath=classpath,

@@ -6,10 +6,6 @@ def configure(conf):
     pass
 
 def build(bld):
-    # if not desktop
-    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'x86_64-linux'):
-        return
-
     graphics_lib = 'GRAPHICS'
     graphics_adapter = 'GraphicsAdapterOpenGL'
     if waflib.Options.options.with_vulkan:
@@ -17,10 +13,10 @@ def build(bld):
         graphics_adapter = 'GraphicsAdapterVulkan'
 
     b = bld.program(features         = 'c cprogram cxx',
-                    use              = 'PLATFORM_SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X ' + graphics_lib,
+                    use              = 'SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X ' + graphics_lib,
                     exported_symbols = [graphics_adapter],
                     source           = 'main.cpp',
                     target           = 'gdc')
 
-    if bld.env.PLATFORM in ('x86_64-macos',):
+    if bld.env.PLATFORM in ('x86_64-macos','arm64-macos',):
         b.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])

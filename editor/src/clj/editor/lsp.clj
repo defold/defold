@@ -428,11 +428,12 @@
                          context - that should return current resource node id
                          for the specified resource
 
-  Returns a channel that can be used to submit LSP manager commands (see other
-  public fns in this ns)"
+  Returns a manager object that can be used to submit LSP manager commands (see
+  other public fns in this ns)"
   [project get-resource-node]
   {:pre [(g/node-id? project) (ifn? get-resource-node)]}
-  (let [in (a/chan 128)]
+  (let [in (a/chan 128)
+        state-vol (volatile! nil)]
     (a/go-loop [state {:in in
                        ;; in + server output channels, for performance
                        :channels [in]
@@ -476,6 +477,7 @@
                        ;; indicates that the resource is open
                        ;; invariant: every viewed resource must be open
                        :resource->open-state {}}]
+      (vreset! state-vol state)
       (when dev (swap! running-lsps assoc in state))
       (let [[value ch] (a/alts! (:channels state))]
         ;; close the manager input => stop the manager
@@ -501,12 +503,14 @@
               (catch Throwable e
                 (error-reporting/report-exception! e)
                 state))))))
-    in))
+    (fn the-lsp
+      ([] @state-vol)
+      ([x] (a/put! in x)))))
 
 (defn set-servers!
   "Notify the LSP manager that we want these servers to be running"
   [lsp new-servers]
-  (a/put! lsp (set-servers new-servers)))
+  (lsp (set-servers new-servers)))
 
 (defn- do-open-view [state view-node resource lines]
   (if (resource-viewed? state resource)
@@ -523,7 +527,7 @@
 (defn open-view!
   "Notify the LSP manager that a view for a resource is open"
   [lsp view-node resource lines]
-  (a/put! lsp #(do-open-view % view-node resource lines)))
+  (lsp #(do-open-view % view-node resource lines)))
 
 (defn- do-close-view [state view-node]
   (let [resource (get-in state [:view-node->resource view-node])]
@@ -539,16 +543,16 @@
   "Notify the LSP manager that a view is closed"
   [lsp view-node]
   ;; bound-fn only needed for tests to pick up the test system
-  (a/put! lsp (bound-fn [state] (do-close-view state view-node))))
+  (lsp (bound-fn [state] (do-close-view state view-node))))
 
 (defn notify-lines-modified!
   "Notify the LSP manager about new lines of a resource node"
   [lsp resource-node lines evaluation-context]
-  (a/put! lsp (fn notify-lines-modified [state]
-                (let [resource (g/node-value resource-node :resource evaluation-context)]
-                  (cond-> state
-                          (resource/file-resource? resource)
-                          (sync-modified-lines-of-existing-node! resource resource-node lines evaluation-context))))))
+  (lsp (fn notify-lines-modified [state]
+         (let [resource (g/node-value resource-node :resource evaluation-context)]
+           (cond-> state
+                   (resource/file-resource? resource)
+                   (sync-modified-lines-of-existing-node! resource resource-node lines evaluation-context))))))
 
 (defn check-if-polled-resources-are-modified!
   "Notify the LSP manager that some previously modified resources might change
@@ -556,9 +560,9 @@
   This can happen e.g. on undo/redo"
   [lsp]
   ;; bound-fn only needed for tests to pick up the test system
-  (a/put! lsp (bound-fn check-if-polled-resources-are-modified [{:keys [polled-resources] :as state}]
-                (lsp.async/with-auto-evaluation-context evaluation-context
-                  (reduce #(sync-resource-state! %1 %2 evaluation-context) state polled-resources)))))
+  (lsp (bound-fn check-if-polled-resources-are-modified [{:keys [polled-resources] :as state}]
+         (lsp.async/with-auto-evaluation-context evaluation-context
+           (reduce #(sync-resource-state! %1 %2 evaluation-context) state polled-resources)))))
 
 (let [method (-> Globs
                  (.getDeclaredMethod "toUnixRegexPattern" (into-array Class [String]))
@@ -596,34 +600,34 @@
       (a/put! server-in (lsp.server/watched-file-change changes)))))
 
 (defn touch-resources! [lsp resources]
-  (a/put! lsp #(doto % (notify-files-changed! {:changed resources}))))
+  (lsp #(doto % (notify-files-changed! {:changed resources}))))
 
 (defn apply-resource-changes!
   "Notify the LSP manager about resource sync"
   [lsp {:keys [added removed changed moved]}]
   ;; bound-fn only needed for tests to pick up the test system
-  (a/put! lsp (bound-fn apply-resource-changes [{:keys [project get-resource-node] :as state}]
-                (notify-files-changed! state {:deleted removed :changed changed :created added})
-                (let [interesting-added (into []
-                                              (keep (fn [[from to]]
-                                                      (when (interesting-resource? state from)
-                                                        to)))
-                                              moved)
-                      interesting-removed (filterv #(interesting-resource? state %) removed)
-                      interesting-changed (filterv #(interesting-resource? state %) changed)
-                      viewed-moved (filterv #(resource-viewed? state (first %)) moved)]
-                  (lsp.async/with-auto-evaluation-context evaluation-context
-                    (as-> state $
-                          (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
-                          (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
-                          (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
-                          (reduce (fn [acc [from to]]
-                                    (let [view-node (get-in acc [:resource->view-node from])
-                                          resource-node (get-resource-node project to evaluation-context)]
-                                      (-> acc
-                                          (do-close-view view-node)
-                                          (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
-                                  $ viewed-moved)))))))
+  (lsp (bound-fn apply-resource-changes [{:keys [project get-resource-node] :as state}]
+         (notify-files-changed! state {:deleted removed :changed changed :created added})
+         (let [interesting-added (into []
+                                       (keep (fn [[from to]]
+                                               (when (interesting-resource? state from)
+                                                 to)))
+                                       moved)
+               interesting-removed (filterv #(interesting-resource? state %) removed)
+               interesting-changed (filterv #(interesting-resource? state %) changed)
+               viewed-moved (filterv #(resource-viewed? state (first %)) moved)]
+           (lsp.async/with-auto-evaluation-context evaluation-context
+             (as-> state $
+                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
+                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
+                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
+                   (reduce (fn [acc [from to]]
+                             (let [view-node (get-in acc [:resource->view-node from])
+                                   resource-node (get-resource-node project to evaluation-context)]
+                               (-> acc
+                                   (do-close-view view-node)
+                                   (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
+                           $ viewed-moved)))))))
 
 (defn get-graph-lsp
   "Given a project's graph id, return the LSP manager"
@@ -658,7 +662,7 @@
           servers))
       state)))
 
-(defn- send-requests! [state responses-ch requests-fn & {:keys [capabilities-pred timeout-ms]
+(defn- send-requests! [state responses-ch requests-fn & {:keys [capabilities-pred language timeout-ms]
                                                          :or {capabilities-pred any?}}]
   {:pre [(pos-int? timeout-ms)
          (not (contains? (:requests state) responses-ch))]}
@@ -666,8 +670,10 @@
                               :server->server-state
                               (eduction
                                 (mapcat
-                                  (fn [[server {:keys [status capabilities] :as server-state}]]
-                                    (when (and (= :running status) (capabilities-pred capabilities))
+                                  (fn [[{:keys [languages] :as server} {:keys [status capabilities] :as server-state}]]
+                                    (when (and (= :running status)
+                                               (capabilities-pred capabilities)
+                                               (or (nil? language) (contains? languages language)))
                                       (eduction
                                         (map #(pair server %))
                                         (requests-fn server server-state))))))
@@ -702,52 +708,86 @@
 (defn pull-workspace-diagnostics! [lsp results-callback & {:keys [timeout-ms]
                                                            :or {timeout-ms 60000}}]
   ;; bound-fn only needed for tests to pick up the test system
-  (a/put! lsp (bound-fn [{:keys [project] :as state}]
-                (let [responses-ch (a/chan)
-                      language->resources (delay
-                                            (lsp.async/with-auto-evaluation-context evaluation-context
-                                              (let [workspace (g/node-value project :workspace evaluation-context)]
-                                                (->> (g/node-value workspace :resource-list evaluation-context)
-                                                     (eduction
-                                                       (filter #(and (resource/file-resource? %)
-                                                                     (not= "plaintext" (resource/language %)))))
-                                                     (group-by resource/language)))))]
-                  (a/go
-                    (let [diagnosed-resources (keys (<! (a/into {} responses-ch)))]
-                      (>! (:in state) (notify-workspace-diagnostics-callback! diagnosed-resources results-callback))))
-                  (send-requests!
-                    state
-                    responses-ch
-                    (fn [server server-state]
-                      (case (-> server-state :capabilities :pull-diagnostics)
-                        :workspace [(lsp.server/pull-workspace-diagnostics
-                                      (into {}
-                                            (keep (fn [[resource {:keys [result-id]}]]
-                                                    (when result-id
-                                                      [resource result-id])))
-                                            (:diagnostics server-state))
-                                      (with-update-state-on-response
-                                        apply-full-or-unchanged-workspace-diagnostics))]
-                        :text-document (eduction
-                                         (mapcat @language->resources)
-                                         (map (fn [resource]
-                                                (lsp.server/pull-document-diagnostics
-                                                  resource
-                                                  (get-in server-state [:diagnostics resource :result-id])
-                                                  (with-update-state-on-response
-                                                    #(pair resource %)
-                                                    apply-full-or-unchanged-resource-diagnostics))))
-                                         (:languages server))))
-                    :timeout-ms timeout-ms
-                    :capabilities-pred #(not= :none (:pull-diagnostics %)))))))
+  (lsp (bound-fn [{:keys [project] :as state}]
+         (let [responses-ch (a/chan)
+               language->resources (delay
+                                     (lsp.async/with-auto-evaluation-context evaluation-context
+                                       (let [workspace (g/node-value project :workspace evaluation-context)]
+                                         (->> (g/node-value workspace :resource-list evaluation-context)
+                                              (eduction
+                                                (filter #(and (resource/file-resource? %)
+                                                              (not= "plaintext" (resource/language %)))))
+                                              (group-by resource/language)))))]
+           (a/go
+             (let [diagnosed-resources (keys (<! (a/into {} responses-ch)))]
+               (>! (:in state) (notify-workspace-diagnostics-callback! diagnosed-resources results-callback))))
+           (send-requests!
+             state
+             responses-ch
+             (fn [server server-state]
+               (case (-> server-state :capabilities :pull-diagnostics)
+                 :workspace [(lsp.server/pull-workspace-diagnostics
+                               (into {}
+                                     (keep (fn [[resource {:keys [result-id]}]]
+                                             (when result-id
+                                               [resource result-id])))
+                                     (:diagnostics server-state))
+                               (with-update-state-on-response
+                                 apply-full-or-unchanged-workspace-diagnostics))]
+                 :text-document (eduction
+                                  (mapcat @language->resources)
+                                  (map (fn [resource]
+                                         (lsp.server/pull-document-diagnostics
+                                           resource
+                                           (get-in server-state [:diagnostics resource :result-id])
+                                           (with-update-state-on-response
+                                             #(pair resource %)
+                                             apply-full-or-unchanged-resource-diagnostics))))
+                                  (:languages server))))
+             :timeout-ms timeout-ms
+             :capabilities-pred #(not= :none (:pull-diagnostics %)))))))
+
+(defn goto-definition! [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                               :or {timeout-ms 3000}}]
+  ;; bound-fn only needed for tests to pick up the test system
+  (lsp (bound-fn [state]
+         (let [ch (a/chan 1 cat)]
+           (a/go (result-callback (<! (a/into [] ch))))
+           (send-requests! state ch
+                           (fn [_ _]
+                             [(lsp.server/goto-definition resource cursor)])
+                           :capabilities-pred :goto-definition
+                           :language (resource/language resource)
+                           :timeout-ms timeout-ms)))))
+
+(defn find-references! [lsp resource cursor result-callback & {:keys [timeout-ms]
+                                                               :or {timeout-ms 3000}}]
+  ;; bound-fn only needed for tests to pick up the test system
+  (lsp (bound-fn [state]
+         (let [ch (a/chan 1 cat)]
+           (a/go (result-callback (<! (a/into [] ch))))
+           (send-requests! state ch
+                           (fn [_ _]
+                             [(lsp.server/find-references resource cursor)])
+                           :capabilities-pred :find-references
+                           :language (resource/language resource)
+                           :timeout-ms timeout-ms)))))
+
+(defn has-language-servers-running-for-language? [lsp language]
+  (->> (lsp)
+       :server->server-state
+       (some (fn [[server server-state]]
+               (and (= :running (:status server-state))
+                    (contains? (:languages server) language))))
+       boolean))
 
 (comment
   ;; Restart all servers:
-  (a/put! (g/graph-value 1 :lsp) (fn [state]
-                                   (let [servers (set (keys (:server->server-state state)))]
-                                     (-> state
-                                         ((set-servers #{}))
-                                         ((set-servers servers))))))
+  ((g/graph-value 1 :lsp) (fn [state]
+                            (let [servers (set (keys (:server->server-state state)))]
+                              (-> state
+                                  ((set-servers #{}))
+                                  ((set-servers servers))))))
   ;; Stop all LSP servers
   (set-servers! (g/graph-value 1 :lsp) #{})
   ;; Pull diagnostics

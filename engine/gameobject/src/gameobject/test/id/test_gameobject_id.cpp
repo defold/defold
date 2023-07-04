@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <resource/resource.h>
@@ -125,12 +124,4 @@ TEST_F(IdTest, TestHierarchies)
     ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2", strlen("go2")));
     ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go", strlen("/go")));
     dmResource::Release(m_Factory, collection);
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }
