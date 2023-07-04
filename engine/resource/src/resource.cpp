@@ -293,7 +293,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (!num_mounted)
     {
-        dmLogWarning("No resource loaders that could match uri %s", uri);
+        dmLogWarning("No resource loaders mounted that could match uri %s", uri);
         DeleteFactory(factory);
         dmMessage::DeleteSocket(socket);
         return 0;
@@ -465,16 +465,16 @@ static void ResourceDependencyCallback(void* _context, const dmResourceMounts::S
     context->m_Callback(context->m_CallbackContext, &out);
 }
 
-dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams& _params, FGetDependency callback, void* callback_context)
+dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* _params, FGetDependency callback, void* callback_context)
 {
     SResourceDependencyCallback ctx;
     ctx.m_Callback = callback;
     ctx.m_CallbackContext = callback_context;
 
     dmResourceMounts::SGetDependenciesParams params;
-    params.m_UrlHash        = _params.m_UrlHash;
-    params.m_OnlyMissing    = _params.m_OnlyMissing;
-    params.m_Recursive      = _params.m_Recursive;
+    params.m_UrlHash        = _params->m_UrlHash;
+    params.m_OnlyMissing    = _params->m_OnlyMissing;
+    params.m_Recursive      = _params->m_Recursive;
     return dmResourceMounts::GetDependencies(factory->m_Mounts, &params, ResourceDependencyCallback, &ctx);
 }
 

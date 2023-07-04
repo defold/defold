@@ -338,7 +338,7 @@ namespace dmResource
      * @return result [type: dmResource::Result] The mounts context
     */
     typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
-    dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams& params, FGetDependency callback, void* callback_context);
+    dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);
 
     /**
      * Releases the builtins manifest
