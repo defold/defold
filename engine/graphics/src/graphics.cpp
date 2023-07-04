@@ -121,7 +121,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
             default: break;
         }
-        return "<unknown adapter type>";
+        return "<unknown dmGraphics::AdapterType>";
     }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
@@ -133,7 +133,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
             default:break;
         }
-        return "<unknown texture type>";
+        return "<unknown dmGraphics::TextureType>";
     }
 
     const char* GetBufferTypeLiteral(BufferType buffer_type)
@@ -148,7 +148,32 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
             default:break;
         }
-        return "<unknown buffer type>";
+        return "<unknown dmGraphics::BufferType>";
+    }
+
+    const char* GetGraphicsTypeLiteral(Type type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_BYTE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_BYTE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SHORT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_SHORT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_INT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_INT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC4);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT4);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_CUBE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC2);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC3);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT2);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT3);
+            default:break;
+        }
+        return "<unknown dmGraphics::Type>";
     }
 
     const char* GetAssetTypeLiteral(AssetType type)
@@ -160,7 +185,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
             default:break;
         }
-        return "<unknown asset type>";
+        return "<unknown dmGraphics::AssetType>";
     }
 
     const char* GetTextureFormatLiteral(TextureFormat format)
@@ -197,7 +222,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
             default:break;
         }
-        return "<unknown texture format>";
+        return "<unknown dmGraphics::TextureFormat>";
     }
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
@@ -298,6 +323,75 @@ namespace dmGraphics
             default: break;
         }
         return ~0u;
+    }
+
+    uint32_t GetTypeSize(dmGraphics::Type type)
+    {
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
+        {
+             return 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC2)
+        {
+            return 2 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC3)
+        {
+            return 3 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC4)
+        {
+            return 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT2)
+        {
+            return 2 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT3)
+        {
+            return 3 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT4)
+        {
+            return 4 * 4 * 4;
+        }
+        else if (type == TYPE_SAMPLER_2D || type == TYPE_SAMPLER_CUBE || type == TYPE_SAMPLER_2D_ARRAY)
+        {
+            return 0;
+        }
+
+        assert(0 && "Invalid/unsupported type");
+        return 0;
+    }
+
+    void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
+        *data_size = attribute.m_Values.m_BinaryValues.m_Count;
+    }
+
+    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return dmGraphics::TYPE_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return dmGraphics::TYPE_UNSIGNED_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return dmGraphics::TYPE_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return dmGraphics::TYPE_UNSIGNED_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return dmGraphics::TYPE_INT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return dmGraphics::TYPE_UNSIGNED_INT;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return dmGraphics::TYPE_FLOAT;
+            default: assert(0 && "Unsupported dmGraphics::VertexAttribute::DataType");
+        }
+        return (dmGraphics::Type) -1;
     }
 
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
@@ -871,6 +965,10 @@ namespace dmGraphics
     {
         g_functions.m_HashVertexDeclaration(state, vertex_declaration);
     }
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
@@ -926,6 +1024,14 @@ namespace dmGraphics
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
+    }
+    uint32_t GetAttributeCount(HProgram prog)
+    {
+        return g_functions.m_GetAttributeCount(prog);
+    }
+    void GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        return g_functions.m_GetAttribute(prog, index, name_hash, type, element_count, num_values, location);
     }
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {

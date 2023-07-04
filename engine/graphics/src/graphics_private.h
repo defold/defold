@@ -22,8 +22,7 @@ namespace dmGraphics
 {
     uint32_t      GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t      GetGraphicsTypeDataSize(Type type);
-
-    const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
+    const char*   GetGraphicsTypeLiteral(Type type);
 
     struct VertexStream
     {
