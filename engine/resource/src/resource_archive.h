@@ -190,9 +190,6 @@ namespace dmResourceArchive
      */
     Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData** entry);
 
-    // // Deprecated
-    // Result Read(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry_data, void* buffer);
-
     /**
      * Read resource from the given archive
      * @param archive archive index handle

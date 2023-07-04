@@ -128,14 +128,16 @@ message ManifestData {
  * The Manifest. This is separate from ManifestData to easily create a
  * signature of the manifest content. Nothing other than a single ManifestData
  * entry and a single signature should be part of this entity.
- * - data               : A data blob, which is in fact a ManifestData message
- * - signature          : A cryptographic signature of the data byte array
- * - archive_identifier :
- * - version            : A version number to quickly identify if we can read/support the file
+ * - data                   : A data blob, which is in fact a ManifestData message
+ * - signature              : A cryptographic signature of the data byte array
+ * - version                : A version number to quickly identify if we can read/support the file
+ * - data_format_version    : A version hash of all our supported data formats
+ * - archive_identifier     : (deprecated) a hash of the corresponding archive index
  */
 message ManifestFile {
     required bytes              data = 1;
     required bytes              signature = 2;
-    required bytes              archive_identifier = 3;
-    optional uint32             version = 4 [default = 0]; // dmResourceManifest::MANIFEST_VERSION
+    optional bytes              archive_identifier = 3; // deprecated
+    optional uint32             version = 4 [default = 0]; // dmResource::MANIFEST_VERSION
+    optional uint64             data_format_version = 5 [default = 0];
 }

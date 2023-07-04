@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "resource_util.h"
+#include "resource_manifest.h"
 
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>

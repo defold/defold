@@ -1456,14 +1456,14 @@ TEST_F(ResourceTest, ManifestLoadDdfFail)
 {
     const char* buf = "this is not a manifest buffer";
     dmResource::Manifest* manifest;
-    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer((uint8_t*)buf, strlen(buf), &manifest);
+    dmResource::Result result = dmResource::LoadManifestFromBuffer((uint8_t*)buf, strlen(buf), &manifest);
     ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)
 {
     dmResource::Manifest* manifest;
-    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
+    dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
@@ -1477,13 +1477,13 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerification)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::Delete(archive);
-    dmResourceManifest::DeleteManifest(manifest);
+    dmResource::DeleteManifest(manifest);
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 {
     dmResource::Manifest* manifest;
-    dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
+    dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
@@ -1525,7 +1525,7 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     free(entries);
 
     dmResourceArchive::Delete(archive);
-    dmResourceManifest::DeleteManifest(manifest);
+    dmResource::DeleteManifest(manifest);
 }
 
 int main(int argc, char **argv)

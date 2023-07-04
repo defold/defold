@@ -1,6 +1,9 @@
 #include "resource_mounts.h"
+#include "resource_manifest.h"
 #include "resource_private.h" // for log
+#include "resource_mounts.h"
 #include "providers/provider.h"
+#include <resource/liveupdate_ddf.h>
 
 #include <dlib/log.h>
 #include <algorithm> // std::sort
@@ -149,6 +152,12 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
+dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash)
+{
+    uint32_t resource_size;
+    return GetResourceSize(ctx, path_hash, 0, &resource_size);
+}
+
 dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size)
 {
     uint32_t size = ctx->m_Mounts.Size();
@@ -192,6 +201,121 @@ dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_ha
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
+struct DependencyIterContext
+{
+    dmHashTable64<bool> m_Visited;
+    HContext            m_Mounts;
+    FGetDependency      m_UserCallback;
+    void*               m_UserCallbackCtx;
+    bool                m_OnlyMissing;
+    bool                m_Resursive;
+};
+
+// Returns true if existed.
+// Returns false if it didn't exist. Also adds to the set
+static bool UpdateVisited(dmHashTable64<bool>& t, dmhash_t url_hash, bool exists)
+{
+    bool* visited = t.Get(url_hash);
+    if (visited)
+    {
+        *visited = exists;
+        return true;
+    }
+
+    if (t.Full())
+    {
+        uint32_t capacity = t.Capacity();
+        capacity += 32;
+        uint32_t table_size = (capacity*2)/3;
+        t.SetCapacity(table_size, capacity);
+    }
+    t.Put(url_hash, exists);
+    return exists; // it didn't exist
+}
+
+static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, const dmhash_t url_hash)
+{
+    ResourceMountsContext* mounts_ctx = (ResourceMountsContext*)ctx->m_Mounts;
+    uint32_t num_mounts = mounts_ctx->m_Mounts.Size();
+    bool only_missing = ctx->m_OnlyMissing;
+
+    dmArray<dmhash_t> dependencies; // allocate it outside of the loop
+
+    for (uint32_t i = 0; i < num_mounts; ++i)
+    {
+        ArchiveMount& mount = mounts_ctx->m_Mounts[i];
+
+        dmResource::Manifest* manifest;
+        dmResourceProvider::Result presult = dmResourceProvider::GetManifest(mount.m_Archive, &manifest);
+        if (presult != dmResourceProvider::RESULT_OK)
+            continue;
+
+        dependencies.SetSize(0);
+        dmResource::Result result = dmResource::GetDependencies(manifest, url_hash, dependencies);
+        if (dmResource::RESULT_RESOURCE_NOT_FOUND == result)
+            continue;
+
+        uint32_t hash_len = dmResource::GetEntryHashLength(manifest);
+
+        for (uint32_t d = 0; d < dependencies.Size(); ++d)
+        {
+            dmhash_t dep_hash = dependencies[i];
+            bool* visited = ctx->m_Visited.Get(dep_hash);
+            if (visited)
+                continue;
+
+            bool exists = true;
+            if (only_missing)
+            {
+                exists = ResourceExists(mounts_ctx, dep_hash);
+            }
+
+            UpdateVisited(ctx->m_Visited, dep_hash, exists);
+
+            // If we only want the missing ones
+            if (only_missing && exists)
+                continue;
+
+
+            SGetDependenciesResult result = {0};
+            result.m_UrlHash = dep_hash;
+            result.m_Missing = !exists;
+            dmLiveUpdateDDF::ResourceEntry* entry = dmResource::FindEntry(manifest, dep_hash);
+            if (!entry)
+            {
+                // NOTE: It is important that we don't remove "liveupdate" resource dependencies from the manifest
+                // Otherwise we cannot get the actual path to report back to the user for the download
+                dmLogError("Couldn't get entry for dependency %llx in manifest from ´%llx`", dep_hash, url_hash);
+                ctx->m_UserCallback(ctx->m_UserCallbackCtx, &result);
+                continue;
+            }
+
+            result.m_HashDigest        = entry->m_Hash.m_Data.m_Data;
+            result.m_HashDigestLength  = hash_len;
+
+            ctx->m_UserCallback(ctx->m_UserCallbackCtx, &result);
+
+            if (ctx->m_Resursive && entry->m_Dependants.m_Count > 0)
+            {
+                // If we need to check other resources, we need to loop over the mounts again
+                GetDependenciesInternal(ctx, dep_hash);
+            }
+        }
+    }
+    return dmResource::RESULT_RESOURCE_NOT_FOUND;
+}
+
+dmResource::Result GetDependencies(HContext ctx, const SGetDependenciesParams* request, FGetDependency callback, void* callback_context)
+{
+    DependencyIterContext iter_ctx;
+    iter_ctx.m_Mounts = ctx;
+    iter_ctx.m_UserCallback = callback;
+    iter_ctx.m_UserCallbackCtx = callback_context;
+    iter_ctx.m_Resursive = request->m_Recursive;
+    iter_ctx.m_OnlyMissing = request->m_OnlyMissing;
+
+    return GetDependenciesInternal(&iter_ctx, request->m_UrlHash);
+}
 
 }
 

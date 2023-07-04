@@ -158,21 +158,21 @@ def build(bld):
     # ******************************************************************************************************************************
     # Integration tests
 
-    test_resource_archive = bld.program(features     = 'cxx embed test',
-                                        includes     = '.. ../../proto',
-                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
-                                        proto_gen_py = True,
-                                        target       = 'test_resource_archive',
-                                        source       = 'test_resource_archive.cpp',
-                                        embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+    bld.program(features     = 'cxx embed test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                proto_gen_py = True,
+                target       = 'test_resource_archive',
+                source       = 'test_resource_archive.cpp',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
 
-    test_resource = bld.program(features     = 'cxx embed test',
-                                includes     = '.. ../../proto',
-                                defines      = defines,
-                                use          = 'TESTMAIN DDF DLIB PROFILE THREAD LUA resource',
-                                web_libs     = ['library_sys.js'],
-                                proto_gen_py = True,
-                                exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],
-                                target       = 'test_resource',
-                                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
-                                embed_source = 'resources.arci resources.arcd resources.dmanifest')
+    bld.program(features     = 'cxx embed test',
+                includes     = '.. ../../proto',
+                defines      = defines,
+                use          = 'TESTMAIN DDF DLIB PROFILE THREAD LUA resource',
+                web_libs     = ['library_sys.js'],
+                proto_gen_py = True,
+                exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],
+                target       = 'test_resource',
+                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest')

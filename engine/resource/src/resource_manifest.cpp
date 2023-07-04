@@ -14,6 +14,7 @@
 
 #include "resource.h"
 #include "resource_manifest.h"
+#include "resource_util.h"
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -21,9 +22,20 @@
 #include <dlib/path.h> // DMPATH_MAX_PATH
 #include <dlib/sys.h>
 #include <dlib/uri.h>
+#include <resource/liveupdate_ddf.h>
 
-namespace dmResourceManifest
+
+namespace dmResource
 {
+
+const char* GetProjectId(dmResource::Manifest* manifest, char* buffer, uint32_t buffer_size)
+{
+    uint32_t hash_len = HashLength(dmLiveUpdateDDF::HASH_SHA1);
+    if (buffer_size < (hash_len*2+1) )
+        return 0;
+    dmResource::BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, hash_len, buffer, buffer_size);
+    return buffer;
+}
 
 const char* GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size)
 {
@@ -31,6 +43,11 @@ const char* GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buff
     return buffer;
 }
 
+uint32_t GetEntryHashLength(dmResource::Manifest* manifest)
+{
+    dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+    return dmResource::HashLength(algorithm);
+}
 
 void DeleteManifest(dmResource::Manifest* manifest)
 {
@@ -145,12 +162,44 @@ dmResource::Result WriteManifest(const char* path, dmResource::Manifest* manifes
     return dmResource::RESULT_OK;
 }
 
-static void PrintHash(const uint8_t* hash, uint32_t len)
+dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::Manifest* manifest, dmhash_t url_hash)
 {
-    for (uint32_t i = 0; i < len; ++i)
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+
+    int first = 0;
+    int last = manifest->m_DDFData->m_Resources.m_Count - 1;
+    while (first <= last)
     {
-        printf("%02X", hash[i]);
+        int mid = first + (last - first) / 2;
+        dmhash_t currentHash = entries[mid].m_UrlHash;
+        if (currentHash == url_hash)
+        {
+            return &entries[mid];
+        }
+        else if (currentHash > url_hash)
+        {
+            last = mid - 1;
+        }
+        else if (currentHash < url_hash)
+        {
+            first = mid + 1;
+        }
     }
+    return 0;
+}
+
+dmResource::Result GetDependencies(dmResource::Manifest* manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies)
+{
+    dmLiveUpdateDDF::ResourceEntry* entry = FindEntry(manifest, url_hash);
+    if (!entry)
+        return dmResource::RESULT_RESOURCE_NOT_FOUND;
+
+    uint32_t count = entry->m_Dependants.m_Count;
+    if (dependencies.Capacity() < count)
+        dependencies.SetCapacity(count);
+
+    dependencies.PushArray(entry->m_Dependants.m_Data, count);
+    return dmResource::RESULT_OK;
 }
 
 void DebugPrintManifest(dmResource::Manifest* manifest)
@@ -160,7 +209,7 @@ void DebugPrintManifest(dmResource::Manifest* manifest)
         dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
         printf("entry: hash: ");
         uint8_t* h = entry->m_Hash.m_Data.m_Data;
-        PrintHash(h, entry->m_Hash.m_Data.m_Count);
+        dmResource::PrintHash(h, entry->m_Hash.m_Data.m_Count);
         printf("  b/l/e/c: %u%u%u%u url: %llx  %s  sz: %u  csz: %u\n",
                 (entry->m_Flags & dmLiveUpdateDDF::BUNDLED) != 0,
                 (entry->m_Flags & dmLiveUpdateDDF::EXCLUDED) != 0,

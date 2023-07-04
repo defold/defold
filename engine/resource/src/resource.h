@@ -15,17 +15,21 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
+#include <stdint.h>
 #include <dmsdk/resource/resource.h>
-#include <ddf/ddf.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/mutex.h>
-#include <resource/liveupdate_ddf.h>
 
 namespace dmResourceArchive
 {
     typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+}
+
+namespace dmResourceMounts
+{
+    typedef struct ResourceMountsContext* HContext;
 }
 
 namespace dmResource
@@ -60,18 +64,6 @@ namespace dmResource
      * Enable Live update
      */
     #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
-
-    struct Manifest
-    {
-        Manifest()
-        {
-            memset(this, 0, sizeof(Manifest));
-        }
-
-        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
-        dmLiveUpdateDDF::ManifestFile*              m_DDF;
-        dmLiveUpdateDDF::ManifestData*              m_DDFData;
-    };
 
     typedef uintptr_t ResourceType;
 
@@ -316,20 +308,37 @@ namespace dmResource
     void DeletePreloader(HPreloader preloader);
 
     /**
-     * Loads the public RSA key from the bundle.
-     * Uses the public key to decrypt the manifest signature to get the content hash.
-     * Compares the decrypted content hash to the expected content hash.
-     * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
-     * Inspect asn1 key content; http://lapo.it/asn1js/#
-     */
-    //Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
-
-    /**
      * Returns the mutex held when loading asynchronous
      * @param factory Factory handle
      * @return Mutex pointer
     */
     dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory);
+
+    struct SGetDependenciesParams
+    {
+        dmhash_t m_UrlHash; // The requested url
+        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
+        bool m_Recursive;   // Traverse down for each resource that has dependencies
+    };
+
+    struct SGetDependenciesResult
+    {
+        dmhash_t m_UrlHash;
+        uint8_t* m_HashDigest;
+        uint32_t m_HashDigestLength;
+        bool     m_Missing;
+    };
+
+    /**
+     * Returns the dependencies for a resource
+     * @name GetDependencies
+     * @note Only reports dependencies from mounts that have a .dmanifest available
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param url_hash [type: dmhash_t] url hash
+     * @return result [type: dmResource::Result] The mounts context
+    */
+    typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
+    dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams& params, FGetDependency callback, void* callback_context);
 
     /**
      * Releases the builtins manifest
@@ -369,15 +378,9 @@ namespace dmResource
      */
     void IterateResources(HFactory factory, FResourceIterator callback, void* user_ctx);
 
-    /**
+    /*#
      */
     const char* ResultToString(Result result);
-
-
-    /*# Get the support path for the project, with the hashed project name at the end
-     */
-// TODO: Used by Live update only
-    //Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
 
 }
 

@@ -75,7 +75,7 @@ namespace dmResourceProviderArchive
     static void DeleteArchive(GameArchiveFile* archive)
     {
         if (archive->m_Manifest)
-            dmResourceManifest::DeleteManifest(archive->m_Manifest);
+            dmResource::DeleteManifest(archive->m_Manifest);
 
         if (archive->m_ArchiveIndex)
             dmResource::UnmountArchiveInternal(archive->m_ArchiveIndex, archive->m_ArchiveIndex->m_UserData);
@@ -117,7 +117,7 @@ namespace dmResourceProviderArchive
                 *dot = 0;
         }
 
-        dmResource::Result m_result = dmResourceManifest::LoadManifest(&archive->m_BaseUri, &archive->m_Manifest);
+        dmResource::Result m_result = dmResource::LoadManifest(&archive->m_BaseUri, &archive->m_Manifest);
         if (dmResource::RESULT_OK != m_result)
         {
             DeleteArchive(archive);
@@ -125,7 +125,7 @@ namespace dmResourceProviderArchive
         }
 
     // printf("Manifest:\n");
-    // dmResourceManifest::DebugPrintManifest(archive->m_Manifest);
+    // dmResource::DebugPrintManifest(archive->m_Manifest);
 
         dmResourceProvider::Result result = MountArchive(&archive->m_BaseUri, &archive->m_ArchiveIndex);
         if (dmResourceProvider::RESULT_OK != result)
@@ -169,7 +169,7 @@ namespace dmResourceProviderArchive
         GameArchiveFile* archive = new GameArchiveFile;
         memset(&archive->m_BaseUri, 0, sizeof(dmURI::Parts));
 
-        dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
+        dmResource::Result result = dmResource::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
         if (dmResource::RESULT_OK != result)
         {
             dmLogError("Failed to load manifest in-memory, result: %u", result);

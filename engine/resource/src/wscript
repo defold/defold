@@ -38,6 +38,8 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_util.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_verify.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
 

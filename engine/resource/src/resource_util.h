@@ -20,6 +20,8 @@
 
 namespace dmResource
 {
+    struct Manifest; // TODO: Remove this dependency
+
     typedef Result (*FDecryptResource)(void* buffer, uint32_t buffer_len);
     void RegisterResourceDecryption(FDecryptResource decrypt_resource);
 

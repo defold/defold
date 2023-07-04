@@ -445,6 +445,40 @@ Result RegisterType(HFactory factory,
     return RESULT_OK;
 }
 
+struct SResourceDependencyCallback
+{
+    FGetDependency  m_Callback;
+    void*           m_CallbackContext;
+};
+
+static void ResourceDependencyCallback(void* _context, const dmResourceMounts::SGetDependenciesResult* result)
+{
+    SResourceDependencyCallback* context = (SResourceDependencyCallback*)_context;
+    // Opportunity to check status in the resources (e.g. ref count to see if it's loaded)
+
+    dmResource::SGetDependenciesResult out;
+    out.m_UrlHash           = result->m_UrlHash;
+    out.m_HashDigest        = result->m_HashDigest;
+    out.m_HashDigestLength  = result->m_HashDigestLength;
+    out.m_Missing           = result->m_Missing;
+
+    context->m_Callback(context->m_CallbackContext, &out);
+}
+
+dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams& _params, FGetDependency callback, void* callback_context)
+{
+    SResourceDependencyCallback ctx;
+    ctx.m_Callback = callback;
+    ctx.m_CallbackContext = callback_context;
+
+    dmResourceMounts::SGetDependenciesParams params;
+    params.m_UrlHash        = _params.m_UrlHash;
+    params.m_OnlyMissing    = _params.m_OnlyMissing;
+    params.m_Recursive      = _params.m_Recursive;
+    return dmResourceMounts::GetDependencies(factory->m_Mounts, &params, ResourceDependencyCallback, &ctx);
+}
+
+
 // Assumes m_LoadMutex is already held
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {

@@ -35,9 +35,28 @@ namespace dmResourceMounts
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
     dmResource::Result DestroyArchives(HContext ctx);
 
+    dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash);
     dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, dmResource::LoadBufferType* buffer);
+
+    struct SGetDependenciesParams
+    {
+        dmhash_t m_UrlHash; // The requested url
+        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
+        bool m_Recursive;   // Traverse down for each resource that has dependencies
+    };
+
+    struct SGetDependenciesResult
+    {
+        dmhash_t m_UrlHash;
+        uint8_t* m_HashDigest;
+        uint32_t m_HashDigestLength;
+        bool     m_Missing;
+    };
+
+    typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
+    dmResource::Result GetDependencies(HContext ctx, const SGetDependenciesParams* request, FGetDependency callback, void* callback_context);
 }
 
 #endif // DM_RESOURCE_MOUNTS_H

@@ -51,7 +51,7 @@ static void DeleteZipArchiveInternal(dmResourceProvider::HArchiveInternal _archi
 {
     ZipProviderContext* archive = (ZipProviderContext*)_archive;
     if (archive->m_Manifest)
-        dmResourceManifest::DeleteManifest(archive->m_Manifest);
+        dmResource::DeleteManifest(archive->m_Manifest);
     if (archive->m_Zip)
         dmZip::Close(archive->m_Zip);
     delete archive;
@@ -145,7 +145,7 @@ static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path
     dmZip::CloseEntry(zip);
 
     dmResourceProvider::Result result = dmResourceProvider::RESULT_OK;
-    dmResource::Result r = dmResourceManifest::LoadManifestFromBuffer(manifest_data, manifest_len, manifest);
+    dmResource::Result r = dmResource::LoadManifestFromBuffer(manifest_data, manifest_len, manifest);
     if (dmResource::RESULT_OK != r)
     {
         dmLogError("Could not read manifest '%s' from archive", path);
@@ -279,11 +279,23 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
     return result;
 }
 
+static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::Manifest** out_manifest)
+{
+    ZipProviderContext* archive = (ZipProviderContext*)_archive;
+    if (archive->m_Manifest)
+    {
+        *out_manifest = archive->m_Manifest;
+        return dmResourceProvider::RESULT_OK;
+    }
+    return dmResourceProvider::RESULT_NOT_FOUND;
+}
+
 static void SetupArchiveLoaderHttpZip(dmResourceProvider::ArchiveLoader* loader)
 {
     loader->m_CanMount      = MatchesUri;
     loader->m_Mount         = Mount;
     loader->m_Unmount       = Unmount;
+    loader->m_GetManifest   = GetManifest;
     loader->m_GetFileSize   = GetFileSize;
     loader->m_ReadFile      = ReadFile;
 }

@@ -83,7 +83,7 @@ namespace dmResourceProviderArchiveMutable
     static void DeleteArchive(GameArchiveFile* archive)
     {
         if (archive->m_Manifest)
-            dmResourceManifest::DeleteManifest(archive->m_Manifest);
+            dmResource::DeleteManifest(archive->m_Manifest);
 
         if (archive->m_ArchiveContainer)
             dmResource::UnmountArchiveInternal(archive->m_ArchiveContainer, archive->m_ArchiveContainer->m_UserData);
@@ -258,11 +258,11 @@ namespace dmResourceProviderArchiveMutable
         memcpy(&archive->m_Uri, uri, sizeof(dmURI::Parts));
 
         char manifest_path[DMPATH_MAX_PATH];
-        dmResourceManifest::GetManifestPath(&archive->m_Uri, manifest_path, sizeof(manifest_path));
+        dmResource::GetManifestPath(&archive->m_Uri, manifest_path, sizeof(manifest_path));
 
         if (dmSys::Exists(manifest_path))
         {
-            dmResource::Result mresult = dmResourceManifest::LoadManifest(uri, &archive->m_Manifest);
+            dmResource::Result mresult = dmResource::LoadManifest(uri, &archive->m_Manifest);
             if (dmResource::RESULT_OK != mresult)
             {
                 dmLogError("Failed to load manifest '%s'. Cannot mount archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
@@ -275,7 +275,7 @@ namespace dmResourceProviderArchiveMutable
         {
             archive->m_Manifest = CreateManifestCopy(base_manifest);
 
-            dmResourceManifest::WriteManifest(manifest_path, archive->m_Manifest);
+            dmResource::WriteManifest(manifest_path, archive->m_Manifest);
             dmLogInfo("Stored manifest copy '%s' for archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
         }
 
@@ -328,7 +328,7 @@ namespace dmResourceProviderArchiveMutable
     {
         GameArchiveFile* archive = new GameArchiveFile;
 
-        dmResource::Result result = dmResourceManifest::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
+        dmResource::Result result = dmResource::LoadManifestFromBuffer(manifest_data, manifest_data_len, &archive->m_Manifest);
         if (dmResource::RESULT_OK != result)
         {
             dmLogError("Failed to load manifest in-memory, result: %u", result);
@@ -473,11 +473,23 @@ namespace dmResourceProviderArchiveMutable
         return result;
     }
 
+    static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::Manifest** out_manifest)
+    {
+        GameArchiveFile* archive = (GameArchiveFile*)_archive;
+        if (archive->m_Manifest)
+        {
+            *out_manifest = archive->m_Manifest;
+            return dmResourceProvider::RESULT_OK;
+        }
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
+
     static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
     {
         loader->m_CanMount      = MatchesUri;
         loader->m_Mount         = Mount;
         loader->m_Unmount       = Unmount;
+        loader->m_GetManifest   = GetManifest;
         loader->m_GetFileSize   = GetFileSize;
         loader->m_ReadFile      = ReadFile;
         loader->m_WriteFile     = WriteFile;
