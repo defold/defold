@@ -1953,7 +1953,7 @@ bail:
             int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
             if (unload)
             {
-                dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+                dmResource::ReleaseBuiltinsArchive(engine->m_Factory);
             }
         }
 

@@ -214,6 +214,13 @@ public class ArchiveBuilder {
 
             int resourceEntryFlags = 0;
 
+            // Encrypt data first, so we can decrypt in place at runtimeä
+            // this allows us to minimize allocations/copying
+            if (entry.isEncrypted()) {
+                buffer = this.encryptResourceData(buffer);
+                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            }
+
             if (entry.isCompressed()) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
@@ -226,12 +233,6 @@ public class ArchiveBuilder {
                 } else {
                     entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
-            }
-
-            // Encrypt data
-            if (entry.isEncrypted()) {
-                buffer = this.encryptResourceData(buffer);
-                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
             }
 
             // Add entry to manifest
@@ -336,7 +337,7 @@ public class ArchiveBuilder {
         System.exit(1);
     }
 
-    // The main function is used to create test content
+    // The main function is used to create builtins archive for the runtime connect app, and also test content
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, CompileExceptionError {
         // Validate input
         if (args.length < 3) {

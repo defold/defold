@@ -529,7 +529,7 @@ namespace dmResourceArchive
               uint32_t compressed_size  = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
 
         bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
-        bool compressed = compressed_size != 0xFFFFFFFF;
+        bool compressed = (flags & dmResourceArchive::ENTRY_FLAG_COMPRESSED);
 
         const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
         bool resource_memmapped = afi->m_IsMemMapped;
