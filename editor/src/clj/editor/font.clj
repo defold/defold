@@ -600,9 +600,11 @@
                                   getFileName
                                   toString)
             texture-resource (workspace/resolve-resource resource texture-file-name)]
-        (if disk-sha256
-          (g/set-property self :texture texture-resource :disk-sha256 disk-sha256)
-          (g/set-property self :texture texture-resource))))))
+        (concat
+          (g/set-property self :texture texture-resource)
+          (when disk-sha256
+            (let [workspace (resource/workspace resource)]
+              (workspace/set-disk-sha256 workspace self disk-sha256))))))))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))

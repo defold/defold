@@ -65,3 +65,18 @@
 
       :else
       coll)))
+
+(defn separate-by
+  "Separates items in the supplied collection into two based on a predicate.
+  Returns a pair of [true-items, false-items]. The resulting collections will
+  have the same type as the input collection."
+  [pred coll]
+  (let [empty-coll (empty coll)]
+    (reduce (fn [result item]
+              (if (pred item)
+                (pair (conj (key result) item)
+                      (val result))
+                (pair (key result)
+                      (conj (val result) item))))
+            (pair empty-coll empty-coll)
+            coll)))

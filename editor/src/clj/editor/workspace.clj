@@ -34,7 +34,8 @@ ordinary paths."
             [editor.util :as util]
             [internal.cache :as c]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.digest :as digest])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [com.dynamo.bob Platform]
@@ -736,6 +737,7 @@ ordinary paths."
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
+  (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any)
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
@@ -853,6 +855,19 @@ ordinary paths."
             (concat
               (g/connect notifications :_node-id workspace :notifications)
               (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
+
+(defn set-disk-sha256 [workspace node-id disk-sha256]
+  {:pre [(g/node-id? workspace)
+         (g/node-id? node-id)
+         (digest/sha256-hex? disk-sha256)]}
+  (g/update-property workspace :disk-sha256s-by-node-id assoc node-id disk-sha256))
+
+(defn merge-disk-sha256s [workspace disk-sha256s-by-node-id]
+  {:pre [(g/node-id? workspace)
+         (map? disk-sha256s-by-node-id)
+         (every? g/node-id? (keys disk-sha256s-by-node-id))
+         (every? digest/sha256-hex? (vals disk-sha256s-by-node-id))]}
+  (g/update-property workspace :disk-sha256s-by-node-id merge disk-sha256s-by-node-id))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

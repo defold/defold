@@ -403,7 +403,7 @@
                       {:scene {:chair (g/node-value chair :scene)
                                :room (g/node-value room :scene)
                                :house (g/node-value house :scene)}}]
-                  (save-project! project)
+                  (tu/save-project! project)
                   (set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state

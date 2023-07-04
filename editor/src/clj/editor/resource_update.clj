@@ -25,7 +25,9 @@
   * redirect - a list of [resource node, new resource] pairs, the resource nodes :resource will be reset to new resource."
   (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [util.coll :as coll])
   (:import [editor.resource ZipResource]))
 
 (defn print-plan [plan]
@@ -66,12 +68,13 @@
 (defn- keep-existing-node?
   "Check if we can safely keep the existing node in the graph. Every time a file
   has an updated timestamp it will be reported as changed, but if the contents
-  are unchanged we don't need to reload the node. The :disk-sha256 output must
-  produce a non-nil value for the existing node to potentially be kept. Resource
-  nodes will typically assign the :disk-sha256 property at load time to achieve
-  this, but lazy-loaded resource nodes can use other methods."
-  [old-node new-resource evaluation-context]
-  (if-some [old-disk-sha256 (g/node-value old-node :disk-sha256 evaluation-context)]
+  are unchanged we don't need to reload the node. The old node must have
+  registered a disk-sha256 using the workspace/set-disk-sha256 function for the
+  existing node to potentially be kept. Resource nodes will typically call
+  workspace/set-disk-sha256 from their load-fn, but lazy-loaded resource nodes
+  can use other methods."
+  [old-node new-resource old-node->old-disk-sha256]
+  (if-some [old-disk-sha256 (old-node->old-disk-sha256 old-node)]
     (if-some [new-disk-sha256 (try
                                 (resource/resource->sha256-hex new-resource)
                                 (catch Exception _
@@ -80,7 +83,7 @@
       false)
     false))
 
-(defn- replace-resources-plan [{:keys [resource->old-node]} resources force-replacement]
+(defn- replace-resources-plan [{:keys [resource->old-node old-node->old-disk-sha256]} resources force-replacement]
   ;; Creates new resource nodes for all resources, transfers overrides and outgoing arcs
   ;; from old (if any) and deletes them. If force-replacement is false, we check whether
   ;; the file has significant changes before replacing any nodes.
@@ -91,12 +94,9 @@
                        resources)
         [kept replaced] (if force-replacement
                           [nil in-graph]
-                          (let [{replaced false kept true}
-                                (g/with-auto-evaluation-context evaluation-context
-                                  (group-by (fn [[resource old-node]]
-                                              (keep-existing-node? old-node resource evaluation-context))
-                                            in-graph))]
-                            [kept replaced]))
+                          (coll/separate-by (fn [[resource old-node]]
+                                              (keep-existing-node? old-node resource old-node->old-disk-sha256))
+                                            in-graph))
         transfer-overrides replaced
         transfer-outgoing-arcs (mapv (fn [[resource old-node]]
                                        [resource (gu/explicit-outputs old-node)])
@@ -268,18 +268,18 @@
                   (resource-moved-case-plan case move-pairs plan-info))
                 move-cases))))
 
-(defn resource-change-plan [old-nodes-by-path {:keys [added removed changed moved] :as changes}]
-  (let [move-sources (map first moved)
+(defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 {:keys [added removed changed moved] :as changes}]
+  (let [basis (g/now)
+        move-sources (map first moved)
         move-targets (map second moved)
         move-source-paths (into #{} (map resource/proj-path) move-sources)
         move-target-paths (into #{} (map resource/proj-path) move-targets)
         resource->old-node (comp old-nodes-by-path resource/proj-path)
-        old-resource-by-old-node (g/with-auto-evaluation-context evaluation-context
-                                   (into {}
-                                         (map (fn [[_ old-node]]
-                                                (let [old-resource (g/node-value old-node :resource evaluation-context)]
-                                                  [old-node old-resource])))
-                                         old-nodes-by-path))
+        old-resource-by-old-node (into {}
+                                       (map (fn [[_ old-node]]
+                                              (let [old-resource (resource-node/resource basis old-node)]
+                                                [old-node old-resource])))
+                                       old-nodes-by-path)
         resource->old-resource (comp old-resource-by-old-node resource->old-node)
         resource-swapped? (fn [r] (not= r (resource->old-resource r)))
         changed-map (into {} (map (juxt resource/proj-path identity)) changed)
@@ -289,7 +289,8 @@
                    :resource->old-node resource->old-node
                    :resource->old-resource resource->old-resource
                    :resource-swapped? resource-swapped?
-                   :resource->changed-resource resource->changed-resource}]
+                   :resource->changed-resource resource->changed-resource
+                   :old-node->old-disk-sha256 old-node->old-disk-sha256}]
     ;; sanity checks
     (let [known? (fn [r] (contains? old-nodes-by-path (resource/proj-path r)))
           unknown? (complement known?)

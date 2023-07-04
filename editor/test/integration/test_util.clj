@@ -23,6 +23,7 @@
             [editor.code.data :as code.data]
             [editor.collection :as collection]
             [editor.defold-project :as project]
+            [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
@@ -1065,4 +1066,6 @@
 (defn save-project! [project]
   (let [save-data (project/dirty-save-data project)]
     (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
+    (let [workspace (project/workspace project)
+          post-save-actions (disk/make-post-save-actions save-data)]
+      (disk/process-post-save-actions! workspace post-save-actions))))

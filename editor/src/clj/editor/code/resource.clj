@@ -22,8 +22,7 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [schema.core :as s]
-            [util.digest :as digest])
+            [schema.core :as s])
   (:import [editor.code.data Cursor CursorRange]))
 
 (set! *warn-on-reflection* true)
@@ -70,61 +69,58 @@
 ;; To save memory, we defer loading the file contents until it has been modified
 ;; and read directly from disk up to that point. Once the file is edited we need
 ;; the unmodified lines to be able to undo past the point when the file was last
-;; saved. When the first edit is performed, we load the original state from disk
+;; saved. When the first edit is performed, we load the original lines from disk
 ;; and store it as user-data in the graph. We cannot store this in a property of
 ;; the node, because undoing would clear out the state of the unmodified file as
 ;; well, which would defeat the purpose.
 
-(defn- make-disk-state
-  "Makes a new map representing the unaltered on-disk state for a file. It
-  includes the unmodified lines and the SHA-256 of the raw disk bytes."
-  [disk-lines disk-sha256]
-  {:pre [(or (vector? disk-lines)
-           (g/error-value? disk-lines))
-         (or (digest/sha256-hex? disk-sha256)
-           (nil? disk-sha256))]}
-  {:disk-lines disk-lines
-   :disk-sha256 disk-sha256})
+(defn- read-lines+disk-sha256
+  "Reads the disk state of the specified CodeEditorResourceNode id from disk and
+  returns a pair of [lines, disk-sha256]. In case of errors, the lines key in
+  the returned pair will be an ErrorValue and the disk-sha256 value will be nil.
+  The disk-sha256 will also be nil for any resource that is not a file in the
+  project."
+  [node-id resource]
+  (let [lines+disk-sha256 (resource-io/with-error-translation resource node-id nil
+                            (resource/read-source-value+sha256-hex resource read-fn))]
+    (if (g/error? lines+disk-sha256)
+      [lines+disk-sha256 nil]
+      lines+disk-sha256)))
 
-(defn- read-disk-state
-  "Reads the disk state of the specified CodeEditorResourceNode id from disk.
-  In case of errors, the :disk-lines key in the returned map will be an
-  ErrorValue and the :disk-sha256 will be nil. The :disk-sha256 will also be nil
-  for any resource that is not a file in the project."
-  [node-id evaluation-context]
-  (let [resource (g/node-value node-id :resource evaluation-context)
-        result (resource-io/with-error-translation resource node-id nil
-                 (resource/read-source-value+sha256-hex resource read-fn))]
-    (if (g/error? result)
-      (make-disk-state result nil)
-      (let [[disk-lines disk-sha256] result]
-        (make-disk-state disk-lines disk-sha256)))))
-
-(defn- loaded-disk-state
-  "Returns a map representing the on-disk state for the specified node-id, or
-  nil if the node makes use of lazy loading and have not been loaded yet."
+(defn- loaded-unmodified-lines
+  "Returns the unmodified lines for the specified node-id, or nil if the node
+  was never modified."
   [node-id]
-  (g/user-data node-id :disk-state))
+  (g/user-data node-id :unmodified-lines))
 
-(defn- ensure-disk-state!
+(defn- set-unmodified-lines!
+  "Sets the unmodified lines for the specified node-id."
+  [node-id lines]
+  (g/user-data! node-id :unmodified-lines lines))
+
+(defn- ensure-disk-state
   "Ensures the disk state has been loaded for the specified node-id. The first
   time this is called for a node-id, the state will be read from disk and the
   supplied seq of invalidated output labels will be invalidated. Subsequent
-  calls will do nothing. The loaded-disk-state function will return a non-nil
-  value after this function is called."
+  calls will do nothing. The loaded-unmodified-lines function will return a
+  non-nil value after this function is called."
   [node-id evaluation-context invalidated-labels]
-  (let [did-load-volatile (volatile! false)]
+  (let [read-volatile (volatile! nil)]
     (g/user-data-swap!
-      node-id :disk-state
-      (fn [loaded-disk-state]
-        (or loaded-disk-state
-            (let [disk-state (read-disk-state node-id evaluation-context)]
-              (vreset! did-load-volatile true)
-              disk-state))))
-    (when (and (deref did-load-volatile)
-               (seq invalidated-labels))
-      (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
-                                   invalidated-labels)))))
+      node-id :unmodified-lines
+      (fn [loaded-unmodified-lines]
+        (or loaded-unmodified-lines
+            (let [resource (g/node-value node-id :resource evaluation-context)
+                  [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)]
+              (vreset! read-volatile [resource disk-sha256])
+              lines-or-error-value))))
+    (when-some [[resource disk-sha256] (deref read-volatile)]
+      (when (seq invalidated-labels)
+        (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                     invalidated-labels)))
+      (when (some? disk-sha256)
+        (let [workspace (resource/workspace resource)]
+          (workspace/set-disk-sha256 workspace node-id disk-sha256))))))
 
 (defn ensure-loaded!
   "Ensures a lazy-loaded CodeEditorResourceNode has loaded the contents of its
@@ -132,17 +128,15 @@
   [node-id evaluation-context]
   ;; This function is called externally for its side effects, so we need to
   ;; invalidate any outputs that depend on the disk-state.
-  (ensure-disk-state! node-id evaluation-context [:disk-sha256 :save-value]))
+  (some-> (ensure-disk-state node-id evaluation-context [:save-value])
+          (g/transact)))
 
 (defn- eager-load [self resource]
   (let [[lines disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)
-        indent-type (guess-indent-type lines)
-        disk-state (make-disk-state lines disk-sha256)]
-    ;; This avoids a disk read in modified-lines property setter. There's no
-    ;; need to invalidate any outputs dependent on the disk-state here, since
-    ;; we're still in the loading phase.
-    (g/user-data! self :disk-state disk-state)
-    (g/set-property self :modified-lines lines :modified-indent-type indent-type)))
+        indent-type (guess-indent-type lines)]
+    (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
+    (cond-> (g/set-property self :modified-lines lines :modified-indent-type indent-type)
+            disk-sha256 (concat (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))))
 
 (defn- load-fn [additional-load-fn eager-loading? connect-breakpoints? project self resource]
   (concat
@@ -169,17 +163,9 @@
   (property modified-lines Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
-                   (ensure-disk-state! self evaluation-context [:disk-sha256])))) ; No need to invalidate :save-value here since it depends on :modified-lines.
+                   (ensure-disk-state self evaluation-context [])))) ; No need to invalidate :save-value here since it depends on :modified-lines.
 
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
-
-  ;; Covers property disk-sha256 in ResourceNode.
-  ;; Reads from :disk-state node user-data in order to support lazy-loading.
-  ;; Will produce nil if the contents has not yet been loaded, in which case the
-  ;; node cannot participate in the keep-if-contents-unchanged check during
-  ;; resource sync. The disk-state will be loaded the first time the
-  ;; modified-lines property is set.
-  (output disk-sha256 g/Str :unjammable (g/fnk [_node-id] (:disk-sha256 (loaded-disk-state _node-id))))
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output completions g/Any (g/constantly {}))
@@ -195,7 +181,7 @@
                                                                 (resource-io/with-error-translation resource _node-id :lines
                                                                   (read-fn resource)))))
 
-  (output save-value Lines (g/fnk [_node-id modified-lines] (or modified-lines (:disk-lines (loaded-disk-state _node-id)))))
+  (output save-value Lines (g/fnk [_node-id modified-lines] (or modified-lines (loaded-unmodified-lines _node-id))))
 
   ;; To save memory, save-data is not cached. It is trivial to produce.
   (output save-data g/Any resource-node/produce-save-data)
@@ -213,7 +199,7 @@
                                              (hash lines))))))
 
   ;; We're dirty if the hash of our non-nil save-value differs from the source.
-  (output dirty? g/Bool (g/fnk [_node-id editable resource save-value source-value]
+  (output dirty? g/Bool (g/fnk [_node-id editable save-value source-value]
                           (and editable (some? save-value) (not= source-value (hash save-value))))))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]

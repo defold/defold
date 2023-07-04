@@ -38,6 +38,14 @@
       (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
         (dependencies-fn source-value)))))
 
+(defn save-data-sha256 [undecorated-save-data]
+  ;; Note: resource-update/keep-existing-node? assumes this will return a
+  ;; sha256 hex hash string from the bytes written to disk.
+  (let [content (get undecorated-save-data :content ::no-content)]
+    (if (= ::no-content content)
+      (resource/resource->sha256-hex (:resource undecorated-save-data))
+      (digest/string->sha256-hex content))))
+
 (g/defnk produce-undecorated-save-data [_node-id resource save-value]
   (let [write-fn (:write-fn (resource/resource-type resource))]
     (cond-> {:resource resource :value save-value :node-id _node-id}
@@ -53,9 +61,6 @@
 
   (property editable g/Bool :unjammable
             (default true)
-            (dynamic visible (g/constantly false)))
-
-  (property disk-sha256 g/Str :unjammable
             (dynamic visible (g/constantly false)))
 
   (output undecorated-save-data g/Any produce-undecorated-save-data)
@@ -103,14 +108,9 @@
                                  ;; Careful! This might throw if resource has been removed
                                  ;; outside the editor. Use from editor.engine.native-extensions seems
                                  ;; to catch any exceptions.
-                                 ;; Also, be aware that resource-update/keep-existing-node?
-                                 ;; assumes this output will produce a sha256 hex hash string
-                                 ;; from the bytes we'll be writing to disk, so be careful
-                                 ;; if you decide to overload it.
-                                 (let [content (get undecorated-save-data :content ::no-content)]
-                                   (if (= ::no-content content)
-                                     (resource/resource->sha256-hex resource)
-                                     (digest/string->sha256-hex content))))))
+                                 (if (some? undecorated-save-data)
+                                   (save-data-sha256 undecorated-save-data)
+                                   (resource/resource->sha256-hex resource)))))
 
 (g/defnode NonEditableResourceNode
   (inherits ResourceNode)
@@ -210,7 +210,7 @@
                :load-fn (fn [project self resource]
                           (let [[source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)]
                             (cond->> (load-fn project self resource source-value)
-                                     disk-sha256 (concat (g/set-property self :disk-sha256 disk-sha256)))))
+                                     disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                :read-raw-fn read-raw-fn
                :read-fn read-fn
@@ -227,7 +227,7 @@
                :load-fn (fn [project self resource]
                           (let [[source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)]
                             (cond->> (load-fn project self resource source-value)
-                                     disk-sha256 (concat (g/set-property self :disk-sha256 disk-sha256)))))
+                                     disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
                :read-fn read-fn
                :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
                                settings-core/settings-with-value))]

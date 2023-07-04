@@ -76,8 +76,8 @@
   ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [resource-type (some-> resource resource/resource-type)
-          loaded? (and *load-cache* (contains? @*load-cache* node-id))]
-      (when-not loaded?
+          already-loaded (and *load-cache* (contains? @*load-cache* node-id))]
+      (when-not already-loaded
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
           (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
@@ -349,17 +349,7 @@
         (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
 
 (defn invalidate-save-data-source-values! [save-data]
-  (g/invalidate-outputs!
-    (into []
-          (mapcat (fn [{:keys [node-id]}]
-                    ;; While disk-sha256 is a property on the base ResourceNode,
-                    ;; lazy-loaded resources such as the CodeEditorResourceNode
-                    ;; may cover it with a custom output.
-
-                    ;; TODO: disk-sha256 cannot be a property, because we need to update it when saving (add a test for this!). And saving would then be "undoable".
-                    (pair (g/endpoint node-id :disk-sha256)
-                          (g/endpoint node-id :source-value))))
-          save-data)))
+  (g/invalidate-outputs! (mapv (fn [sd] (g/endpoint (:node-id sd) :source-value)) save-data)))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]
@@ -663,8 +653,17 @@
                  :transaction-metrics @transaction-metrics})))))
 
 (defn- handle-resource-changes [project changes render-progress!]
-  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
-        resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
+  (let [[old-nodes-by-path old-node->old-disk-sha256]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [workspace (workspace project evaluation-context)
+                old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
+                old-node->old-disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id evaluation-context)]
+            [old-nodes-by-path old-node->old-disk-sha256]))
+
+        resource-change-plan
+        (du/metrics-time "Generate resource change plan"
+          (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes))]
+
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))

@@ -80,3 +80,26 @@
     (let [old-coll (vector-of :byte 0 1 2)
           new-coll (coll/resize old-coll (inc (count old-coll)) 0)]
       (is (= (type old-coll) (type new-coll))))))
+
+(deftest separate-by-test
+  (testing "Separates by predicate"
+    (let [[odds evens] (coll/separate-by odd? [0 1 2 3 4])]
+      (is (= [1 3] odds))
+      (is (= [0 2 4] evens)))
+    (let [[keywords non-keywords] (coll/separate-by keyword? [:a "b" 'c :D "E" 'F])]
+      (is (= [:a :D] keywords))
+      (is (= ["b" 'c "E" 'F] non-keywords))))
+
+  (testing "Output collections have the same type as the input collection"
+    (are [empty-coll]
+      (let [[odds evens] (coll/separate-by odd? empty-coll)]
+        (is (= empty-coll odds))
+        (is (= empty-coll evens))
+        (is (= (type empty-coll) (type odds) (type evens))))
+
+      nil '() [] #{} {} (sorted-set) (sorted-map) (vector-of :long)))
+
+  (testing "Works on maps"
+    (let [[keywords non-keywords] (coll/separate-by (comp keyword? key) {:a 1 "b" 2 'c 3 :D 4 "E" 5 'F 6})]
+      (is (= {:a 1 :D 4} keywords))
+      (is (= {"b" 2 'c 3 "E" 5 'F 6} non-keywords)))))
