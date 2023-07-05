@@ -409,7 +409,13 @@
     (.flush digest-output-stream)
     (digest/completed-stream->hex digest-output-stream)))
 
-(defn read-source-value+sha256-hex [resource read-fn]
+(defn read-source-value+sha256-hex
+  "Returns a pair of [read-fn-result, disk-sha256-or-nil]. If the resource is a
+  file in the project, wraps the read in a DigestInputStream that concurrently
+  hashes the file contents as they are read by the read-fn and returns the
+  SHA-256 hex string in disk-sha256-or-nil. If the resource is not a project
+  file, we use a plain InputStream, and disk-sha256-or-nil will be nil."
+  [resource read-fn]
   (with-open [^InputStream input-stream
               (cond-> (io/input-stream resource)
                       (file-resource? resource)
