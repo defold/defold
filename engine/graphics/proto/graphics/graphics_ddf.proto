@@ -2,6 +2,7 @@ syntax = "proto2";
 package dmGraphics;
 
 import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.graphics.proto";
 option java_outer_classname = "Graphics";
@@ -14,6 +15,62 @@ message Cubemap
     required string bottom      = 4 [(resource)=true];
     required string front       = 5 [(resource)=true];
     required string back        = 6 [(resource)=true];
+}
+
+enum CoordinateSpace
+{
+    COORDINATE_SPACE_WORLD = 1;
+    COORDINATE_SPACE_LOCAL = 2;
+}
+
+message VertexAttribute
+{
+    enum DataType
+    {
+        TYPE_BYTE             = 1;
+        TYPE_UNSIGNED_BYTE    = 2;
+        TYPE_SHORT            = 3;
+        TYPE_UNSIGNED_SHORT   = 4;
+        TYPE_INT              = 5;
+        TYPE_UNSIGNED_INT     = 6;
+        TYPE_FLOAT            = 7;
+    }
+
+    enum SemanticType
+    {
+        SEMANTIC_TYPE_NONE       = 1;
+        SEMANTIC_TYPE_POSITION   = 2;
+        SEMANTIC_TYPE_TEXCOORD   = 3;
+        SEMANTIC_TYPE_PAGE_INDEX = 4;
+        SEMANTIC_TYPE_COLOR      = 5;
+    }
+
+    message LongValues
+    {
+        repeated int64 v = 1 [packed = true]; // We use int64 so we can represent the entire signed and unsigned int32 range as human-readable integers in the project files.
+    }
+
+    message DoubleValues
+    {
+        repeated double v = 1 [packed = true];
+    }
+
+    required string          name             = 1;
+    optional uint64          name_hash        = 2;
+    optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
+    optional int32           element_count    = 4 [default = 0];
+    optional bool            normalize        = 5 [default = false];
+    optional DataType        data_type        = 6 [default = TYPE_FLOAT];
+    optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
+
+    // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
+
+    oneof values
+    {
+        LongValues   long_values   = 8;  // Saved integer values (project files only)
+        DoubleValues double_values = 9;  // Saved floating point values (project files only)
+        bytes        binary_values = 10; // Packed binary representation of the input values (engine only)
+    }
 }
 
 message TextureImage
@@ -141,6 +198,7 @@ message PlatformProfile
         OS_ID_WEB     = 6;
         OS_ID_SWITCH  = 7;
         OS_ID_PS4     = 8;
+        OS_ID_PS5     = 9;
     }
 
     required OS os                              = 1;
@@ -173,6 +231,7 @@ message ShaderDesc
         LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
         LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
         LANGUAGE_SPIRV      = 5;
+        LANGUAGE_PSSL       = 6; // Playstation
      }
 
     enum ShaderDataType
@@ -196,19 +255,22 @@ message ShaderDesc
     message ResourceBinding
     {
         required string         name          = 1;
-        required ShaderDataType type          = 2;
-        optional uint32         element_count = 3 [default=1];
-        optional uint32         set           = 4 [default=0];
-        optional uint32         binding       = 5 [default=0];
+        required uint64         name_hash     = 2;
+        required ShaderDataType type          = 3;
+        optional uint32         element_count = 4 [default=1];
+        optional uint32         set           = 5 [default=0];
+        optional uint32         binding       = 6 [default=0];
     }
 
     message Shader
     {
         required Language        language              = 1;
         optional bytes           source                = 2;
+        optional string          name                  = 3;
         repeated ResourceBinding uniforms              = 4;
-        repeated ResourceBinding attributes            = 5;
-        optional bool            variant_texture_array = 6 [default = false];
+        repeated ResourceBinding inputs                = 5;
+        repeated ResourceBinding outputs               = 6;
+        optional bool            variant_texture_array = 7 [default = false];
     }
 
     repeated Shader shaders = 1;

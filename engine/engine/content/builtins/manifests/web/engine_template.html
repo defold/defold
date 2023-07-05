@@ -117,6 +117,10 @@
 		return scriptDirectory + path;
 	};
 
+	{{^DEFOLD_HAS_WASM_ENGINE}}
+	Module["isWASMSupported"] = false; 
+	{{/DEFOLD_HAS_WASM_ENGINE}}
+
 	var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 	var buttonHeight = 0;
 	var prevInnerWidth = -1;

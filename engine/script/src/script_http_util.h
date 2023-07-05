@@ -37,7 +37,7 @@ namespace dmScript
             return false;
         }
 
-        dmSys::Result result = dmSys::RenameFile(path, tmpname);
+        dmSys::Result result = dmSys::Rename(path, tmpname);
         if (dmSys::RESULT_OK != result)
         {
             dmLogError("Failed to rename '%s' to '%s'", tmpname, path);

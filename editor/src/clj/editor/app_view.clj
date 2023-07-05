@@ -19,10 +19,11 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
-            [clojure.java.io :as io]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.adb :as adb]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.bundle-dialog :as bundle-dialog]
@@ -47,6 +48,7 @@
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
+            [editor.ios-deploy :as ios-deploy]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
@@ -78,17 +80,18 @@
             [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
+            [service.smoke-log :as slog]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
-            [util.thread-util :as thread-util]
-            [service.smoke-log :as slog])
+            [util.thread-util :as thread-util])
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
-           [java.io BufferedReader File IOException]
+           [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
            [java.net URL]
+           [java.nio.charset StandardCharsets]
            [java.util Collection List]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
@@ -728,7 +731,7 @@
     (future
       (error-reporting/catch-all!
         (extensions/execute-hook! project :on-target-launched hook-options)
-        (process/watchdog! process #(extensions/execute-hook! project :on-target-terminated hook-options))))))
+        (process/on-exit! process #(extensions/execute-hook! project :on-target-terminated hook-options))))))
 
 (defn- target-cannot-swap-engine? [target]
   (and (some? target)
@@ -1207,6 +1210,12 @@ If you do not specifically require different script states, consider changing th
   (reset-console-stream! input-stream)
   (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
 
+(defn- start-new-log-pipe!
+  ^PipedOutputStream []
+  (let [in (PipedInputStream.)]
+    (pipe-log-stream-to-console! in)
+    (PipedOutputStream. in)))
+
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
     (let [main-scene (.getScene ^Stage main-stage)
@@ -1216,13 +1225,15 @@ If you do not specifically require different script states, consider changing th
           render-build-progress! (make-render-task-progress :build)
           task-cancelled? (make-task-cancelled-query :build)
           build-server-headers (native-extensions/get-build-server-headers prefs)
-          bob-args (bob/build-html5-bob-args project prefs)]
+          bob-args (bob/build-html5-bob-args project prefs)
+          out (start-new-log-pipe!)]
       (build-errors-view/clear-build-errors build-errors-view)
-      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! pipe-log-stream-to-console! task-cancelled?
+      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
                              render-build-error! bob/build-html5-bob-commands bob-args build-server-headers project changes-view
                              (fn [successful?]
                                (when successful?
-                                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
+                                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
+                               (.close out))))))
 
 (defn- updated-build-resource-proj-paths [old-etags new-etags]
   ;; We only want to return resources that were present in the old etags since
@@ -1480,7 +1491,7 @@ If you do not specifically require different script states, consider changing th
                               (case (.getOs (Platform/getHostPlatform))
                                 "macos" (io/file resources-path "../../")
                                 ("linux" "win32") (io/file resources-path)))]
-            (process/start! (system/defold-launcherpath) [] {:directory install-dir}))))
+            (process/start! {:dir install-dir} (system/defold-launcherpath)))))
 
 (handler/register-menu! ::menubar
   [{:label "File"
@@ -1834,7 +1845,8 @@ If you do not specifically require different script states, consider changing th
       app-view)))
 
 (defn- make-tab! [app-view prefs workspace project resource resource-node
-                  resource-type view-type make-view-fn ^ObservableList tabs opts]
+                  resource-type view-type make-view-fn ^ObservableList tabs
+                  open-resource opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (tab-title resource false))
                      (.setContent parent)
@@ -1844,12 +1856,13 @@ If you do not specifically require different script states, consider changing th
         select-fn  (partial select app-view)
         opts       (merge opts
                           (get (:view-opts resource-type) (:id view-type))
-                          {:app-view  app-view
+                          {:app-view app-view
                            :select-fn select-fn
-                           :prefs     prefs
-                           :project   project
+                           :open-resource-fn (partial open-resource app-view prefs workspace project)
+                           :prefs prefs
+                           :project project
                            :workspace workspace
-                           :tab       tab})
+                           :tab tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs workspace resource view-type)
@@ -1939,7 +1952,8 @@ If you do not specifically require different script states, consider changing th
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
                                 (make-tab! app-view prefs workspace project resource resource-node
-                                           resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
+                                           resource-type view-type make-view-fn active-tab-pane-tabs
+                                           open-resource opts)))]
              (when (or (nil? existing-tab) (:select-node opts))
                (g/transact
                  (select app-view resource-node [(:select-node opts resource-node)])))
@@ -2290,6 +2304,57 @@ If you do not specifically require different script states, consider changing th
           show-search-results-tab! (partial show-search-results! main-scene tool-tab-pane)]
       (search-results-view/show-search-in-files-dialog! search-results-view project prefs show-search-results-tab!))))
 
+(defn- adb-post-bundle! [prefs output-directory project ^OutputStream out launch]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
+          package (game-project/get-setting game-project ["android" "package"] evaluation-context)
+          project-title (game-project/get-setting game-project ["project" "title"] evaluation-context)
+          apk-path (io/file output-directory project-title (str project-title ".apk"))]
+      ;; Do the actual work asynchronously because adb commands are blocking.
+      (future
+        (error-reporting/catch-all!
+          ;; We should close the out when we are done here
+          (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
+            (try
+              (.println writer "Resolving ADB location...")
+              (let [adb-path (adb/get-adb-path prefs)
+                    _ (.println writer (format "Resolved to '%s'" adb-path))
+                    _ (.println writer "Listing devices...")
+                    device (or (first (adb/list-devices! adb-path))
+                               (throw (ex-info "No devices are connected" {:adb adb-path})))]
+                (.println writer (format "Installing on '%s'..." (:label device)))
+                (adb/install! adb-path device apk-path out)
+                (when launch
+                  (.println writer (format "Launching %s..." package))
+                  (adb/launch! adb-path device package out))
+                (.println writer (format "Install%s done." (if launch " and launch" ""))))
+              (catch Throwable e
+                (.println writer (.getMessage e))))))))))
+
+(defn- ios-post-bundle! [prefs output-directory project ^OutputStream out launch]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
+          project-title (game-project/get-setting game-project ["project" "title"] evaluation-context)
+          app-path (io/file output-directory (str project-title ".app"))]
+      (future
+        (error-reporting/catch-all!
+          (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
+            (try
+              (.println writer "Resolving ios-deploy location...")
+              (let [ios-deploy-path (ios-deploy/get-ios-deploy-path prefs)
+                    _ (.println writer (format "Resolved to '%s'" ios-deploy-path))
+                    _ (.println writer "Listing devices...")
+                    device (or (first (ios-deploy/list-devices! ios-deploy-path))
+                               (throw (ex-info "No devices are connected" {:ios-deploy-path ios-deploy-path})))]
+                (.println writer (format "Installing on '%s'" (:label device)))
+                (ios-deploy/install! ios-deploy-path device app-path out)
+                (when launch
+                  (.println writer (format "Launching %s..." project-title))
+                  (ios-deploy/launch! ios-deploy-path device app-path out))
+                (.println writer (format "Install%s done." (if launch " and launch" ""))))
+              (catch Throwable e
+                (.println writer (.getMessage e))))))))))
+
 (defn- bundle! [main-stage tool-tab-pane changes-view build-errors-view project prefs platform bundle-options]
   (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (let [main-scene (.getScene ^Stage main-stage)
@@ -2300,16 +2365,36 @@ If you do not specifically require different script states, consider changing th
         render-build-progress! (make-render-task-progress :build)
         task-cancelled? (make-task-cancelled-query :build)
         build-server-headers (native-extensions/get-build-server-headers prefs)
-        bob-args (bob/bundle-bob-args prefs platform bundle-options)]
+        bob-args (bob/bundle-bob-args prefs platform bundle-options)
+        out (start-new-log-pipe!)]
     (when-not (.exists output-directory)
       (fs/create-directories! output-directory))
     (build-errors-view/clear-build-errors build-errors-view)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! pipe-log-stream-to-console! task-cancelled?
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
                            render-build-error! bob/bundle-bob-commands bob-args build-server-headers project changes-view
                            (fn [successful?]
-                             (when successful?
+                             (if successful?
                                (if (some-> output-directory .isDirectory)
-                                 (when (prefs/get-prefs prefs "open-bundle-target-folder" true) (ui/open-file output-directory))
+                                 (do
+                                   (when (prefs/get-prefs prefs "open-bundle-target-folder" true)
+                                     (ui/open-file output-directory))
+                                   (cond
+                                     (and (= :android platform)
+                                          (:adb-install bundle-options)
+                                          (string/includes? (:bundle-format bundle-options) "apk"))
+                                     ;; will eventually close the output
+                                     (adb-post-bundle! prefs output-directory project out (:adb-launch bundle-options))
+
+                                     (and (= :ios platform)
+                                          (:ios-deploy-install bundle-options))
+                                     ;; will eventually close the output
+                                     (ios-post-bundle! prefs output-directory project out (:ios-deploy-launch bundle-options))
+
+                                     :else
+                                     (.close out)))
+                                 (.close out))
+                               (do
+                                 (.close out)
                                  (dialogs/make-info-dialog
                                    {:title "Bundle Failed"
                                     :icon :icon/triangle-error

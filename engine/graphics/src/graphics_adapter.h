@@ -96,6 +96,7 @@ namespace dmGraphics
     typedef void (*EnableVertexDeclarationProgramFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
     typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
+    typedef uint32_t (*GetVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
@@ -110,6 +111,8 @@ namespace dmGraphics
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
     typedef bool (*ReloadProgramFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
+    typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
     typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
@@ -209,6 +212,7 @@ namespace dmGraphics
         EnableVertexDeclarationProgramFn m_EnableVertexDeclarationProgram;
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
         HashVertexDeclarationFn m_HashVertexDeclaration;
+        GetVertexDeclarationFn m_GetVertexDeclarationStride;
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
         NewVertexProgramFn m_NewVertexProgram;
@@ -223,6 +227,8 @@ namespace dmGraphics
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
         ReloadProgramFn m_ReloadProgram;
+        GetAttributeCountFn m_GetAttributeCount;
+        GetAttributeFn m_GetAttribute;
         GetUniformNameFn m_GetUniformName;
         GetUniformCountFn m_GetUniformCount;
         GetUniformLocationFn m_GetUniformLocation;
@@ -324,6 +330,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclarationProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexDeclarationStride); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
@@ -338,6 +345,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttributeCount); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttribute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformName); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformLocation); \

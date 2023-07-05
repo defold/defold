@@ -44,6 +44,28 @@
         (recur (inc i) (next s))
         i))))
 
+(defn resize
+  "Returns a collection of the desired size, retaining elements from coll up to
+  the desired size. If coll does not have enough elements, fill the subsequent
+  slots in the output collection with the supplied fill-value."
+  [coll ^long new-count fill-value]
+  {:pre [(sequential? coll)
+         (not (neg? new-count))]}
+  (let [old-count (count coll)]
+    (cond
+      (< new-count old-count)
+      (into (empty coll)
+            (take new-count)
+            coll)
+
+      (> new-count old-count)
+      (into coll
+            (repeat (- new-count old-count)
+                    fill-value))
+
+      :else
+      coll)))
+
 (defn empty?
   "Like core.empty?, but avoids generating garbage for counted collections."
   [coll]

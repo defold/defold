@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1569,7 +1569,7 @@ bail:
         return 0;
     }
 
-    static inline VkFormat GetVulkanFormatFromTypeAndSize(Type type, uint16_t size)
+    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
         if (type == TYPE_FLOAT)
         {
@@ -1593,14 +1593,36 @@ bail:
                 default:break;
             }
         }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R8_UINT;
-                case 2: return VK_FORMAT_R8G8_UINT;
-                case 3: return VK_FORMAT_R8G8B8_UINT;
-                case 4: return VK_FORMAT_R8G8B8A8_UINT;
+                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -1608,10 +1630,10 @@ bail:
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R16_UINT;
-                case 2: return VK_FORMAT_R16G16_UINT;
-                case 3: return VK_FORMAT_R16G16B16_UINT;
-                case 4: return VK_FORMAT_R16G16B16A16_UINT;
+                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
@@ -1637,9 +1659,36 @@ bail:
 
         for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
         {
-            VertexStream& stream        = stream_declaration->m_Streams[i];
+            VertexStream& stream = stream_declaration->m_Streams[i];
+
+        #if __MACH__
+            if (stream.m_Type == TYPE_UNSIGNED_BYTE && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_BYTE;
+            }
+            else if (stream.m_Type == TYPE_UNSIGNED_SHORT && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_SHORT;
+            }
+        #else
+
+            // JG: Not sure this is what we want to do, OpenGL performs automatic conversion to float regardless of type, but Vulkan doesn't seem to do that
+            //     unless we use the normalized format variants of these types.. which in turn means that we will have different looks between the adapters if we use the narrower formats
+            //     Alternatively, we could force OpenGL to behave like vulkan?
+            if ((stream.m_Type == TYPE_BYTE           ||
+                 stream.m_Type == TYPE_UNSIGNED_BYTE  ||
+                 stream.m_Type == TYPE_SHORT          ||
+                 stream.m_Type == TYPE_UNSIGNED_SHORT) && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to normalize:true.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Normalize = 1;
+            }
+        #endif
+
             vd->m_Streams[i].m_NameHash = stream.m_NameHash;
-            vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(stream.m_Type, stream.m_Size);
+            vd->m_Streams[i].m_Format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;
             vd->m_Streams[i].m_Location = 0;
             vd->m_Stride               += stream.m_Size * GetGraphicsTypeSize(stream.m_Type);
@@ -1648,6 +1697,8 @@ bail:
             dmHashUpdateBuffer64(hash, &stream.m_Type, sizeof(stream.m_Type));
             dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Format, sizeof(vd->m_Streams[i].m_Format));
         }
+
+        vd->m_Stride = DM_ALIGN(vd->m_Stride, 4);
 
         return vd;
     }
@@ -1707,11 +1758,11 @@ bail:
 
             ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-            for (uint32_t j=0; j < vertex_shader->m_AttributeCount; j++)
+            for (uint32_t j=0; j < vertex_shader->m_InputCount; j++)
             {
-                if (vertex_shader->m_Attributes[j].m_NameHash == stream.m_NameHash)
+                if (vertex_shader->m_Inputs[j].m_NameHash == stream.m_NameHash)
                 {
-                    stream.m_Location = vertex_shader->m_Attributes[j].m_Binding;
+                    stream.m_Location = vertex_shader->m_Inputs[j].m_Binding;
                     break;
                 }
             }
@@ -1721,6 +1772,11 @@ bail:
     static void VulkanDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         ((VulkanContext*) context)->m_CurrentVertexDeclaration = 0;
+    }
+
+    static uint32_t VulkanGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
     }
 
     static inline bool IsUniformTextureSampler(ShaderResourceBinding uniform)
@@ -2102,7 +2158,6 @@ bail:
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
             uint32_t uniform_buffer_count      = 0;
-            int32_t  last_binding              = -1;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -2115,9 +2170,6 @@ bail:
                 res.m_NameHash             = 0;
 
                 assert(res.m_Set <= 1);
-                assert(res.m_Binding >= last_binding);
-                last_binding = res.m_Binding;
-
                 if (IsUniformTextureSampler(res))
                 {
                     res.m_TextureUnit = texture_sampler_count;
@@ -2133,25 +2185,23 @@ bail:
 
             shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
+            shader->m_TextureSamplerCount    = texture_sampler_count;
         }
 
-        if (ddf->m_Attributes.m_Count > 0)
+        if (ddf->m_Inputs.m_Count > 0)
         {
-            shader->m_Attributes     = new ShaderResourceBinding[ddf->m_Attributes.m_Count];
-            shader->m_AttributeCount = ddf->m_Attributes.m_Count;
-            int32_t  last_binding    = -1;
+            shader->m_Inputs     = new ShaderResourceBinding[ddf->m_Inputs.m_Count];
+            shader->m_InputCount = ddf->m_Inputs.m_Count;
 
-            for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
+            for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
             {
-                ShaderResourceBinding& res = shader->m_Attributes[i];
-                res.m_Binding              = ddf->m_Attributes[i].m_Binding;
-                res.m_Set                  = ddf->m_Attributes[i].m_Set;
-                res.m_Type                 = ddf->m_Attributes[i].m_Type;
-                res.m_Name                 = strdup(ddf->m_Attributes[i].m_Name);
-                res.m_NameHash             = dmHashString64(res.m_Name);
-
-                assert(res.m_Binding >= last_binding);
-                last_binding = res.m_Binding;
+                ShaderResourceBinding& res = shader->m_Inputs[i];
+                res.m_Binding              = ddf->m_Inputs[i].m_Binding;
+                res.m_Set                  = ddf->m_Inputs[i].m_Set;
+                res.m_Type                 = ddf->m_Inputs[i].m_Type;
+                res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
+                res.m_ElementCount         = ddf->m_Inputs[i].m_ElementCount;
+                res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
             }
         }
     }
@@ -2165,6 +2215,22 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+
+        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            DeleteVertexProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return 0;
+        }
+        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            DeleteVertexProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return 0;
+        }
+
         return (HVertexProgram) shader;
     }
 
@@ -2176,6 +2242,22 @@ bail:
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+
+        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            DeleteFragmentProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of uniform buffers exceeded: fragment shader has %d buffers, but maximum is %d.",
+                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return 0;
+        }
+        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            DeleteFragmentProgram((HVertexProgram) shader);
+            dmLogError("Maximum number of texture samplers exceeded: fragment shader has %d samplers, but maximum is %d.",
+                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return 0;
+        }
+
         return (HFragmentProgram) shader;
     }
 
@@ -2220,7 +2302,7 @@ bail:
         *byte_offset_end_out = byte_offset;
     }
 
-    static void CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
+    static bool CreateProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
@@ -2239,8 +2321,8 @@ bail:
         vk_fragment_shader_create_info.module = fragment_module->m_Module;
         vk_fragment_shader_create_info.pName  = "main";
 
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT]    = vk_fragment_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]   = vk_vertex_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT] = vk_fragment_shader_create_info;
         program->m_Hash               = 0;
         program->m_UniformDataOffsets = 0;
         program->m_UniformData        = 0;
@@ -2250,12 +2332,9 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        if (vertex_module->m_AttributeCount > 0)
+        for (uint32_t i=0; i < vertex_module->m_InputCount; i++)
         {
-            for (uint32_t i=0; i < vertex_module->m_AttributeCount; i++)
-            {
-                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Attributes[i].m_Binding, sizeof(vertex_module->m_Attributes[i].m_Binding));
-            }
+            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
         }
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
@@ -2312,12 +2391,17 @@ bail:
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
+
+        return true;
     }
 
     static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         Program* program = new Program;
-        CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
+        if (!CreateProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program))
+        {
+            return 0;
+        }
         return (HProgram) program;
     }
 
@@ -2342,6 +2426,11 @@ bail:
 
     static void DestroyShader(ShaderModule* shader)
     {
+        if (!shader)
+        {
+            return;
+        }
+
         DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
@@ -2349,20 +2438,13 @@ bail:
             free(shader->m_Uniforms[i].m_Name);
         }
 
-        for (uint32_t i=0; i < shader->m_AttributeCount; i++)
+        for (uint32_t i=0; i < shader->m_InputCount; i++)
         {
-            free(shader->m_Attributes[i].m_Name);
+            free(shader->m_Inputs[i].m_Name);
         }
 
-        if (shader->m_Attributes)
-        {
-            delete[] shader->m_Attributes;
-        }
-
-        if (shader->m_Uniforms)
-        {
-            delete[] shader->m_Uniforms;
-        }
+        delete[] shader->m_Inputs;
+        delete[] shader->m_Uniforms;
     }
 
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
@@ -2404,20 +2486,7 @@ bail:
     static void VulkanDeleteFragmentProgram(HFragmentProgram prog)
     {
         ShaderModule* shader = (ShaderModule*) prog;
-        assert(shader->m_Attributes == 0);
-
-        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
-
-        for (uint32_t i=0; i < shader->m_UniformCount; i++)
-        {
-            free(shader->m_Uniforms[i].m_Name);
-        }
-
-        if (shader->m_Uniforms)
-        {
-            delete[] shader->m_Uniforms;
-        }
-
+        DestroyShader(shader);
         delete shader;
     }
 
@@ -2444,23 +2513,25 @@ bail:
         return true;
     }
 
-    static uint32_t VulkanGetUniformCount(HProgram prog)
+    static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
-        assert(prog);
         Program* program_ptr = (Program*) prog;
-        assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
-        return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+        return program_ptr->m_VertexModule->m_InputCount;
     }
 
     // TODO: Move to graphics.cpp
-    static Type shaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
+    static Type ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
     {
         switch(shader_type)
         {
             case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
             case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
             case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
+            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
             case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
+            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
@@ -2470,6 +2541,27 @@ bail:
 
         // Not supported
         return (Type) 0xffffffff;
+    }
+
+    static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        Program* program_ptr = (Program*) prog;
+        assert(index < program_ptr->m_VertexModule->m_InputCount);
+        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
+
+        *name_hash     = attr.m_NameHash;
+        *type          = ShaderDataTypeToGraphicsType(attr.m_Type);
+        *num_values    = attr.m_ElementCount;
+        *location      = attr.m_Binding;
+        *element_count = GetShaderTypeSize(attr.m_Type) / sizeof(float);
+    }
+
+    static uint32_t VulkanGetUniformCount(HProgram prog)
+    {
+        assert(prog);
+        Program* program_ptr = (Program*) prog;
+        assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
+        return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
     }
 
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
@@ -2490,7 +2582,7 @@ bail:
         }
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
-        *type = shaderDataTypeToGraphicsType(res->m_Type);
+        *type = ShaderDataTypeToGraphicsType(res->m_Type);
         *size = res->m_ElementCount;
 
         return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
@@ -2905,7 +2997,7 @@ bail:
 
         BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
-        Texture* texture_depth_stencil = 0; 
+        Texture* texture_depth_stencil = 0;
 
         uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
@@ -3302,19 +3394,6 @@ bail:
         }
     }
 
-    static void RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
-    {
-        for(uint32_t px=0; px < num_pixels; px++)
-        {
-            rgba[0] = rgb[0];
-            rgba[1] = rgb[1];
-            rgba[2] = rgb[2];
-            rgba[3] = 255;
-            rgba+=4;
-            rgb+=3;
-        }
-    }
-
     static void VulkanSetTextureInternal(Texture* texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp
@@ -3401,7 +3480,7 @@ bail:
         }
 
         bool use_stage_buffer = true;
-#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
         // Can't use a staging buffer for MoltenVK when we upload
         // PVRTC textures.
         if (vk_format == VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ||
@@ -3451,6 +3530,61 @@ bail:
         {
             delete[] (uint8_t*)tex_data_ptr;
         }
+    }
+
+    void VulkanDestroyResources(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*)_context;
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
+
+        DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+
+        vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
+
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
+
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
+        {
+            vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
+        }
+
+        for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
+        {
+            DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
+        }
+
+        for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
+        {
+            DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
+        }
+
+        for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
+        {
+            DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
+        }
+
+        for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
+        {
+            FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
+        }
+
+        for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
+            FrameResource& frame_resource = context->m_FrameResources[i];
+            vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
+            vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
+            vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
+        }
+
+        DestroySwapChain(vk_device, context->m_SwapChain);
+        DestroyLogicalDevice(&context->m_LogicalDevice);
+        DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }
 
     static void VulkanSetTexture(HTexture texture, const TextureParams& params)

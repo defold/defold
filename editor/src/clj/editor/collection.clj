@@ -333,7 +333,9 @@
                              project (project/get-project basis self)]
                          (if (some-> new-resource resource/editable?)
                            ;; This is an editable source resource. Create an override node and make connections to enable full editing.
-                           (let [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                           (let [{connect-tx-data :tx-data
+                                  go-node :node-id
+                                  created-in-tx :created-in-tx} (project/connect-resource-node evaluation-context project new-resource self [])]
                              (concat
                                connect-tx-data
                                (let [workspace (project/workspace project evaluation-context)]
@@ -347,7 +349,9 @@
                                                      (g/connect go-node from self to))
                                                    (for [[from to] [[:url :base-url]]]
                                                      (g/connect self from or-go-node to))
-                                                   (let [comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
+                                                   (let [comp-name->refd-comp-node (if created-in-tx
+                                                                                     {}
+                                                                                     (g/node-value go-node :component-ids evaluation-context))]
                                                      (for [{comp-name :id overrides :properties} (:overrides new-value)
                                                            :let [refd-comp-node (comp-name->refd-comp-node comp-name)
                                                                  comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
@@ -544,7 +548,9 @@
                      workspace (project/workspace project)]
                  (if (some-> new-resource resource/editable?)
                    ;; This is an editable source resource. Create an override node and make connections to enable full editing.
-                   (let [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                   (let [{connect-tx-data :tx-data
+                          coll-node :node-id
+                          created-in-tx :created-in-tx} (project/connect-resource-node evaluation-context project new-resource self [])]
                      (concat
                        connect-tx-data
                        (g/override coll-node {:traverse-fn override-traverse-fn}
@@ -558,7 +564,9 @@
                                          (for [[from to] [[:url :base-url]]]
                                            (g/connect self from or-coll-node to))
                                          (let [go-name->go-node (comp #(g/node-value % :source-id evaluation-context)
-                                                                      (g/node-value coll-node :go-inst-ids evaluation-context))]
+                                                                      (if created-in-tx
+                                                                        {}
+                                                                        (g/node-value coll-node :go-inst-ids evaluation-context)))]
                                            (for [{go-name :id overrides :properties} (:overrides new-value)
                                                  :let [go-node (go-name->go-node go-name)
                                                        comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]

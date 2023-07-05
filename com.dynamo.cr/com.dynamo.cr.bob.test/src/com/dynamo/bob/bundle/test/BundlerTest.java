@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipFile;
@@ -143,6 +144,25 @@ public class BundlerTest {
         return "";
     }
 
+    private void listDir(File dir)
+    {
+        for (File file : FileUtils.listFiles(dir, new RegexFileFilter(".*"), DirectoryFileFilter.DIRECTORY)) {
+            String relative = dir.toURI().relativize(file.toURI()).getPath();
+            System.out.printf("%s\n", file);
+        }
+    }
+
+    private void checkFileExist(File bundleDir, File file)
+    {
+        if (!file.exists())
+        {
+            System.out.printf("A missing file %s\n", file);
+            System.out.printf("Directory contents:\n");
+            listDir(bundleDir);
+        }
+        assertTrue(file.exists());
+    }
+
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
     private void verifyEngineBinaries() throws IOException
     {
@@ -156,14 +176,14 @@ public class BundlerTest {
             case X86_64Win32:
             {
                 File outputBinary = new File(outputDirFile, projectName + ".exe");
-                assertTrue(outputBinary.exists());
+                checkFileExist(outputDirFile, outputBinary);
             }
             break;
             case Armv7Android:
             {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
-                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+                checkFileExist(outputDirFile, outputApk);
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), new HashMap<>());
                 Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArmv7));
                 Path classesDexPath = apkZip.getPath("classes.dex");
@@ -173,22 +193,26 @@ public class BundlerTest {
             case Arm64Android:
             {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
-                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+                checkFileExist(outputDirFile, outputApk);
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), new HashMap<>());
                 Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArm64));
                 Path classesDexPath = apkZip.getPath("classes.dex");
                 assertTrue(Files.isReadable(classesDexPath));
             }
             break;
+            case WasmWeb:
+            {
+                File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
+                checkFileExist(outputDirFile, wasmjsFile);
+                File wasmFile = new File(outputDirFile, exeName + ".wasm");
+                checkFileExist(outputDirFile, wasmFile);
+            }
+            break;
             case JsWeb:
             {
                 File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
                 assertTrue(asmjsFile.exists());
-                File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
-                assertTrue(wasmjsFile.exists());
-                File wasmFile = new File(outputDirFile, exeName + ".wasm");
-                assertTrue(wasmFile.exists());
             }
             break;
             case Arm64Ios:
@@ -209,7 +233,7 @@ public class BundlerTest {
                 );
                 for (String name : names) {
                     File file = new File(outputDirFile, name);
-                    assertTrue(file.exists());
+                    checkFileExist(outputDirFile, file);
                 }
             }
             break;
@@ -220,7 +244,7 @@ public class BundlerTest {
                 );
                 for (String name : names) {
                     File file = new File(outputDirFile, name);
-                    assertTrue(file.exists());
+                    checkFileExist(outputDirFile, file);
                 }
                 break;
             case X86_64Linux:
@@ -230,7 +254,7 @@ public class BundlerTest {
         }
     }
 
-    
+
     private void verifyArchive() throws IOException
     {
         String projectName = "unnamed";
@@ -551,11 +575,21 @@ public class BundlerTest {
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
                 break;
-            case JsWeb:
+            case WasmWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
+                expectedFiles.add("archive/game.arcd0");
+                expectedFiles.add("archive/game.arci0");
+                expectedFiles.add("archive/game.dmanifest0");
+                expectedFiles.add("archive/game.projectc0");
+                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/archive_files.json");
+                break;
+            case JsWeb:
+                expectedFiles.add("dmloader.js");
+                expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_asmjs.js");
                 expectedFiles.add("archive/game.arcd0");
                 expectedFiles.add("archive/game.arci0");
@@ -635,6 +669,17 @@ public class BundlerTest {
         }
 
         return expectedFiles;
+    }
+
+    private void dumpExpectedAndActualFiles(Set<String> expectedFiles, Set<String> actualFiles) {
+        if (expectedFiles.size() != actualFiles.size()) {
+            for (String file : actualFiles) {
+                System.out.println("Actual file:" + file);
+            }
+            for (String file : expectedFiles) {
+                System.out.println("Expected file:" + file);
+            }
+        }
     }
 
     @Test
@@ -720,48 +765,29 @@ public class BundlerTest {
         // first test - no bundle resources
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
-        HashSet<String> actualFiles = new HashSet<String>();
-        List<String> files = getBundleFiles();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        HashSet<String> actualFiles = new HashSet<String>(getBundleFiles());
         HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
 
 
         // second test - /sub1
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
-        files = getBundleFiles();
-        actualFiles = new HashSet<String>();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        actualFiles = new HashSet<String>(getBundleFiles());
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
 
 
         // third test - /sub1 and /sub2
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
-        files = getBundleFiles();
-        actualFiles = new HashSet<String>();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        actualFiles = new HashSet<String>(getBundleFiles());
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
@@ -770,10 +796,8 @@ public class BundlerTest {
         if (isAndroid) expectedFiles.add("res/raw/s2_raw.txt");
         if (isAndroid) expectedFiles.add("assets/s2-asset.txt");
         if (isAndroid) expectedFiles.add("lib/" + ((platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a") + "/s2-lib.so");
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
     }
 }

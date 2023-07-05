@@ -611,7 +611,7 @@ namespace dmHttpCache
         entry->m_WriteLock = 0;
         entry->m_Info.m_Checksum = dmHashFinal64(&cache_creator->m_ChecksumState);
 
-        if (dmSys::RESULT_OK != dmSys::RenameFile(path, cache_creator->m_Filename))
+        if (dmSys::RESULT_OK != dmSys::Rename(path, cache_creator->m_Filename))
         {
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);

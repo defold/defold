@@ -17,6 +17,7 @@
 #define DM_MODELIMPORTER_H
 
 #include <dmsdk/dlib/align.h>
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/shared_library.h>
 #include <stdint.h>
@@ -27,20 +28,22 @@ namespace dmModelImporter
 
     static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
 
-    struct Material
-    {
-        const char* m_Name;
-    };
-
     struct Aabb
     {
         float m_Min[3];
         float m_Max[3];
     };
+
+    struct Material
+    {
+        const char* m_Name;
+        uint32_t    m_Index;        // The index into the scene.materials array
+    };
+
     struct Mesh
     {
         const char* m_Name;
-        const char* m_Material;
+        Material*   m_Material;
         // loop using m_VertexCount * stride
         float*      m_Positions;    // 3 floats per vertex
         float*      m_Normals;      // 3 floats per vertex
@@ -75,6 +78,9 @@ namespace dmModelImporter
         struct Node*            m_Node;
         uint32_t                m_ParentIndex;  // Index into skin.bones. INVALID_INDEX if not set
         uint32_t                m_Index;        // Index into skin.bones
+
+        // internal
+        dmArray<Bone*>*         m_Children;
     };
 
     struct Skin
@@ -83,6 +89,9 @@ namespace dmModelImporter
         Bone*                   m_Bones;
         uint32_t                m_BonesCount;
         uint32_t                m_Index;        // The index into the scene.skins array
+
+        // internal
+        uint32_t*               m_BoneRemap;    // old index -> new index: for sorting the bones
     };
 
     struct DM_ALIGNED(16) Node
@@ -96,6 +105,9 @@ namespace dmModelImporter
         Node**                  m_Children;
         uint32_t                m_ChildrenCount;
         uint32_t                m_Index;        // The index into the scene.nodes array
+
+        // internal
+        uint64_t                m_NameHash;
     };
 
     struct KeyFrame
@@ -156,6 +168,9 @@ namespace dmModelImporter
 
         Animation*  m_Animations;
         uint32_t    m_AnimationsCount;
+
+        Material*   m_Materials;
+        uint32_t    m_MaterialsCount;
 
         Buffer*     m_Buffers;
         uint32_t    m_BuffersCount;

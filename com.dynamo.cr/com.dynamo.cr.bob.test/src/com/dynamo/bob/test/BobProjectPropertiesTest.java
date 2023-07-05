@@ -84,11 +84,11 @@ public class BobProjectPropertiesTest {
         BobProjectProperties properties = createProperties();
 
         assertEquals(false, properties.getBooleanValue("html5", "doesn't_exist", false));
-        assertEquals(new Integer(834), properties.getIntValue("html5", "doesn't_exist", 834));
+        assertEquals(Integer.valueOf(834), properties.getIntValue("html5", "doesn't_exist", 834));
 
         assertEquals(false, properties.getBooleanValue("display", "fullscreen"));
         assertEquals(true, properties.getBooleanValue("sound", "use_thread"));
-        assertEquals(new Integer(960), properties.getIntValue("display", "width"));
+        assertEquals(Integer.valueOf(960), properties.getIntValue("display", "width"));
     }
 
     @Test

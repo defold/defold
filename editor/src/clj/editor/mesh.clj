@@ -288,11 +288,19 @@
 (def make-put-vertices-fn
   (memoize make-put-vertices-fn-raw))
 
-(defn- stream->attribute [stream]
-  {:components (:count stream)
-   :type (vtx/stream-type->type (:type stream))
-   :name (:name stream)
-   :normalized? false}) ; todo figure out if this should be configurable
+(defn- stream->attribute [stream position-stream-name normal-stream-name]
+  (let [attribute-name (:name stream)
+        attribute-key (vtx/attribute-name->key attribute-name)]
+    {:name attribute-name
+     :name-key attribute-key
+     :type (vtx/stream-type->type (:type stream))
+     :components (:count stream)
+     :normalize false ; TODO: Figure out if this should be configurable.
+     :semantic-type (let [semantic-attribute-key (condp = attribute-key
+                                                   position-stream-name :position
+                                                   normal-stream-name :normal
+                                                   attribute-key)]
+                      (vtx/attribute-key->semantic-type semantic-attribute-key))}))
 
 (defn- max-stream-length [streams]
   (transduce (map (fn [stream]
@@ -308,7 +316,7 @@
      :renderable {:passes [pass/selection]}}
 
     (let [vertex-count (max-stream-length streams)
-          vertex-attributes (mapv stream->attribute streams)
+          vertex-attributes (mapv #(stream->attribute % position-stream normal-stream) streams)
           array-streams (mapv (partial buffer/stream->array-stream vertex-count) streams)
           put-vertices-fn (make-put-vertices-fn (mapv :type vertex-attributes)
                                                 (mapv :components vertex-attributes))]
