@@ -17,7 +17,6 @@
 #include "provider_archive.h"
 #include "provider_archive_private.h"
 
-#include "../resource.h" // dmResource::Manifest
 #include "../resource_manifest.h"
 #include "../resource_archive.h"
 #include "../resource_util.h"

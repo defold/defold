@@ -314,6 +314,14 @@ namespace dmResource
     */
     dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory);
 
+
+    /**
+     * @name
+     * @param factory [type: dmResource::HFactory] The factory handle
+     * @return mounts_ctx [type: dmResourceMounts::HContext] the mounts context
+     */
+    dmResourceMounts::HContext GetMountsContext(const dmResource::HFactory factory);
+
     struct SGetDependenciesParams
     {
         dmhash_t m_UrlHash; // The requested url
@@ -345,16 +353,6 @@ namespace dmResource
      * Use when it's no longer needed, e.g. the user project loaded properly
      */
     void ReleaseBuiltinsArchive(HFactory factory);
-
-    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
-    // be provided for unloading and may contain information about memory mapping etc.
-    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
-    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
-    Result UnmountManifest(void *& map, uint32_t size);
-    // Files mapped with this function should be unmapped with UnmapFile(...)
-    Result MapFile(const char* filename, void*& map, uint32_t& size);
-    Result UnmapFile(void*& map, uint32_t size);
 
     /**
      * Struct returned from the resource iterator api

@@ -1289,6 +1289,11 @@ dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
     return factory->m_LoadMutex;
 }
 
+dmResourceMounts::HContext GetMountsContext(const dmResource::HFactory factory)
+{
+    return factory->m_Mounts;
+}
+
 void ReleaseBuiltinsArchive(HFactory factory)
 {
     if (factory->m_BuiltinMount)

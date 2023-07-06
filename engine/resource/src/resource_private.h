@@ -72,6 +72,16 @@ namespace dmResource
     uint32_t GetRefCount(HFactory factory, void* resource);
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
+    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
+    // be provided for unloading and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
+    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
+    Result UnmountManifest(void *& map, uint32_t size);
+    // Files mapped with this function should be unmapped with UnmapFile(...)
+    Result MapFile(const char* filename, void*& map, uint32_t& size);
+    Result UnmapFile(void*& map, uint32_t size);
+
     /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
      * We check this by persisting the bundled manifest signature to file the first time a liveupdate.manifest
