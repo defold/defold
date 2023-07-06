@@ -575,6 +575,8 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
+(defn- set-value-from-first-arg [_ b] b)
+
 (defn set-property
   "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
   is applies in a transact.
@@ -586,7 +588,7 @@
   (assert node-id)
   (mapcat
    (fn [[p v]]
-     (it/update-property node-id p (clojure.core/constantly v) []))
+     (it/update-property node-id p set-value-from-first-arg [v]))
    (partition-all 2 kvs)))
 
 (defn set-property!
