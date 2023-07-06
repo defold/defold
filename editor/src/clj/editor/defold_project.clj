@@ -640,7 +640,10 @@
                                            (remap-selection old->new (constantly [])))]
                 (perform-sub-selection project all-sub-selections))))))
 
-      ;; invalidating outputs is the only change that does not reset the undo history
+      ;; Invalidating outputs is the only change that does not reset the undo
+      ;; history. This is a quick way to find out if we have any significant
+      ;; changes, but we must take care to also exclude non-change information
+      ;; such as the list of :kept resources from this check.
       (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
         (g/reset-undo! (graph project)))
 
