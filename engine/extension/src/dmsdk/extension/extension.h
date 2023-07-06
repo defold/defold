@@ -70,14 +70,30 @@ typedef struct dmExtensionEvent
     enum dmExtensionEventID m_Event;
 } dmExtensionEvent;
 
-struct dmExtensionDesc;
-
+//struct dmExtensionDesc;
 typedef dmExtensionResult (*FExtensionAppInit)(dmExtensionAppParams*);
 typedef dmExtensionResult (*FExtensionAppFinalize)(dmExtensionAppParams*);
 typedef dmExtensionResult (*FExtensionInitialize)(dmExtensionAppParams*);
 typedef dmExtensionResult (*FExtensionFinalize)(dmExtensionAppParams*);
 typedef dmExtensionResult (*FExtensionUpdate)(dmExtensionAppParams*);
 typedef void              (*FExtensionOnEvent)(dmExtensionParams*, const dmExtensionEvent*);
+
+typedef dmExtensionResult (*dmExtensionFCallback)(dmExtensionParams* params);
+
+struct dmExtensionDesc
+{
+    const struct dmExtensionDesc*   m_Next;
+    const char*                     m_Name;
+    dmExtensionResult       (*AppInitialize)(dmExtensionAppParams* params);
+    dmExtensionResult       (*AppFinalize)(dmExtensionAppParams* params);
+    dmExtensionResult       (*Initialize)(dmExtensionParams* params);
+    dmExtensionResult       (*Finalize)(dmExtensionParams* params);
+    dmExtensionResult       (*Update)(dmExtensionParams* params);
+    void                    (*OnEvent)(dmExtensionParams* params, const dmExtensionEvent* event);
+    dmExtensionFCallback    PreRender;
+    dmExtensionFCallback    PostRender;
+    uint8_t                 m_AppInitialized;
+};
 
 void dmExtensionRegister(struct dmExtensionDesc* desc,
     uint32_t desc_size,
@@ -88,8 +104,6 @@ void dmExtensionRegister(struct dmExtensionDesc* desc,
     FExtensionFinalize      finalize,
     FExtensionUpdate        update,
     FExtensionOnEvent       on_event);
-
-typedef dmExtensionResult (*dmExtensionFCallback)(dmExtensionParams* params);
 
 int dmExtensionRegisterCallback(dmExtensionCallbackType callback_type, dmExtensionFCallback func);
 

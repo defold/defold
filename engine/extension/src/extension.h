@@ -17,21 +17,6 @@
 
 #include <dmsdk/extension/extension.h>
 
-struct dmExtensionDesc
-{
-    const dmExtensionDesc*  m_Next;
-    const char*             m_Name;
-    dmExtensionResult       (*AppInitialize)(dmExtensionAppParams* params);
-    dmExtensionResult       (*AppFinalize)(dmExtensionAppParams* params);
-    dmExtensionResult       (*Initialize)(dmExtensionParams* params);
-    dmExtensionResult       (*Finalize)(dmExtensionParams* params);
-    dmExtensionResult       (*Update)(dmExtensionParams* params);
-    void                    (*OnEvent)(dmExtensionParams* params, const dmExtensionEvent* event);
-    dmExtensionFCallback    PreRender;
-    dmExtensionFCallback    PostRender;
-    bool                    m_AppInitialized;
-};
-
 namespace dmExtension
 {
     struct Desc
