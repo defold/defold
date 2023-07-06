@@ -176,11 +176,6 @@
                 ;; We don't have a read-fn. Print a line diff.
                 (print-line-diff!)))))))))
 
-(defn- save-all! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
     :dirty?))
@@ -197,13 +192,13 @@
   (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
 
 (defn- append-lua-code-line! [node-id]
-  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n-- added line")))
+  (test-util/update-code-editor-lines! node-id conj "-- added line"))
 
 (defn- append-shader-code-line! [node-id]
-  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
+  (test-util/update-code-editor-lines! node-id conj "// added line"))
 
 (defn- append-c-code-line! [node-id]
-  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
+  (test-util/update-code-editor-lines! node-id conj "// added line"))
 
 (defn- set-setting!
   [node-id path value]
@@ -307,7 +302,7 @@
                 (f node-id)
                 (is (true? (dirty? node-id))))))
           (is (not (clean?)))
-          (save-all! project)
+          (test-util/save-project! project)
           (is (clean?)))))))
 
 (defn- setup-scratch
@@ -458,7 +453,7 @@
         (fn [exit-event-loop!]
 
           ;; Edited by us.
-          (test-util/code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
+          (test-util/set-code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
 
           ;; Edited externally.
           (touch-file! workspace "/added_externally.md")

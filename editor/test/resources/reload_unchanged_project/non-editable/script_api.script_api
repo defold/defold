@@ -1,0 +1,14 @@
+- name: webview
+  type: table
+  desc: Functions and constants for interacting with webview APIs.
+  members:
+  - name: is_visible
+    type: function
+    desc: Returns the visibility state of the webview.
+    parameters:
+      - name: webview_id
+        type: number
+        desc: The webview id.
+    return:
+      type: number
+      desc: Returns `0` if not visible, `1` if it is visible.

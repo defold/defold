@@ -2297,7 +2297,7 @@
   ;; reached after a series of undo's could be something else entirely
   ;; than what the user saw.
   (g/with-auto-evaluation-context ec
-    (r/ensure-unmodified-lines! resource-node ec)
+    (r/ensure-loaded! resource-node ec)
     (let [glyph-metrics (g/node-value view-node :glyph-metrics ec)
           tab-spaces (g/node-value view-node :tab-spaces ec)
           tab-stops (data/tab-stops glyph-metrics tab-spaces)
