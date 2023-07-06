@@ -85,13 +85,13 @@ protected:
         //  file    - 30
         {
             dmResource::Result result;
-            result = dmResourceMounts::AddMount(m_Mounts, m_Archives[0], 30); // file
+            result = dmResourceMounts::AddMount(m_Mounts, "a", m_Archives[0], 30); // file
             ASSERT_EQ(dmResource::RESULT_OK, result);
 
-            result = dmResourceMounts::AddMount(m_Mounts, m_Archives[1], 10); // archive
+            result = dmResourceMounts::AddMount(m_Mounts, "b", m_Archives[1], 10); // archive
             ASSERT_EQ(dmResource::RESULT_OK, result);
 
-            result = dmResourceMounts::AddMount(m_Mounts, m_Archives[2], 20); // zip
+            result = dmResourceMounts::AddMount(m_Mounts, "c", m_Archives[2], 20); // zip
             ASSERT_EQ(dmResource::RESULT_OK, result);
         }
     }
@@ -121,9 +121,42 @@ protected:
     dmResourceProvider::HArchive m_Archives[3];
 };
 
-TEST_F(ArchiveProvidersMulti, Setup)
+TEST_F(ArchiveProvidersMulti, GetMounts)
 {
-    // Intentionally left blank to test setup+teardown
+    // Note: The mounts are sorted on priority: Highest number comes first in the list
+    dmResourceMounts::SGetMountResult result;
+
+    // By index
+    ASSERT_EQ(3, dmResourceMounts::GetNumMounts(m_Mounts));
+
+    ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByIndex(m_Mounts, 4, &result));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 0, &result));
+    ASSERT_STREQ("a", result.m_Name);
+    ASSERT_EQ(30, result.m_Priority);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 1, &result));
+    ASSERT_STREQ("c", result.m_Name);
+    ASSERT_EQ(20, result.m_Priority);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 2, &result));
+    ASSERT_STREQ("b", result.m_Name);
+    ASSERT_EQ(10, result.m_Priority);
+
+    // By name
+    ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByName(m_Mounts, "not_exist", &result));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "c", &result));
+    ASSERT_STREQ("c", result.m_Name);
+    ASSERT_EQ(20, result.m_Priority);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "a", &result));
+    ASSERT_STREQ("a", result.m_Name);
+    ASSERT_EQ(30, result.m_Priority);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "b", &result));
+    ASSERT_STREQ("b", result.m_Name);
+    ASSERT_EQ(10, result.m_Priority);
 }
 
 static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)

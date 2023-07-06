@@ -31,7 +31,7 @@ namespace dmResourceMounts
     HContext    Create();
     void        Destroy(HContext context);
 
-    dmResource::Result AddMount(HContext ctx, dmResourceProvider::HArchive archive, int priority);
+    dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
     dmResource::Result DestroyArchives(HContext ctx);
 
@@ -39,6 +39,17 @@ namespace dmResourceMounts
     dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, dmResource::LoadBufferType* buffer);
+
+    struct SGetMountResult
+    {
+        const char*                  m_Name;
+        dmResourceProvider::HArchive m_Archive;
+        int                          m_Priority;
+    };
+
+    uint32_t GetNumMounts(HContext ctx);
+    dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info);
+    dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info);
 
     struct SGetDependenciesParams
     {

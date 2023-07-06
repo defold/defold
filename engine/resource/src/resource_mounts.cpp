@@ -13,6 +13,7 @@ namespace dmResourceMounts
 
 struct ArchiveMount
 {
+    const char*                     m_Name;
     dmResourceProvider::HArchive    m_Archive;
     int                             m_Priority;
 };
@@ -90,11 +91,12 @@ static void DebugPrintMounts(HContext ctx)
     }
 }
 
-dmResource::Result AddMount(HContext ctx, dmResourceProvider::HArchive archive, int priority)
+dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority)
 {
     // TODO: Make sure a uri wasn't already added!
 
     ArchiveMount mount;
+    mount.m_Name = strdup(name);
     mount.m_Priority = priority;
     mount.m_Archive = archive;
     AddMountInternal(ctx, mount);
@@ -119,6 +121,35 @@ dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archiv
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
+uint32_t GetNumMounts(HContext ctx)
+{
+    return ctx->m_Mounts.Size();
+}
+
+dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info)
+{
+    if (index >= ctx->m_Mounts.Size())
+        return dmResource::RESULT_INVAL;
+
+    ArchiveMount& mount = ctx->m_Mounts[index];
+    mount_info->m_Name = mount.m_Name;
+    mount_info->m_Archive = mount.m_Archive;
+    mount_info->m_Priority = mount.m_Priority;
+    return dmResource::RESULT_OK;
+}
+
+dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info)
+{
+    uint32_t size = ctx->m_Mounts.Size();
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        ArchiveMount& mount = ctx->m_Mounts[i];
+        if (strcmp(mount.m_Name, name) == 0)
+            return GetMountByIndex(ctx, i, mount_info);
+    }
+    return dmResource::RESULT_INVAL;
+}
+
 // TODO: Get mount info (iterator?)
 dmResource::Result DestroyArchives(HContext ctx)
 {
@@ -126,6 +157,7 @@ dmResource::Result DestroyArchives(HContext ctx)
     for (uint32_t i = 0; i < size; ++i)
     {
         ArchiveMount& mount = ctx->m_Mounts[i];
+        free((void*)mount.m_Name);
         dmResourceProvider::Unmount(mount.m_Archive);
     }
     ctx->m_Mounts.SetSize(0);
@@ -178,8 +210,39 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
+// static dmResourceProvider::HArchive FindArchive(HContext ctx, dmhash_t path_hash, uint32_t* out_resource_size)
+// {
+//     uint32_t resource_size;
+//     uint32_t size = ctx->m_Mounts.Size();
+//     for (uint32_t i = 0; i < size; ++i)
+//     {
+//         ArchiveMount& mount = ctx->m_Mounts[i];
+//         dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, resource_size);
+//         if (dmResourceProvider::RESULT_OK == result)
+//         {
+//             if (out_resource_size)
+//                 *out_resource_size = resource_size;
+//             return mount.m_Archive;
+//         }
+//     }
+
+//     return 0;
+// }
+
 dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmResource::LoadBufferType* buffer)
 {
+    // uint32_t resource_size;
+    // dmResourceProvider::HArchive archive = FindArchive(HContext ctx, dmhash_t path_hash, &resource_size);
+    // if (!archive)
+    //     return dmResource::RESULT_RESOURCE_NOT_FOUND;
+
+    // if (buffer->Capacity() < resource_size)
+    //     buffer->SetCapacity(resource_size);
+    // buffer->SetSize(resource_size);
+
+    // dmResourceProvider::Result result = dmResourceProvider::ReadFile(archive, path_hash, path, (uint8_t*)buffer->Begin(), resource_size);
+    // return ProviderResultToResult(result);
+
     uint32_t resource_size;
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)

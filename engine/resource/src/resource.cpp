@@ -221,7 +221,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
         return RESULT_NOT_LOADED;
     }
 
-    dmResourceMounts::AddMount(factory->m_Mounts, factory->m_BuiltinMount, 1);
+    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, 1);
     return RESULT_OK;
 }
 
@@ -286,7 +286,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 continue;
             }
             ++num_mounted;
-            dmResourceMounts::AddMount(factory->m_Mounts, archive, 0);
+            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, 0);
             break;
         }
     }
