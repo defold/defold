@@ -44,14 +44,14 @@
         (is (empty? (g/node-value script-node :module-build-targets)))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "are added when a module is required"
-        (test-util/code-editor-source! script-node "local x = require('module1')")
+        (test-util/set-code-editor-source! script-node "local x = require('module1')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (= (g/node-value script-node :module-build-targets)
                [(g/node-value module1-node :build-targets)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module1-node :completion-info)])))
       (testing "are updated when a requirements change"
-        (test-util/code-editor-source! script-node "local x = require('module1')\nlocal y = require('module2')")
+        (test-util/set-code-editor-source! script-node "local x = require('module1')\nlocal y = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (= (set (g/node-value script-node :module-build-targets))
                #{(g/node-value module1-node :build-targets)
@@ -60,21 +60,21 @@
                #{(g/node-value module1-node :completion-info)
                  (g/node-value module2-node :completion-info)})))
       (testing "are updated when a required module is no longer required"
-        (test-util/code-editor-source! script-node "local x = require('module2')")
+        (test-util/set-code-editor-source! script-node "local x = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (= (g/node-value script-node :module-build-targets)
                [(g/node-value module2-node :build-targets)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module2-node :completion-info)])))
       (testing "are removed when a module is no longer required"
-        (test-util/code-editor-source! script-node "local x = 4711")
+        (test-util/set-code-editor-source! script-node "local x = 4711")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (empty? (g/node-value script-node :module-build-targets)))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "ignores invalid requires"
-        (test-util/code-editor-source! script-node "require \"\"")
-        (test-util/code-editor-source! script-node "require \"\"\"\"")
-        (test-util/code-editor-source! script-node "require \"a.b.c\"\"")))))
+        (test-util/set-code-editor-source! script-node "require \"\"")
+        (test-util/set-code-editor-source! script-node "require \"\"\"\"")
+        (test-util/set-code-editor-source! script-node "require \"a.b.c\"\"")))))
 
 (defn- lines [& args] (str (str/join "\n" args) "\n"))
 

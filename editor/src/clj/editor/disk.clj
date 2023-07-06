@@ -24,6 +24,7 @@
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]))
@@ -118,6 +119,26 @@
 (def ^:private save-job-atom (atom nil))
 (def ^:private save-data-status-map-entry (comp resource-watch/file-resource-status-map-entry :resource))
 
+(defn make-post-save-actions [written-save-datas]
+  (let [written-file-resource-status-map-entries
+        (mapv save-data-status-map-entry written-save-datas)
+
+        written-disk-sha256s-by-node-id
+        (into {}
+              (map (juxt :node-id resource-node/save-data-sha256))
+              written-save-datas)]
+
+    {:written-disk-sha256s-by-node-id written-disk-sha256s-by-node-id
+     :written-file-resource-status-map-entries written-file-resource-status-map-entries
+     :written-save-datas written-save-datas}))
+
+(defn process-post-save-actions! [workspace post-save-actions]
+  (g/transact
+    (concat
+      (g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
+      (workspace/merge-disk-sha256s workspace (:written-disk-sha256s-by-node-id post-save-actions))))
+  (project/invalidate-save-data-source-values! (:written-save-datas post-save-actions)))
+
 (defn- start-save-job! [render-reload-progress! render-save-progress! project changes-view]
   (let [workspace (project/workspace project)
         success-promise (promise)
@@ -145,13 +166,12 @@
                 (let [touched-resources (into #{} (map :resource) save-data)]
                   (workspace/reload-plugins! workspace touched-resources)
                   (lsp/touch-resources! (lsp/get-node-lsp project) touched-resources))
-                (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
+                (let [post-save-actions (make-post-save-actions save-data)]
                   (render-save-progress! progress/done)
                   (ui/run-later
                     (try
                       (project/update-system-cache-save-data! evaluation-context)
-                      (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
-                      (project/invalidate-save-data-source-values! save-data)
+                      (process-post-save-actions! workspace post-save-actions)
                       (when (some? changes-view)
                         (changes-view/refresh! changes-view render-reload-progress!))
                       (complete! true)

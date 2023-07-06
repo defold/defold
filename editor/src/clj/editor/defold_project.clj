@@ -61,12 +61,13 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-registered-resource-node [load-fn project node-id resource]
+(defn- load-registered-resource-node [resource-type project node-id resource]
   (concat
-    (load-fn project node-id resource)
+    (when-some [load-fn (:load-fn resource-type)]
+      (load-fn project node-id resource))
     (when (and (resource/file-resource? resource)
                (resource/editable? resource)
-               (:auto-connect-save-data? (resource/resource-type resource)))
+               (:auto-connect-save-data? resource-type))
       (g/connect node-id :save-data project :save-data))))
 
 (defn load-node [project node-id node-type resource]
@@ -75,18 +76,17 @@
   ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [resource-type (some-> resource resource/resource-type)
-          loaded? (and *load-cache* (contains? @*load-cache* node-id))
-          load-fn (:load-fn resource-type)]
-      (when-not loaded?
+          already-loaded (and *load-cache* (contains? @*load-cache* node-id))]
+      (when-not already-loaded
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
           (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (if (nil? load-fn)
+            (if (nil? resource-type)
               (placeholder-resource/load-node project node-id resource)
-              (load-registered-resource-node load-fn project node-id resource))
+              (load-registered-resource-node resource-type project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
@@ -640,8 +640,11 @@
                                            (remap-selection old->new (constantly [])))]
                 (perform-sub-selection project all-sub-selections))))))
 
-      ;; invalidating outputs is the only change that does not reset the undo history
-      (when (some seq (vals (dissoc plan :invalidate-outputs)))
+      ;; Invalidating outputs is the only change that does not reset the undo
+      ;; history. This is a quick way to find out if we have any significant
+      ;; changes, but we must take care to also exclude non-change information
+      ;; such as the list of :kept resources from this check.
+      (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
         (g/reset-undo! (graph project)))
 
       (du/when-metrics
@@ -653,8 +656,17 @@
                  :transaction-metrics @transaction-metrics})))))
 
 (defn- handle-resource-changes [project changes render-progress!]
-  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
-        resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
+  (let [[old-nodes-by-path old-node->old-disk-sha256]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [workspace (workspace project evaluation-context)
+                old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
+                old-node->old-disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id evaluation-context)]
+            [old-nodes-by-path old-node->old-disk-sha256]))
+
+        resource-change-plan
+        (du/metrics-time "Generate resource change plan"
+          (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes))]
+
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
