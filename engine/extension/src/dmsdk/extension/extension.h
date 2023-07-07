@@ -27,6 +27,9 @@ extern "C" {
 }
 #endif
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 // C API
 typedef enum dmExtensionResult
@@ -73,9 +76,9 @@ typedef struct dmExtensionEvent
 //struct dmExtensionDesc;
 typedef dmExtensionResult (*FExtensionAppInit)(dmExtensionAppParams*);
 typedef dmExtensionResult (*FExtensionAppFinalize)(dmExtensionAppParams*);
-typedef dmExtensionResult (*FExtensionInitialize)(dmExtensionAppParams*);
-typedef dmExtensionResult (*FExtensionFinalize)(dmExtensionAppParams*);
-typedef dmExtensionResult (*FExtensionUpdate)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionInitialize)(dmExtensionParams*);
+typedef dmExtensionResult (*FExtensionFinalize)(dmExtensionParams*);
+typedef dmExtensionResult (*FExtensionUpdate)(dmExtensionParams*);
 typedef void              (*FExtensionOnEvent)(dmExtensionParams*, const dmExtensionEvent*);
 
 typedef dmExtensionResult (*dmExtensionFCallback)(dmExtensionParams* params);
@@ -106,7 +109,9 @@ void dmExtensionRegister(struct dmExtensionDesc* desc,
     FExtensionOnEvent       on_event);
 
 int dmExtensionRegisterCallback(dmExtensionCallbackType callback_type, dmExtensionFCallback func);
-
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #if defined(__cplusplus)
 namespace dmExtension

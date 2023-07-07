@@ -166,7 +166,7 @@ platforms:
         flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
-        zig-target:     'x86_64-macos'
+        zig-target:     'aarch64-macos'
 
   x86_64-osx:
     context:
@@ -174,7 +174,7 @@ platforms:
         flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
-        zig-target:     'aarch64-macos'
+        zig-target:     'x86_64-macos'
 
   x86-osx:
     # Intentionally left empty to allow users to have old versions in their manifests

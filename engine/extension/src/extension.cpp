@@ -16,6 +16,10 @@
 #include <dlib/static_assert.h>
 #include "extension.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 void dmExtensionAppParams_Init(dmExtensionAppParams* params)
 {
     memset(params, 0, sizeof(*params));
@@ -69,6 +73,11 @@ int dmExtensionRegisterCallback(dmExtensionCallbackType callback_type, dmExtensi
 {
     return (int)dmExtension::RegisterCallback((dmExtension::CallbackType)callback_type, (dmExtension::extension_callback_t)func);
 }
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
 namespace dmExtension
 {
     dmExtension::Desc* g_FirstExtension = 0;
