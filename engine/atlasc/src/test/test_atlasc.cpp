@@ -19,7 +19,7 @@
 #include <dlib/sys.h>
 
 #include "../atlasc.h"
-//#include "../atlasc_private.h"
+#include "../atlasc_private.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
@@ -142,6 +142,13 @@ static int TestStandAlone(const char* dirpath)
     options.m_Algorithm = dmAtlasc::PA_TILEPACK_AUTO;
     options.m_PageSize = 1024;
     dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, images.Begin(), images.Size());
+    if (!atlas)
+    {
+        printf("Failed to create atlas from path %s\n", dirpath);
+        return 1;
+    }
+
+    DebugPrintAtlas(atlas);
 
     dmAtlasc::DestroyAtlas(atlas);
 

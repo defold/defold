@@ -19,6 +19,7 @@
 // #include <dmsdk/dlib/shared_library.h>
 
 #include <dmsdk/dlib/array.h>
+
 #include <stdint.h>
 
 /**
@@ -101,10 +102,11 @@ namespace dmAtlasc
         Options();
     };
 
-    Atlas* CreateAtlas(const Options& options, SourceImage* source_images, uint32_t num_source_images);
-    void DestroyAtlas(Atlas* atlas);
+    Atlas*  CreateAtlas(const Options& options, SourceImage* source_images, uint32_t num_source_images);
+    void    DestroyAtlas(Atlas* atlas);
 
     const char* GetLastError();
+
 }
 
 #endif // DM_ATLASC_H

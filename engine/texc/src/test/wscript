@@ -8,8 +8,3 @@ def build(bld):
        use          = 'DLIB BASIS_ENCODER PROFILE_NULL texc',
        proto_gen_py = True,
        target       = 'test_texc')
-
-   bld(features     = 'c cxx cprogram test',
-       source       = 'test_atlasc.cpp',
-       use          = 'DLIB BASIS_ENCODER PROFILE_NULL atlasc atlaspacker',
-       target       = 'test_atlasc')

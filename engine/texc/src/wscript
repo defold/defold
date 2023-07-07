@@ -3,19 +3,8 @@ import os
 from waflib.Options import options
 
 def configure(conf):
-    pass
 
 def build(bld):
-
-    # ******************************************************************************************
-
-    atlaspacker_source = bld.path.ant_glob("atlaspacker/*.c")
-
-    atlaspacker = bld.stlib(features     = 'c clib skip_asan',
-                            source       = atlaspacker_source,
-                            includes     = ['./atlaspacker/include'],
-                            target       = 'atlaspacker')
-
 
     java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
     if 'linux' in bld.env['PLATFORM']:
@@ -24,20 +13,6 @@ def build(bld):
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
     if 'macos' in bld.env['PLATFORM']:
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
-
-    atlasc_sources = bld.path.ant_glob("atlasc*.cpp")
-
-    # The static library for the tests
-    bld.stlib(features = 'cxx',
-               source = atlasc_sources,
-               includes = ['.', './atlaspacker/include'],
-               target   = 'atlasc')
-
-    bld.shlib(features     = 'cxx cshlib skip_asan',
-                source       = atlasc_sources,
-                includes     = ['.', './atlaspacker/include'] + java_includes,
-                target       = 'atlasc_shared',
-                use          = 'DLIB_NOASAN PROFILE_NULL_NOASAN atlaspacker')
 
     # ******************************************************************************************
 
@@ -51,9 +26,8 @@ def build(bld):
 
     texc_shared = bld.shlib(features     = 'cxx cshlib skip_asan',
                             source       = texc_sources,
-                            #includes     = ['.', './atlaspacker'] + java_includes,
                             target       = 'texc_shared',
-                            use          = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN atlaspacker')
+                            use          = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
 
     # ******************************************************************************************
     # JAVA: texturecompiler.jar
@@ -73,28 +47,9 @@ def build(bld):
         destfile='texturecompiler.jar')
 
     # ******************************************************************************************
-    # JAVA: atlascompiler.jar
-
-    # classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.10.0.jar'),
-    #              os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.10.0.jar')]
-
-    # bld(features='javac seq',
-    #     classpath=classpath,
-    #     srcdir='java/atlasc',
-    #     outdir='java/atlasc')
-
-    # bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
-
-    # bld(features='jar seq',
-    #     basedir='java/atlasc',
-    #     destfile='atlascompiler.jar')
-
-    # ******************************************************************************************
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
-    bld.install_files('${PREFIX}/include/texc', 'atlasc.h')
     bld.install_files('${PREFIX}/share/java', 'texturecompiler.jar')
-    bld.install_files('${PREFIX}/share/java', 'atlascompiler.jar')
 
     # ******************************************************************************************
 

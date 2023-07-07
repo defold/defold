@@ -1789,6 +1789,19 @@ def detect(conf):
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
 
+    if conf.env.IS_TARGET_DESKTOP:
+        if 'JAVA_HOME' in os.environ:
+            host = 'windows'
+            if 'linux' in sys.platform:
+                host = 'linux'
+            elif 'darwin' in sys.platform:
+                host = 'darwin'
+
+            conf.env['CPPPATH_JDK'] = [os.path.join(os.environ['JAVA_HOME'], 'include'), os.path.join(os.environ['JAVA_HOME'], 'include', host)]
+            conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
+            conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
+
+
 def configure(conf):
     detect(conf)
 

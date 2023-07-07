@@ -219,7 +219,6 @@ uint8_t* apTilePackerCreateTileImageFromImage(int tile_size, int width, int heig
     return timage;
 }
 
-
 static apTileImage* apTilePackerCreateRotatedCopy(const apTileImage* image, int rotation)
 {
     apTileImage* outimage = (apTileImage*)malloc(sizeof(apTileImage));

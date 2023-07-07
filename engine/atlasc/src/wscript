@@ -1,0 +1,80 @@
+#! /usr/bin/env python
+import os
+from waflib.Options import options
+
+def configure(conf):
+    pass
+
+def build(bld):
+    # We only need this library in the editor and bob
+    if not bld.env.IS_TARGET_DESKTOP:
+        print("Skipping build of modelc for non host platform")
+        return
+
+    atlaspacker_source = bld.path.ant_glob("atlaspacker/*.c")
+
+    bld.stlib(features     = 'c skip_asan',
+                source       = atlaspacker_source,
+                includes     = ['./atlaspacker/include'],
+                target       = 'atlaspacker')
+
+    # java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
+    # if 'linux' in bld.env['PLATFORM']:
+    #     java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
+    # if 'win32' in bld.env['PLATFORM']:
+    #     java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
+    # if 'macos' in bld.env['PLATFORM']:
+    #     java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
+
+    atlasc_sources = bld.path.ant_glob("atlasc*.cpp")
+
+    # The static library for the tests
+    bld.stlib(features = 'cxx',
+               source = atlasc_sources,
+               includes = ['.', './atlaspacker/include'],
+               target   = 'atlasc')
+
+    bld.shlib(features     = 'cxx cshlib skip_asan',
+                source       = atlasc_sources,
+                includes     = ['.', './atlaspacker/include'],
+                target       = 'atlasc_shared',
+                use          = 'DLIB_NOASAN PROFILE_NULL_NOASAN JDK atlaspacker')
+
+    # ******************************************************************************************
+    # JAVA: atlascompiler.jar
+
+    # classpath = [os.path.join(bld.env.DYNAMO_HOME, '../../com.dynamo.cr/com.dynamo.cr.bob/lib/jna-5.10.0.jar'),
+    #              os.path.join(bld.env.DYNAMO_HOME, '../..//com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.10.0.jar')]
+
+    # bld(features='javac seq',
+    #     classpath=classpath,
+    #     srcdir='java/atlasc',
+    #     outdir='java/atlasc')
+
+    # bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
+
+    # bld(features='jar seq',
+    #     basedir='java/atlasc',
+    #     destfile='atlascompiler.jar')
+
+
+    bld(features='javac seq',
+        #classpath=[],
+        srcdir='java',
+        outdir='java')
+
+    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+
+    bld(features='jar seq',
+        basedir='java',
+        destfile='atlascompiler.jar')
+
+    # ******************************************************************************************
+
+    bld.install_files('${PREFIX}/include/atlasc', 'atlasc.h')
+    bld.install_files('${PREFIX}/share/java', 'atlascompiler.jar')
+
+    # ******************************************************************************************
+
+    if not options.skip_build_tests:
+        bld.recurse('test')

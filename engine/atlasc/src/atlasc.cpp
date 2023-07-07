@@ -143,7 +143,6 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
 
     if (packer == 0)
     {
-
         return 0;
     }
 
@@ -157,7 +156,7 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
     {
         SourceImage* image = &source_images[i];
 
-        //printf("Adding image: %s, %d x %d  \t\tarea: %d\n", image->m_Path, image->m_Size.x, image->m_Size.y, image->m_Size.x * image->m_Size.y);
+        printf("Adding image: %s, %d x %d  \t\tarea: %d\n", image->m_Path, image->m_Size.x, image->m_Size.y, image->m_Size.x * image->m_Size.y);
         apImage* apimage = apAddImage(ctx, image->m_Path, image->m_Size.x, image->m_Size.y, image->m_NumChannels, image->m_Data);
         if (!apimage)
         {
@@ -198,6 +197,37 @@ void DestroyAtlas(Atlas* atlas)
 const char* GetLastError()
 {
     return g_ErrorString;
+}
+
+static void DebugPrintIndent(int indent)
+{
+    for (int i = 0; i < indent; ++i)
+        printf("    ");
+}
+
+static void DebugPrintPackedImage(PackedImage* packed_image, int indent)
+{
+    DebugPrintIndent(indent);
+    printf("image: %d, %d, %d, %d\n", packed_image->m_Pos.x, packed_image->m_Pos.y, packed_image->m_Size.x, packed_image->m_Size.y);
+}
+
+static void DebugPrintPage(AtlasPage* page, int indent)
+{
+    DebugPrintIndent(indent);
+    printf("Page %d\n", page->m_Index);
+
+    for (uint32_t i = 0; i < page->m_Images.Size(); ++i)
+    {
+        DebugPrintPackedImage(page->m_Images[i], indent+1);
+    }
+}
+
+void DebugPrintAtlas(Atlas* atlas)
+{
+    for (uint32_t i = 0; i < atlas->m_Pages.Size(); ++i)
+    {
+        DebugPrintPage(atlas->m_Pages[i], 0);
+    }
 }
 
 } // namespace

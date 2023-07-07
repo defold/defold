@@ -1,0 +1,9 @@
+#! /usr/bin/env python
+
+from waflib.Options import options
+
+def build(bld):
+   bld(features     = 'c cxx cprogram test',
+       source       = 'test_atlasc.cpp',
+       use          = 'DLIB PROFILE_NULL atlasc atlaspacker',
+       target       = 'test_atlasc')
