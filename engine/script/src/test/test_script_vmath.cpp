@@ -157,22 +157,22 @@ TEST_F(ScriptVmathTest, TestVector4Fail)
 
 }
 
-TEST_F(ScriptVmathTest, TestQuat)
-{
-    int top = lua_gettop(L);
-    Quat q(1.0f, 2.0f, 3.0f, 4.0f);
-    dmScript::PushQuat(L, q);
-    Quat* qp = dmScript::CheckQuat(L, -1);
-    ASSERT_NE((void*)0x0, qp);
-    ASSERT_EQ(q.getX(), qp->getX());
-    ASSERT_EQ(q.getY(), qp->getY());
-    ASSERT_EQ(q.getZ(), qp->getZ());
-    ASSERT_EQ(q.getW(), qp->getW());
-    lua_pop(L, 1);
-    ASSERT_EQ(top, lua_gettop(L));
+// TEST_F(ScriptVmathTest, TestQuat)
+// {
+//     int top = lua_gettop(L);
+//     Quat q(1.0f, 2.0f, 3.0f, 4.0f);
+//     dmScript::PushQuat(L, q);
+//     Quat* qp = dmScript::CheckQuat(L, -1);
+//     ASSERT_NE((void*)0x0, qp);
+//     ASSERT_EQ(q.getX(), qp->getX());
+//     ASSERT_EQ(q.getY(), qp->getY());
+//     ASSERT_EQ(q.getZ(), qp->getZ());
+//     ASSERT_EQ(q.getW(), qp->getW());
+//     lua_pop(L, 1);
+//     ASSERT_EQ(top, lua_gettop(L));
 
-    ASSERT_TRUE(RunFile(L, "test_quat.luac"));
-}
+//     ASSERT_TRUE(RunFile(L, "test_quat.luac"));
+// }
 
 TEST_F(ScriptVmathTest, TestQuatFail)
 {

@@ -72,14 +72,6 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
-    enum AdapterType
-    {
-        ADAPTER_TYPE_NULL,
-        ADAPTER_TYPE_OPENGL,
-        ADAPTER_TYPE_VULKAN,
-        ADAPTER_TYPE_PS4
-    };
-
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,

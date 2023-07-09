@@ -956,7 +956,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         dmGui::RenderScene(scene, m_RenderParams, &t1);
         dmGui::UpdateScene(scene, 0.125f);
         dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
-        dmVMath::Vector3 difference = Vectormath::Aos::absPerElem(currentDiagonal - postScaleDiagonal);
+        dmVMath::Vector3 difference = dmVMath::AbsPerElem(currentDiagonal - postScaleDiagonal);
         if ( (tinyDifference >= difference[0]) || (tinyDifference < difference[1]) || (tinyDifference >= difference[2])) {
             char animatedScale[64];
             char currentScale[64];
