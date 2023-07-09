@@ -1360,7 +1360,7 @@ public class Project {
         m.done();
     }
 
-    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
@@ -1417,7 +1417,14 @@ public class Project {
                             remoteBuildFuture.get();
                         }
                         catch (ExecutionException|InterruptedException e) {
-                            throw new CompileExceptionError(e.getCause());
+                            Throwable cause = e.getCause();
+                            if ((cause instanceof MultipleCompileException) ||
+                                (cause instanceof CompileExceptionError)) {
+                                throw cause;
+                            }
+                            else {
+                                throw new CompileExceptionError(cause);
+                            }
                         }
                     }
 
