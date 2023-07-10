@@ -46,10 +46,12 @@
     (comps id)))
 
 (defmacro with-source [script-id source & body]
-  `(let [orig# (tu/code-editor-source ~script-id)]
-     (tu/code-editor-source! ~script-id ~source)
-     ~@body
-     (tu/code-editor-source! ~script-id orig#)))
+  `(let [original-lines# (tu/code-editor-lines ~script-id)]
+     (tu/set-code-editor-source! ~script-id ~source)
+     (try
+       ~@body
+       (finally
+         (tu/set-code-editor-lines! ~script-id original-lines#)))))
 
 (defn- prop [node-id prop-name]
   (let [key (properties/user-name->key prop-name)]

@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -168,8 +168,12 @@
               ;; resource then it is being actively worked on. Otherwise, it
               ;; belongs to an external dependency and should not stop the build
               ;; on errors.
-              (concat (g/connect self :build-errors si :build-errors)
-                      (g/connect self :save-data project :save-data))))))
+              (concat
+                (g/connect self :build-errors si :build-errors)
+
+                ;; Don't connect to save-data when under a non-editable path.
+                (when (resource/editable? resource)
+                  (g/connect self :save-data project :save-data)))))))
 
 (defn register-resource-types
   [workspace]

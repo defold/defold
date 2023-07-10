@@ -14,10 +14,16 @@
 
 (ns util.coll
   (:refer-clojure :exclude [bounded-count empty?])
-  (:import [clojure.lang MapEntry]))
+  (:import [clojure.lang IEditableCollection MapEntry]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defn supports-transient?
+  "Returns true if the supplied persistent collection can be made into a
+  transient collection."
+  [coll]
+  (instance? IEditableCollection coll))
 
 (defn pair
   "Constructs a two-element collection that implements IPersistentVector from
@@ -78,6 +84,44 @@
 
     :else
     (not (seq coll))))
+
+(defn separate-by
+  "Separates items in the supplied collection into two based on a predicate.
+  Returns a pair of [true-items, false-items]. The resulting collections will
+  have the same type and metadata as the input collection."
+  [pred coll]
+  (cond
+    ;; Avoid generating needless garbage for empty collections.
+    (empty? coll)
+    (pair coll coll)
+
+    ;; Transient implementation.
+    (supports-transient? coll)
+    (let [coll-meta (meta coll)
+          empty-coll (empty coll)
+          separated (reduce (fn [result item]
+                              (if (pred item)
+                                (pair (conj! (key result) item)
+                                      (val result))
+                                (pair (key result)
+                                      (conj! (val result) item))))
+                            (pair (transient empty-coll)
+                                  (transient empty-coll))
+                            coll)]
+      (pair (-> separated key persistent! (with-meta coll-meta))
+            (-> separated val persistent! (with-meta coll-meta))))
+
+    ;; Non-transient implementation.
+    :else
+    (let [empty-coll (with-meta (empty coll) (meta coll))]
+      (reduce (fn [result item]
+                (if (pred item)
+                  (pair (conj (key result) item)
+                        (val result))
+                  (pair (key result)
+                        (conj (val result) item))))
+              (pair empty-coll empty-coll)
+              coll))))
 
 (defn mapcat-indexed
   "Returns the result of applying concat to the result of applying map-indexed

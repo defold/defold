@@ -34,7 +34,8 @@ ordinary paths."
             [editor.util :as util]
             [internal.cache :as c]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.digest :as digest])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [com.dynamo.bob Platform]
@@ -259,8 +260,11 @@ ordinary paths."
                         for a new resource file creation; defaults to
                         \"templates/template.{ext}\"
     :label              label for a resource type when shown in the editor
-    :stateless?         whether the resource can be modified in the editor, by
-                        default true if there is no :load-fn and false otherwise
+    :stateless?         whether or not the node stores any state that needs to
+                        be reloaded if the resource is modified externally. When
+                        true, we can simply invalidate its outputs without
+                        replacing the node in the graph. Defaults to true if
+                        there is no :load-fn.
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
@@ -730,6 +734,15 @@ ordinary paths."
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
+(defn prepend-resource-listener! [workspace progress-span listener]
+  ;; Used from tests that need to interrogate the resource change plan before it
+  ;; is executed.
+  (swap! (g/node-value workspace :resource-listeners)
+         (fn [resource-listener-entries]
+           (let [resource-listener-entry [progress-span listener]]
+             (into [resource-listener-entry]
+                   resource-listener-entries)))))
+
 (g/deftype UriVec [URI])
 
 (g/defnode Workspace
@@ -738,6 +751,7 @@ ordinary paths."
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
+  (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any)
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
@@ -855,6 +869,19 @@ ordinary paths."
             (concat
               (g/connect notifications :_node-id workspace :notifications)
               (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
+
+(defn set-disk-sha256 [workspace node-id disk-sha256]
+  {:pre [(g/node-id? workspace)
+         (g/node-id? node-id)
+         (digest/sha256-hex? disk-sha256)]}
+  (g/update-property workspace :disk-sha256s-by-node-id assoc node-id disk-sha256))
+
+(defn merge-disk-sha256s [workspace disk-sha256s-by-node-id]
+  {:pre [(g/node-id? workspace)
+         (map? disk-sha256s-by-node-id)
+         (every? g/node-id? (keys disk-sha256s-by-node-id))
+         (every? digest/sha256-hex? (vals disk-sha256s-by-node-id))]}
+  (g/update-property workspace :disk-sha256s-by-node-id merge disk-sha256s-by-node-id))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

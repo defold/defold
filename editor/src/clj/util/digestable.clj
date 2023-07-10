@@ -220,8 +220,6 @@
                writer (OutputStreamWriter. digest-output-stream)]
      (digest! object writer opts)
      (.flush writer)
-     (digest/digest-output-stream->hex digest-output-stream))))
+     (digest/completed-stream->hex digest-output-stream))))
 
-(defn sha1-hash? [value]
-  (and (string? value)
-       (= 40 (count value))))
+(def sha1-hash? digest/sha1-hex?)

@@ -90,12 +90,18 @@
 ;; the node, because undoing would clear out the state of the unmodified file as
 ;; well, which would defeat the purpose.
 
-(defn- read-unmodified-lines
-  "Reads and returns the unmodified lines from the specified resource. If an
-  error occurs, return an ErrorValue from the provided node-id and output."
-  [resource error-node-id error-output-label]
-  (resource-io/with-error-translation resource error-node-id error-output-label
-    (read-fn resource)))
+(defn- read-lines+disk-sha256
+  "Reads the disk state of the specified CodeEditorResourceNode id from disk and
+  returns a pair of [lines, disk-sha256]. In case of errors, the lines key in
+  the returned pair will be an ErrorValue and the disk-sha256 value will be nil.
+  The disk-sha256 will also be nil for any resource that is not a file in the
+  project."
+  [node-id resource]
+  (let [lines+disk-sha256 (resource-io/with-error-translation resource node-id nil
+                            (resource/read-source-value+sha256-hex resource read-fn))]
+    (if (g/error? lines+disk-sha256)
+      [lines+disk-sha256 nil]
+      lines+disk-sha256)))
 
 (defn- loaded-unmodified-lines
   "Returns the unmodified lines for the specified node-id, or nil if the node
@@ -106,33 +112,50 @@
   ;; it bypasses the established cache invalidation mechanism.
   (g/user-data node-id :unmodified-lines))
 
-(defn ensure-unmodified-lines!
-  "Ensures the unmodified lines of a resource has been loaded, and returns the
-  unmodified lines. The first time this is called for a node-id, the unmodified
-  lines will be read from disk. Subsequent calls return the unmodified lines
-  loaded during the first call. The loaded-unmodified-lines function will return
-  a non-nil value after this has been called."
+(defn- set-unmodified-lines!
+  "Sets the unmodified lines for the specified node-id."
+  [node-id lines]
+  (g/user-data! node-id :unmodified-lines lines))
+
+(defn- ensure-disk-state
+  "Ensures the disk state has been loaded for the specified node-id. The first
+  time this is called for a node-id, the state will be read from disk and the
+  supplied seq of invalidated output labels will be invalidated. Subsequent
+  calls will do nothing. The loaded-unmodified-lines function will return a
+  non-nil value after this function is called."
+  [node-id evaluation-context invalidated-labels]
+  (let [read-volatile (volatile! nil)]
+    (g/user-data-swap!
+      node-id :unmodified-lines
+      (fn [loaded-unmodified-lines]
+        (or loaded-unmodified-lines
+            (let [resource (g/node-value node-id :resource evaluation-context)
+                  [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)]
+              (vreset! read-volatile [resource disk-sha256])
+              lines-or-error-value))))
+    (when-some [[resource disk-sha256] (deref read-volatile)]
+      (when (seq invalidated-labels)
+        (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                     invalidated-labels)))
+      (when (some? disk-sha256)
+        (let [workspace (resource/workspace resource)]
+          (workspace/set-disk-sha256 workspace node-id disk-sha256))))))
+
+(defn ensure-loaded!
+  "Ensures a lazy-loaded CodeEditorResourceNode has loaded the contents of its
+  associated resource into memory."
   [node-id evaluation-context]
-  (let [did-change (volatile! false)
-        unmodified-lines
-        (g/user-data-swap! node-id :unmodified-lines
-                       (fn [loaded-unmodified-lines]
-                         (or loaded-unmodified-lines
-                             (let [resource (g/node-value node-id :resource evaluation-context)
-                                   lines (read-unmodified-lines resource node-id nil)]
-                               (vreset! did-change true)
-                               lines))))]
-    (when @did-change
-      (g/invalidate-outputs! [(g/endpoint node-id :save-value)]))
-    unmodified-lines))
+  ;; This function is called externally for its side effects, so we need to
+  ;; invalidate any outputs that depend on the disk-state.
+  (some-> (ensure-disk-state node-id evaluation-context [:save-value])
+          (g/transact)))
 
 (defn- eager-load [self resource]
-  (let [lines (read-fn resource)
+  (let [[lines disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)
         indent-type (guess-indent-type lines)]
-    (g/user-data! self :unmodified-lines lines) ; Avoids disk reads property setters below.
-    (g/set-property self
-      :modified-lines lines
-      :modified-indent-type indent-type)))
+    (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
+    (cond-> (g/set-property self :modified-lines lines :modified-indent-type indent-type)
+            disk-sha256 (concat (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))))
 
 (defn- load-fn [additional-load-fn eager-loading? connect-breakpoints? project self resource]
   (concat
@@ -155,12 +178,11 @@
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
+
   (property modified-lines Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   ;; TODO(save-value): I reordered these calls because it seemed backwards. Should I have left them?
-                   (ensure-unmodified-lines! self evaluation-context)
                    (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
-                   nil)))
+                   (ensure-disk-state self evaluation-context [])))) ; No need to invalidate :save-value here since it depends on :modified-lines.
 
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
@@ -168,12 +190,15 @@
   (output completions g/Any (g/constantly {}))
   (output indent-type IndentType :cached (g/fnk [_node-id modified-indent-type resource]
                                            (or modified-indent-type
-                                               (let [lines (read-unmodified-lines resource _node-id :indent-type)]
+                                               (let [lines (resource-io/with-error-translation resource _node-id :indent-type
+                                                             (read-fn resource))]
                                                  (if (g/error? lines)
                                                    default-indent-type
                                                    (guess-indent-type lines))))))
 
-  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value (read-unmodified-lines resource _node-id :lines))))
+  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value
+                                                                (resource-io/with-error-translation resource _node-id :lines
+                                                                  (read-fn resource)))))
 
   ;; To save memory, we don't store the source-value in the graph.
   ;; Instead, we use its hash to determine if we've been dirtied.
@@ -188,7 +213,8 @@
   ;; Even though this returns a hash and not a proper source-value, we keep the
   ;; name to benefit from the invalidation mechanism when saving.
   (output source-value g/Any :cached :unjammable (g/fnk [_node-id resource]
-                                                   (let [lines (read-unmodified-lines resource _node-id :source-value)]
+                                                   (let [lines (resource-io/with-error-translation resource _node-id :source-value
+                                                                 (read-fn resource))]
                                                      (if (g/error? lines)
                                                        lines
                                                        (hash lines))))))

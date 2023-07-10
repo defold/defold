@@ -18,15 +18,15 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [editor.outline :as outline]
             [internal.graph.types :as gt]
-            [util.coll :as coll])
-  (:import [org.apache.commons.codec.digest DigestUtils]))
+            [util.coll :as coll]
+            [util.digest :as digest]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,6 +47,17 @@
    :dirty dirty
    :save-value save-value})
 
+(declare save-data-content)
+
+(defn save-data-sha256 [save-data]
+  ;; Careful! This might throw if resource has been removed
+  ;; outside the editor.
+  ;; Note: resource-update/keep-existing-node? assumes this will return a
+  ;; sha256 hex hash string from the bytes written to disk.
+  (if-some [content (save-data-content save-data)]
+    (digest/string->sha256-hex content)
+    (resource/resource->sha256-hex (:resource save-data))))
+
 (g/defnk produce-save-data [_node-id resource save-value source-value]
   (let [dirty (and (some? save-value)
                    (not= source-value save-value))]
@@ -59,15 +70,15 @@
         (read-fn resource)))))
 
 (g/defnk produce-sha256 [_node-id resource save-value]
+  ;; TODO(save-value)(merge): Use save-data-sha256 here and update it to return an ErrorValue instead of throwing.
   (if (nil? save-value)
     (resource-io/with-error-translation resource _node-id :sha256
-      (with-open [input-stream (io/input-stream resource)]
-        (DigestUtils/sha256Hex input-stream)))
+      (resource/resource->sha256-hex resource))
     (let [resource-type (resource/resource-type resource)
           write-fn (:write-fn resource-type)
-          ^String content (write-fn save-value)]
+          content (write-fn save-value)]
       ;; TODO(save-value): Can we digest the save-value without converting it to a string?
-      (DigestUtils/sha256Hex content))))
+      (digest/string->sha256-hex content))))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -235,10 +246,16 @@
                          (some? sanitize-fn) (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
                          (some? string-encode-fn) (comp string-encode-fn))
+        load-fn (fn load-fn [project self resource source-value]
+                  ;; TODO(save-value)(merge): We've moved the source-value read out. Need to also move the sha256 calculation.
+                  (let [[source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)]
+                    (cond->> (load-fn project self resource source-value)
+                             disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
                  (dissoc :string-encode-fn)
                  (assoc :textual? true
+                        :load-fn load-fn
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                         :read-raw-fn read-raw-fn
                         :read-fn read-fn
@@ -253,8 +270,14 @@
                     (settings-core/parse-settings setting-reader)))
         write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
                        settings-core/settings-with-value)
+        load-fn (fn [project self resource source-value]
+                  ;; TODO(save-value)(merge): We've moved the source-value read out. Need to also move the sha256 calculation.
+                  (let [[source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)]
+                    (cond->> (load-fn project self resource source-value)
+                             disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
         args (assoc args
                :textual? true
+               :load-fn load-fn
                :read-fn read-fn
                :write-fn write-fn
                :search-fn settings-core/raw-settings-search-fn)]
