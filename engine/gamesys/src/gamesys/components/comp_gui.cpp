@@ -73,6 +73,7 @@ namespace dmGameSystem
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
+    static void DeleteTexture(dmGui::HScene scene, void* texture, void* context);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -806,6 +807,7 @@ namespace dmGameSystem
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
+        dmGui::ForceRemoveDynamicTextures(gui_component->m_Scene, &DeleteTexture);
         if (result != dmGui::RESULT_OK)
         {
             // TODO: Translate result

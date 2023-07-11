@@ -49,6 +49,7 @@ DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiDynamicTexturesSize, 0, NoFlags, "", &rmtp_Gui);
 
 namespace dmGui
 {
@@ -577,7 +578,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
+    Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
 
@@ -611,6 +612,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             free(t->m_Buffer);
             t->m_Buffer = 0;
         }
+
+        uint32_t expected_buffer_size = t->m_Width * t->m_Height * dmImage::BytesPerPixel(t->m_Type);
+        DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTexturesSize, -expected_buffer_size);
 
         t->m_Buffer = malloc(buffer_size);
         if (flip) {
@@ -1046,14 +1050,33 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         int    m_NewCount;
     };
 
+    void ForceRemoveDynamicTextures(HScene scene, DeleteTexture m_DeleteTexture)
+    {
+        dmHashTable<uint64_t, DynamicTexture>::Iterator dynamicTextureIter = scene->m_DynamicTextures.GetIterator();
+        while(dynamicTextureIter.Next())
+        {
+            const DynamicTexture texture = dynamicTextureIter.GetValue();
+            if (texture.m_Buffer) {
+                free(texture.m_Buffer);
+            }
+            if (texture.m_Handle) {
+                uint32_t expected_buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
+                DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTexturesSize, -expected_buffer_size);
+                m_DeleteTexture(scene, texture.m_Handle, scene->m_Context);
+            }
+        }
+    }
+
     static void UpdateDynamicTextures(UpdateDynamicTexturesParams* params, const dmhash_t* key, DynamicTexture* texture)
     {
         dmGui::Scene* const scene = params->m_Scene;
         void* const context = params->m_Context;
 
         if (texture->m_Deleted) {
+            // handle might be null if the texture is created/destroyed in the same frame
             if (texture->m_Handle) {
-                // handle might be null if the texture is created/destroyed in the same frame
+                uint32_t expected_buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type);
+                DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTexturesSize, -expected_buffer_size);
                 params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
             }
             if (scene->m_DeletedDynamicTextures.Full()) {
@@ -1062,11 +1085,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_DeletedDynamicTextures.Push(*key);
         } else {
             if (!texture->m_Handle && texture->m_Buffer) {
+                uint32_t expected_buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type);
+                DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTexturesSize, expected_buffer_size);
                 texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 params->m_NewCount++;
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
             } else if (texture->m_Handle && texture->m_Buffer) {
+                uint32_t expected_buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type);
+                DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTexturesSize, expected_buffer_size);
                 params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;

@@ -752,6 +752,12 @@ namespace dmGui
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context);
 
     /**
+     * Force deletion of the dynamic textures of the scene
+     * @param scene Scene for which to remove the dynamic textures
+     */
+    void ForceRemoveDynamicTextures(HScene scene, DeleteTexture m_DeleteTexture);
+
+    /**
      * Run the init-function of the scene script.
      * @param scene Scene for which to run the script
      * @return RESULT_OK on success
