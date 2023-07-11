@@ -49,7 +49,7 @@ DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiDynamicTexturesSize, 0, NoFlags, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiDynamicTexturesSize, 0, NoFlags, "size of dynamic tex in bytes", &rmtp_Gui);
 
 namespace dmGui
 {
