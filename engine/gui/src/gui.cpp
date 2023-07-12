@@ -1050,7 +1050,7 @@ namespace dmGui
         int    m_NewCount;
     };
 
-    void ClearDynamicTextures(HScene scene, DeleteTexture deleteTexture)
+    void DeleteDynamicTextures(HScene scene, DeleteTexture deleteTexture)
     {
         dmHashTable<uint64_t, DynamicTexture>::Iterator dynamicTextureIter = scene->m_DynamicTextures.GetIterator();
         while(dynamicTextureIter.Next())
