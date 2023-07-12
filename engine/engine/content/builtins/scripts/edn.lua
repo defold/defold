@@ -108,7 +108,8 @@ local function encode_script(val, val_type)
 end
 
 local function encode_node(val, val_type)
-  return string.format('#lua/userdata"%s %p"', tostring(val), val)
+  local escaped_val = tostring(val):gsub('[%z\1-\31\\"]', escape_char)
+  return string.format('#lua/userdata"%s %p"', tostring(escaped_val), escaped_val)
 end
 
 local type_to_primitive_encoder = {
