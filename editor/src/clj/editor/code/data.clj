@@ -2766,6 +2766,7 @@
     (find-next lines cursor-ranges layout needle-lines case-sensitive? whole-word? wrap?)))
 
 (defn replace-all [lines regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]
+  {:pre [(not= [""] needle-lines)]}
   (-> (splice lines regions
               (loop [from-cursor document-start-cursor
                      splices (transient [])]

@@ -2178,14 +2178,16 @@
 
 (defn- replace-all! [view-node]
   (hide-suggestions! view-node)
-  (set-properties! view-node nil
-                   (data/replace-all (get-property view-node :lines)
-                                     (get-property view-node :regions)
-                                     (get-property view-node :layout)
-                                     (split-lines (.getValue find-term-property))
-                                     (split-lines (.getValue find-replacement-property))
-                                     (.getValue find-case-sensitive-property)
-                                     (.getValue find-whole-word-property))))
+  (let [^String find-term (.getValue find-term-property)]
+    (when (pos? (.length find-term))
+      (set-properties! view-node nil
+                       (data/replace-all (get-property view-node :lines)
+                                         (get-property view-node :regions)
+                                         (get-property view-node :layout)
+                                         (split-lines find-term)
+                                         (split-lines (.getValue find-replacement-property))
+                                         (.getValue find-case-sensitive-property)
+                                         (.getValue find-whole-word-property))))))
 
 (handler/defhandler :find-text :code-view
   (run [find-bar view-node]
