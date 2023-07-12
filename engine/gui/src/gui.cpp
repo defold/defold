@@ -1065,6 +1065,7 @@ namespace dmGui
                 m_DeleteTexture(scene, texture.m_Handle, scene->m_Context);
             }
         }
+        scene->m_DynamicTextures.Clear();
     }
 
     static void UpdateDynamicTextures(UpdateDynamicTexturesParams* params, const dmhash_t* key, DynamicTexture* texture)

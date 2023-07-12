@@ -2338,6 +2338,7 @@ namespace dmGameSystem
             dmLogError("Error when finalizing gui component: %d.", result);
         }
         dmGui::ClearTextures(gui_component->m_Scene);
+        dmGui::ForceRemoveDynamicTextures(gui_component->m_Scene, &DeleteTexture);
         dmGui::ClearFonts(gui_component->m_Scene);
         dmGui::ClearNodes(gui_component->m_Scene);
         dmGui::ClearLayouts(gui_component->m_Scene);
