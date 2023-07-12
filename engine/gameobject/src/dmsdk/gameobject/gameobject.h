@@ -347,7 +347,7 @@ namespace dmGameObject
      * @member m_Variant [type: PropertyVar] Variant holding the value
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
      * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
-     * @member m_ValueType [type: uint8_t] Indicates type of the property.
+     * @member m_ValueType [type: uint8_t] Indicates type of the property (of type PropertyValueType).
      */
     struct PropertyDesc
     {
