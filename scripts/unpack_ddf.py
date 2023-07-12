@@ -18,10 +18,15 @@
 # https://developers.google.com/protocol-buffers/docs/pythontutorial
 # https://blog.conan.io/2019/03/06/Serializing-your-data-with-Protobuf.html
 
+# API:
+# https://googleapis.dev/python/protobuf/latest/google/protobuf/message.html
+
 import os, sys
 
 from google.protobuf import text_format
 import google.protobuf.message
+
+import binascii
 
 import gameobject.gameobject_ddf_pb2
 import gameobject.lua_ddf_pb2
@@ -48,16 +53,84 @@ BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
 BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
 
 
+proto_type_to_string_map = {}
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BYTES]   = 'TYPE_BYTES'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_DOUBLE]  = 'TYPE_DOUBLE'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_ENUM]    = 'TYPE_ENUM'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_FIXED32] = 'TYPE_FIXED32'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_FIXED64] = 'TYPE_FIXED64'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_FLOAT]   = 'TYPE_FLOAT'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_GROUP]   = 'TYPE_GROUP'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_INT32]   = 'TYPE_INT32'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_INT64]   = 'TYPE_INT64'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_MESSAGE] = 'TYPE_MESSAGE'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_SFIXED32]= 'TYPE_SFIXED32'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_SFIXED64]= 'TYPE_SFIXED64'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_SINT32]  = 'TYPE_SINT32'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_SINT64]  = 'TYPE_SINT64'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_STRING]  = 'TYPE_STRING'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_UINT32]  = 'TYPE_UINT32'
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_UINT64]  = 'TYPE_UINT64'
+
+
+def get_field_type(field):
+    if field.message_type is not None:
+        return field.message_type.name
+    return proto_type_to_string_map.get(field.type, str(field.type))
+
+
+def print_field_default(field, data):
+    print(field.name, ":", data, get_field_type(field))
+
+def print_bytes(field, data):
+    print(field.name, ":", str.format('[%s]' % binascii.hexlify(data).decode('utf8')), "len:", len(data) )
+
+def print_string(field, data):
+    print(field.name, ":", str.format('"%s"' % data), "len:", len(data) )
+
+FIELD_PRINTERS = {}
+FIELD_PRINTERS['TYPE_BYTES'] = print_bytes
+FIELD_PRINTERS['TYPE_STRING'] = print_string
+
+def print_field(field, data):
+    printer = FIELD_PRINTERS.get(get_field_type(field), print_field_default)
+    printer(field, data)
+
+# **************************************************************************************************
+
+INDENT = 2
+
+def Indent(indent):
+    print(' ' * indent, end='')
+
+def print_message_array(indent, field_name, msg):
+    for item in msg:
+        Indent(indent); print(field_name, ": {")
+        print_message(indent+INDENT, item)
+        Indent(indent); print("}")
+
+def print_message(indent, msg):
+    Indent(indent); print("{")
+    for field, data in msg.ListFields():
+        if isinstance(data, google.protobuf.internal.containers.RepeatedCompositeFieldContainer):
+            print_message_array(indent+INDENT, field.name, data)
+        elif field.message_type:
+            Indent(indent+INDENT); print(field.name, ":")
+            print_message(indent+INDENT, data)
+        else:
+            Indent(indent+INDENT); print_field(field, data)
+
+    Indent(indent); print("}")
+
 def print_dmanifest(manifest_file):
     for field, data in manifest_file.ListFields():
         if field.name == 'data':
             t = resource.liveupdate_ddf_pb2.ManifestData()
             t.MergeFromString(data)
             print(field.name, ":")
-            print(t)
-
+            print_message(0, t)
         else:
-            print(field.name, ":", data)
+            print_field(field, data)
 
 def print_shader(shader):
     print("{")
