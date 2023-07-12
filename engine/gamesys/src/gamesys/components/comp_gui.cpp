@@ -807,7 +807,7 @@ namespace dmGameSystem
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
-        dmGui::ForceRemoveDynamicTextures(gui_component->m_Scene, &DeleteTexture);
+        dmGui::ClearDynamicTextures(gui_component->m_Scene, &DeleteTexture);
         if (result != dmGui::RESULT_OK)
         {
             // TODO: Translate result
@@ -2338,7 +2338,7 @@ namespace dmGameSystem
             dmLogError("Error when finalizing gui component: %d.", result);
         }
         dmGui::ClearTextures(gui_component->m_Scene);
-        dmGui::ForceRemoveDynamicTextures(gui_component->m_Scene, &DeleteTexture);
+        dmGui::ClearDynamicTextures(gui_component->m_Scene, &DeleteTexture);
         dmGui::ClearFonts(gui_component->m_Scene);
         dmGui::ClearNodes(gui_component->m_Scene);
         dmGui::ClearLayouts(gui_component->m_Scene);

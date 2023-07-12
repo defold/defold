@@ -1050,7 +1050,7 @@ namespace dmGui
         int    m_NewCount;
     };
 
-    void ForceRemoveDynamicTextures(HScene scene, DeleteTexture m_DeleteTexture)
+    void ClearDynamicTextures(HScene scene, DeleteTexture deleteTexture)
     {
         dmHashTable<uint64_t, DynamicTexture>::Iterator dynamicTextureIter = scene->m_DynamicTextures.GetIterator();
         while(dynamicTextureIter.Next())
@@ -1062,7 +1062,7 @@ namespace dmGui
             if (texture.m_Handle) {
                 uint32_t expected_buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
                 DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTexturesSize, -expected_buffer_size);
-                m_DeleteTexture(scene, texture.m_Handle, scene->m_Context);
+                deleteTexture(scene, texture.m_Handle, scene->m_Context);
             }
         }
         scene->m_DynamicTextures.Clear();
