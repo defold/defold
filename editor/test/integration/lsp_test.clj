@@ -89,7 +89,9 @@
         (is (= [[:on-initialized
                  {:text-document-sync {:open-close true
                                        :change :incremental}
-                  :pull-diagnostics :none}]
+                  :pull-diagnostics :none
+                  :goto-definition false
+                  :find-references false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -208,12 +210,12 @@
                                   "exit" (constantly nil)})}})
 
               ;; modify => dirty
-              _ (tu/code-editor-source! foo-node "{}")
+              _ (tu/set-code-editor-source! foo-node "{}")
               _ (Thread/sleep 100)
               _ (is (= #{(lsp.server/resource-uri foo-resource)} @server-opened-docs))
 
               ;; modify to initial => clean
-              _ (tu/code-editor-source! foo-node initial-source)
+              _ (tu/set-code-editor-source! foo-node initial-source)
               _ (Thread/sleep 100)
               _ (is (= #{} @server-opened-docs))
 
@@ -268,7 +270,7 @@
                 _ (Thread/sleep 100)
                 _ (is (= #{foo-resource-uri} @server-opened-docs))
                 ;; modify lines, close view
-                _ (tu/code-editor-source! foo-resource-node "{}")
+                _ (tu/set-code-editor-source! foo-resource-node "{}")
                 _ (lsp/close-view! lsp view-node)
                 _ (Thread/sleep 100)
                 _ (is (= #{foo-resource-uri} @server-opened-docs))]))))))
@@ -298,7 +300,7 @@
               foo-resource-uri (lsp.server/resource-uri foo-resource)
 
               ;; modify
-              _ (tu/code-editor-source! foo-resource-node "{}")
+              _ (tu/set-code-editor-source! foo-resource-node "{}")
               _ (Thread/sleep 100)
               _ (is (= {foo-resource-uri "{}"} @server-opened-docs))
 
@@ -308,7 +310,7 @@
               bar-resource-uri (lsp.server/resource-uri bar-resource)
               _ (Thread/sleep 100)
               _ (is (= {bar-resource-uri "{}"} @server-opened-docs))]
-          (tu/code-editor-source! (tu/resource-node project "/bar.json") old-foo-content)
+          (tu/set-code-editor-source! (tu/resource-node project "/bar.json") old-foo-content)
           (asset-browser/rename bar-resource "foo.json")
           nil))))
   (testing "Open view -> notify open, change on disk + resource sync -> notify changed"
@@ -372,7 +374,7 @@
             foo-resource-node (tu/resource-node project "/foo.json")
             foo-resource-uri (lsp.server/resource-uri foo-resource)
             ;; modify lines
-            _ (tu/code-editor-source! foo-resource-node "{}")
+            _ (tu/set-code-editor-source! foo-resource-node "{}")
             _ (Thread/sleep 100)
             _ (is (= #{foo-resource-uri} @server-opened-docs))
             ;; delete file
@@ -470,7 +472,7 @@
                      (make-test-server-launcher
                        {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
                         "initialized" (constantly nil)
-                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "Fail!" {})))
+                        "workspace/diagnostic" (fn [_ _] (throw (ex-info "This exception should be correctly handled by lsp test" {})))
                         "shutdown" (constantly nil)
                         "exit" (constantly nil)})}})
               _ (Thread/sleep 100)

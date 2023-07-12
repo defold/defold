@@ -19,8 +19,6 @@
     #include <netinet/in.h>
 #elif defined(_WIN32)
     #include <winsock2.h>
-#else
-    #error "Unsupported platform"
 #endif
 
 /// Endian. Defined to #DM_ENDIAN_LITTLE || #DM_ENDIAN_BIG

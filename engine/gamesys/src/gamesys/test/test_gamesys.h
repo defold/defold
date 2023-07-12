@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
+#include <dlib/testutil.h>
 #include <hid/hid.h>
 
 #include <sound/sound.h>
@@ -29,6 +30,8 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
+
+#include <testmain/testmain.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -48,10 +51,6 @@ struct ProjectOptions {
   float m_Scale;
   float m_VelocityThreshold;
 };
-
-
-extern bool GameSystemTest_PlatformInit();
-extern void GameSystemTest_PlatformExit();
 
 template<typename T>
 class CustomizableGamesysTest : public jc_test_params_class<T>
@@ -248,10 +247,10 @@ public:
     virtual ~CollectionFactoryTest() {}
 };
 
-class SpriteAnimTest : public GamesysTest<const char*>
+class SpriteTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~SpriteAnimTest() {}
+    virtual ~SpriteTest() {}
 };
 
 class ParticleFxTest : public GamesysTest<const char*>
@@ -365,6 +364,12 @@ public:
     virtual ~RenderConstantsTest() {}
 };
 
+class MaterialTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~MaterialTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
@@ -385,8 +390,6 @@ void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCrea
 template<typename T>
 void GamesysTest<T>::SetUp()
 {
-    ASSERT_TRUE(GameSystemTest_PlatformInit());
-
     dmSound::Initialize(0x0, 0x0);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -394,7 +397,9 @@ void GamesysTest<T>::SetUp()
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    m_Factory = dmResource::NewFactory(&params, DM_HOSTFS "build/src/gamesys/test");
+    char path[256];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gamesys/test");
+    m_Factory = dmResource::NewFactory(&params, path);
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
@@ -448,7 +453,7 @@ void GamesysTest<T>::SetUp()
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
         context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
-        m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(context2DParams);    
+        m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(context2DParams);
     }
 
     m_ParticleFXContext.m_Factory = m_Factory;
@@ -542,8 +547,6 @@ void GamesysTest<T>::TearDown()
     }
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
-
-    GameSystemTest_PlatformExit();
 }
 
 

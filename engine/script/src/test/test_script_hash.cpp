@@ -12,73 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include "script.h"
 #include "script_hash.h"
+#include "test_script.h"
 
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
-extern "C"
+class ScriptHashTest : public dmScriptTest::ScriptTest
 {
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/src/test/%s"
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS
-#endif
-
-class ScriptHashTest : public jc_test_base_class
-{
-protected:
-protected:
-    virtual void SetUp()
-    {
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
-
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
-bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
 
 TEST_F(ScriptHashTest, TestHash)
 {
@@ -198,8 +143,7 @@ TEST_F(ScriptHashTest, TestHashTString) // def2821 - Making sure that the string
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

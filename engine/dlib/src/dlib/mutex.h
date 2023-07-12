@@ -17,29 +17,17 @@
 
 #include <dmsdk/dlib/mutex.h> // the api + typedef
 
-#if defined(__SCE__)
-#include <dlib/ps4/mutex.h>
-
-#elif defined(__NX__)
-#include <dlib/nx64/mutex.h>
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dlib/mutex_vendor.h>
 
 #elif defined(_WIN32)
-#include <dlib/win32/mutex.h>
+    #include <dlib/win32/mutex.h>
 
 #elif defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-
-#include <pthread.h>
-
-namespace dmMutex
-{
-    struct Mutex
-    {
-        pthread_mutex_t  m_NativeHandle;
-    };
-}
+    #include <dlib/mutex_posix.h>
 
 #else
-#error "Unsupported platform"
+    #error "Unsupported platform"
 #endif
 
 #endif // DM_MUTEX_H

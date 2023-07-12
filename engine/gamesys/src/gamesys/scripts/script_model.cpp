@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,11 +18,14 @@
 #include <gameobject/script.h>
 
 #include "gamesys.h"
-#include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 #include "../components/comp_model.h"
 #include "../resources/res_model.h"
 #include "../resources/res_skeleton.h"
+#include "../resources/res_rig_scene.h"
+
+#include <gamesys/gamesys_ddf.h>
+#include <gamesys/model_ddf.h>
 
 #include "script_model.h"
 
@@ -413,22 +416,15 @@ namespace dmGameSystem
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmRigDDF::Skeleton* skeleton = resource->m_RigScene->m_SkeletonRes->m_Skeleton;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        uint32_t bone_index = ~0u;
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            if (skeleton->m_Bones[i].m_Id == bone_id)
-            {
-                bone_index = i;
-                break;
-            }
-        }
-        if (bone_index == ~0u)
+        const dmHashTable64<uint32_t>& bone_indices = resource->m_RigScene->m_SkeletonRes->m_BoneIndices;
+        const uint32_t* bone_index = bone_indices.Get(bone_id);
+
+        if (!bone_index)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, bone_index);
+
+        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, *bone_index);
         if (instance == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));

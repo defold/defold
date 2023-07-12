@@ -478,8 +478,9 @@ namespace dmHID
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
         uint8_t m_Hat[MAX_GAMEPAD_HAT_COUNT];
-        bool m_GamepadDisconnected;
-        bool m_GamepadConnected;
+        uint8_t m_GamepadDisconnected:1;
+        uint8_t m_GamepadConnected:1;
+        uint8_t :6;
     };
 
     /*#
@@ -556,6 +557,15 @@ namespace dmHID
      * @return gamepad [type: dmHID::HGamepad] Handle to gamepad. dmHID::INVALID_GAMEPAD_HANDLE if not available
      */
     HGamepad GetGamepad(HContext context, uint8_t index);
+
+    /*# gets a gamepad device handle
+     *
+     * @name GetGamePad
+     * @param gamepad [type: dmHID::HGamepad] Handle to gamepad
+     * @param out [type: void**] Platform specific user id data
+     * @return result [type: boolean] true if gamepad has a user id data assigned to it
+     */
+    bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out);
 
     /*# Adds a touch event touch.
      * @name AddTouch
@@ -666,7 +676,6 @@ namespace dmHID
      * @return True if the hat has data.
      */
     bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t* out_hat_value);
-
 }
 
 #endif // DMSDK_HID_H

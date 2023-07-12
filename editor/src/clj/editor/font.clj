@@ -14,39 +14,39 @@
 
 (ns editor.font
   (:require [clojure.string :as s]
-            [clojure.java.io :as io]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.graph-util :as gu]
+            [editor.colors :as colors]
+            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.gl.vertex2 :as vtx]
-            [editor.gl.texture :as texture]
-            [editor.defold-project :as project]
-            [editor.scene-cache :as scene-cache]
-            [editor.workspace :as workspace]
-            [editor.pipeline.font-gen :as font-gen]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.properties :as properties]
-            [editor.material :as material]
-            [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
-            [editor.colors :as colors]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex2 :as vtx]
+            [editor.graph-util :as gu]
+            [editor.material :as material]
+            [editor.pipeline.font-gen :as font-gen]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene-cache :as scene-cache]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.bob.font BMFont]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat]
-           [editor.types AABB]
+           [com.google.protobuf ByteString]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
+           [editor.types AABB]
+           [java.io InputStream]
            [java.nio ByteBuffer]
            [java.nio.file Paths]
-           [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]
-           [com.google.protobuf ByteString]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -585,11 +585,14 @@
                                            {(resource/proj-path texture-resource) texture-resource}
                                            {}))))
 
+(defn- read-bm-font
+  ^BMFont [^InputStream input-stream]
+  (doto (BMFont.)
+    (.parse input-stream)))
+
 (defn load-font-source [project self resource]
   (when (= (resource/type-ext resource) "fnt")
-    (let [bm-font (BMFont.)]
-      (with-open [bm-stream (io/input-stream resource)]
-        (.parse bm-font bm-stream))
+    (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
       (let [;; this weird dance stolen from Fontc.java
             texture-file-name (.. (-> (.. bm-font page (get 0))
                                       FilenameUtils/normalize
@@ -597,7 +600,11 @@
                                   getFileName
                                   toString)
             texture-resource (workspace/resolve-resource resource texture-file-name)]
-        (g/set-property self :texture texture-resource)))))
+        (concat
+          (g/set-property self :texture texture-resource)
+          (when disk-sha256
+            (let [workspace (resource/workspace resource)]
+              (workspace/set-disk-sha256 workspace self disk-sha256))))))))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))

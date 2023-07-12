@@ -3,6 +3,7 @@ package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Material";
@@ -68,6 +69,8 @@ message MaterialDesc
         required FilterModeMag filter_mag = 5;
         optional float max_anisotropy     = 6 [default = 1.0];
         repeated uint64 name_indirections = 7; // sampler name -> list of shader uniform hashes
+        optional string texture           = 8 [(resource)=true];
+        optional uint64 name_hash         = 9; // Internal, for faster lookups
     }
 
     required string name = 1;
@@ -77,7 +80,8 @@ message MaterialDesc
     optional VertexSpace vertex_space = 5;
     repeated Constant vertex_constants = 6;
     repeated Constant fragment_constants = 7;
-    repeated string textures = 8;
+    repeated string textures = 8;                       // deprecated
     repeated Sampler samplers = 9;
     optional uint32 max_page_count = 10 [default = 0];
+    repeated dmGraphics.VertexAttribute attributes = 11;
 }

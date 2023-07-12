@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,12 +36,9 @@ import java.util.Locale;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.LogManager;
-import java.util.logging.Handler;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.lang.NumberFormatException;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -57,6 +54,9 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.logging.LogFormatter;
+import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -69,7 +69,6 @@ public class Bob {
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
-    private static boolean verbose = false;
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
 
@@ -108,7 +107,7 @@ public class Bob {
         }));
       }
 
-    private static void init() {
+    public static void init() {
         if (rootFolder != null) {
             return;
         }
@@ -148,38 +147,11 @@ public class Bob {
         }
     }
 
-    public static void initAndroid() {
-        init();
-        try {
-            // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
-            // aapt will find it later when AndroidBundler is run.
-            String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
-            URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
-            if (libc_url != null) {
-                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename);
-                atomicCopy(libc_url, f, false);
-            }
-
-            extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
-
-            // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
-            URL android_jar = Bob.class.getResource("/lib/android.jar");
-            if (android_jar != null) {
-                File f = new File(rootFolder, "lib/android.jar");
-                atomicCopy(android_jar, f, false);
-            }
-            URL classes_dex = Bob.class.getResource("/lib/classes.dex");
-            if (classes_dex != null) {
-                File f = new File(rootFolder, "lib/classes.dex");
-                atomicCopy(classes_dex, f, false);
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public static File getRootFolder() {
+        return rootFolder;
     }
 
-    private static void extract(final URL url, File toFolder) throws IOException {
+    public static void extract(final URL url, File toFolder) throws IOException {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
@@ -209,7 +181,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -288,7 +260,7 @@ public class Bob {
         }
     }
 
-    private static void atomicCopy(URL source, File target, boolean executable) throws IOException {
+    public static void atomicCopy(URL source, File target, boolean executable) throws IOException {
         if (target.exists()) {
             return;
         }
@@ -380,22 +352,6 @@ public class Bob {
         List<File> binaryFiles = new ArrayList<File>();
         for (String path : binaryPaths) {
             binaryFiles.add(new File(path));
-        }
-        return binaryFiles;
-    }
-
-    public static List<File> getNativeExtensionEngineBinaries(Platform platform, String extenderExeDir) throws IOException
-    {
-        List<String> binaryNames = platform.formatBinaryName("dmengine");
-        List<File> binaryFiles = new ArrayList<File>();
-        for (String binaryName : binaryNames) {
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), binaryName)));
-
-            // All binaries must exist, otherwise return null
-            if (!extenderExe.exists()) {
-                return null;
-            }
-            binaryFiles.add(extenderExe);
         }
         return binaryFiles;
     }
@@ -507,7 +463,8 @@ public class Bob {
 
         addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
 
-        addOption(options, "br", "build-report", true, "Filepath where to save a build report as JSON", false);
+        addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
+        addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
         addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
@@ -538,6 +495,8 @@ public class Bob {
 
         addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
         addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
+
+        addOption(options, null, "max-cpu-threads", true, "Max count of threads that bob.jar can use", false);
 
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
@@ -641,34 +600,50 @@ public class Bob {
         return x != 0 && ((x & (x - 1)) == 0);
     }
 
+    private static StringBuilder parseMultipleException(MultipleCompileException e, boolean verbose) {
+        StringBuilder errors = new StringBuilder();
+        errors.append("\n");
+        for (MultipleCompileException.Info info : e.issues)
+        {
+            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+        }
+
+        String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
+        errors.append(msg);
+
+        if (verbose) {
+            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        }
+        return errors;
+    }
+
+    public static boolean isCause(Class<? extends Throwable> expected, Throwable exc) {
+       return expected.isInstance(exc) || (exc != null && isCause(expected, exc.getCause()));
+    }
+
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
-        
+
         String cwd = new File(".").getAbsolutePath();
 
         CommandLine cmd = parse(args);
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
-        verbose = cmd.hasOption('v');
 
-        // setup logger based on presence of verbose option or not
-        Logger rootLogger = LogManager.getLogManager().getLogger("");
-        rootLogger.setLevel(verbose ? Level.CONFIG : Level.WARNING);
-        for (Handler h : rootLogger.getHandlers()) {
-            h.setLevel(verbose ? Level.CONFIG : Level.WARNING);
-        }
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
-            String path = cmd.getOptionValue("build-report");
-            TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
-            if (path == null) {
-                path = cmd.getOptionValue("build-report-html");
-                format = TimeProfiler.ReportFormat.HTML;
+            List<File> reportFiles = new ArrayList<>();
+            String jsonReportPath = cmd.getOptionValue("build-report");
+            if (jsonReportPath != null) {
+                reportFiles.add(new File(jsonReportPath));
             }
-            File report = new File(path);
-            TimeProfiler.init(report, format, false);
+            String htmlReportPath = cmd.getOptionValue("build-report-html");
+            if (htmlReportPath != null) {
+                reportFiles.add(new File(htmlReportPath));
+            }
+            TimeProfiler.init(reportFiles, false);
         }
 
         if (cmd.hasOption("version")) {
@@ -702,6 +677,9 @@ public class Bob {
             }
         }
 
+        boolean verbose = cmd.hasOption('v');
+        LogHelper.setVerboseLogging(verbose);
+
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
         Project project = createProject(rootDirectory, buildDirectory, email, auth);
@@ -732,6 +710,23 @@ public class Bob {
         if (cmd.hasOption("use-vanilla-lua")) {
             System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
             project.setOption("use-uncompressed-lua-source", "true");
+        }
+
+        if (cmd.hasOption("build-report")) {
+            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
+            project.setOption("build-report-json", "true");
+        }
+
+        if (cmd.hasOption("max-cpu-threads")) {
+            try {
+                Integer.parseInt(cmd.getOptionValue("max-cpu-threads"));
+            }
+            catch (NumberFormatException ex) {
+                System.out.println("`--max-cpu-threads` expects integer value.");
+                ex.printStackTrace();
+                System.exit(1);
+                return;
+            }
         }
 
         Option[] options = cmd.getOptions();
@@ -837,18 +832,14 @@ public class Bob {
         try {
             result = project.build(new ConsoleProgress(), commands);
         } catch(MultipleCompileException e) {
+            errors = parseMultipleException(e, verbose);
             ret = false;
-            errors.append("\n");
-            for (MultipleCompileException.Info info : e.issues)
-            {
-                errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
-            }
-
-            String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
-            errors.append(msg);
-
-            if (verbose) {
-                errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        } catch(CompileExceptionError e) {
+            ret = false;
+            if (isCause(MultipleCompileException.class, e)) {
+                errors = parseMultipleException((MultipleCompileException)e.getCause(), verbose);
+            } else {
+                throw e;
             }
         }
         for (TaskResult taskResult : result) {
@@ -893,7 +884,7 @@ public class Bob {
         if (e.getCause() != null) {
             System.err.println("Cause: " + e.getCause());
         }
-        logger.log(Level.INFO, e.getMessage(), e);
+        logger.severe(e.getMessage(), e);
         System.exit(1);
     }
 
@@ -905,7 +896,6 @@ public class Bob {
         } catch (Exception e) {
             logErrorAndExit(e);
         }
-
     }
 
     private static String getOptionsValue(CommandLine cmd, char o, String defaultValue) {
@@ -916,9 +906,4 @@ public class Bob {
         }
         return value;
     }
-
-    public static void verbose(String message, Object... args) {
-        logger.info(String.format(message, args));
-    }
-
 }

@@ -169,7 +169,7 @@
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (future
-        (let [ret (mobdebug/eval debug-session code frame)]
+        (let [ret (mobdebug/exec debug-session code frame)]
           (cond
             (= :bad-request (:error ret))
             (console/append-console-entry! :eval-error "Bad request")
@@ -396,9 +396,9 @@
       nil)))
 
 (defn- set-breakpoint!
-  [debug-session {:keys [resource row] :as _breakpoint}]
+  [debug-session {:keys [resource row condition] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
-    (mobdebug/set-breakpoint! debug-session path (inc row))))
+    (mobdebug/set-breakpoint! debug-session path (inc row) condition)))
 
 (defn- remove-breakpoint!
   [debug-session {:keys [resource row] :as _breakpoint}]
@@ -414,13 +414,13 @@
      (when (or (seq added) (seq removed))
        (mobdebug/with-suspended-session debug-session
          (fn [debug-session]
-           (run! #(set-breakpoint! debug-session %) added)
-           (run! #(remove-breakpoint! debug-session %) removed)))))))
+           (run! #(remove-breakpoint! debug-session %) removed)
+           (run! #(set-breakpoint! debug-session %) added)))))))
 
 (defn- make-update-timer
   [project debug-view]
   (let [state   (volatile! {})
-        tick-fn (fn [timer _]
+        tick-fn (fn [timer _ _]
                   (when-not (ui/ui-disabled?)
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.

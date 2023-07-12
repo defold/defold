@@ -16,7 +16,7 @@ package com.dynamo.bob;
 
 public enum PlatformArchitectures {
     //
-    MacOS(new String[] {"x86_64-macos"}, new String[] {"x86_64-macos"}),
+    MacOS(new String[] {"x86_64-macos", "arm64-macos"}, new String[] {"x86_64-macos", "arm64-macos"}),
     Windows32(new String[] {"x86-win32"}, new String[] {"x86-win32"}),
     Windows64(new String[] {"x86_64-win32"}, new String[] {"x86_64-win32"}),
     Linux(new String[] {"x86_64-linux"}, new String[] {"x86_64-linux"}),
@@ -24,7 +24,8 @@ public enum PlatformArchitectures {
     Android(new String[] {"arm64-android", "armv7-android"}, new String[] {"armv7-android","arm64-android"}),
     Web(new String[] {"js-web", "wasm-web"}, new String[] {"js-web", "wasm-web"}),
     NX64(new String[] {"arm64-nx64"}, new String[] {"arm64-nx64"}),
-    PS4(new String[] {"x86_64-ps4"}, new String[] {"x86_64-ps4"});
+    PS4(new String[] {"x86_64-ps4"}, new String[] {"x86_64-ps4"}),
+    PS5(new String[] {"x86_64-ps5"}, new String[] {"x86_64-ps5"});
 
     String[] architectures;
     String[] defaultArchitectures;

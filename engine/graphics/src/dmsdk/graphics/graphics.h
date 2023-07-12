@@ -34,16 +34,21 @@ namespace dmGraphics
      * @typedef
      * @name HContext
      */
-    typedef struct Context* HContext;
+    typedef void* HContext;
 
     /*#
      * Texture handle
      * @typedef
      * @name HTexture
      */
-    typedef struct Texture* HTexture;
+    typedef uint64_t HTexture;
 
-    typedef struct RenderTarget* HRenderTarget; // Where is this currently used?
+    /*#
+     * Rendertarget handle
+     * @typedef
+     * @name HRenderTarget
+     */
+    typedef uint64_t HRenderTarget; // Where is this currently used?
 
     /*#
      * Vertex program handle
@@ -333,6 +338,10 @@ namespace dmGraphics
      * @member TYPE_SAMPLER_2D
      * @member TYPE_SAMPLER_CUBE
      * @member TYPE_SAMPLER_2D_ARRAY
+     * @member TYPE_FLOAT_VEC2
+     * @member TYPE_FLOAT_VEC3
+     * @member TYPE_FLOAT_MAT2
+     * @member TYPE_FLOAT_MAT3
      */
     enum Type
     {
@@ -348,8 +357,11 @@ namespace dmGraphics
         TYPE_SAMPLER_2D       = 9,
         TYPE_SAMPLER_CUBE     = 10,
         TYPE_SAMPLER_2D_ARRAY = 11,
+        TYPE_FLOAT_VEC2       = 12,
+        TYPE_FLOAT_VEC3       = 13,
+        TYPE_FLOAT_MAT2       = 14,
+        TYPE_FLOAT_MAT3       = 15,
     };
-
 
     /*#
      * Blend factor

@@ -17,6 +17,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
@@ -156,6 +157,9 @@
                    (.setVvalue pane (/ (.getMinY child-bounds)
                                        (- content-height viewport-height)))))))))
        fx.lifecycle/dynamic)}))
+
+(def ext-with-anchor-pane-props
+  (fx/make-ext-with-props fx.anchor-pane/props))
 
 (defn ext-ensure-scroll-pane-child-visible
   "Extension lifecycle that ensures ScrollPane's child node is visible
@@ -481,7 +485,9 @@
     {:on (fx.prop/make
            (fx.mutator/adder-remover
              (fn [^Popup popup [^Node on anchor-x anchor-y]]
-               (.show popup on (double anchor-x) (double anchor-y)))
+               (condp instance? on
+                 Node (.show popup ^Node on (double anchor-x) (double anchor-y))
+                 Window (.show popup ^Window on (double anchor-x) (double anchor-y))))
              (fn [^Popup popup _]
                (.hide popup)))
            (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar))}))
@@ -490,7 +496,7 @@
   "Helper popup lifecycle that adds a managed popup to :desc node
 
   Supported props:
-    :desc        node desc that will show a popup
+    :desc        node or window desc that will show a popup
     :showing     whether the popup is showing
     :anchor-x    screen anchor x
     :anchor-y    screen anchor y

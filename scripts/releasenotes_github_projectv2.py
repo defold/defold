@@ -157,14 +157,24 @@ QUERY_PROJECT_NUMBER = r"""
 def pprint(d):
     print(json.dumps(d, indent=4, sort_keys=True))
 
+def _print_errors(response):
+    for error in response['errors']:
+        print(error['message'])
+
 def get_project(name):
     query = QUERY_PROJECT_NUMBER % name
     response = github.query(query, token)
+    if 'errors' in response:
+        _print_errors(response)
+        sys.exit(1)
     return response["data"]["organization"]["projectsV2"]["nodes"][0]
 
 def get_issues_and_prs(project):
     query = QUERY_PROJECT_ISSUES_AND_PRS % project.get("number")
     response = github.query(query, token)
+    if 'errors' in response:
+        _print_errors(response)
+        sys.exit(1)
     response = response["data"]["organization"]["projectV2"]["items"]["nodes"]
     return response
 
@@ -243,13 +253,23 @@ def generate(version, hide_details = False):
             "is_issue": is_issue,
             "type": issue_type
         }
+        # strip from match to end of file
         entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Fixes .*/.*#....", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix .*/.*#....", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes #....", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix #....", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical notes:.*", "", entry["body"], flags=re.DOTALL).strip()
+
+        # Remove closing keywords
+        entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+
+        # Remove "user facing changes" header
+        entry["body"] = re.sub("User-facing changes:", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
 
         duplicate = False
         for o in output:

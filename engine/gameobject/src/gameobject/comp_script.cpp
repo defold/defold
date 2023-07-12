@@ -477,9 +477,14 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_IsGamepad)
             {
-                lua_pushliteral(L, "gamepad");
                 lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
-                lua_settable(L, action_table);
+                lua_setfield(L, action_table, "gamepad");
+
+                lua_pushinteger(L, params.m_InputAction->m_UserID);
+                lua_setfield(L, action_table, "userid");
+
+                lua_pushboolean(L, params.m_InputAction->m_GamepadUnknown);
+                lua_setfield(L, action_table, "gamepad_unknown");
             }
 
             if (params.m_InputAction->m_GamepadConnected)

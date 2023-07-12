@@ -21,6 +21,8 @@
 #include "physics_private.h"
 #include "debug_draw_3d.h"
 
+#include "btBulletDynamicsCommon.h"
+
 namespace dmPhysics
 {
     struct World3D

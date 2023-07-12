@@ -1,0 +1,16 @@
+uniform highp mat4 view_proj;
+
+// positions are in world space
+attribute highp vec4   position;
+attribute mediump vec2 texcoord0;
+attribute lowp float   page_index;
+
+varying mediump vec2 var_texcoord0;
+varying lowp float   var_page_index;
+
+void main()
+{
+    gl_Position    = view_proj * vec4(position.xyz, 1.0);
+    var_texcoord0  = texcoord0;
+    var_page_index = page_index;
+}

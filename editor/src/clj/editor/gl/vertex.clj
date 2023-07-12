@@ -41,24 +41,23 @@ the `do-gl` macro from `editor.gl`."
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types]
             [internal.util :as util])
-  (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
+  (:import [clojure.lang IEditableCollection IPersistentVector ITransientVector]
            [com.jogamp.common.nio Buffers]
+           [com.jogamp.opengl GL GL2]
            [java.nio ByteBuffer IntBuffer]
-           [java.util.concurrent.atomic AtomicLong AtomicBoolean]
-           [com.jogamp.opengl GL GL2]))
+           [java.util.concurrent.atomic AtomicBoolean AtomicLong]))
 
 (set! *warn-on-reflection* true)
 
-(defn put-byte   [^ByteBuffer bb position v] (.put       bb position v))
-(defn put-short  [^ByteBuffer bb position v] (.putShort  bb position v))
-(defn put-int    [^ByteBuffer bb position v] (.putInt    bb position v))
-(defn put-float  [^ByteBuffer bb position v] (.putFloat  bb position v))
-(defn put-double [^ByteBuffer bb position v] (.putDouble bb position v))
-(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb position (.byteValue  (Long. (bit-and v 0xff)))))
-(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb position (.shortValue (Long. (bit-and v 0xffff)))))
-(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb position (.intValue   (Long. (bit-and v 0xffffffff)))))
+(defn put-byte   [^ByteBuffer bb position v] (.put       bb ^int position ^byte v))
+(defn put-short  [^ByteBuffer bb position v] (.putShort  bb ^int position v))
+(defn put-int    [^ByteBuffer bb position v] (.putInt    bb ^int position v))
+(defn put-float  [^ByteBuffer bb position v] (.putFloat  bb ^int position v))
+(defn put-double [^ByteBuffer bb position v] (.putDouble bb ^int position v))
+(defn put-ubyte  [^ByteBuffer bb position v] (.put       bb ^int position (.byteValue  (Long. (bit-and v 0xff)))))
+(defn put-ushort [^ByteBuffer bb position v] (.putShort  bb ^int position (.shortValue (Long. (bit-and v 0xffff)))))
+(defn put-uint   [^ByteBuffer bb position v] (.putInt    bb ^int position (.intValue   (Long. (bit-and v 0xffffffff)))))
 
 
 (defn get-byte   [^ByteBuffer bb position]   (.get       bb ^int position))
@@ -449,27 +448,29 @@ the `do-gl` macro from `editor.gl`."
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (map
-    #(shader/get-attrib-location shader gl (name (first %)))
-    attribs))
-
-(defn- vertex-attrib-pointer
-  [^GL2 gl shader attrib stride offset]
-  (let [[nm sz tp & more] attrib
-        loc               (shader/get-attrib-location shader gl (name nm))
-        norm              (if (not (nil? (first more))) (first more) false)]
-    (when (not= -1 loc)
-      (gl/gl-vertex-attrib-pointer gl ^int loc ^int sz ^int (gl-types tp) ^boolean norm ^int stride ^long offset))))
+  (let [attribute-infos (shader/attribute-infos shader gl)]
+    (mapv (fn [attrib]
+            (let [attribute-name (name (first attrib))]
+              (if-some [attribute-info (get attribute-infos attribute-name)]
+                (:index attribute-info)
+                -1)))
+          attribs)))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
-        stride  (vertex-size attribs)]
-    (doall
-      (map
-        (fn [offset attrib]
-          (vertex-attrib-pointer gl shader attrib stride offset))
-        offsets attribs))))
+        ^int stride (vertex-size attribs)
+        attribute-infos (shader/attribute-infos shader gl)]
+    (mapv (fn [^long offset attrib]
+            (let [[nm ^int sz tp & more] attrib
+                  ^boolean norm (if (not (nil? (first more))) (first more) false)
+                  attribute-name (name nm)]
+              (when-some [attribute-info (get attribute-infos attribute-name)]
+                (let [^int loc (:index attribute-info)
+                      ^int gl-type (gl-types tp)]
+                  (gl/gl-vertex-attrib-pointer gl loc sz gl-type norm stride offset)))))
+          offsets
+          attribs)))
 
 (defn- vertex-enable-attribs
   [^GL2 gl locs]

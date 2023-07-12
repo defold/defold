@@ -774,6 +774,10 @@ namespace dmGameObject
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
                 return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64(property_id), lua_tostring(L, 1), TYPE_NAMES[property_desc.m_Variant.m_Type]);
             }
+            case PROPERTY_RESULT_READ_ONLY:
+            {
+                return luaL_error(L, "Unable to set the property '%s' since it is read only", dmHashReverseSafe64(property_id));
+            }
             case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
             {
                 if (property_options.m_HasKey)

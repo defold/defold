@@ -18,6 +18,8 @@ from waf_content import proto_compile_task
 from threading import Lock
 from waf_dynamo import new_copy_task
 
+from google.protobuf import text_format
+
 stderr_lock = Lock()
 
 def configure(conf):
@@ -173,9 +175,28 @@ def compile_model(task):
         msg_out = model_ddf_pb2.Model()
         msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].bldpath(), task.generator.content_root)
 
-        for i,n in enumerate(msg.textures):
-            msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
-        msg_out.material = msg.material.replace(".material", ".materialc")
+        if msg.material or msg.textures:
+            material = model_ddf_pb2.Material()
+            material.name = "unknown"
+            material.material = msg.material.replace(".material", ".materialc")
+
+            for i,n in enumerate(msg.textures):
+                if not n:
+                    continue
+                texture = model_ddf_pb2.Texture()
+                texture.sampler = ""
+                texture.texture = transform_texture_name(task, msg.textures[i])
+                material.textures.append(texture)
+
+            msg_out.materials.append(material)
+
+        for i,n in enumerate(msg.materials):
+            material = msg.materials[i]
+            material.material = material.material.replace(".material", ".materialc")
+            for i,texture in enumerate(material.textures):
+                texture.texture = transform_texture_name(task, texture.texture)
+            msg_out.materials.append(material)
+
         with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
@@ -199,7 +220,7 @@ def model_file(self, node):
     task.set_outputs([out_model, out_rigscene])
 
 
-waflib.Task.task_factory('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
+waflib.Task.task_factory('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} --platform ${PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -207,7 +228,7 @@ waflib.Task.task_factory('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dy
 
 @extension('.vp')
 def vertexprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('vertexshader')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
@@ -215,7 +236,7 @@ def vertexprogram_file(self, node):
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
-waflib.Task.task_factory('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
+waflib.Task.task_factory('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} --platform ${PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
@@ -223,7 +244,7 @@ waflib.Task.task_factory('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.
 
 @extension('.fp')
 def fragmentprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('fragmentshader')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
@@ -646,4 +667,20 @@ def tileset_file(self, node):
     obj_ext = '.t.texturesetc'
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
+
+waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.material')
+def tileset_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    material = self.create_task('material')
+    material.env['CLASSPATH'] = os.pathsep.join(classpath)
+    material.set_inputs(node)
+    obj_ext = '.materialc'
+    out = node.change_ext(obj_ext)
+    material.set_outputs(out)
 

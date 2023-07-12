@@ -14,6 +14,8 @@
 
 #include "testutil.h"
 #include <dlib/dstrings.h>
+#include <dlib/path.h>
+#include <stdarg.h>
 
 #if !defined(DM_HOSTFS)
     #define DM_HOSTFS ""
@@ -53,8 +55,32 @@ const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t ipl
 
 const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
 {
-    dmStrlCpy(dst, DM_HOSTFS, dst_len);
-    dmStrlCat(dst, path, dst_len);
+    int len = dmStrlCpy(dst, DM_HOSTFS, dst_len);
+    if (len > 0 && dst[len-1] != '/')
+        len = dmStrlCat(dst+len, "/", dst_len-len);
+    dmStrlCat(dst+len, path, dst_len-len);
+
+    dmPath::Normalize(dst, dst, dst_len);
+    return dst;
+}
+
+const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, ...)
+{
+    int len = dmStrlCpy(dst, DM_HOSTFS, dst_len);
+    if (len > 0 && dst[len-1] != '/')
+        len += dmStrlCat(dst+len, "/", dst_len-len);
+
+    va_list argp;
+    va_start(argp, path_format);
+
+#if defined(_WIN32)
+    int result = _vsnprintf_s(dst+len, dst_len-len, _TRUNCATE, path_format, argp);
+#else
+    int result = vsnprintf(dst+len, dst_len-len, path_format, argp);
+#endif
+    va_end(argp);
+
+    dmPath::Normalize(dst, dst, dst_len);
     return dst;
 }
 

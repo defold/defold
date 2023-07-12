@@ -73,8 +73,7 @@ public class Win32Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        List<File> bundleExes = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
@@ -117,7 +116,7 @@ public class Win32Bundler implements IBundler {
         FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
         // Copy debug symbols if they were generated
-        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
         File bundlePdb = new File(zipDir, "dmengine.pdb");
         if (bundlePdb.exists()) {
             File pdbOut = new File(appDir, "dmengine.pdb");
