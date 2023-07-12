@@ -2289,7 +2289,8 @@
    {:command :goto-definition :label "Go to Definition"}
    {:command :find-references :label "Find References"}
    {:label :separator}
-   {:command :toggle-breakpoint :label "Toggle Breakpoint"}])
+   {:command :toggle-breakpoint :label "Toggle Breakpoint"}
+   {:command :edit-breakpoint :label "Edit Breakpoint"}])
 
 (handler/register-menu! ::menubar :editor.app-view/view-end
   [{:command :toggle-minimap :label "Minimap" :check true}
@@ -2495,7 +2496,7 @@
             breakpoint-row->condition (into {}
                                             (comp
                                               (filter data/breakpoint-region?)
-                                              (map (juxt data/breakpoint-row :condition)))
+                                              (map (juxt data/breakpoint-row #(:condition % true))))
                                             regions)
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
@@ -2504,13 +2505,14 @@
                source-line-index dropped-line-count]
           (when (and (< drawn-line-index drawn-line-count)
                      (< source-line-index source-line-count))
-            (let [y (data/row->y layout source-line-index)]
-              (when (contains? breakpoint-row->condition source-line-index)
+            (let [y (data/row->y layout source-line-index)
+                  condition (breakpoint-row->condition source-line-index)]
+              (when condition
                 (.setFill gc gutter-breakpoint-color)
                 (.fillOval gc
                            (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
                            (+ y indicator-offset) indicator-diameter indicator-diameter)
-                (when (breakpoint-row->condition source-line-index)
+                (when (string? condition)
                   (doto gc
                     (.save)
                     (.setFill gutter-background-color)
@@ -2736,7 +2738,7 @@
              :children
              [{:fx/type fx.label/lifecycle
                :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
-               :text (format "Breakpoint on line %d" (inc ^long (data/breakpoint-row edited-breakpoint)))}
+               :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
               {:fx/type fx.h-box/lifecycle
                :spacing spacing
                :alignment :baseline-left
@@ -2769,12 +2771,10 @@
                   (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                     (g/with-auto-evaluation-context evaluation-context
                       (reset! state
-                        (if-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
                           {:edited-breakpoint edited-breakpoint
                            :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
-                           :layout (g/node-value view-node :layout evaluation-context)
-                           :lines (g/node-value view-node :lines evaluation-context)}
-                          nil))))))]
+                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
     (fx/mount-renderer
       state
       (fx/create-renderer
