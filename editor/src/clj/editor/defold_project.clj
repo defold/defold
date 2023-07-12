@@ -54,7 +54,8 @@
 
 (def ^:private TBreakpoint
   {:resource s/Any
-   :row Long})
+   :row Long
+   (s/optional-key :condition) String})
 
 (g/deftype Breakpoints [TBreakpoint])
 

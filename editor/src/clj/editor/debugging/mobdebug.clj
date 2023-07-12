@@ -546,18 +546,28 @@
                     {:error (read-data in n)})))))))
 
 
-;; A note on "SETB file line":
+;; A note on "SETB file line condition":
 ;; * In LuaBuilder.java we add '@' in front of the filename to tell Lua to
 ;; truncate the short_src name to the last 60 characters of the filename.
 ;; * mobdebug.lua will remove the '@' in the debug hook which means that we
 ;; must send SETB without the '@' in front of the filename
 (defn set-breakpoint!
-  [^DebugSession debug-session file line]
+  "Set a breakpoint in Lua runtime
+
+  Args:
+    debug-session    DebugSession instance
+    file             lua file path, a string
+    line             1-indexed line in the file
+    condition        optional condition, a string or nil"
+  [^DebugSession debug-session file line condition]
   (with-session debug-session
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB %s %d" (luajit-path-to-chunk-name file) line))
+      (send-command! out (format "SETB %s %d%s"
+                                 (luajit-path-to-chunk-name file)
+                                 line
+                                 (if condition (str " " condition) "")))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
