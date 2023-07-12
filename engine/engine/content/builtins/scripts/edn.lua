@@ -109,7 +109,7 @@ end
 
 local function encode_node(val, val_type)
   local escaped_val = tostring(val):gsub('[%z\1-\31\\"]', escape_char)
-  return string.format('#lua/userdata"%s %p"', tostring(escaped_val), escaped_val)
+  return string.format('#lua/userdata"%s %p"', escaped_val, val)
 end
 
 local type_to_primitive_encoder = {
