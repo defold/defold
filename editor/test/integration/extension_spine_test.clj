@@ -31,7 +31,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
+(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/refs/tags/2.8.0.zip")
 
 (def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
 
