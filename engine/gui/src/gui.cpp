@@ -49,6 +49,7 @@ DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_F32(rmtp_GuiDynamicTexturesSizeMb, 0, NoFlags, "size of dynamic tex in Mb", &rmtp_Gui);
 
 namespace dmGui
 {
@@ -575,7 +576,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
+    Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
 
@@ -609,6 +610,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             free(t->m_Buffer);
             t->m_Buffer = 0;
         }
+
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024 / 1024));
 
         t->m_Buffer = malloc(buffer_size);
         if (flip) {
@@ -1029,8 +1032,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         void* const context = params->m_Context;
 
         if (texture->m_Deleted) {
+            // handle might be null if the texture is created/destroyed in the same frame
             if (texture->m_Handle) {
-                // handle might be null if the texture is created/destroyed in the same frame
+                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
                 params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
             }
             if (scene->m_DeletedDynamicTextures.Full()) {
@@ -1039,11 +1044,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_DeletedDynamicTextures.Push(*key);
         } else {
             if (!texture->m_Handle && texture->m_Buffer) {
+                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 params->m_NewCount++;
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
             } else if (texture->m_Handle && texture->m_Buffer) {
+                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
@@ -1071,6 +1080,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 }
             }
         }
+    }
+
+    static void DeleteDynamicTextures(HScene scene, DeleteTexture delete_texture)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            if (texture.m_Buffer) {
+                free(texture.m_Buffer);
+            }
+            if (texture.m_Handle) {
+                float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+                delete_texture(scene, texture.m_Handle, scene->m_Context);
+            }
+        }
+        scene->m_DynamicTextures.Clear();
     }
 
     static void DeferredDeleteDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
@@ -2048,7 +2075,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return RunScript(scene, SCRIPT_FUNCTION_INIT, LUA_NOREF, 0x0);
     }
 
-    Result FinalScene(HScene scene)
+    Result FinalScene(HScene scene, DeleteTexture delete_texture)
     {
         Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, LUA_NOREF, 0x0);
 
@@ -2077,6 +2104,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         scene->m_AliveParticlefxs.SetSize(0);
 
+        DeleteDynamicTextures(scene, delete_texture);
         ClearLayouts(scene);
         return result;
     }

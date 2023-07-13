@@ -1364,7 +1364,7 @@ TEST_F(dmGuiTest, ScriptAnimate)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
@@ -1415,7 +1415,7 @@ TEST_F(dmGuiTest, ScriptPlayback)
         dmGui::DeleteNode(m_Scene, node, true);
     }
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
@@ -1448,7 +1448,7 @@ TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
     ASSERT_NEAR(color.getX(), 1.0f, EPSILON);
     ASSERT_NEAR(color.getW(), 0.5f, EPSILON);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -1481,7 +1481,7 @@ TEST_F(dmGuiTest, ScriptAnimateComponent)
     ASSERT_NEAR(color.getZ(), 0.9f, EPSILON);
     ASSERT_NEAR(color.getW(), 0.4f, EPSILON);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -1595,7 +1595,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel1)
 
     ASSERT_NEAR(dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR).getX(), 1.0f, EPSILON);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -1639,7 +1639,7 @@ TEST_F(dmGuiTest, ScriptAnimateCancel2)
     // We can't use epsilon here because of precision errors when the animation is canceled, so half precision (= twice the error)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 5.0f, 2*EPSILON);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -2686,7 +2686,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     bool consumed;
     r = dmGui::DispatchInput(m_Scene, &action, 1, &consumed);
     ASSERT_NE(dmGui::RESULT_OK, r);
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_NE(dmGui::RESULT_OK, r);
     dmGui::DeleteNode(m_Scene, node, true);
 }
@@ -4887,7 +4887,7 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
     dmGui::DeleteNode(m_Scene, node_text, false);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -4920,7 +4920,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_box, 0));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie, 0));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text, 0));
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -4949,7 +4949,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxInitialTransform)
     Vector3 pos = dmParticle::GetPosition(m_Scene->m_ParticlefxContext, n->m_Node.m_ParticleInstance);
     ASSERT_EQ(10, pos.getX());
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -4978,7 +4978,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5004,7 +5004,7 @@ TEST_F(dmGuiTest, NewNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id_wrong));
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5068,7 +5068,7 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5100,7 +5100,7 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5134,7 +5134,7 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5167,7 +5167,7 @@ TEST_F(dmGuiTest, StopNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie, false));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text, false));
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5226,7 +5226,7 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
 
     ASSERT_EQ(dmGui::GetParticlefxCount(m_Scene), 0);
 
-    dmGui::FinalScene(m_Scene);
+    dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     UnloadParticlefxPrototype(prototype);
 }
 
@@ -5328,7 +5328,7 @@ TEST_F(dmGuiTest, InheritAlpha)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
@@ -5426,7 +5426,7 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
     Vector4 after_set = _GET_NODE_SCENE_POSITION(m_Scene, internal_node);
     ASSERT_EQ( before_set, after_set);
 
-    r = dmGui::FinalScene(m_Scene);
+    r = dmGui::FinalScene(m_Scene, &DynamicDeleteTexture);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
