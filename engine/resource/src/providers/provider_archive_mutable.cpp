@@ -33,6 +33,8 @@
 #include <dlib/uri.h>
 #include <ddf/ddf.h>
 
+#include <string.h> // strrchr
+
 namespace dmResourceProviderArchiveMutable
 {
     struct EntryInfo
@@ -118,6 +120,14 @@ namespace dmResourceProviderArchiveMutable
                 }
             }
             archive->m_EntryMap.Put(entry->m_UrlHash, info);
+
+            #if defined(DM_RESOURCE_DBG_LOG_LEVEL)
+            uint32_t hash_len = dmResource::HashLength(archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm);
+            char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
+            dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
+            hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
+            DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx\n", hash_buffer, entry->m_UrlHash);
+            #endif // DM_RESOURCE_DBG_LOG_LEVEL
         }
 
     }
@@ -274,8 +284,8 @@ namespace dmResourceProviderArchiveMutable
         {
             archive->m_Manifest = CreateManifestCopy(base_manifest);
 
-            dmResource::WriteManifest(manifest_path, archive->m_Manifest);
-            dmLogInfo("Stored manifest copy '%s' for archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
+            // dmResource::WriteManifest(manifest_path, archive->m_Manifest);
+            // dmLogInfo("Stored manifest copy '%s' for archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
         }
 
         archive->m_BaseManifest = base_manifest;
@@ -301,9 +311,17 @@ namespace dmResourceProviderArchiveMutable
         return dmResourceProvider::RESULT_OK;
     }
 
-    static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
+    static dmResourceProvider::Result Mount(const dmURI::Parts* _uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
     {
-        if (!MatchesUri(uri))
+        dmURI::Parts uri;
+        memcpy(&uri, _uri, sizeof(uri));
+        char* suffix = strrchr(uri.m_Path, '.');
+        if (suffix != 0 && (strcmp(suffix, ".arci") == 0 || strcmp(suffix, ".arcd") == 0))
+        {
+            *suffix = 0;
+        }
+
+        if (!MatchesUri(&uri))
             return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
         dmResource::Manifest* manifest = 0;
@@ -311,7 +329,8 @@ namespace dmResourceProviderArchiveMutable
         {
             dmLogError("Failed to get manifest from base archive");
         }
-        return LoadArchive(uri, manifest, out_archive);
+
+        return LoadArchive(&uri, manifest, out_archive);
     }
 
     static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal archive)
@@ -483,12 +502,38 @@ namespace dmResourceProviderArchiveMutable
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
+    static dmResourceProvider::Result SetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::Manifest* manifest)
+    {
+        GameArchiveFile* archive = (GameArchiveFile*)_archive;
+        if (archive->m_Manifest)
+            dmResource::DeleteManifest(archive->m_Manifest);
+
+        char manifest_path[DMPATH_MAX_PATH];
+        dmResource::GetManifestPath(&archive->m_Uri, manifest_path, sizeof(manifest_path));
+
+        if (dmSys::Exists(manifest_path))
+        {
+            dmSys::Unlink(manifest_path);
+        }
+
+        archive->m_Manifest = 0;
+        if (manifest)
+        {
+            archive->m_Manifest = CreateManifestCopy(manifest);
+            dmResource::WriteManifest(manifest_path, archive->m_Manifest);
+            dmLogInfo("Wrote manifest to '%s'", manifest_path);
+        }
+
+        return dmResourceProvider::RESULT_OK;
+    }
+
     static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
     {
         loader->m_CanMount      = MatchesUri;
         loader->m_Mount         = Mount;
         loader->m_Unmount       = Unmount;
         loader->m_GetManifest   = GetManifest;
+        loader->m_SetManifest   = SetManifest;
         loader->m_GetFileSize   = GetFileSize;
         loader->m_ReadFile      = ReadFile;
         loader->m_WriteFile     = WriteFile;
@@ -496,3 +541,4 @@ namespace dmResourceProviderArchiveMutable
 
     DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "archive_mutable", SetupArchiveLoader);
 }
+

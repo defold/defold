@@ -13,12 +13,11 @@
 // specific language governing permissions and limitations under the License.
 
 #include "script_collectionproxy.h"
-#include "script_resource_liveupdate.h"
 
 #include <script/script.h>
 #include <gameobject/script.h>
 #include <gameobject/gameobject.h>
-#include <liveupdate/liveupdate.h>
+#include <resource/resource_util.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include <components/comp_collection_proxy.h>
@@ -64,8 +63,11 @@ namespace dmGameSystem
         GetResourceHashContext* ctx = (GetResourceHashContext*)context;
         lua_State* L = ctx->m_L;
 
+        char hash_buffer[64*2+1];
+        dmResource::BytesToHexString(result->m_HashDigest, result->m_HashDigestLength, hash_buffer, sizeof(hash_buffer));
+
         lua_pushnumber(L, ctx->m_Index++);
-        lua_pushlstring(L, (const char*)result->m_HashDigest, result->m_HashDigestLength);
+        lua_pushlstring(L, hash_buffer, result->m_HashDigestLength*2);
         lua_settable(L, -3);
     }
 

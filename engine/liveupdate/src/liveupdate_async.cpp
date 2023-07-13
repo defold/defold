@@ -60,13 +60,13 @@ namespace dmLiveUpdate
         if (request.m_IsArchive)
         {
             // Stores/stages a zip archive for loading after next reboot
-            res = dmLiveUpdate::StoreZipArchive(request.m_Path, request.m_VerifyArchive);
+            //res = dmLiveUpdate::StoreZipArchive(request.m_Path, request.m_VerifyArchive);
             m_JobCompleteData.m_Manifest = 0;
         }
         else if (request.m_Resource.m_Header != 0x0)
         {
             // Add a resource to the currently created live update archive
-            res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
+            //res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
             m_JobCompleteData.m_Manifest = request.m_Manifest;
         }
         else
@@ -82,9 +82,9 @@ namespace dmLiveUpdate
         if(m_JobCompleteData.m_Manifest && m_JobCompleteData.m_Status)
         {
             // If we have a new archive, then we've also created a new manifest, so let's use it
-            dmLiveUpdate::SetNewManifest(m_JobCompleteData.m_Manifest);
+            // dmLiveUpdate::SetNewManifest(m_JobCompleteData.m_Manifest);
 
-            dmLiveUpdate::SetNewArchiveIndex(m_JobCompleteData.m_Manifest->m_ArchiveIndex, m_JobCompleteData.m_NewArchiveIndex, true);
+            // dmLiveUpdate::SetNewArchiveIndex(m_JobCompleteData.m_Manifest->m_ArchiveIndex, m_JobCompleteData.m_NewArchiveIndex, true);
         }
         m_JobCompleteData.m_Callback(m_JobCompleteData.m_Status, m_JobCompleteData.m_CallbackData);
     }

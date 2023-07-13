@@ -175,6 +175,7 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
+        params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
         event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
@@ -193,6 +194,7 @@ namespace dmEngine
 
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
+        params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
         event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
@@ -285,8 +287,6 @@ namespace dmEngine
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
         dmHttpClient::ShutdownConnectionPool();
-
-        dmLiveUpdate::Finalize();
 
         // Reregister the types before the rest of the contexts are deleted
         if (engine->m_Factory) {
@@ -899,8 +899,6 @@ namespace dmEngine
         if (liveupdate_enable)
         {
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
-
-            dmLiveUpdate::RegisterArchiveLoaders();
         }
 
 #if defined(DM_RELEASE)
@@ -1275,8 +1273,6 @@ namespace dmEngine
                 goto bail;
         }
 
-        dmLiveUpdate::Initialize(engine->m_Factory);
-
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -1493,8 +1489,6 @@ bail:
             {
                 DM_PROFILE("Sim");
 
-                dmLiveUpdate::Update();
-
                 {
                     DM_PROFILE("Resource");
                     dmResource::UpdateFactory(engine->m_Factory);
@@ -1586,6 +1580,7 @@ bail:
                     // if any extension wants to render on under of the game.
                     dmExtension::Params ext_params;
                     ext_params.m_ConfigFile = engine->m_Config;
+                    ext_params.m_ResourceFactory = engine->m_Factory;
                     if (engine->m_SharedScriptContext) {
                         ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
                     } else {
@@ -1660,6 +1655,7 @@ bail:
             {
                 dmExtension::Params ext_params;
                 ext_params.m_ConfigFile = engine->m_Config;
+                ext_params.m_ResourceFactory = engine->m_Factory;
                 if (engine->m_SharedScriptContext) {
                     ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
                 } else {

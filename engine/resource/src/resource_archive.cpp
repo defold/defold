@@ -58,18 +58,6 @@ namespace dmResourceArchive
 
     // *********************************************************************************
 
-    Result LoadArchives(const char* archive_name, const char* app_path, const char* app_support_path, dmResource::Manifest** out_manifest, HArchiveIndexContainer* out_archive)
-    {
-        dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
-        return RESULT_VERSION_MISMATCH;
-    }
-
-    Result UnloadArchives(HArchiveIndexContainer archive)
-    {
-        dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
-        return RESULT_VERSION_MISMATCH;
-    }
-
     static void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
     {
         if (index_file)

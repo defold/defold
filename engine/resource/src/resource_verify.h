@@ -17,9 +17,9 @@
 
 #include <stdint.h>
 
-#include <resource/resource.h> // Result
-#include <resource/liveupdate_ddf.h>
+#include "resource.h" // Result
 #include "resource_archive.h"
+#include <resource/liveupdate_ddf.h>
 
 namespace dmResource
 {
@@ -28,6 +28,8 @@ namespace dmResource
     //Result VerifyManifestReferences(const Manifest* manifest);
     //Result VerifyManifest(const Manifest* manifest);
     Result VerifyManifest(const Manifest* manifest, const char* public_key_path);
+
+    Result VerifyResource(const dmResource::Manifest* manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length);
 
     Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
 

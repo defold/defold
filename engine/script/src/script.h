@@ -507,6 +507,13 @@ namespace dmScript
     dmConfigFile::HConfig GetConfigFile(HContext context);
 
     /**
+     * Retrieve resource factory handle from the context
+     * @param context script context
+     * @return factory Resource factory handle
+     */
+    dmResource::HFactory GetResourceFactory(HContext context);
+
+    /**
      * Add (load) module
      * @param context script context
      * @param source lua script to load

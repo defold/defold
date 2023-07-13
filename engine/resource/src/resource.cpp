@@ -24,19 +24,20 @@
 #include <sys/param.h>
 #endif
 
-#include <dlib/dstrings.h>
 #include <dlib/crypt.h>
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memory.h>
-#include <dlib/uri.h>
-#include <dlib/profile.h>
 #include <dlib/message.h>
+#include <dlib/mutex.h>
+#include <dlib/path.h>
+#include <dlib/profile.h>
 #include <dlib/sys.h>
 #include <dlib/time.h>
-#include <dlib/mutex.h>
+#include <dlib/uri.h>
 
 #include "resource.h"
 #include "resource_private.h"
@@ -70,6 +71,7 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
 const char* BUNDLE_INDEX_FILENAME               = "game.arci";
 const char* BUNDLE_DATA_FILENAME                = "game.arcd";
+const char* BUNDLE_PUBLIC_KEY_FILENAME          = "game.public.der";
 
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
@@ -107,11 +109,14 @@ struct SResourceFactory
 
     dmURI::Parts                                 m_UriParts;
 
+    const char*                                  m_PublicKeyPath; // path to game.public.der
+
     dmArray<char>                                m_Buffer;
 
     // Resource manifest
     dmResourceMounts::HContext                   m_Mounts;
     dmResourceProvider::HArchive                 m_BuiltinMount;
+    dmResourceProvider::HArchive                 m_BaseArchiveMount;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -144,6 +149,7 @@ Result CheckSuppliedResourcePath(const char* name)
 
 void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
 {
+    memset(params, 0, sizeof(NewFactoryParams));
     params->m_MaxResources = 1024;
     params->m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
 
@@ -154,47 +160,6 @@ void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
     params->m_ArchiveData.m_Data = 0;
     params->m_ArchiveData.m_Size = 0;
 }
-
-Manifest* GetManifest(HFactory factory)
-{
-    assert(false && "Not implemented anymore!");
-    return 0;//factory->m_Manifest;
-}
-
-void SetManifest(HFactory factory, Manifest* manifest)
-{
-    assert(false && "Not implemented anymore!");
-    // assert(factory->m_Manifest);
-
-    // // Unlink the old archive container
-    // dmResourceArchive::HArchiveIndexContainer old_archive = factory->m_Manifest->m_ArchiveIndex;
-    // dmResourceArchive::HArchiveIndexContainer new_archive = manifest->m_ArchiveIndex;
-    // if (new_archive != old_archive)
-    // {
-    //     new_archive->m_Next = old_archive;
-    //     factory->m_Manifest->m_ArchiveIndex = 0;
-    // }
-
-    // if (manifest != factory->m_Manifest)
-    //     DeleteManifest(factory->m_Manifest);
-
-    // factory->m_Manifest = manifest;
-    // factory->m_Manifest->m_ArchiveIndex = new_archive;
-}
-
-// // TODO: Move elsewhere. Used by Live update only
-// Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len)
-// {
-//     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-//     BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
-//     dmSys::Result result = dmSys::GetApplicationSupportPath(id_buf, buffer, buffer_len);
-//     if (result != dmSys::RESULT_OK)
-//     {
-//         dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, result);
-//         return RESULT_IO_ERROR;
-//     }
-//     return RESULT_OK;
-// }
 
 static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
 {
@@ -221,7 +186,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
         return RESULT_NOT_LOADED;
     }
 
-    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, 1);
+    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, 1, false);
     return RESULT_OK;
 }
 
@@ -256,14 +221,15 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         const char* m_Scheme;
         const char* m_ProviderType;
+        bool        m_CheckPublicKey;
     } type_pairs[] = {
-        {"http", "http"},
-        {"https", "http"},
-        {"dmanif", "archive"},
-        {"file", "file"},
+        {"http", "http", false},
+        {"https", "http", false},
+        {"dmanif", "archive", true},
+        {"file", "file", true},
 #if defined(__NX__)
-        {"data", "file"},
-        {"host", "file"},
+        {"data", "file", false},
+        {"host", "file", false},
 #endif
     };
 
@@ -286,7 +252,33 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 continue;
             }
             ++num_mounted;
-            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, 0);
+            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, 0, false);
+
+            if (strcmp("archive", type_pairs[i].m_ProviderType) == 0)
+            {
+                // We want access to this later on (mostly for liveupdate, that wants the app ID to use as a folder name for liveupdate content)
+                factory->m_BaseArchiveMount = archive;
+            }
+
+            if (type_pairs[i].m_CheckPublicKey)
+            {
+                size_t manifest_path_len = strlen(factory->m_UriParts.m_Path);
+                char* app_path = (char*)alloca(manifest_path_len+1);
+                dmStrlCpy(app_path, factory->m_UriParts.m_Path, manifest_path_len+1);
+                char* app_path_end = strrchr(app_path, '/');
+                if (app_path_end)
+                    *app_path_end = 0;
+                else
+                    app_path[0] = 0; // it only contained a filename
+
+                char public_key_path[DMPATH_MAX_PATH];
+                dmPath::Concat(app_path, BUNDLE_PUBLIC_KEY_FILENAME, public_key_path, DMPATH_MAX_PATH);
+
+                if (dmSys::Exists(public_key_path))
+                {
+                    factory->m_PublicKeyPath = strdup(public_key_path);
+                }
+            }
             break;
         }
     }
@@ -360,6 +352,7 @@ void DeleteFactory(HFactory factory)
         factory->m_Resources->Iterate<>(&ResourceIteratorCallback, (void*)0);
     }
 
+    free((void*)factory->m_PublicKeyPath);
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
     if (factory->m_ResourceHashToFilename)
@@ -478,6 +471,15 @@ dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGe
     return dmResourceMounts::GetDependencies(factory->m_Mounts, &params, ResourceDependencyCallback, &ctx);
 }
 
+const char* GetPublicKeyPath(HFactory factory)
+{
+    return factory->m_PublicKeyPath;
+}
+
+dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
+{
+    return factory->m_BaseArchiveMount;
+}
 
 // Assumes m_LoadMutex is already held
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)

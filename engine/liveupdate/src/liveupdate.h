@@ -15,8 +15,8 @@
 #ifndef DM_LIVEUPDATE_H
 #define DM_LIVEUPDATE_H
 
+#include <stdint.h>
 #include <dlib/hash.h>
-#include "job_thread.h"
 
 namespace dmResource
 {
@@ -49,33 +49,27 @@ namespace dmLiveUpdate
         RESULT_IO_ERROR                  = -10,
     };
 
-    const int MAX_MANIFEST_COUNT = 8;
-    const int CURRENT_MANIFEST = 0x0ac83fcc;
-    const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+
+    //const int MAX_MANIFEST_COUNT = 8;
+    //const int CURRENT_MANIFEST = 0x0ac83fcc;
+    //const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
 
-    typedef void (*FAsyncResourceCallback)(bool status, void* callback_ctx);
-
-    void Initialize(const dmResource::HFactory factory);
-    void Finalize();
-    void Update();
-
-    void RegisterArchiveLoaders();
-
-
-    typedef void (*FGetResourceHashHex)(void* context, const char* hash, uint32_t length);
-
-    void GetResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context);
-    void GetMissingResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context);
+    // void Initialize(const dmResource::HFactory factory);
+    // void Finalize();
+    // void Update();
 
     /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
      */
-    Result VerifyManifest(const dmResource::Manifest* manifest);
+    //Result VerifyManifest(const dmResource::Manifest* manifest);
 
-    Result VerifyManifestReferences(const dmResource::Manifest* manifest);
+    //Result VerifyManifestReferences(const dmResource::Manifest* manifest);
 
-    Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
+    // Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
+
+    // Scripting
+    bool HasLiveUpdateMount();
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
@@ -83,20 +77,15 @@ namespace dmLiveUpdate
      */
     Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive);
 
-    Result StoreManifest(dmResource::Manifest* manifest);
+    Result StoreManifestToMutableArchive(dmResource::Manifest* manifest);
 
-    Result ParseManifestBin(uint8_t* manifest_data, uint32_t manifest_len, dmResource::Manifest* manifest);
-
-    dmResource::Manifest* GetCurrentManifest();
-
-
-    bool PushAsyncJob(dmJobThread::FJobItemProcess process, dmJobThread::FJobItemCallback callback, void* jobctx, void* jobdata);
     // -1: not using liveupdate
     // 0: single files
     // 1: zip file
-    int GetLiveupdateType();
+    //int GetLiveupdateType();
 
-    char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
+    // resource_util.h
+    //char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
 };
 
 #endif // DM_LIVEUPDATE_H

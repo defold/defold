@@ -64,18 +64,6 @@ ArchiveLoader* FindLoaderByName(dmhash_t name_hash)
     return 0;
 }
 
-// ArchiveLoader* FindLoaderByUri(const dmURI::Parts* uri)
-// {
-//     ArchiveLoader* loader = g_ArchiveLoaders;
-//     while (loader)
-//     {
-//         if (loader->m_CanMount(uri))
-//             return loader;
-//         loader = loader->m_Next;
-//     }
-//     return 0;
-// }
-
 bool CanMountUri(HArchiveLoader loader, const dmURI::Parts* uri)
 {
     return loader->m_CanMount(uri);
@@ -99,17 +87,6 @@ static Result DoMount(ArchiveLoader* loader, const dmURI::Parts* uri, HArchive b
     return result;
 }
 
-// Result Mount(const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive)
-// {
-//     ArchiveLoader* loader = FindLoaderByUri(uri);
-//     if (!loader)
-//     {
-//         dmLogError("Found no matching loader for '%s:/%s%s'", uri->m_Scheme, uri->m_Location, uri->m_Path);
-//         return RESULT_NOT_FOUND;
-//     }
-//     return DoMount(loader, uri, base_archive, out_archive);
-// }
-
 Result CreateMount(HArchiveLoader loader, const dmURI::Parts* uri, HArchive base_archive, HArchive* out_archive)
 {
     if (!loader->m_CanMount(uri))
@@ -120,6 +97,7 @@ Result CreateMount(HArchiveLoader loader, const dmURI::Parts* uri, HArchive base
 Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive)
 {
     Archive* archive = new Archive;
+    memset(archive, 0, sizeof(Archive));
     archive->m_Loader = loader;
     archive->m_Internal = internal;
     *out_archive = archive;
@@ -150,20 +128,18 @@ Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest)
     return RESULT_NOT_SUPPORTED;
 }
 
+Result SetManifest(HArchive archive, dmResource::Manifest* manifest)
+{
+    if (archive->m_Loader->m_SetManifest)
+        return archive->m_Loader->m_SetManifest(archive->m_Internal, manifest);
+    return RESULT_NOT_SUPPORTED;
+}
+
 Result GetUri(HArchive archive, dmURI::Parts* out_uri)
 {
     memcpy(out_uri, &archive->m_Uri, sizeof(dmURI::Parts));
     return RESULT_OK;
 }
-
-// Is this needed anymore?
-// Result WriteManifest(HArchive archive, dmResource::Manifest* manifest)
-// {
-//     if (archive->m_Loader->m_WriteManifest)
-//         return archive->m_Loader->m_WriteManifest(archive->m_Internal, manifest);
-//     dmLogError("Archive type '%s' doesn't support writing manifest", dmHashReverseSafe64(archive->m_Loader->m_NameHash));
-//     return RESULT_NOT_SUPPORTED;
-// }
 
 Result WriteFile(HArchive archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len)
 {

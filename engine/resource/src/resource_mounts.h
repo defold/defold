@@ -16,7 +16,7 @@
 #define DM_RESOURCE_MOUNTS_H
 
 #include "resource.h"
-#include "resource_private.h"
+#include <dlib/array.h>
 #include <dlib/hash.h>
 
 namespace dmResourceProvider
@@ -31,14 +31,14 @@ namespace dmResourceMounts
     HContext    Create();
     void        Destroy(HContext context);
 
-    dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority);
+    dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
     dmResource::Result DestroyArchives(HContext ctx);
 
     dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash);
     dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size);
-    dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, dmResource::LoadBufferType* buffer);
+    dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, dmArray<char>* buffer);
 
     struct SGetMountResult
     {

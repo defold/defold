@@ -6,6 +6,7 @@
 #include <resource/liveupdate_ddf.h>
 
 #include <dlib/log.h>
+#include <dlib/mutex.h>
 #include <algorithm> // std::sort
 
 namespace dmResourceMounts
@@ -16,13 +17,15 @@ struct ArchiveMount
     const char*                     m_Name;
     dmResourceProvider::HArchive    m_Archive;
     int                             m_Priority;
+    bool                            m_Persist;
 };
 
 struct ResourceMountsContext
 {
     // The currently mounted archives, in sorted order
     dmArray<ArchiveMount> m_Mounts;
-} g_ResourceMountsContext;
+    dmMutex::HMutex       m_Mutex;
+};
 
 
 static dmResource::Result ProviderResultToResult(dmResourceProvider::Result result)
@@ -41,12 +44,17 @@ HContext Create()
 {
     ResourceMountsContext* ctx = new ResourceMountsContext;
     ctx->m_Mounts.SetCapacity(2);
+    ctx->m_Mutex = dmMutex::New();
     return ctx;
 }
 
 void Destroy(HContext ctx)
 {
-    DestroyArchives(ctx);
+    {
+        DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+        DestroyArchives(ctx);
+    }
+    dmMutex::Delete(ctx->m_Mutex);
     delete ctx;
 }
 
@@ -65,6 +73,8 @@ static void SortMounts(dmArray<ArchiveMount>& mounts)
 
 static void AddMountInternal(HContext ctx, const ArchiveMount& mount)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+
     if (ctx->m_Mounts.Full())
         ctx->m_Mounts.OffsetCapacity(2);
 
@@ -91,7 +101,7 @@ static void DebugPrintMounts(HContext ctx)
     }
 }
 
-dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority)
+dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist)
 {
     // TODO: Make sure a uri wasn't already added!
 
@@ -99,12 +109,15 @@ dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::
     mount.m_Name = strdup(name);
     mount.m_Priority = priority;
     mount.m_Archive = archive;
+    mount.m_Persist = persist;
     AddMountInternal(ctx, mount);
     return dmResource::RESULT_OK;
 }
 
 dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
@@ -123,11 +136,14 @@ dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archiv
 
 uint32_t GetNumMounts(HContext ctx)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
     return ctx->m_Mounts.Size();
 }
 
+// Unit tests
 dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
     if (index >= ctx->m_Mounts.Size())
         return dmResource::RESULT_INVAL;
 
@@ -138,8 +154,10 @@ dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult
     return dmResource::RESULT_OK;
 }
 
+// Unit tests
 dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
@@ -150,7 +168,6 @@ dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResul
     return dmResource::RESULT_INVAL;
 }
 
-// TODO: Get mount info (iterator?)
 dmResource::Result DestroyArchives(HContext ctx)
 {
     uint32_t size = ctx->m_Mounts.Size();
@@ -166,6 +183,8 @@ dmResource::Result DestroyArchives(HContext ctx)
 
 dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
@@ -175,7 +194,7 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "GetResourceSize: %s (%u bytes)\n", path, *resource_size);
+            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  %llx (%u bytes)\n", path, path_hash, *resource_size);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
@@ -192,6 +211,8 @@ dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash)
 
 dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size)
 {
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
@@ -210,38 +231,9 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
-// static dmResourceProvider::HArchive FindArchive(HContext ctx, dmhash_t path_hash, uint32_t* out_resource_size)
-// {
-//     uint32_t resource_size;
-//     uint32_t size = ctx->m_Mounts.Size();
-//     for (uint32_t i = 0; i < size; ++i)
-//     {
-//         ArchiveMount& mount = ctx->m_Mounts[i];
-//         dmResourceProvider::Result result = dmResourceProvider::GetFileSize(mount.m_Archive, path_hash, path, resource_size);
-//         if (dmResourceProvider::RESULT_OK == result)
-//         {
-//             if (out_resource_size)
-//                 *out_resource_size = resource_size;
-//             return mount.m_Archive;
-//         }
-//     }
-
-//     return 0;
-// }
-
-dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmResource::LoadBufferType* buffer)
+dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_hash, dmArray<char>* buffer)
 {
-    // uint32_t resource_size;
-    // dmResourceProvider::HArchive archive = FindArchive(HContext ctx, dmhash_t path_hash, &resource_size);
-    // if (!archive)
-    //     return dmResource::RESULT_RESOURCE_NOT_FOUND;
-
-    // if (buffer->Capacity() < resource_size)
-    //     buffer->SetCapacity(resource_size);
-    // buffer->SetSize(resource_size);
-
-    // dmResourceProvider::Result result = dmResourceProvider::ReadFile(archive, path_hash, path, (uint8_t*)buffer->Begin(), resource_size);
-    // return ProviderResultToResult(result);
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
 
     uint32_t resource_size;
     uint32_t size = ctx->m_Mounts.Size();
@@ -299,6 +291,8 @@ static bool UpdateVisited(dmHashTable64<bool>& t, dmhash_t url_hash, bool exists
 static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, const dmhash_t url_hash)
 {
     ResourceMountsContext* mounts_ctx = (ResourceMountsContext*)ctx->m_Mounts;
+    DM_MUTEX_SCOPED_LOCK(mounts_ctx->m_Mutex);
+
     uint32_t num_mounts = mounts_ctx->m_Mounts.Size();
     bool only_missing = ctx->m_OnlyMissing;
 
@@ -330,7 +324,7 @@ static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, co
             bool exists = true;
             if (only_missing)
             {
-                exists = ResourceExists(mounts_ctx, dep_hash);
+                exists = ResourceExists(mounts_ctx, dep_hash) == dmResource::RESULT_OK;
             }
 
             UpdateVisited(ctx->m_Visited, dep_hash, exists);

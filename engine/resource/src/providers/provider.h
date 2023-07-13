@@ -15,8 +15,6 @@
 #ifndef DM_RESOURCE_PROVIDER_H
 #define DM_RESOURCE_PROVIDER_H
 
-#define DM_RESOURCE_DEBUG_LOG
-
 #include <stdint.h>
 #include <dlib/hash.h>
 #include <dlib/uri.h>
@@ -54,7 +52,7 @@ namespace dmResourceProvider
     typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**); // In order for other providers to get the base manifest
-
+    typedef Result (*FSetManifest)(HArchiveInternal, dmResource::Manifest*);  // In order to set a downloaded manifest to a provider
 
 
     // The resource loader types
@@ -69,6 +67,7 @@ namespace dmResourceProvider
     Result Unmount(HArchive archive);
     Result GetUri(HArchive archive, dmURI::Parts* out_uri);
     Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest);
+    Result SetManifest(HArchive archive, dmResource::Manifest* manifest);
 
     Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);

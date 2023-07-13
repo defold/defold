@@ -107,6 +107,9 @@ static void CreateEntryMap(ZipProviderContext* archive)
 
         archive->m_EntryMap.Put(entry->m_UrlHash, info);
         added.Put(info.m_EntryIndex, true);
+
+        DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", hash_buffer, entry->m_UrlHash, info.m_Size);
+
     }
 
     // Also add any other files that the developer might have added to the zip archive
@@ -191,7 +194,11 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
-    LoadManifest(archive->m_Zip, LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, &archive->m_Manifest);
+    dmResourceProvider::Result result = LoadManifest(archive->m_Zip, LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, &archive->m_Manifest);
+    if (dmResourceProvider::RESULT_OK != result)
+    {
+        return result;
+    }
 
     CreateEntryMap(archive);
 
@@ -247,7 +254,6 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
 
     if (encrypted)
     {
-        //dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)resource.m_Data, resource.m_Count);
         dmResource::Result r = dmResource::DecryptBuffer(out_buffer, resource_size);
         if (dmResource::RESULT_OK != r)
         {

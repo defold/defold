@@ -36,6 +36,9 @@ namespace dmResource
 {
     const static uint32_t MANIFEST_VERSION = 0x05; // also dictates version over live update data (e.g. LiveUpdateResourceHeader)
 
+    // For use with GetProjectId()
+    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+
     // TODO: Hide the implementation
     struct Manifest
     {

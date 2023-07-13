@@ -10,7 +10,8 @@ def configure(conf):
     pass
 
 def build(bld):
-    uselib = ['TESTMAIN', 'RESOURCE', 'DLIB', 'PROFILE_NULL', 'DDF', 'THREAD', 'LUA', 'SOCKET']
+    uselib = ['TESTMAIN', 'DLIB', 'SOCKET', 'DDF', 'THREAD', 'EXTENSION', 'PROFILE_NULL', 'RESOURCE', 'SCRIPT', 'LUA']
+    exported_symbols = ['LiveUpdateExt', 'ResourceProviderFile']
 
     for impl in ('', 'null'):
         local_lib = 'liveupdate'
@@ -27,6 +28,7 @@ def build(bld):
                     includes = '../../../src',
                     use      = uselib + [local_lib],
                     defines  = defines,
+                    exported_symbols = exported_symbols,
                     web_libs = ['library_sys.js'],
                     target   = 'test_liveupdate' + suffix,
                     source   = 'test_liveupdate.cpp')
@@ -36,6 +38,7 @@ def build(bld):
                         includes = '../../../src',
                         use      = uselib + [local_lib],
                         defines  = defines,
+                        exported_symbols = exported_symbols,
                         web_libs = ['library_sys.js'],
                         target   = 'test_liveupdate_job' + suffix,
                         source   = 'test_liveupdate_job.cpp')
@@ -44,6 +47,7 @@ def build(bld):
                     includes = '../../../src',
                     use      = uselib + [local_lib],
                     defines  = defines,
+                    exported_symbols = exported_symbols,
                     web_libs = ['library_sys.js'],
                     target   = 'test_liveupdate_async' + suffix,
                     source   = '../liveupdate_async.cpp test_liveupdate_async.cpp')
@@ -52,6 +56,7 @@ def build(bld):
                     includes = '../../../src',
                     use      = uselib + [local_lib],
                     defines  = defines,
+                    exported_symbols = exported_symbols,
                     web_libs = ['library_sys.js'],
                     target   = 'test_liveupdate_zip_archive' + suffix,
                     source   = 'test_liveupdate_zip_archive.cpp')
