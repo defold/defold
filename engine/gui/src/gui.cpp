@@ -613,8 +613,7 @@ namespace dmGui
             t->m_Buffer = 0;
         }
 
-        float expected_buffer_size = t->m_Width * t->m_Height * dmImage::BytesPerPixel(t->m_Type) / 1024 / 1024;
-        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -expected_buffer_size);
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024 / 1024));
 
         t->m_Buffer = malloc(buffer_size);
         if (flip) {
@@ -1058,8 +1057,8 @@ namespace dmGui
         if (texture->m_Deleted) {
             // handle might be null if the texture is created/destroyed in the same frame
             if (texture->m_Handle) {
-                uint32_t expected_buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -expected_buffer_size);
+                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
                 params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
             }
             if (scene->m_DeletedDynamicTextures.Full()) {
@@ -1068,15 +1067,15 @@ namespace dmGui
             scene->m_DeletedDynamicTextures.Push(*key);
         } else {
             if (!texture->m_Handle && texture->m_Buffer) {
-                uint32_t expected_buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, expected_buffer_size);
+                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 params->m_NewCount++;
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
             } else if (texture->m_Handle && texture->m_Buffer) {
-                uint32_t expected_buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, expected_buffer_size);
+                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
@@ -1104,6 +1103,24 @@ namespace dmGui
                 }
             }
         }
+    }
+
+    static void DeleteDynamicTextures(HScene scene, DeleteTexture delete_texture)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            if (texture.m_Buffer) {
+                free(texture.m_Buffer);
+            }
+            if (texture.m_Handle) {
+                float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+                delete_texture(scene, texture.m_Handle, scene->m_Context);
+            }
+        }
+        scene->m_DynamicTextures.Clear();
     }
 
     static void DeferredDeleteDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
@@ -2115,22 +2132,7 @@ namespace dmGui
         }
         scene->m_AliveParticlefxs.SetSize(0);
 
-        // Delete all the dynamic textures
-        dmHashTable<uint64_t, DynamicTexture>::Iterator dynamicTextureIter = scene->m_DynamicTextures.GetIterator();
-        while(dynamicTextureIter.Next())
-        {
-            const DynamicTexture texture = dynamicTextureIter.GetValue();
-            if (texture.m_Buffer) {
-                free(texture.m_Buffer);
-            }
-            if (texture.m_Handle) {
-                float expected_buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024 / 1024;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -expected_buffer_size);
-                delete_texture(scene, texture.m_Handle, scene->m_Context);
-            }
-        }
-        scene->m_DynamicTextures.Clear();
-
+        DeleteDynamicTextures(scene, delete_texture);
         ClearLayouts(scene);
         return result;
     }
