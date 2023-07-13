@@ -725,7 +725,7 @@ var Module = {
         FS.syncfs(true, function(err) {
             if (err) {
                 Module._syncTries += 1;
-                console.warn("Can't synchronize mounted file systems: " + err);
+                console.warn("Unable to synchronize mounted file systems: " + err);
                 if (Module._syncMaxTries > Module._syncTries) {
                     Module.preSync(done);
                 } else {
@@ -847,7 +847,7 @@ var Module = {
                 Module._syncInProgress = false;
 
                 if (err) {
-                    console.warn("Can't synchronize mounted file systems: " + err);
+                    console.warn("Unable to synchronize mounted file systems: " + err);
                     Module._syncTries += 1;
                 }
 
