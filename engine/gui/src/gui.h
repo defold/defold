@@ -752,13 +752,6 @@ namespace dmGui
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context);
 
     /**
-     * Delete all dynamic textures from the scene.
-     * @param scene Scene for which to remove the dynamic textures
-     * @param deleteTexture DeleteTexture Callback to delete a texture
-     */
-    void DeleteDynamicTextures(HScene scene, DeleteTexture deleteTexture);
-
-    /**
      * Run the init-function of the scene script.
      * @param scene Scene for which to run the script
      * @return RESULT_OK on success
@@ -768,9 +761,10 @@ namespace dmGui
     /**
      * Run the final-function of the scene script.
      * @param scene Scene for which to run the script
+     * @param deleteTexture DeleteTexture Callback to delete a texture
      * @return RESULT_OK on success
      */
-    Result FinalScene(HScene scene);
+    Result FinalScene(HScene scene, DeleteTexture delete_texture);
 
     /**
      * Run the update-function of the scene script.

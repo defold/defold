@@ -1050,24 +1050,6 @@ namespace dmGui
         int    m_NewCount;
     };
 
-    void DeleteDynamicTextures(HScene scene, DeleteTexture deleteTexture)
-    {
-        dmHashTable<uint64_t, DynamicTexture>::Iterator dynamicTextureIter = scene->m_DynamicTextures.GetIterator();
-        while(dynamicTextureIter.Next())
-        {
-            const DynamicTexture texture = dynamicTextureIter.GetValue();
-            if (texture.m_Buffer) {
-                free(texture.m_Buffer);
-            }
-            if (texture.m_Handle) {
-                float expected_buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024 / 1024;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -expected_buffer_size);
-                deleteTexture(scene, texture.m_Handle, scene->m_Context);
-            }
-        }
-        scene->m_DynamicTextures.Clear();
-    }
-
     static void UpdateDynamicTextures(UpdateDynamicTexturesParams* params, const dmhash_t* key, DynamicTexture* texture)
     {
         dmGui::Scene* const scene = params->m_Scene;
@@ -2104,7 +2086,7 @@ namespace dmGui
         return RunScript(scene, SCRIPT_FUNCTION_INIT, LUA_NOREF, 0x0);
     }
 
-    Result FinalScene(HScene scene)
+    Result FinalScene(HScene scene, DeleteTexture delete_texture)
     {
         Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, LUA_NOREF, 0x0);
 
@@ -2132,6 +2114,22 @@ namespace dmGui
             dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
         }
         scene->m_AliveParticlefxs.SetSize(0);
+
+        // Delete all the dynamic textures
+        dmHashTable<uint64_t, DynamicTexture>::Iterator dynamicTextureIter = scene->m_DynamicTextures.GetIterator();
+        while(dynamicTextureIter.Next())
+        {
+            const DynamicTexture texture = dynamicTextureIter.GetValue();
+            if (texture.m_Buffer) {
+                free(texture.m_Buffer);
+            }
+            if (texture.m_Handle) {
+                float expected_buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024 / 1024;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -expected_buffer_size);
+                delete_texture(scene, texture.m_Handle, scene->m_Context);
+            }
+        }
+        scene->m_DynamicTextures.Clear();
 
         ClearLayouts(scene);
         return result;
