@@ -92,10 +92,10 @@ public class ResourceNodeGraph {
 
             @Override
             public void leave(IResource resource) throws CompileExceptionError {
-                graphStateStack.pop();
+                stack.pop();
             }
         });
-        GraphState state = graphStateStack.pop();
+        GraphState state = stack.pop();
         return state.node;
     }
 
