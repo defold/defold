@@ -26,6 +26,7 @@
 
 
 #include "../resource_util.h"
+#include "../resource_manifest.h"
 #include "../providers/provider.h"
 #include "../providers/provider_private.h"
 #include "../providers/provider_archive.h"
@@ -346,6 +347,26 @@ TEST_F(ArchiveProviderMutable, ReadDownloadedFiles)
         delete[] buffer;
         dmMemory::AlignedFree((void*)expected_file);
     }
+}
+
+TEST_F(ArchiveProviderMutable, GetUrlHashFromHexDigest)
+{
+    const char* digest1 = "5f9e1b6c705d9fdcbc418062f3ea3f6a33640914"; // url: 731d3cc48697dfe4  /archive_data/file5.scriptc
+    const char* digest2 = "aae1f8cc01c23ba6067f7ed81df5a187a047aa7f"; // url: 68b7e06402ee965c  /archive_data/liveupdate.file6.scriptc
+    const uint32_t digest_len = strlen(digest1);
+
+    dmhash_t digest_hash1 = dmHashBuffer64(digest1, digest_len);
+    dmhash_t digest_hash2 = dmHashBuffer64(digest2, digest_len);
+
+    dmhash_t url_hash1 = 0; // We only grab the live update resources from this manifest, so all other entries will return 0
+    dmhash_t url_hash2 = dmHashString64("/archive_data/liveupdate.file6.scriptc");
+
+    dmResource::HManifest manifest;
+    dmResourceProvider::GetManifest(m_Archive, &manifest);
+    ASSERT_NE(nullptr, manifest);
+
+    ASSERT_EQ(url_hash1, dmResource::GetUrlHashFromHexDigest(manifest, digest_hash1));
+    ASSERT_EQ(url_hash2, dmResource::GetUrlHashFromHexDigest(manifest, digest_hash2));
 }
 
 

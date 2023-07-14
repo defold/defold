@@ -60,6 +60,14 @@ namespace dmResource
     dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies);
     //dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmLiveUpdateDDF::ResourceEntry*>& dependencies);
 
+    /*#
+     * Get the url hash given a hex digest (the actual filename)
+     * @name GetUrlHashFromHexDigest
+     * @param manifest [type: dmResource::HManifest] The manifest
+     * @param digest_hash [type: dmhash_t] The dmHashBuffer64() of the actual hash digest
+     * @param url_path [type: dmhash_t] The url path, or 0 if not exists
+     */
+    dmhash_t GetUrlHashFromHexDigest(dmResource::HManifest manifest, dmhash_t digest_hash);
 
     /*#
      * Find resource entry within the manifest

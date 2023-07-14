@@ -203,6 +203,49 @@ dmResource::Result GetDependencies(dmResource::HManifest manifest, const dmhash_
     return dmResource::RESULT_OK;
 }
 
+static void BuildDigestToUrlMapping(dmResource::HManifest manifest, bool liveupdate_only)
+{
+    uint32_t hash_length = GetEntryHashLength(manifest);
+
+    uint32_t hash_buffer_length = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA512);
+    char* hash_buffer = (char*)alloca(hash_buffer_length+1); // currently the longest hash
+    hash_buffer[hash_buffer_length] = 0;
+
+    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+
+    manifest->m_DigestToUrl.Clear();
+    for(uint32_t i = 0; i < entry_count; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* entry = &entries[i];
+        if (liveupdate_only && !(entry->m_Flags &= dmLiveUpdateDDF::EXCLUDED))
+            continue;
+
+        if (manifest->m_DigestToUrl.Full())
+        {
+            uint32_t capacity = manifest->m_DigestToUrl.Capacity() + 32;
+            manifest->m_DigestToUrl.SetCapacity((capacity*2)/3, capacity);
+        }
+
+        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_length, hash_buffer, hash_buffer_length);
+
+        dmhash_t digest_hash = dmHashBuffer64(hash_buffer, hash_length*2);
+
+        manifest->m_DigestToUrl.Put(digest_hash, entry->m_UrlHash);
+    }
+}
+
+dmhash_t GetUrlHashFromHexDigest(dmResource::HManifest manifest, dmhash_t digest_hash)
+{
+    if (manifest->m_DigestToUrl.Empty())
+    {
+        // Note: Currently only used for liveupdate archives
+        BuildDigestToUrlMapping(manifest, true);
+    }
+    dmhash_t* url_path = manifest->m_DigestToUrl.Get(digest_hash);
+    return url_path ? *url_path : 0;
+}
+
 void DebugPrintManifest(dmResource::HManifest manifest)
 {
     for (uint32_t i = 0; i < manifest->m_DDFData->m_Resources.m_Count; ++i)

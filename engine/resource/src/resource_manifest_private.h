@@ -15,6 +15,9 @@
 #ifndef DM_RESOURCE_MANIFEST_PRIVATE_H
 #define DM_RESOURCE_MANIFEST_PRIVATE_H
 
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
+
 namespace dmLiveUpdateDDF
 {
     struct ManifestFile;
@@ -39,6 +42,8 @@ struct Manifest
     dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
     dmLiveUpdateDDF::ManifestFile*              m_DDF;
     dmLiveUpdateDDF::ManifestData*              m_DDFData;
+    // For mutable archives, we fill this just-in-time with the mappings from hex digest to url_path
+    dmHashTable64<dmhash_t>                     m_DigestToUrl;
 };
 
 }
