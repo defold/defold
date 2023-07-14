@@ -157,6 +157,13 @@ namespace dmResourceArchive
             *this = other;
         }
 
+        uint32_t GetSizeWithHeader() {
+            return m_Count + sizeof(LiveUpdateResource);
+        }
+        bool HasValidHeader() const {
+            return m_Header != 0;
+        }
+
         const uint8_t* m_Data;
         size_t m_Count;
         LiveUpdateResourceHeader* m_Header;
