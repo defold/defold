@@ -109,7 +109,6 @@ namespace dmResourceProviderArchiveMutable
         if (info.m_ManifestEntry)
         {
             uint32_t hash_len = dmResource::HashLength(archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm);
-            char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
             dmResource::BytesToHexString(info.m_ManifestEntry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
             hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
         }
@@ -121,7 +120,6 @@ namespace dmResourceProviderArchiveMutable
     {
         uint32_t count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
         archive->m_EntryMap.SetCapacity(dmMath::Max(1U, (count*2)/3), count);
-        archive->m_EntryMap.Clear();
 
         for (uint32_t i = 0; i < count; ++i)
         {
