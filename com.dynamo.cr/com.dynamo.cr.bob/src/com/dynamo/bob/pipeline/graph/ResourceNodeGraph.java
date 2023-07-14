@@ -26,6 +26,9 @@ import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
 
 
 public class ResourceNodeGraph {
+
+    // helper class to keep track of current state while traversing
+    // the graph
     private static class GraphState {
         public Set<String> visitedNodes;
         public ResourceNode node;
@@ -49,32 +52,42 @@ public class ResourceNodeGraph {
      * @return rootNode The root node
      */
     public static ResourceNode get(Project project, IResource rootResource) throws CompileExceptionError {
-        final ResourceNode rootNode = new ResourceNode(rootResource);
-        final Stack<GraphState> graphStateStack = new Stack<>();
-        graphStateStack.push(new GraphState(rootNode));
+        final Stack<GraphState> stack = new Stack<>();
         
         ResourceWalker.walk(project, rootResource, new IResourceVisitor() {
-
             @Override
             public boolean shouldVisit(IResource resource) {
-                GraphState state = graphStateStack.peek();
+                if (stack.empty()) {
+                    return true;
+                }
+                GraphState state = stack.peek();
                 return !state.visitedNodes.contains(resource.output().getAbsPath());
             }
 
             @Override
             public void visit(IResource resource) throws CompileExceptionError {
-                GraphState state = graphStateStack.peek();
-                ResourceNode parentNode = state.node;
                 ResourceNode currentNode = new ResourceNode(resource);
-                parentNode.addChild(currentNode);
-                if (resource.output().getPath().endsWith(".collectionproxyc")) {
-                    state = new GraphState(currentNode);
+                if (stack.empty()) {
+                    GraphState state = new GraphState(currentNode, new HashSet<String>());
+                    state.visitedNodes.add(resource.output().getAbsPath());
+                    // push the first stack item twice so that we have one left
+                    // when all resources have been visited (we pop in leave())
+                    stack.push(state);
+                    stack.push(state);
                 }
                 else {
-                    state = new GraphState(currentNode, state.visitedNodes);
+                    GraphState state = stack.peek();
+                    ResourceNode parentNode = state.node;
+                    parentNode.addChild(currentNode);
+                    if (resource.output().getPath().endsWith(".collectionproxyc")) {
+                        state = new GraphState(currentNode, new HashSet<String>());
+                    }
+                    else {
+                        state = new GraphState(currentNode, state.visitedNodes);
+                    }
+                    state.visitedNodes.add(resource.output().getAbsPath());
+                    stack.push(state);
                 }
-                state.visitedNodes.add(resource.output().getAbsPath());
-                graphStateStack.push(state);
             }
 
             @Override
@@ -82,7 +95,8 @@ public class ResourceNodeGraph {
                 graphStateStack.pop();
             }
         });
-        return rootNode;
+        GraphState state = graphStateStack.pop();
+        return state.node;
     }
 
 }
