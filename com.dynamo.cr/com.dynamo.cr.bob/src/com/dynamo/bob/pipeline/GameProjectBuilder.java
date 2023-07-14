@@ -59,6 +59,9 @@ import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.graph.ResourceSet;
+import com.dynamo.bob.pipeline.graph.ResourceNodeGraph;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -137,6 +140,7 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.addOutput(input.changeExt(".arcd").disableCache());
             builder.addOutput(input.changeExt(".dmanifest").disableCache());
             builder.addOutput(input.changeExt(".public.der").disableCache());
+            builder.addOutput(input.changeExt(".graph.json").disableCache());
             for (IResource output : project.getPublisher().getOutputs(input)) {
                 builder.addOutput(output);
             }
@@ -250,138 +254,6 @@ public class GameProjectBuilder extends Builder<Void> {
         TimeProfiler.stop();
     }
 
-    private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
-        List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
-
-        for (FieldDescriptor fieldDescriptor : fields) {
-            FieldOptions options = fieldDescriptor.getOptions();
-            FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
-            boolean isResource = (Boolean) options.getField(resourceDesc);
-            Object value = node.getField(fieldDescriptor);
-            if (value instanceof Message) {
-                findResources(project, (Message) value, resources);
-            } else if (value instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Object> list = (List<Object>) value;
-                for (Object v : list) {
-                    if (v instanceof Message) {
-                        findResources(project, (Message) v, resources);
-                    } else if (isResource && v instanceof String) {
-                        findResources(project, project.getResource((String) v), resources);
-                    }
-                }
-            } else if (isResource && value instanceof String) {
-                findResources(project, project.getResource((String) value), resources);
-            }
-        }
-    }
-
-    /*  Adds unique resources to list 'resources'. Each resource should once occur
-        once in the list regardless if the resource appears in several collections
-        or collectionproxies.
-    */
-    private static void findResources(Project project, IResource resource, Collection<String> resources) throws CompileExceptionError {
-        if (resource.getPath().equals("") || resources.contains(resource.output().getAbsPath())) {
-            return;
-        }
-
-        resources.add(resource.output().getAbsPath());
-
-        int i = resource.getPath().lastIndexOf(".");
-        if (i == -1) {
-            return;
-        }
-        String ext = resource.getPath().substring(i);
-
-        if (!ProtoBuilder.supportsType(ext)) {
-            return;
-        }
-
-        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
-        try {
-            final byte[] content = resource.output().getContent();
-            if(content == null) {
-                throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
-            }
-            builder.mergeFrom(content);
-            Object message = builder.build();
-            findResources(project, (Message) message, resources);
-        } catch(CompileExceptionError e) {
-            throw e;
-        } catch(Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void buildResourceGraph(Project project, Message node, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
-        List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
-        for (FieldDescriptor fieldDescriptor : fields) {
-            FieldOptions options = fieldDescriptor.getOptions();
-            FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
-            boolean isResource = (Boolean) options.getField(resourceDesc);
-            Object value = node.getField(fieldDescriptor);
-            if (value instanceof Message) {
-                buildResourceGraph(project, (Message) value, parentNode, visitedNodes);
-            } else if (value instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Object> list = (List<Object>) value;
-                for (Object v : list) {
-                    if (v instanceof Message) {
-                        buildResourceGraph(project, (Message) v, parentNode, visitedNodes);
-                    } else if (isResource && v instanceof String) {
-                        buildResourceGraph(project, project.getResource((String) v), parentNode, visitedNodes);
-                    }
-                }
-            } else if (isResource && value instanceof String) {
-                buildResourceGraph(project, project.getResource((String) value), parentNode, visitedNodes);
-            }
-        }
-    }
-
-    /*  Build a graph of resources. The graph is later used when writing archive to disk
-        to determine whether the resource should be bundled with the application or
-        excluded with liveupdate. Since liveupdate works on collectionproxies a resource
-        will appear as a single node per collectionproxy, but can still have a other nodes
-        in other collections/collectionproxies.
-    */
-    private static void buildResourceGraph(Project project, IResource resource, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
-        if (resource.getPath().equals("") || visitedNodes.contains(resource.output().getAbsPath())) {
-            return;
-        }
-
-        if (resource.output().getPath().endsWith(".collectionproxyc")) {
-            visitedNodes = new HashSet<String>();
-        }
-
-        visitedNodes.add(resource.output().getAbsPath());
-        ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
-        parentNode.addChild(currentNode);
-
-        int i = resource.getPath().lastIndexOf(".");
-        if (i == -1) {
-            return;
-        }
-        String ext = resource.getPath().substring(i);
-
-        if (!ProtoBuilder.supportsType(ext)) {
-            return;
-        }
-
-        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
-        try {
-            final byte[] content = resource.output().getContent();
-            if(content == null) {
-                throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
-            }
-            builder.mergeFrom(content);
-            Object message = builder.build();
-            buildResourceGraph(project, (Message) message, currentNode, visitedNodes);
-        } catch(CompileExceptionError e) {
-            throw e;
-        } catch(Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
@@ -403,10 +275,9 @@ public class GameProjectBuilder extends Builder<Void> {
                                                     {"input", "gamepads", "/builtins/input/default.gamepadsc"},
                                                     {"display", "display_profiles", "/builtins/render/default.display_profilesc"}}) {
                 String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
-                HashSet<String> visitedNodes = new HashSet<String>();
                 if (path != null) {
-                    findResources(project, project.getResource(path), resources);
-                    buildResourceGraph(project, project.getResource(path), rootNode, visitedNodes);
+                    resources.addAll(ResourceSet.get(project, project.getResource(path)));
+                    rootNode.addChild(ResourceNodeGraph.get(project, project.getResource(path)));
                 }
             }
 
@@ -428,7 +299,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // Editor debugger scripts
         if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
-            findResources(project, project.getResource("/builtins/scripts/debugger.luac"), resources);
+            rootNode.addChild(ResourceNodeGraph.get(project, project.getResource("/builtins/scripts/debugger.luac")));
         }
 
         return resources;
@@ -553,7 +424,7 @@ public class GameProjectBuilder extends Builder<Void> {
                     }
                 }
 
-                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
+                ManifestBuilder manifestBuilder = prepareManifestBuilder(rootNode, excludedResources);
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
@@ -591,6 +462,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
+                // game.graph.json
+                String graphJSON = rootNode.toJSON();
+                logger.info("%s", graphJSON);
+                task.getOutputs().get(5).setContent(graphJSON.getBytes());
+
                 // Add copy of game.dmanifest to be published with liveupdate resources
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
                 String liveupdateManifestFilename = "liveupdate.game.dmanifest";
@@ -620,7 +496,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
                 for (int i = 0; i < publisherOutputs.size(); ++i) {
-                    task.getOutputs().get(5 + i).setContent(publisherOutputs.get(i));
+                    task.getOutputs().get(6 + i).setContent(publisherOutputs.get(i));
                     IOUtils.closeQuietly(publisherOutputs.get(i));
                 }
             }
