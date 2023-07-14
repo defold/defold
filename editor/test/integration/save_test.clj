@@ -504,7 +504,7 @@
 
 (deftest save-data-remains-in-cache
   (let [cache-size 50
-        retained-labels #{:save-data :save-value :source-value}]
+        retained-labels #{:save-data :save-value}]
     (letfn [(cached-endpoints []
               (into (sorted-set)
                     (keys (g/cache))))]

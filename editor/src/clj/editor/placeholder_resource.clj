@@ -32,9 +32,19 @@
              (not (text-util/binary? resource)))
     (g/connect node-id :save-data project :save-data)))
 
+;; TODO(save-value): Get rid of these and go over any places where we handle nil resource types some special way.
 (defn view-type [workspace]
   (workspace/get-view-type workspace :code))
 
 (def search-fn r/search-fn)
 
 (def search-value-fn r/search-value-fn)
+
+(defn register-resource-types [workspace]
+  (r/register-code-resource-type workspace
+    :ext resource/placeholder-resource-type-ext
+    :label "Unknown"
+    :icon "icons/32/Icons_29-AT-Unknown.png"
+    :node-type PlaceholderResourceNode
+    :view-types [:code :default]
+    :lazy-loaded true))

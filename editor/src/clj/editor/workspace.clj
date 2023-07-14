@@ -207,8 +207,7 @@ ordinary paths."
             or a coll of strings
 
   Optional kv-args:
-    :node-type          a loaded resource node type; defaults to
-                        editor.placeholder-resource/PlaceholderResourceNode
+    :node-type          a loaded resource node type
     :textual?           whether the resource is textual, default false. This
                         flag affects search in files availability for the
                         resource type and lf/crlf handling on save
@@ -265,10 +264,17 @@ ordinary paths."
                         true, we can simply invalidate its outputs without
                         replacing the node in the graph. Defaults to true if
                         there is no :load-fn.
+    :lazy-loaded        whether or not we should defer loading of the node until
+                        it is opened in the editor. Currently only supported by
+                        code editor resource nodes, and only for file types that
+                        do not interact with any other nodes in the graph.
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+
+  ;; TODO(save-value): Should we get rid of :auto-connect-save-data? now that we don't use it externally?
+  ;; TODO(save-value): Document the :source-value-fn kv-arg.
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? lazy-loaded auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
@@ -283,6 +289,7 @@ ordinary paths."
                        :read-fn read-fn
                        :search-fn search-fn
                        :search-value-fn (or search-value-fn default-search-value-fn)
+                       :source-value-fn source-value-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
@@ -291,6 +298,7 @@ ordinary paths."
                        :template template
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
+                       :lazy-loaded (boolean lazy-loaded)
                        :auto-connect-save-data? (and editable
                                                      (some? write-fn)
                                                      (not (false? auto-connect-save-data?)))}
@@ -873,15 +881,15 @@ ordinary paths."
 (defn set-disk-sha256 [workspace node-id disk-sha256]
   {:pre [(g/node-id? workspace)
          (g/node-id? node-id)
-         (digest/sha256-hex? disk-sha256)]}
+         (or (nil? disk-sha256) (digest/sha256-hex? disk-sha256))]}
   (g/update-property workspace :disk-sha256s-by-node-id assoc node-id disk-sha256))
 
 (defn merge-disk-sha256s [workspace disk-sha256s-by-node-id]
   {:pre [(g/node-id? workspace)
          (map? disk-sha256s-by-node-id)
          (every? g/node-id? (keys disk-sha256s-by-node-id))
-         (every? digest/sha256-hex? (vals disk-sha256s-by-node-id))]}
-  (g/update-property workspace :disk-sha256s-by-node-id merge disk-sha256s-by-node-id))
+         (every? #(or (nil? %) (digest/sha256-hex? %)) (vals disk-sha256s-by-node-id))]}
+  (g/update-property workspace :disk-sha256s-by-node-id into disk-sha256s-by-node-id))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

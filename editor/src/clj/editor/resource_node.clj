@@ -25,24 +25,19 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
-            [util.coll :as coll]
+            [internal.util :as util]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest]))
 
 (set! *warn-on-reflection* true)
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn resource-node-dependencies [resource-node-id resource evaluation-context]
-  (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-    (some-> (g/node-value resource-node-id :source-value evaluation-context)
-            (resource-io/with-translated-error-thrown!)
-            (dependencies-fn))))
-
 (defn make-save-data [node-id resource save-value dirty]
   {:pre [(g/node-id? node-id)
          (resource/resource? resource)
          (boolean? dirty)]}
-  {:node-id node-id ; Used to invalidate the :source-value output after saving.
+  {:node-id node-id ; Used to update the source-value after saving.
    :resource resource
    :dirty dirty
    :save-value save-value})
@@ -58,16 +53,51 @@
     (digest/string->sha256-hex content)
     (resource/resource->sha256-hex (:resource save-data))))
 
+(defn save-value->source-value [save-value resource-type]
+  (if (or (nil? save-value)
+          (g/error-value? save-value))
+    save-value
+    (if-some [source-value-fn (:source-value-fn resource-type)]
+      (source-value-fn save-value)
+      save-value)))
+
+(defn dirty-save-value? [save-value source-value resource-type]
+  (and (some? source-value)
+       (some? save-value)
+       (not= source-value (save-value->source-value save-value resource-type))))
+
 (g/defnk produce-save-data [_node-id resource save-value source-value]
-  (let [dirty (and (some? save-value)
-                   (not= source-value save-value))]
+  (let [resource-type (resource/resource-type resource)
+        dirty (dirty-save-value? save-value source-value resource-type)]
     (make-save-data _node-id resource save-value dirty)))
 
 (g/defnk produce-source-value [_node-id resource]
-  (when-some [read-fn (:read-fn (resource/resource-type resource))]
-    (when (resource/exists? resource)
-      (resource-io/with-error-translation resource _node-id :source-value
-        (read-fn resource)))))
+  ;; The source-value is managed by the save system. When a file is loaded, we
+  ;; store the value returned by the :read-fn (or an ErrorValue in case of an
+  ;; error) as user-data for the node, and then subsequently update it whenever
+  ;; the file is saved. We make sure to invalidate anything downstream of the
+  ;; source-value output when doing so.
+  (if (resource/exists? resource)
+    (g/user-data _node-id :source-value)
+    (resource-io/file-not-found-error _node-id :source-value :fatal resource)))
+
+(defn set-source-value! [node-id source-value]
+  (g/user-data! node-id :source-value source-value)
+  (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
+
+(defn merge-source-values! [source-values-by-node-id]
+  (let [[invalidated-endpoints
+         user-data-values-by-key-by-node-id]
+        (util/into-multiple
+          (pair []
+                {})
+          (pair (map (fn [[node-id]]
+                       (g/endpoint node-id :source-value)))
+                (map (fn [[node-id source-value]]
+                       (pair node-id {:source-value source-value}))))
+          source-values-by-node-id)]
+    (g/user-data-merge! user-data-values-by-key-by-node-id)
+    (g/invalidate-outputs! invalidated-endpoints)))
 
 (g/defnk produce-sha256 [_node-id resource save-value]
   ;; TODO(save-value)(merge): Use save-data-sha256 here and update it to return an ErrorValue instead of throwing.
@@ -87,7 +117,7 @@
 
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
-  (output source-value g/Any :cached :unjammable produce-source-value)
+  (output source-value g/Any :unjammable produce-source-value)
 
   (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
@@ -110,12 +140,12 @@
               :outline-overridden? (not (empty? _overridden-properties))})))
   (output sha256 g/Str :cached produce-sha256))
 
+;; TODO(save-value): Can we remove this now?
 (g/defnode NonEditableResourceNode
   (inherits ResourceNode)
 
   (output save-data g/Any (g/constantly nil))
-  (output save-value g/Any (g/constantly nil))
-  (output source-value g/Any :unjammable produce-source-value)) ; No need to cache, but used during load.
+  (output save-value g/Any (g/constantly nil)))
 
 (definline ^:private resource-node-resource [basis resource-node]
   ;; This is faster than g/node-value, and doesn't require creating an
@@ -246,16 +276,10 @@
                          (some? sanitize-fn) (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
                          (some? string-encode-fn) (comp string-encode-fn))
-        load-fn (fn load-fn [project self resource source-value]
-                  ;; TODO(save-value)(merge): We've moved the source-value read out. Need to also move the sha256 calculation.
-                  (let [[source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)]
-                    (cond->> (load-fn project self resource source-value)
-                             disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
                  (dissoc :string-encode-fn)
                  (assoc :textual? true
-                        :load-fn load-fn
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                         :read-raw-fn read-raw-fn
                         :read-fn read-fn
@@ -270,14 +294,8 @@
                     (settings-core/parse-settings setting-reader)))
         write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
                        settings-core/settings-with-value)
-        load-fn (fn [project self resource source-value]
-                  ;; TODO(save-value)(merge): We've moved the source-value read out. Need to also move the sha256 calculation.
-                  (let [[source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)]
-                    (cond->> (load-fn project self resource source-value)
-                             disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
         args (assoc args
                :textual? true
-               :load-fn load-fn
                :read-fn read-fn
                :write-fn write-fn
                :search-fn settings-core/raw-settings-search-fn)]

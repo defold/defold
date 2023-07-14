@@ -21,6 +21,7 @@
           <entry key="dynamo.graph/with-auto-or-fake-evaluation-context" value="-1" />
           <entry key="dynamo.graph/with-system" value="-1" />
           <entry key="editor.analytics-test/with-config!" value="-1" />
+          <entry key="editor.code.resource/register-code-resource-type" value="-1" />
           <entry key="editor.editor-extensions/execute-with!" value="-1" />
           <entry key="editor.editor-extensions/gen-query" value="-1" />
           <entry key="editor.editor-extensions/try-with-extension-exceptions" value="-1" />

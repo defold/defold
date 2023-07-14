@@ -137,7 +137,7 @@
     (concat
       (g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
       (workspace/merge-disk-sha256s workspace (:written-disk-sha256s-by-node-id post-save-actions))))
-  (project/invalidate-save-data-source-values! (:written-save-datas post-save-actions)))
+  (project/update-saved-source-values! (:written-save-datas post-save-actions)))
 
 (defn- start-save-job! [render-reload-progress! render-save-progress! project changes-view]
   (let [workspace (project/workspace project)

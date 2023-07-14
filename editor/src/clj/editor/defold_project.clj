@@ -37,6 +37,7 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
             [util.coll :refer [pair]]
@@ -61,49 +62,75 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-registered-resource-node [resource-type project node-id resource node-id->source-value]
+(defn- resource-type->node-type [resource-type]
+  (or (:node-type resource-type)
+      placeholder-resource/PlaceholderResourceNode))
+
+(def resource-node-type (comp resource-type->node-type resource/resource-type))
+
+(defn- load-registered-resource-node [resource-type project node-id resource source-value]
   (let [read-fn (:read-fn resource-type)
         load-fn (:load-fn resource-type)]
-    (concat
-      (when (some? load-fn)
-        (if (nil? read-fn)
-          (load-fn project node-id resource)
-          (let [source-value (if node-id->source-value
-                               (resource-io/with-translated-error-thrown!
-                                 (node-id->source-value node-id))
-                               (read-fn resource))]
-          (load-fn project node-id resource source-value))))
-      (when (and (resource/file-resource? resource)
+    (cond-> []
+
+            load-fn
+            (into (flatten
+                    (if (nil? read-fn)
+                      (load-fn project node-id resource)
+                      (load-fn project node-id resource source-value))))
+
+            (and (resource/file-resource? resource)
                  (resource/editable? resource)
                  (:auto-connect-save-data? resource-type))
-        (g/connect node-id :save-data project :save-data)))))
+            (into (g/connect node-id :save-data project :save-data))
 
-(defn load-node [project node-id node-type resource node-id->source-value]
-  ;; Note that node-id here may be temporary (a make-node not
-  ;; g/transact'ed) here, so we can't use (node-value node-id :...)
+            :always
+            not-empty)))
+
+(defn- mark-node-file-not-found [node-id resource]
+  (let [node-type (resource-node-type resource)
+        error-value (resource-io/file-not-found-error node-id nil :fatal resource)]
+    (g/mark-defective node-id node-type error-value)))
+
+(defn- mark-node-invalid-content [node-id resource exception]
+  (let [node-type (resource-node-type resource)
+        error-value (resource-io/invalid-content-error node-id nil :fatal resource exception)]
+    (g/mark-defective node-id node-type error-value)))
+
+(defn- load-resource-node [project resource-node-id resource source-value]
+  ;; TODO(save-value): This should no longer be true - we should always have a committed resource-node-id.
+  ;; Note that resource-node-id here may be temporary (a make-node not
+  ;; g/transact'ed) here, so we can't use (node-value resource-node-id :...)
   ;; to inspect it. That's why we pass in node-type, resource.
-  (try
-    (let [resource-type (some-> resource resource/resource-type)
-          already-loaded (and *load-cache* (contains? @*load-cache* node-id))]
-      (when-not already-loaded
-        (if (or (= :folder (resource/source-type resource))
-                (not (resource/exists? resource)))
-          (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
-          (try
-            (when *load-cache*
-              (swap! *load-cache* conj node-id))
-            (doall
-              (if (nil? resource-type)
-                (placeholder-resource/load-node project node-id resource)
-                (load-registered-resource-node resource-type project node-id resource node-id->source-value)))
-            (catch Exception e
-              (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource e)))))))
-    (catch Throwable t
-      (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
-                      {:node-type node-type
-                       :resource-path (resource/resource->proj-path resource)}
-                      t)))))
+  (assert (some? *load-cache*))
+
+  ;; TODO(save-value): We shouldn't have duplicate calls anymore, right?
+  (assert (not (contains? @*load-cache* resource-node-id)))
+
+  ;; Don't generate duplicate tx-data for nodes that have already been loaded.
+  (when-not (contains? @*load-cache* resource-node-id)
+    (swap! *load-cache* conj resource-node-id)
+    (try
+      (if (or (= :folder (resource/source-type resource))
+              (not (resource/exists? resource)))
+        (do
+          ;; TODO(save-value): This shouldn't be able to happen anymore, right?
+          (assert (and (not= :folder (resource/source-type resource))
+                       (resource/exists? resource)))
+          (mark-node-file-not-found resource-node-id resource))
+        (try
+          (if-let [resource-type (resource/resource-type resource)]
+            (load-registered-resource-node resource-type project resource-node-id resource source-value)
+            (placeholder-resource/load-node project resource-node-id resource))
+          (catch Exception exception
+            (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
+            (mark-node-invalid-content resource-node-id resource exception))))
+      (catch Throwable throwable
+        (let [proj-path (resource/proj-path resource)]
+          (throw (ex-info (format "Error when loading resource '%s'" proj-path)
+                          {:node-type (resource-node-type resource)
+                           :proj-path proj-path}
+                          throwable)))))))
 
 (defn load-embedded-resource-node [project embedded-resource-node-id embedded-resource source-value]
   (let [embedded-resource-type (resource/resource-type embedded-resource)
@@ -111,128 +138,260 @@
     (load-fn project embedded-resource-node-id embedded-resource source-value)))
 
 (defn- node-load-dependencies
-  "Returns node-ids for the immediate dependencies of node-id.
+  "Returns the node-ids that are immediate dependencies of specified node-id.
 
-  `loaded-nodes` is the complete set of nodes being loaded.
+  `resource-node-ids-by-proj-path` is a map from proj-path to:
+    * new node-id if the resource is being reloaded.
+    * old node-id if the resource is not being reloaded.
 
-  `loaded-nodes-by-resource-path` is a map from project path to node id for the nodes being
-  reloaded.
+  `old-resource-node-dependencies` is a function from an already loaded node-id
+  to the vector of proj-paths it currently depends on.
 
-  `nodes-by-resource-path` is a map from project path to:
-    * new node-id if the path is being reloaded
-    * old node-id if the path is not being reloaded
+  `new-resource-node-dependencies` is a function from a not-yet-loaded node-id
+  to the vector of proj-paths it depends on in the file contents on disk. If the
+  node is not being reloaded, the function must return nil."
+  [node-id resource-node-ids-by-proj-path old-resource-node-dependencies new-resource-node-dependencies]
+  (into []
+        (keep resource-node-ids-by-proj-path)
+        (or (new-resource-node-dependencies node-id)
+            (old-resource-node-dependencies node-id))))
 
-  `resource-node-dependencies` is a function from node id to the project
-  paths which are the in-memory/current dependencies for nodes not
-  being reloaded."
+(defn read-node-load-info [node-id resource resource-metrics]
+  (let [{:keys [lazy-loaded read-fn] :as resource-type} (resource/resource-type resource)
 
-  [node-id resource loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
-  (let [dependency-paths (if (contains? loaded-nodes node-id)
-                           (try
-                             (resource-node/resource-node-dependencies node-id resource evaluation-context)
-                             (catch Exception e
-                               (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
-                                                      (resource/proj-path resource))
-                                         :exception e)
-                               nil))
-                           (resource-node-dependencies node-id))
-        dependency-nodes (keep nodes-by-resource-path dependency-paths)]
-    dependency-nodes))
+        read-result
+        (when (and read-fn
+                   (not lazy-loaded))
+          (try
+            (if (or (= :folder (resource/source-type resource))
+                    (not (resource/exists? resource)))
+              (do
+                ;; TODO(save-value): This shouldn't be able to happen anymore, right?
+                (assert (and (not= :folder (resource/source-type resource))
+                             (resource/exists? resource)))
+                (resource-io/file-not-found-error node-id nil :fatal resource))
+              (try
+                (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
+                  (resource/read-source-value+sha256-hex resource read-fn))
+                (catch Exception exception
+                  (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
+                  (resource-io/invalid-content-error node-id nil :fatal resource exception))))
+            (catch Throwable throwable
+              (let [proj-path (resource/proj-path resource)]
+                (throw (ex-info (format "Error when reading resource '%s'" proj-path)
+                                {:node-type (:node-type resource-type)
+                                 :proj-path proj-path}
+                                throwable))))))
 
-(defn sort-nodes-for-loading
-  ([node-ids load-deps]
-   (first (sort-nodes-for-loading node-ids #{} [] #{} (set node-ids) load-deps)))
-  ([node-ids in-progress queue queued batch load-deps]
-   (if-not (seq node-ids)
-     [queue queued]
-     (let [node-id (first node-ids)]
+        [source-value disk-sha256 read-error]
+        (if (g/error-value? read-result)
+          [nil nil read-result]
+          read-result)
+
+        dependency-proj-paths
+        (when (some? source-value)
+          (when-let [dependencies-fn (:dependencies-fn resource-type)]
+            (try
+              (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
+                (not-empty (vec (dependencies-fn source-value))))
+              (catch Exception exception
+                (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
+                                       (resource/proj-path resource))
+                          :exception exception)
+                nil))))]
+
+    (cond-> {:node-id node-id
+             :resource resource}
+            read-error (assoc :read-error read-error)
+            source-value (assoc :source-value source-value)
+            disk-sha256 (assoc :disk-sha256 disk-sha256)
+            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
+
+(defn- sort-node-ids-for-loading
+  ([node-ids node-id->dependency-node-ids]
+   (first (sort-node-ids-for-loading node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
+  ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
+   (let [node-id (first node-ids)]
+     (if (nil? node-id)
+       [queue queued]
        ;; TODO: Handle recursive dependencies properly. Here we treat
        ;; a recurring node-id as "already loaded", which might not be
        ;; correct. Maybe log? Keep information about circular
        ;; dependency to be used in get-resource-node etc?
        (if (or (contains? queued node-id) (contains? in-progress node-id))
-         (recur (rest node-ids) in-progress queue queued batch load-deps)
-         (let [deps (load-deps node-id)
-               [dep-queue dep-queued] (sort-nodes-for-loading deps (conj in-progress node-id) queue queued batch load-deps)]
+         (recur (rest node-ids) in-progress queue queued batch node-id->dependency-node-ids)
+         (let [deps (node-id->dependency-node-ids node-id)
+               [dep-queue dep-queued] (sort-node-ids-for-loading deps (conj in-progress node-id) queue queued batch node-id->dependency-node-ids)]
            (recur (rest node-ids)
                   in-progress
                   (if (contains? batch node-id) (conj dep-queue node-id) dep-queue)
                   (conj dep-queued node-id)
                   batch
-                  load-deps)))))))
+                  node-id->dependency-node-ids)))))))
 
-(defn- load-resource-nodes [project node-ids render-progress! resource-node-dependencies resource-metrics]
-  (let [evaluation-context (g/make-evaluation-context)
-        node-id->resource (into {}
-                                (map (fn [node-id]
-                                       [node-id (g/node-value node-id :resource evaluation-context)]))
-                                node-ids)
-        node-id->source-value (memoize #(g/node-value % :source-value evaluation-context))
-        old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
-        loaded-nodes-by-resource-path (into {}
-                                            (map (fn [[node-id resource]]
-                                                   [(resource/proj-path resource) node-id]))
-                                            node-id->resource)
-        nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
-        loaded-nodes (set node-ids)
-        load-deps (fn [node-id]
-                    (let [resource (node-id->resource node-id)]
-                      (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
-                        (node-load-dependencies node-id resource loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))))
-        node-ids (sort-nodes-for-loading loaded-nodes load-deps)
-        basis (:basis evaluation-context)
-        render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4)
-        render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 4))
-        resource-metrics-load-timer (du/when-metrics
-                                      (volatile! 0))
-        start-resource-metrics-load-timer! (du/when-metrics
-                                             (fn []
-                                               (vreset! resource-metrics-load-timer (System/nanoTime))))
-        stop-resource-metrics-load-timer! (du/when-metrics
-                                            (fn [resource-path]
-                                              (let [end-time (System/nanoTime)
-                                                    ^long start-time @resource-metrics-load-timer]
-                                                (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))
-        load-txs (doall
-                   (for [[node-index node-id] (map-indexed #(pair (inc %1) %2) node-ids)]
-                     (let [resource (node-id->resource node-id)
-                           resource-path (resource/resource->proj-path resource)
-                           loading-progress (progress/make (str "Loading " resource-path)
-                                                           (count node-ids)
-                                                           node-index)
-                           processing-progress (progress/make (str "Processing " resource-path)
-                                                              (count node-ids)
-                                                              node-index)]
-                       (do
-                         (render-loading-progress! loading-progress)
-                         (du/if-metrics
-                           [(g/callback render-processing-progress! processing-progress)
-                            (g/callback start-resource-metrics-load-timer!)
-                            (du/measuring resource-metrics resource-path :generate-load-tx-data
-                              (load-node project node-id (g/node-type* basis node-id) resource node-id->source-value))
-                            (g/callback stop-resource-metrics-load-timer! resource-path)]
-                           [(g/callback render-processing-progress! processing-progress)
-                            (load-node project node-id (g/node-type* basis node-id) resource node-id->source-value)])))))]
-    (g/update-cache-from-evaluation-context! evaluation-context)
-    load-txs))
+(defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project]
+  (if read-error
+    (let [node-type (resource-node-type resource)]
+      (g/mark-defective node-id node-type read-error))
+    (let [source-value (:source-value node-load-info)]
+      (load-resource-node project node-id resource source-value))))
 
-(defn- load-nodes! [project node-ids render-progress! resource-node-dependencies resource-metrics transaction-metrics]
-  (let [tx-result (g/transact (du/when-metrics {:metrics transaction-metrics})
-                    (load-resource-nodes project node-ids render-progress! resource-node-dependencies resource-metrics))]
-    (render-progress! progress/done)
-    tx-result))
+(defn- sort-node-load-infos-for-loading [node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies]
+  {:pre [(map? old-resource-node-ids-by-proj-path)
+         (ifn? old-resource-node-dependencies)]}
+  (let [[node-id->node-load-info
+         resource-node-ids-by-proj-path]
+        (iutil/into-multiple
+          [{}
+           old-resource-node-ids-by-proj-path]
+          [(map (juxt :node-id identity))
+           (map (fn [{:keys [node-id resource]}]
+                  (let [proj-path (resource/proj-path resource)]
+                    (pair proj-path node-id))))]
+          node-load-infos)
+
+        new-resource-node-dependencies
+        (fn new-resource-node-dependencies [node-id]
+          ;; We want to return nil if the node-id is not known to us, and an empty vector otherwise.
+          (when-let [node-load-info (node-id->node-load-info node-id)]
+            (or (:dependency-proj-paths node-load-info) [])))
+
+        node-id->dependency-node-ids (memoize #(node-load-dependencies % resource-node-ids-by-proj-path old-resource-node-dependencies new-resource-node-dependencies))
+        node-id-load-order (sort-node-ids-for-loading (keys node-id->node-load-info) node-id->dependency-node-ids)]
+    (mapv node-id->node-load-info node-id-load-order)))
+
+(defn- load-tx-data [node-load-infos project progress-loading! progress-processing! resource-metrics]
+  (let [resource-metrics-load-timer
+        (du/when-metrics
+          (volatile! 0))
+
+        start-resource-metrics-load-timer!
+        (du/when-metrics
+          (fn []
+            (vreset! resource-metrics-load-timer (System/nanoTime))))
+
+        stop-resource-metrics-load-timer!
+        (du/when-metrics
+          (fn [resource-path]
+            (let [end-time (System/nanoTime)
+                  ^long start-time @resource-metrics-load-timer]
+              (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))]
+    (doall
+      (for [[node-index node-load-info] (map-indexed #(pair (inc %1) %2) node-load-infos)]
+        (let [resource (:resource node-load-info)
+              proj-path (resource/proj-path resource)]
+          (progress-loading! node-index proj-path)
+          (du/if-metrics
+            [(g/callback progress-processing! node-index proj-path)
+             (g/callback start-resource-metrics-load-timer!)
+             (du/measuring resource-metrics proj-path :generate-load-tx-data
+               (node-load-info-tx-data node-load-info project))
+             (g/callback stop-resource-metrics-load-timer! proj-path)]
+            [(g/callback progress-processing! node-index proj-path)
+             (node-load-info-tx-data node-load-info project)]))))))
+
+(defn- read-node-load-infos [node-ids progress-reading! resource-metrics]
+  (let [basis (g/now)]
+    (into []
+          (map-indexed (fn [node-index node-id]
+                         (let [resource (resource-node/resource basis node-id)
+                               proj-path (resource/proj-path resource)]
+                           (progress-reading! (inc node-index) proj-path)
+                           (read-node-load-info node-id resource resource-metrics))))
+          node-ids)))
+
+(defn- store-loaded-disk-sha256-hashes! [node-load-infos workspace]
+  (let [disk-sha256s-by-node-id
+        (into {}
+              (keep (fn [{:keys [resource] :as node-load-info}]
+                      (when (and (resource/file-resource? resource)
+                                 (not (:stateless? (resource/resource-type resource))))
+                        (let [{:keys [disk-sha256 node-id]} node-load-info]
+                          (pair node-id disk-sha256)))))
+              node-load-infos)]
+    (g/transact
+      (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))))
+
+(defn- store-loaded-source-values! [node-load-infos]
+  (let [source-values-by-node-id
+        (into {}
+              (keep (fn [{:keys [resource] :as node-load-info}]
+                      ;; The source-value output will never be evaluated for
+                      ;; non-editable or stateless resources, so there is no
+                      ;; need to store their entries.
+                      (when (and (resource/file-resource? resource)
+                                 (resource/editable? resource))
+                        (let [resource-type (resource/resource-type resource)]
+                          (when-not (:stateless? resource-type)
+                            ;; Note: Here, source-value is whatever was returned
+                            ;; by the read-fn, so it's technically a save-value.
+                            (let [{:keys [node-id read-error source-value]} node-load-info
+                                  value (or read-error (resource-node/save-value->source-value source-value resource-type))]
+                              (pair node-id value)))))))
+              node-load-infos)]
+    (resource-node/merge-source-values! source-values-by-node-id)))
+
+(defn update-saved-source-values! [save-datas]
+  (let [source-values-by-node-id
+        (into {}
+              (map (fn [{:keys [node-id resource save-value]}]
+                     (let [resource-type (resource/resource-type resource)
+                           value (resource-node/save-value->source-value save-value resource-type)]
+                       (pair node-id value))))
+              save-datas)]
+    (resource-node/merge-source-values! source-values-by-node-id)))
+
+(defn- load-nodes-into-graph! [node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics]
+  (let [tx-data (load-tx-data node-load-infos project progress-loading! progress-processing! resource-metrics)
+        tx-opts (du/when-metrics {:metrics transaction-metrics})]
+    (g/transact tx-opts tx-data)))
+
+(declare workspace)
+
+(defn- make-progress-fns [task-allocations loaded-node-count render-progress!]
+  (let [total-task-size (transduce (map first) + task-allocations)]
+    (second
+      (reduce (fn [[accumulated-task-size progress-fns] [task-size task-label]]
+                (let [parent-progress (progress/make "" total-task-size accumulated-task-size)
+                      render-nested-progress! (progress/nest-render-progress render-progress! parent-progress task-size)]
+                  (pair (+ accumulated-task-size task-size)
+                        (conj progress-fns
+                              (fn progress-fn [loaded-node-index proj-path]
+                                (render-nested-progress!
+                                  (progress/make (str task-label \space proj-path)
+                                                 loaded-node-count
+                                                 loaded-node-index)))))))
+              (pair 0 [])
+              task-allocations))))
+
+(defn- load-nodes! [project node-ids render-progress! old-resource-node-dependencies resource-metrics transaction-metrics]
+  (let [workspace (workspace project)
+        old-resource-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)
+
+        [progress-reading!
+         progress-loading!
+         progress-processing!]
+        (make-progress-fns [[3 "Reading"]
+                            [1 "Loading"]
+                            [1 "Processing"]]
+                           (count node-ids)
+                           render-progress!)
+
+        node-load-infos
+        (-> node-ids
+            (read-node-load-infos progress-reading! resource-metrics)
+            (sort-node-load-infos-for-loading old-resource-node-ids-by-proj-path old-resource-node-dependencies))]
+
+    (store-loaded-disk-sha256-hashes! node-load-infos workspace)
+    (store-loaded-source-values! node-load-infos)
+    (load-nodes-into-graph! node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics)
+    (render-progress! progress/done)))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
     (for [[src-label tgt-label] connections
           :when (contains? outputs src-label)]
       (g/connect src src-label tgt tgt-label))))
-
-(defn- resource-type->node-type [resource-type]
-  (or (:node-type resource-type)
-      placeholder-resource/PlaceholderResourceNode))
-
-(def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)
@@ -365,9 +524,6 @@
         save-data
         render-progress!
         (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
-
-(defn invalidate-save-data-source-values! [save-data]
-  (g/invalidate-outputs! (mapv (fn [sd] (g/endpoint (:node-id sd) :source-value)) save-data)))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]
@@ -525,7 +681,7 @@
           old-nodes-by-path (g/node-value project :nodes-by-resource-path)
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
-                                           (fn [node-id]
+                                           (fn old-resource-node-dependencies [node-id]
                                              (let [resource (g/node-value node-id :resource rn-dependencies-evaluation-context)]
                                                (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
                                                  (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
@@ -854,14 +1010,35 @@
             [node-id creation-tx-data] (if existing-resource-node-id
                                          [existing-resource-node-id nil]
                                          (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
-            node-type (resource-node-type resource)]
+            node-type (resource-node-type resource)
+            created-in-tx (not existing-resource-node-id)
+
+            load-tx-data
+            (cond
+              ;; If we just created the resource node, that means the referenced
+              ;; resource does not exist, or it would have already been created
+              ;; during resource-sync.
+              created-in-tx
+              (mark-node-file-not-found node-id resource)
+
+              ;; If we're in the process of loading, we can verify that the
+              ;; referenced resource node has been loaded before the node that
+              ;; refers to it. If it hasn't been loaded yet, this means the
+              ;; :dependencies-fn of the consumer-node is not reporting it as a
+              ;; dependency. This is a programming error, so we throw an Error
+              ;; instead of an Exception.
+              (and *load-cache* (not (contains? @*load-cache* node-id)))
+              (throw (Error. (format "Node of type %s refers to '%s', but it hasn't been loaded yet. Check its :dependencies-fn."
+                                     (g/node-type-kw (:basis evaluation-context) consumer-node)
+                                     (resource/proj-path resource)))))]
         {:node-id node-id
-         :created-in-tx (not existing-resource-node-id)
-         :tx-data (concat
-                    creation-tx-data
-                    (when (or creation-tx-data *load-cache*)
-                      (load-node project node-id node-type resource nil))
-                    (connect-if-output node-type node-id consumer-node connections))}))))
+         :created-in-tx created-in-tx
+         :tx-data (vec
+                    (flatten
+                      (concat
+                        creation-tx-data
+                        load-tx-data
+                        (connect-if-output node-type node-id consumer-node connections))))}))))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
@@ -906,12 +1083,12 @@
   ([endpoint]
    (case (g/endpoint-label endpoint)
      (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
-     (:save-data :save-value :source-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     (:save-data :save-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
      false))
   ([basis endpoint]
    (case (g/endpoint-label endpoint)
      (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
-     (:save-data :save-value :source-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
+     (:save-data :save-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
      false)))
 
 (defn- cached-build-target-output? [node-id label evaluation-context]
@@ -921,7 +1098,7 @@
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
   (case label
-    (:save-data :save-value :source-value) (project-file-resource-node? (:basis evaluation-context) node-id)
+    (:save-data :save-value) (project-file-resource-node? (:basis evaluation-context) node-id)
     false))
 
 (defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]

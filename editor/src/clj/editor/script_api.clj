@@ -168,15 +168,11 @@
               ;; resource then it is being actively worked on. Otherwise, it
               ;; belongs to an external dependency and should not stop the build
               ;; on errors.
-              (concat
-                (g/connect self :build-errors si :build-errors)
-
-                ;; Don't connect to save-data when under a non-editable path.
-                (when (resource/editable? resource)
-                  (g/connect self :save-data project :save-data)))))))
+              (g/connect self :build-errors si :build-errors)))))
 
 (defn register-resource-types
   [workspace]
+  ;; TODO(save-value): This seems like it should be able to use r/register-code-resource-type with an :additional-load-fn?
   (workspace/register-resource-type workspace
     :ext "script_api"
     :label "Script API"
@@ -188,6 +184,6 @@
     :write-fn r/write-fn
     :search-fn r/search-fn
     :search-value-fn r/search-value-fn
+    :source-value-fn r/source-value-fn
     :textual? true
-    :language "yaml"
-    :auto-connect-save-data? false))
+    :language "yaml"))

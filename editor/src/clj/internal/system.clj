@@ -124,6 +124,29 @@
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
 
+(defn cache-output-values
+  "Write the supplied key-value pairs to the cache. Downstream endpoints will be
+  invalidated if the value differs from the previously cached entry."
+  [system endpoint+value-pairs]
+  (let [basis (basis system)
+        cache (:cache system)
+
+        changed-endpoint+value-pairs
+        (filterv (fn [[endpoint new-value]]
+                   (let [old-value (get cache endpoint ::not-found)]
+                     (or (= ::not-found old-value)
+                         (not= old-value new-value))))
+                 endpoint+value-pairs)
+
+        invalidated-endpoints
+        (gt/dependencies basis (mapv first changed-endpoint+value-pairs))]
+
+    (-> system
+        (update :invalidate-counters bump-invalidate-counters invalidated-endpoints)
+        (assoc :cache (-> cache
+                          (c/cache-invalidate invalidated-endpoints)
+                          (c/cache-encache changed-endpoint+value-pairs basis))))))
+
 (defn- step-through-history
   [step-function system graph-id]
   (let [history (graph-history system graph-id)
@@ -371,6 +394,19 @@
 (defn update-user-data [system node-id key f & args]
   (let [graph-id (gt/node-id->graph-id node-id)]
     (update-in system [:user-data graph-id node-id key] #(apply f %1 %2) args)))
+
+(defn merge-user-data [system values-by-key-by-node-id]
+  (assoc system
+    :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
+                         (assoc user-data
+                           graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
+                                              (update graph-user-data node-id merge values-by-key))
+                                            (get user-data graph-id)
+                                            values-by-key-by-node-id)))
+                       (:user-data system)
+                       (group-by (fn [[node-id]]
+                                   (gt/node-id->graph-id node-id))
+                                 values-by-key-by-node-id))))
 
 (defn clone-system [system]
   {:graphs (:graphs system)

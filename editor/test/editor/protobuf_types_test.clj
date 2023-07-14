@@ -31,8 +31,7 @@
           true))))
 
 (def expected-dependencies
-  {
-   "/test.animationset" ["/test2.animationset"]
+  {"/test.animationset" ["/test2.animationset"]
    "/test.atlas" ["/builtins/graphics/particle_blob.png"]
    "/test.camera" []
    "/test.collection" []
@@ -159,23 +158,20 @@
           proj-graph (g/make-graph! :history true :volatility 1)
           extensions (extensions/make proj-graph)
           project (project/make-project proj-graph workspace extensions)]
-      (with-bindings {#'project/*load-cache* (atom #{})}
-        (let [nodes (#'project/make-nodes! project (g/node-value project :resources))
-              evaluation-context (g/make-evaluation-context)
-              loaded-nodes-by-resource-path (into {}
-                                                  (map (fn [node-id]
-                                                         [(resource/proj-path (g/node-value node-id :resource evaluation-context)) node-id]))
-                                                  nodes)
-              node-deps (fn [node-id]
-                          (let [resource (g/node-value node-id :resource evaluation-context)]
-                            (#'project/node-load-dependencies node-id resource (set nodes) loaded-nodes-by-resource-path {} evaluation-context)))
-              load-order (into {}
-                               (map-indexed (fn [index node-id]
-                                              [(resource/resource->proj-path (g/node-value node-id :resource evaluation-context)) index]))
-                               (#'project/sort-nodes-for-loading nodes node-deps))]
-          (doseq [[resource-path dependencies] expected-dependencies
-                  dependency dependencies]
-            (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))))
+      (let [node-load-infos
+            (-> project
+                (#'project/make-nodes! (g/node-value project :resources))
+                (#'project/read-node-load-infos (constantly nil) nil)
+                (#'project/sort-node-load-infos-for-loading {} {}))
+
+            load-order
+            (into {}
+                  (map-indexed (fn [node-index {:keys [resource]}]
+                                 [(resource/proj-path resource) node-index]))
+                  node-load-infos)]
+        (doseq [[resource-path dependencies] expected-dependencies
+                dependency dependencies]
+          (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path)))))))
 
 (def non-broken-dependencies
   {"/broken_embedded_gos.collection" [] ; embedded instance broken, so no dependencies

@@ -249,5 +249,5 @@
   (for [def shader-defs
         :let [args (assoc def
                      :node-type ShaderNode
-                     :eager-loading? true)]]
+                     :lazy-loaded false)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

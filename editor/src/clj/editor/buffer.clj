@@ -123,4 +123,4 @@
                                  :view-types [:code :default]
                                  :view-opts {:code {:grammar json/grammar}}
                                  :node-type BufferNode
-                                 :eager-loading? false))
+                                 :lazy-loaded true))

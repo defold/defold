@@ -677,6 +677,10 @@
   (-> (swap! *the-system* (fn [sys] (apply is/update-user-data sys node-id key f args)))
       (is/user-data node-id key)))
 
+(defn user-data-merge! [values-by-key-by-node-id]
+  (swap! *the-system* is/merge-user-data values-by-key-by-node-id)
+  nil)
+
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
   applied in a transact.
@@ -946,6 +950,13 @@
   ([outputs]
    (swap! *the-system* is/invalidate-outputs outputs)
    nil))
+
+(defn cache-output-values!
+  "Write the supplied key-value pairs to the cache. Downstream endpoints will be
+  invalidated if the value differs from the previously cached entry."
+  [endpoint+value-pairs]
+  (swap! *the-system* is/cache-output-values endpoint+value-pairs)
+  nil)
 
 (defn node-defaults
   "Returns a map of property labels to default values. Properties that do not

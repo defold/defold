@@ -52,13 +52,17 @@
 
 (def resource? (partial satisfies? Resource))
 
+(def placeholder-resource-type-ext "*")
+
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
 (defn- get-resource-type [workspace resource]
-  (if (editable? resource)
-    (get (g/node-value workspace :resource-types) (type-ext resource))
-    (get (g/node-value workspace :resource-types-non-editable) (type-ext resource))))
+  (let [output-label (if (editable? resource) :resource-types :resource-types-non-editable)
+        resource-types (g/node-value workspace output-label)
+        ext (type-ext resource)]
+    (or (get resource-types ext)
+        (get resource-types placeholder-resource-type-ext))))
 
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this

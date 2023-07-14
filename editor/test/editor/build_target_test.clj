@@ -256,6 +256,7 @@
       (is (= {} flatten-errors)))))
 
 (deftest build-target-content-hashes-are-unaffected-by-node-ids
+  ;; TODO(save-value): Is this comment up-to-date?
   ;; This test ensures the build target content hashes do not change in case a
   ;; node id differs between editing sessions. If a node id is needed inside a
   ;; build target, it must be in a map under a key that ends with "node-id".
