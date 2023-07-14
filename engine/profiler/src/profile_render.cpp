@@ -86,7 +86,7 @@ namespace dmProfileRender
     static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHARACTER_WIDTH;
 
     static const int COUNTERS_NAME_WIDTH  = 32 * CHARACTER_WIDTH;
-    static const int COUNTERS_COUNT_WIDTH = 8 * CHARACTER_WIDTH;
+    static const int COUNTERS_COUNT_WIDTH = 10 * CHARACTER_WIDTH;
 
     enum DisplayMode
     {
