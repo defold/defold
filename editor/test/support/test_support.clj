@@ -18,6 +18,8 @@
             [editor.fs :as fs]
             [internal.system :as is]))
 
+(set! *warn-on-reflection* true)
+
 (def enable-performance-tests
   (nil? (get (System/getenv)
              "DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS")))
@@ -34,6 +36,19 @@
 
 (defn tx-nodes [& txs]
   (g/tx-nodes-added (g/transact txs)))
+
+(defn valid-node-value
+  ([node-id label]
+   (g/with-auto-evaluation-context evaluation-context
+     (valid-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (let [value (g/node-value node-id label evaluation-context)]
+     (if (g/error? value)
+       (throw (ex-info "Evaluation produced an ErrorValue."
+                       {:node-type (g/node-type-kw (:basis evaluation-context) node-id)
+                        :label label
+                        :error-value value}))
+       value))))
 
 (defn array= [a b]
   (and

@@ -1736,7 +1736,6 @@ bail:
 
     void Step(HEngine engine)
     {
-        DM_PROFILE("Step");
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
@@ -1748,6 +1747,7 @@ bail:
 
         for (uint32_t i = 0; i < num_steps; ++i)
         {
+            DM_PROFILE("Step");
             // We currently cannot separate the update from the render,
             // since some of the update is done in the render updates (e.g. sprite transforms)
             StepFrame(engine, step_dt);
