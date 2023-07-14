@@ -100,59 +100,63 @@ namespace dmLiveUpdate
 
     static int Resource_StoreResource(lua_State* L)
     {
-dmLogWarning("%s TEMPORARILY DISABLED!", __FUNCTION__);
+        DM_LUA_STACK_CHECK(L, 0);
 
-        // DM_LUA_STACK_CHECK(L, 0);
+        // manifest index in first arg [luaL_checkint(L, 1)] deprecated
 
-        // // manifest index in first arg [luaL_checkint(L, 1)] deprecated
         // dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
         // if (manifest == 0x0)
         // {
         //     return DM_LUA_ERROR("The manifest identifier does not exist");
         // }
 
-        // size_t buf_len = 0;
-        // const char* buf = luaL_checklstring(L, 2, &buf_len);
-        // size_t hex_digest_length = 0;
-        // const char* hex_digest = luaL_checklstring(L, 3, &hex_digest_length);
-        // lua_pushvalue(L, 2);
-        // int buf_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        // lua_pushvalue(L, 3);
-        // int hex_digest_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        // The resource data (including the liveupdate header)
+        size_t buf_len = 0;
+        const char* buf = luaL_checklstring(L, 2, &buf_len);
+        // The hash digest of the resource (which is also the filename)
+        size_t hex_digest_length = 0;
+        const char* hex_digest = luaL_checklstring(L, 3, &hex_digest_length);
 
-        // dmLiveUpdate::Result res;
-        // dmResourceArchive::LiveUpdateResource resource((const uint8_t*) buf, buf_len);
-        // if (buf_len < sizeof(dmResourceArchive::LiveUpdateResourceHeader))
-        // {
-        //     resource.m_Header = 0x0;
-        //     dmLogError("The liveupdate resource could not be verified, header information is missing for resource: %s", hex_digest);
-        //     // fall through here to run callback with status failed as well
-        // }
+        lua_pushvalue(L, 2);
+        int buf_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        lua_pushvalue(L, 3);
+        int hex_digest_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-        // StoreResourceCallbackData* cb = new StoreResourceCallbackData;
-        // cb->m_Callback = dmScript::CreateCallback(L, 4);
-        // cb->m_HexDigest = hex_digest;
-        // cb->m_HexDigestRef = hex_digest_ref;
-        // cb->m_ResourceRef = buf_ref;
-        // res = dmLiveUpdate::StoreResourceAsync(manifest, hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
-        // switch(res)
-        // {
-        //     case dmLiveUpdate::RESULT_INVALID_HEADER:
-        //         dmLogError("The liveupdate resource could not be verified, header information is missing for resource: %s", hex_digest);
-        //     break;
+        dmResourceArchive::LiveUpdateResource resource((const uint8_t*) buf, buf_len);
+        if (buf_len < sizeof(dmResourceArchive::LiveUpdateResourceHeader))
+        {
+            resource.m_Header = 0x0;
+            dmLogError("The liveupdate resource could not be verified, header information is missing for resource: %s", hex_digest);
+            // fall through here to run callback with status failed as well
+        }
 
-        //     case dmLiveUpdate::RESULT_MEM_ERROR:
-        //         dmLogError("Verification of liveupdate resource failed, missing manifest/data for resource: %s", hex_digest);
-        //     break;
+        StoreResourceCallbackData* cb = new StoreResourceCallbackData;
+        cb->m_Callback = dmScript::CreateCallback(L, 4);
+        cb->m_HexDigest = hex_digest;
+        cb->m_HexDigestRef = hex_digest_ref;
+        cb->m_ResourceRef = buf_ref;
+        //res = dmLiveUpdate::StoreResourceAsync(manifest, hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
-        //     case dmLiveUpdate::RESULT_INVALID_RESOURCE:
-        //         dmLogError("Verification of liveupdate resource failed for expected hash for resource: %s", hex_digest);
-        //     break;
+        dmLiveUpdate::Result res = dmLiveUpdate::StoreResourceAsync(hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
-        //     default:
-        //     break;
-        // }
+        switch(res)
+        {
+            case dmLiveUpdate::RESULT_INVALID_HEADER:
+                dmLogError("The liveupdate resource could not be verified, header information is missing for resource: %s", hex_digest);
+            break;
+
+            case dmLiveUpdate::RESULT_MEM_ERROR:
+                dmLogError("Verification of liveupdate resource failed, missing manifest/data for resource: %s", hex_digest);
+            break;
+
+            case dmLiveUpdate::RESULT_INVALID_RESOURCE:
+                dmLogError("Verification of liveupdate resource failed for expected hash for resource: %s", hex_digest);
+            break;
+
+            default:
+            break;
+        }
 
         return 0;
     }

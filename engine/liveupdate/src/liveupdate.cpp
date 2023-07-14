@@ -34,6 +34,7 @@
 #include <resource/resource_archive.h>
 #include <resource/resource_mounts.h>
 #include <resource/resource_manifest.h> // project id len
+#include <resource/resource_util.h>     // BytesToHexString for debug printing
 #include <resource/providers/provider.h>
 
 #if defined(_WIN32)
@@ -73,9 +74,9 @@ namespace dmLiveUpdate
         return RESULT_INVALID_RESOURCE;
     }
 
-    struct LiveUpdate
+    struct LiveUpdateCtx
     {
-        LiveUpdate()
+        LiveUpdateCtx()
         {
             memset(this, 0x0, sizeof(*this));
         }
@@ -85,53 +86,16 @@ namespace dmLiveUpdate
         dmResourceMounts::HContext      m_ResourceMounts;       // The resource mounts
         dmResourceProvider::HArchive    m_ResourceBaseArchive;  // The "game.arcd" archive
         dmResourceProvider::HArchive    m_LiveupdateArchive;
+        dmResource::HManifest           m_LiveupdateArchiveManifest;
 
-        dmJobThread::HJobThread         m_JobThread;
+        dmJobThread::HContext           m_JobThread;
     };
 
-    LiveUpdate g_LiveUpdate;
-
-    // ******************************************************************
-    // ** LiveUpdate utility functions
-    // ******************************************************************
+    LiveUpdateCtx g_LiveUpdate;
 
     // ******************************************************************
     // ** LiveUpdate legacy functions
     // ******************************************************************
-
-    // enum LegacyArchiveFormat
-    // {
-    //     LAF_ARCHIVE_MUTABLE = 0,
-    //     LAF_ZIP             = 1,
-    //     LAF_NONE            = -1,
-    // };
-
-    // // .ref archives take precedence over .arci/.arcd
-    // // .tmp takes precedence over non .tmp
-    // //  0: .arci/.arci format
-    // //  1: .ref format
-    // // -1: No LU archive file format found
-    // static LegacyArchiveFormat LegacyDetermineLUType(const char* app_support_path)
-    // {
-    //     const char* names[4] = {LIVEUPDATE_ARCHIVE_TMP_FILENAME, LIVEUPDATE_INDEX_TMP_FILENAME, LIVEUPDATE_ARCHIVE_FILENAME, LIVEUPDATE_INDEX_FILENAME};
-    //     LegacyArchiveFormat types[4] = {LAF_ZIP, LAF_ARCHIVE_MUTABLE, LAF_ZIP, LAF_ARCHIVE_MUTABLE};
-    //     for (int i = 0; i < 4; ++i)
-    //     {
-    //         char path[DMPATH_MAX_PATH];
-    //         dmPath::Concat(app_support_path, names[i], path, DMPATH_MAX_PATH);
-    //         if (FileExists(path))
-    //         {
-    //             dmLogInfo("Found %s", path);
-    //             return types[i];
-    //         }
-    //     }
-    //     return LAF_NONE;
-    // }
-
-    // Result ParseManifestBin(uint8_t* manifest_data, uint32_t manifest_len, dmResource::Manifest* manifest)
-    // {
-    //     return ResourceResultToLiveupdateResult(dmResource::ManifestLoadMessage(manifest_data, manifest_len, manifest));
-    // }
 
 //     static Result StoreManifestInternal(const char* app_support_path, dmResource::Manifest* manifest)
 //     {
@@ -160,6 +124,7 @@ namespace dmLiveUpdate
 //     }
 
     // Clean up old mount file formats that we don't need any more
+    // TODO: Only do this until we persist the mounts
     static void LegacyCleanOldMountFormats(const char* app_support_path)
     {
         const char* filenames[] = {LIVEUPDATE_ARCHIVE_TMP_FILENAME, LIVEUPDATE_ARCHIVE_FILENAME, LIVEUPDATE_BUNDLE_VER_FILENAME};
@@ -339,6 +304,20 @@ namespace dmLiveUpdate
         return archive;
     }
 
+    // ******************************************************************
+    // ** LiveUpdate async functions
+    // ******************************************************************
+
+    static bool PushAsyncJob(dmJobThread::FProcess process, dmJobThread::FCallback callback, void* jobctx, void* jobdata)
+    {
+        dmJobThread::PushJob(g_LiveUpdate.m_JobThread, process, callback, jobctx, jobdata);
+        return true;
+    }
+
+    // ******************************************************************
+    // ** LiveUpdate script functions
+    // ******************************************************************
+
     // Legacy function
     Result StoreManifestToMutableArchive(dmResource::Manifest* manifest)
     {
@@ -374,301 +353,112 @@ namespace dmLiveUpdate
         // return StoreManifestInternal(g_LiveUpdate.m_AppSupportPath, manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
-    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
+    struct ResourceInfo
     {
-        if (manifest == 0x0 || resource->m_Data == 0x0)
+        ResourceInfo() {
+            memset(this, 0, sizeof(*this));
+        }
+        dmResourceProvider::HArchive            m_Archive;
+        dmResourceArchive::LiveUpdateResource   m_Resource; // points to external, ref-counted data
+        const char*                             m_ExpectedResourceDigest;
+        uint32_t                                m_ExpectedResourceDigestLength;
+
+        void                                    (*m_Callback)(bool, void*);
+        void*                                   m_CallbackData;
+
+        uint8_t                                 m_IsArchive:1;
+        uint8_t                                 m_VerifyArchive:1;
+    };
+
+    // Called on the worker thread
+    static int StoreResourceProcess(LiveUpdateCtx* jobctx, ResourceInfo* job)
+    {
+        dmLogInfo("Processing resource job '%s'", job->m_ExpectedResourceDigest);
+
+        if (jobctx->m_LiveupdateArchiveManifest == 0 || jobctx->m_LiveupdateArchive == 0)
+        {
+            dmLogWarning("No liveupdate mount found. Have to create one now");
+            jobctx->m_LiveupdateArchive = LegacyCreateMutableArchive(jobctx->m_AppSupportPath, jobctx->m_ResourceBaseArchive);
+
+            if (g_LiveUpdate.m_LiveupdateArchive)
+                dmResourceProvider::GetManifest(g_LiveUpdate.m_LiveupdateArchive, &g_LiveUpdate.m_LiveupdateArchiveManifest);
+
+            if (jobctx->m_LiveupdateArchiveManifest == 0 || jobctx->m_LiveupdateArchive == 0)
+            {
+                dmLogError("Still no liveupdate mount found. Skipping storing of resource: %s", job->m_ExpectedResourceDigest);
+                return 0;
+            }
+        }
+
+        dmhash_t digest_hash = dmHashBuffer64(job->m_ExpectedResourceDigest, job->m_ExpectedResourceDigestLength);
+        dmhash_t url_hash = dmResource::GetUrlHashFromHexDigest(jobctx->m_LiveupdateArchiveManifest, digest_hash);
+
+        dmLogInfo("  url_hash '%s' -> %016llx", job->m_ExpectedResourceDigest, url_hash);
+
+        if (!url_hash)
+            return 0;
+
+        // The path, is actually just a filename when it comes to these resources
+        dmResourceProvider::Result result = dmResourceProvider::WriteFile(jobctx->m_LiveupdateArchive, url_hash, job->m_ExpectedResourceDigest,
+                                                        (uint8_t*)&job->m_Resource, job->m_Resource.GetSizeWithHeader());
+
+        return dmResourceProvider::RESULT_OK == result;
+    }
+    // Called on the main thread (see dmJobThread::Update below)
+    static void StoreResourceFinished(LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
+    {
+        dmLogInfo("Finishing resource job '%s'", job->m_ExpectedResourceDigest);
+
+        if (job->m_Callback)
+            job->m_Callback(result == 1, job->m_CallbackData);
+
+        delete job;
+    }
+
+    Result StoreResourceAsync(const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
+    {
+        if (resource->m_Data == 0x0)
         {
             return RESULT_MEM_ERROR;
         }
 
-        AsyncResourceRequest request;
-        request.m_Manifest = manifest;
-        request.m_ExpectedResourceDigestLength = expected_digest_length;
-        request.m_ExpectedResourceDigest = expected_digest;
-        request.m_Resource.Set(*resource);
-        request.m_CallbackData = callback_data;
-        request.m_Callback = callback;
-        bool res = AddAsyncResourceRequest(request);
+        if (!resource->HasValidHeader())
+        {
+            dmLogError("Resource has invalid header: '%s'", expected_digest);
+            return RESULT_INVALID_RESOURCE;
+        }
+
+        ResourceInfo* info = new ResourceInfo;
+        info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
+        info->m_Resource.Set(*resource);
+        info->m_ExpectedResourceDigest = expected_digest;
+        info->m_ExpectedResourceDigestLength = expected_digest_length;
+        info->m_Callback = callback;
+        info->m_CallbackData = callback_data;
+
+        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreResourceProcess, (dmJobThread::FCallback)StoreResourceFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
     Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
     {
-        if (!dmSys::Exists(path)) {
-            dmLogError("File does not exist: '%s'", path);
-            return RESULT_INVALID_RESOURCE;
-        }
+        // if (!dmSys::Exists(path)) {
+        //     dmLogError("File does not exist: '%s'", path);
+        //     return RESULT_INVALID_RESOURCE;
+        // }
 
-        AsyncResourceRequest request;
-        request.m_CallbackData = callback_data;
-        request.m_Callback = callback;
-        request.m_Path = path;
-        request.m_IsArchive = 1;
-        request.m_VerifyArchive = verify_archive;
-        //request.m_Manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
-        dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &request.m_Manifest);
+        // AsyncResourceRequest request;
+        // request.m_CallbackData = callback_data;
+        // request.m_Callback = callback;
+        // request.m_Path = path;
+        // request.m_IsArchive = 1;
+        // request.m_VerifyArchive = verify_archive;
+        // //request.m_Manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
+        // dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &request.m_Manifest);
 
-        bool res = AddAsyncResourceRequest(request);
-        return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
-    }
-
-    // static void* CopyDDFMessage(void* message, const dmDDF::Descriptor* desc)
-    // {
-    //     if (!message)
-    //         return 0;
-
-    //     dmArray<uint8_t> buffer;
-    //     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(message, desc, buffer);
-    //     if (dmDDF::RESULT_OK != ddf_result)
-    //     {
-    //         return 0;
-    //     }
-
-    //     void* copy = 0;
-    //     ddf_result = dmDDF::LoadMessage((void*)&buffer[0], buffer.Size(), desc, (void**)&copy);
-    //     if (dmDDF::RESULT_OK != ddf_result)
-    //     {
-    //         return 0;
-    //     }
-
-    //     return copy;
-    // }
-
-    // static void CreateFilesIfNotExists(dmResourceArchive::HArchiveIndexContainer archive_container, const char* app_support_path, const char* arci, const char* arcd)
-    // {
-    //     char lu_index_path[DMPATH_MAX_PATH] = {};
-    //     dmPath::Concat(app_support_path, arci, lu_index_path, DMPATH_MAX_PATH);
-
-    //     // If liveupdate.arci does not exists, create it and liveupdate.arcd
-    //     if (!dmSys::Exists(lu_index_path))
-    //     {
-    //         FILE* f_lu_index = fopen(lu_index_path, "wb");
-    //         fclose(f_lu_index);
-    //     }
-
-    //     dmResourceArchive::ArchiveFileIndex* afi = archive_container->m_ArchiveFileIndex;
-    //     if (afi->m_FileResourceData == 0)
-    //     {
-    //         // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-    //         char lu_data_path[DMPATH_MAX_PATH];
-    //         dmPath::Concat(app_support_path, arcd, lu_data_path, DMPATH_MAX_PATH);
-
-    //         FILE* f_lu_data = fopen(lu_data_path, "ab+");
-    //         if (!f_lu_data)
-    //         {
-    //             dmLogError("Failed to create liveupdate resource file");
-    //         }
-
-    //         dmResourceArchive::ArchiveFileIndex* afi = archive_container->m_ArchiveFileIndex;
-
-    //         dmStrlCpy(afi->m_Path, lu_data_path, DMPATH_MAX_PATH);
-    //         dmLogInfo("Live Update archive: %s", afi->m_Path);
-    //         afi->m_FileResourceData = f_lu_data;
-    //         afi->m_ResourceData = 0x0;
-    //         afi->m_ResourceSize = 0;
-    //         afi->m_IsMemMapped = false;
-    //     }
-    // }
-
-    // static dmResourceArchive::Result LULoadManifest(const char* archive_name, const char* app_path, const char* app_support_path, const dmResource::Manifest* base_manifest, dmResource::Manifest** out)
-    // {
-    //     dmStrlCpy(g_LiveUpdate.m_AppPath, app_path, DMPATH_MAX_PATH); // MAWE : Only used to find the public key!
-
-    //     g_LiveUpdate.m_ArchiveType = DetermineLUType(app_support_path);
-    //     if (g_LiveUpdate.m_ArchiveType == -1)
-    //         return dmResourceArchive::RESULT_NOT_FOUND;
-
-    //     dmResourceArchive::Result result = dmResourceArchive::RESULT_OK;
-    //     if (g_LiveUpdate.m_ArchiveType == 1)
-    //     {
-    //         result = LULoadManifest_Zip(archive_name, app_path, app_support_path, base_manifest, out);
-    //         if (dmResourceArchive::RESULT_OK != result)
-    //         {
-    //             LUCleanup_Zip(archive_name, app_path, app_support_path);
-    //             g_LiveUpdate.m_ArchiveType = 0;
-    //         }
-    //         else
-    //         {
-    //             LUCleanup_Regular(archive_name, app_path, app_support_path);
-    //         }
-    //     }
-
-    //     if (g_LiveUpdate.m_ArchiveType == 0)
-    //     {
-    //         result = LULoadManifest_Regular(archive_name, app_path, app_support_path, base_manifest, out);
-    //         if (dmResourceArchive::RESULT_OK != result)
-    //         {
-    //             LUCleanup_Regular(archive_name, app_path, app_support_path);
-    //             g_LiveUpdate.m_ArchiveType = -1;
-    //         }
-    //         else
-    //         {
-    //             LUCleanup_Zip(archive_name, app_path, app_support_path);
-    //         }
-    //     }
-
-    //     if (dmResourceArchive::RESULT_OK == result)
-    //     {
-    //         assert(g_LiveUpdate.m_LUManifest == 0);
-    //         g_LiveUpdate.m_LUManifest = *out;
-    //     }
-    //     return result;
-    // }
-
-    // static dmResourceArchive::Result LUCleanupArchive(const char* archive_name, const char* app_path, const char* app_support_path)
-    // {
-    //     if (g_LiveUpdate.m_ArchiveType == -1)
-    //         return dmResourceArchive::RESULT_OK;
-    //     else if (g_LiveUpdate.m_ArchiveType == 1)
-    //         return LUCleanup_Zip(archive_name, app_path, app_support_path);
-    //     else
-    //         return LUCleanup_Regular(archive_name, app_path, app_support_path);
-    // }
-
-    // static dmResourceArchive::Result LULoadArchive(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out)
-    // {
-    //     if (g_LiveUpdate.m_ArchiveType == -1)
-    //         return dmResourceArchive::RESULT_NOT_FOUND;
-
-    //     dmResourceArchive::Result result;
-    //     if (g_LiveUpdate.m_ArchiveType == 1)
-    //         result = LULoadArchive_Zip(manifest, archive_name, app_path, app_support_path, previous, out);
-    //     else
-    //         result = LULoadArchive_Regular(manifest, archive_name, app_path, app_support_path, previous, out);
-
-    //     if (dmResourceArchive::RESULT_OK != result)
-    //     {
-    //         LUCleanupArchive(archive_name, app_path, app_support_path);
-    //         g_LiveUpdate.m_ArchiveType = -1;
-    //     }
-
-    //     return result;
-    // }
-
-    // static dmResourceArchive::Result LUUnloadArchive(dmResourceArchive::HArchiveIndexContainer archive)
-    // {
-    //     assert(g_LiveUpdate.m_ArchiveType != -1);
-    //     if (g_LiveUpdate.m_ArchiveType == 1)
-    //         return LUUnloadArchive_Zip(archive);
-    //     else
-    //         return LUUnloadArchive_Regular(archive);
-    // }
-
-    // static dmResourceArchive::Result LUFindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry)
-    // {
-    //     assert(g_LiveUpdate.m_ArchiveType != -1);
-    //     if (g_LiveUpdate.m_ArchiveType == 1)
-    //         return LUFindEntryInArchive_Zip(archive, hash, hash_len, entry);
-    //     else
-    //         return LUFindEntryInArchive_Regular(archive, hash, hash_len, entry);
-    // }
-
-    // static dmResourceArchive::Result LUReadEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const dmResourceArchive::EntryData* entry, void* buffer)
-    // {
-    //     assert(g_LiveUpdate.m_ArchiveType != -1);
-    //     if (g_LiveUpdate.m_ArchiveType == 1)
-    //         return LUReadEntryFromArchive_Zip(archive, hash, hash_len, entry, buffer);
-    //     else
-    //         return LUReadEntryFromArchive_Regular(archive, hash, hash_len, entry, buffer);
-    // }
-
-    // static dmResource::Manifest* CreateLUManifest(const dmResource::Manifest* base_manifest)
-    // {
-    //     // Create the actual copy
-    //     dmResource::Manifest* manifest = new dmResource::Manifest;
-    //     manifest->m_DDF = (dmLiveUpdateDDF::ManifestFile*)CopyDDFMessage(base_manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor);
-    //     manifest->m_DDFData = (dmLiveUpdateDDF::ManifestData*)CopyDDFMessage(base_manifest->m_DDFData, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor);
-
-    //     manifest->m_ArchiveIndex = new dmResourceArchive::ArchiveIndexContainer;
-    //     manifest->m_ArchiveIndex->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
-    //     manifest->m_ArchiveIndex->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-    //     // Even though it isn't technically true, it will allow us to use the correct ArchiveIndex struct
-    //     manifest->m_ArchiveIndex->m_IsMemMapped = 1;
-
-    //     manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_Version;
-    //     manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength = base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_HashLength;
-    //     memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
-
-    //     char app_support_path[DMPATH_MAX_PATH];
-    //     if (dmResource::RESULT_OK != GetApplicationSupportPath(base_manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-    //     {
-    //         return 0;
-    //     }
-
-    //     // Data file has same path and filename as index file, but extension .arcd instead of .arci.
-    //     char lu_data_path[DMPATH_MAX_PATH];
-    //     dmPath::Concat(app_support_path, LIVEUPDATE_DATA_FILENAME, lu_data_path, DMPATH_MAX_PATH);
-
-    //     FILE* f_lu_data = fopen(lu_data_path, "wb+");
-    //     if (!f_lu_data)
-    //     {
-    //         dmLogError("Failed to create/load liveupdate resource file");
-    //     }
-
-    //     dmStrlCpy(manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path, lu_data_path, DMPATH_MAX_PATH);
-    //     dmLogInfo("Live Update archive: %s", manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_Path);
-
-    //     manifest->m_ArchiveIndex->m_ArchiveFileIndex->m_FileResourceData = f_lu_data;
-
-    //     manifest->m_ArchiveIndex->m_Loader.m_Unload = LUUnloadArchive_Regular;
-    //     manifest->m_ArchiveIndex->m_Loader.m_FindEntry = LUFindEntryInArchive_Regular;
-    //     manifest->m_ArchiveIndex->m_Loader.m_Read = LUReadEntryFromArchive_Regular;
-
-    //     return manifest;
-    // }
-
-    // void RegisterArchiveLoaders()
-    // {
-    //     dmResourceArchive::ArchiveLoader loader;
-    //     loader.m_LoadManifest = LULoadManifest;
-    //     loader.m_Load = LULoadArchive;
-    //     loader.m_Unload = LUUnloadArchive;
-    //     loader.m_FindEntry = LUFindEntryInArchive;
-    //     loader.m_Read = LUReadEntryInArchive;
-    //     dmResourceArchive::RegisterArchiveLoader(loader);
-    // }
-
-
-    // Result StoreZipArchive(const char* path, bool verify_archive)
-    // {
-    //     char application_support_path[DMPATH_MAX_PATH];
-    //     Result result = LoadAndOptionallyVerifyZipArchive(path, application_support_path, sizeof(application_support_path), verify_archive);
-    //     if (RESULT_OK != result)
-    //     {
-    //         return result;
-    //     }
-
-    //     // Store zip file ref in "<support path>/liveupdate.ref.tmp"
-    //     char archive_path[DMPATH_MAX_PATH];
-    //     dmSnPrintf(archive_path, sizeof(archive_path), "%s/%s", application_support_path, LIVEUPDATE_ARCHIVE_TMP_FILENAME);
-
-    //     FILE* f = fopen(archive_path, "wb");
-    //     if (!f) {
-    //         dmLogError("Couldn't open %s for writing", archive_path);
-    //         return RESULT_IO_ERROR;
-    //     }
-
-    //     size_t len = (size_t)strlen(path);
-    //     size_t nwritten = fwrite(path, 1, len, f);
-    //     fclose(f);
-
-    //     if (nwritten != len) {
-    //         dmLogError("Couldn't write liveupdate path reference to %s", archive_path);
-    //         return RESULT_IO_ERROR;
-    //     }
-
-    //     dmLogInfo("Stored reference to '%s' in '%s'", path, archive_path);
-
-    //     return RESULT_OK;
-    // }
-
-    // ******************************************************************
-    // ** LiveUpdate async functions
-    // ******************************************************************
-
-    bool PushAsyncJob(dmJobThread::FJobItemProcess process, dmJobThread::FJobItemCallback callback, void* jobctx, void* jobdata)
-    {
-        return dmJobThread::PushJob(g_LiveUpdate.m_JobThread, process, callback, jobctx, jobdata);
+        // bool res = AddAsyncResourceRequest(request);
+        // return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
+        return RESULT_INVALID_RESOURCE;
     }
 
     // ******************************************************************
@@ -753,31 +543,31 @@ namespace dmLiveUpdate
             dmLogDebug("No liveupdate mount or archive found at startup");
         }
 
-        dmLiveUpdate::AsyncInitialize(factory);
-        g_LiveUpdate.m_JobThread = dmJobThread::New("liveupdate_jobs");
+        g_LiveUpdate.m_LiveupdateArchiveManifest = 0;
+        if (g_LiveUpdate.m_LiveupdateArchive)
+        {
+            dmResourceProvider::GetManifest(g_LiveUpdate.m_LiveupdateArchive, &g_LiveUpdate.m_LiveupdateArchiveManifest);
+        }
 
-        if (params->m_L) // TODO: until unit tests have been updated
+        //dmLiveUpdate::AsyncInitialize(factory);
+        g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
+
+        if (params->m_L) // TODO: until unit tests have been updated with a Lua context
             ScriptInit(params->m_L, factory);
         return dmExtension::RESULT_OK;
     }
 
     static dmExtension::Result Finalize(dmExtension::Params* params)
     {
-        dmJobThread::Join(g_LiveUpdate.m_JobThread);
-        // // if this is is not the base manifest
-        // if (g_LiveUpdate.m_ResourceFactory && dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
-        //     dmResource::DeleteManifest(g_LiveUpdate.m_LUManifest);
-        // g_LiveUpdate.m_LUManifest = 0;
+        dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
         g_LiveUpdate.m_ResourceFactory = 0;
-        dmLiveUpdate::AsyncFinalize();
         return dmExtension::RESULT_OK;
     }
 
     static dmExtension::Result Update(dmExtension::Params* params)
     {
         DM_PROFILE("LiveUpdate");
-        AsyncUpdate();
-        dmJobThread::Update(g_LiveUpdate.m_JobThread);
+        dmJobThread::Update(g_LiveUpdate.m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
         return dmExtension::RESULT_OK;
     }
 };

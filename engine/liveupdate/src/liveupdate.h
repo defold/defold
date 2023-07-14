@@ -18,12 +18,6 @@
 #include <stdint.h>
 #include <dlib/hash.h>
 
-namespace dmResource
-{
-    typedef struct SResourceFactory* HFactory;
-    struct Manifest;
-}
-
 namespace dmResourceArchive
 {
     struct LiveUpdateResource;
@@ -50,15 +44,6 @@ namespace dmLiveUpdate
     };
 
 
-    //const int MAX_MANIFEST_COUNT = 8;
-    //const int CURRENT_MANIFEST = 0x0ac83fcc;
-    //const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
-
-
-    // void Initialize(const dmResource::HFactory factory);
-    // void Finalize();
-    // void Update();
-
     /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
      */
@@ -71,13 +56,14 @@ namespace dmLiveUpdate
     // Scripting
     bool HasLiveUpdateMount();
 
-    Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
+    Result StoreResourceAsync(const char* expected_digest, const uint32_t expected_digest_length,
+                                    const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
     /*# Registers an archive (.zip) on disc
      */
     Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive);
 
-    Result StoreManifestToMutableArchive(dmResource::Manifest* manifest);
+    //Result StoreManifestToMutableArchive(dmResource::Manifest* manifest);
 
     // -1: not using liveupdate
     // 0: single files
