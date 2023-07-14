@@ -20,7 +20,7 @@
 
 namespace dmResource
 {
-    struct Manifest; // TODO: Remove this dependency
+    typedef struct Manifest* HManifest;
 
     typedef Result (*FDecryptResource)(void* buffer, uint32_t buffer_len);
     void RegisterResourceDecryption(FDecryptResource decrypt_resource);
@@ -35,7 +35,7 @@ namespace dmResource
      * retreive the content hash then hashing the actual manifest content and comparing the two.
      * This method handles the signature decryption part.
      */
-    Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
+    Result DecryptSignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
 
 
     /*#

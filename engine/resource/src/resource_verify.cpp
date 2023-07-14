@@ -1,5 +1,5 @@
 #include "resource_archive.h"
-#include "resource_manifest.h"
+#include "resource_manifest_private.h"
 #include "resource_util.h"
 #include "resource_verify.h"
 
@@ -33,7 +33,7 @@ namespace dmResource
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::Manifest* manifest)
+    dmResource::Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::HManifest manifest)
     {
         uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
         dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
@@ -44,7 +44,7 @@ namespace dmResource
         return VerifyResourcesBundled(entries, entry_count, hash_len, archive);
     }
 
-    Result VerifyResource(const dmResource::Manifest* manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length)
+    Result VerifyResource(const dmResource::HManifest manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length)
     {
         if (manifest == 0x0 || data == 0x0)
         {
@@ -64,7 +64,7 @@ namespace dmResource
         return dmResource::MemCompare(hexDigest, hexDigestLength-1, expected, expected_length);
     }
 
-    static bool VerifyManifestSupportedEngineVersion(const dmResource::Manifest* manifest)
+    static bool VerifyManifestSupportedEngineVersion(const dmResource::HManifest manifest)
     {
         // Calculate running dmengine version SHA1 hash
         dmSys::EngineInfo engine_info;
@@ -94,7 +94,7 @@ namespace dmResource
         return engine_version_supported;
     }
 
-    static Result VerifyManifestHash(const char* public_key_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+    static Result VerifyManifestHash(const char* public_key_path, const HManifest manifest, const uint8_t* expected_digest, uint32_t expected_len)
     {
         Result res = RESULT_OK;
         //char public_key_path[DMPATH_MAX_PATH];
@@ -141,7 +141,7 @@ namespace dmResource
         return res;
     }
 
-    static Result VerifyManifestSignature(const dmResource::Manifest* manifest, const char* public_key_path)
+    static Result VerifyManifestSignature(const dmResource::HManifest manifest, const char* public_key_path)
     {
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
         uint32_t digest_len = dmResource::HashLength(algorithm);
@@ -152,7 +152,7 @@ namespace dmResource
         return dmResource::VerifyManifestHash(public_key_path, manifest, digest, digest_len);
     }
 
-    Result VerifyManifest(const dmResource::Manifest* manifest, const char* public_key_path)
+    Result VerifyManifest(const dmResource::HManifest manifest, const char* public_key_path)
     {
         if (!VerifyManifestSupportedEngineVersion(manifest))
             return RESULT_VERSION_MISMATCH;
@@ -160,7 +160,7 @@ namespace dmResource
         return VerifyManifestSignature(manifest, public_key_path);
     }
 
-    // static Result VerifyManifestBundledResources(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::Manifest* manifest)
+    // static Result VerifyManifestBundledResources(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::HManifest manifest)
     // {
     //     assert(archive);
     //     dmResource::Result res;
@@ -184,10 +184,10 @@ namespace dmResource
     //     return ResourceResultToLiveupdateResult(res);
     // }
 
-    // Result VerifyManifestReferences(const dmResource::Manifest* manifest)
+    // Result VerifyManifestReferences(const dmResource::HManifest manifest)
     // {
     //     assert(g_LiveUpdate.m_ResourceFactory != 0);
-    //     const dmResource::Manifest* base_manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
+    //     const dmResource::HManifest base_manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
     //     // The reason the base manifest is zero here, could be that we're running from the editor.
     //     // (The editor doesn't bundle the resources required for this step)
     //     if (!base_manifest)

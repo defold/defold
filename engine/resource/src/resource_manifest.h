@@ -39,37 +39,27 @@ namespace dmResource
     // For use with GetProjectId()
     const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
-    // TODO: Hide the implementation
-    struct Manifest
-    {
-        Manifest()
-        {
-            memset(this, 0, sizeof(Manifest));
-        }
-
-        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
-        dmLiveUpdateDDF::ManifestFile*              m_DDF;
-        dmLiveUpdateDDF::ManifestData*              m_DDFData;
-    };
+    typedef struct Manifest* HManifest;
 
     // Get the string representation of the Sha1 hash of the "project.title" from game.project
     const char*         GetProjectId(dmResource::Manifest* manifest, char* buffer, uint32_t buffer_size);
 
     const char*         GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size); // .dmanifest
 
-    uint32_t            GetEntryHashLength(dmResource::Manifest* manifest);
+    uint32_t            GetEntryHashLength(dmResource::HManifest manifest);
 
-    void                DeleteManifest(dmResource::Manifest* manifest);
-    dmResource::Result  LoadManifest(const dmURI::Parts* uri, dmResource::Manifest** out);
-    dmResource::Result  LoadManifest(const char* path, dmResource::Manifest** out);
-    dmResource::Result  LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out);
+    void                DeleteManifest(dmResource::HManifest manifest);
+    dmResource::Result  LoadManifest(const dmURI::Parts* uri, dmResource::HManifest* out);
+    dmResource::Result  LoadManifest(const char* path, dmResource::HManifest* out);
+    dmResource::Result  LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::HManifest* out);
 
-    dmResource::Result  WriteManifest(const char* path, dmResource::Manifest* manifest);
+    dmResource::Result  WriteManifest(const char* path, dmResource::HManifest manifest);
 
     // Gets the dependencies of a resource.
     // Note: Only returns the dependency path urls. It doesn't recurse.
-    dmResource::Result  GetDependencies(dmResource::Manifest* manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies);
-    //dmResource::Result  GetDependencies(dmResource::Manifest* manifest, const dmhash_t url_hash, dmArray<dmLiveUpdateDDF::ResourceEntry*>& dependencies);
+    dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies);
+    //dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmLiveUpdateDDF::ResourceEntry*>& dependencies);
+
 
     /*#
      * Find resource entry within the manifest
@@ -78,10 +68,10 @@ namespace dmResource
      * @param entry entry data
      * @return entry [type: dmLiveUpdateDDF::ResourceEntry*] the entry if found. 0 otherwise
      */
-    dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::Manifest* manifest, dmhash_t url_hash);
+    dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::HManifest manifest, dmhash_t url_hash);
 
     // Used when debugging (e.g. unit tests)
-    void DebugPrintManifest(dmResource::Manifest* manifest);
+    void DebugPrintManifest(dmResource::HManifest manifest);
 }
 
 #endif // DM_RESOURCE_MANIFEST_H

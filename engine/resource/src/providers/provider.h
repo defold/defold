@@ -21,7 +21,7 @@
 
 namespace dmResource
 {
-    struct Manifest;
+    typedef struct Manifest* HManifest;
 }
 
 namespace dmResourceProvider
@@ -43,7 +43,7 @@ namespace dmResourceProvider
     typedef struct ArchiveLoader*   HArchiveLoader;
 
 
-
+    // Api for the resource loaders
     typedef bool   (*FCanMount)(const dmURI::Parts* uri);
     typedef Result (*FMount)(const dmURI::Parts* uri, HArchive base_archive, HArchiveInternal* out_archive);
     typedef Result (*FUnmount)(HArchiveInternal archive);
@@ -51,8 +51,8 @@ namespace dmResourceProvider
     typedef Result (*FGetFileSize)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
-    typedef Result (*FGetManifest)(HArchiveInternal, dmResource::Manifest**); // In order for other providers to get the base manifest
-    typedef Result (*FSetManifest)(HArchiveInternal, dmResource::Manifest*);  // In order to set a downloaded manifest to a provider
+    typedef Result (*FGetManifest)(HArchiveInternal, dmResource::HManifest*); // In order for other providers to get the base manifest
+    typedef Result (*FSetManifest)(HArchiveInternal, dmResource::HManifest);  // In order to set a downloaded manifest to a provider
 
 
     // The resource loader types
@@ -66,8 +66,8 @@ namespace dmResourceProvider
     Result CreateMount(ArchiveLoader* loader, void* internal, HArchive* out_archive);
     Result Unmount(HArchive archive);
     Result GetUri(HArchive archive, dmURI::Parts* out_uri);
-    Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest);
-    Result SetManifest(HArchive archive, dmResource::Manifest* manifest);
+    Result GetManifest(HArchive archive, dmResource::HManifest* out_manifest);
+    Result SetManifest(HArchive archive, dmResource::HManifest manifest);
 
     Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);

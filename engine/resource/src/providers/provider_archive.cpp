@@ -19,6 +19,7 @@
 #include "../resource_util.h"
 #include "../resource_private.h" // MountArchiveInternal
 #include "../resource_manifest.h"
+#include "../resource_manifest_private.h"
 #include "../resource_archive.h"
 
 #include <dlib/dstrings.h>
@@ -40,7 +41,7 @@ namespace dmResourceProviderArchive
     struct GameArchiveFile
     {
         dmURI::Parts                                m_BaseUri;
-        dmResource::Manifest*                       m_Manifest;
+        dmResource::HManifest                       m_Manifest;
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
         dmHashTable64<EntryInfo>                    m_EntryMap; // url hash -> entry in the manifest
 
@@ -221,7 +222,7 @@ namespace dmResourceProviderArchive
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
-    static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal internal, dmResource::Manifest** out_manifest)
+    static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal internal, dmResource::HManifest* out_manifest)
     {
         GameArchiveFile* archive = (GameArchiveFile*)internal;
         if (archive->m_Manifest)

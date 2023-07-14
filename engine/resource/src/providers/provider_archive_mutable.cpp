@@ -18,6 +18,7 @@
 #include "provider_archive_private.h"
 
 #include "../resource_manifest.h"
+#include "../resource_manifest_private.h"
 #include "../resource_archive.h"
 #include "../resource_util.h"
 #include "../resource_private.h"
@@ -45,8 +46,8 @@ namespace dmResourceProviderArchiveMutable
 
     struct GameArchiveFile
     {
-        dmResource::Manifest*                       m_Manifest;
-        dmResource::Manifest*                       m_BaseManifest;
+        dmResource::HManifest                       m_Manifest;
+        dmResource::HManifest                       m_BaseManifest;
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveContainer;
         dmHashTable64<EntryInfo>                    m_EntryMap; // url hash -> entry in the manifest
         dmURI::Parts                                m_Uri;
@@ -172,17 +173,17 @@ namespace dmResourceProviderArchiveMutable
         }
     }
 
-    static dmResource::Manifest* CreateManifestCopy(const dmResource::Manifest* base_manifest)
+    static dmResource::HManifest CreateManifestCopy(const dmResource::HManifest base_manifest)
     {
         // Create the actual copy
-        dmResource::Manifest* manifest = new dmResource::Manifest;
+        dmResource::HManifest manifest = new dmResource::Manifest;
         dmDDF::CopyMessage(base_manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&manifest->m_DDF);
         dmDDF::CopyMessage(base_manifest->m_DDFData, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&manifest->m_DDFData);
 
         return manifest;
     }
 
-    static void CreateDynamicManifestArchiveIndex(dmResource::Manifest* manifest, const dmResource::Manifest* base_manifest)
+    static void CreateDynamicManifestArchiveIndex(dmResource::HManifest manifest, const dmResource::HManifest base_manifest)
     {
         if (manifest->m_ArchiveIndex)
             return;
@@ -198,7 +199,7 @@ namespace dmResourceProviderArchiveMutable
         memcpy(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, base_manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5, sizeof(manifest->m_ArchiveIndex->m_ArchiveIndex->m_ArchiveIndexMD5));
     }
 
-    static void OpenDynamicArchiveFile(dmURI::Parts* uri, dmResource::Manifest* manifest)
+    static void OpenDynamicArchiveFile(dmURI::Parts* uri, dmResource::HManifest manifest)
     {
         dmResourceArchive::ArchiveFileIndex* afi = manifest->m_ArchiveIndex->m_ArchiveFileIndex;
 
@@ -250,7 +251,7 @@ namespace dmResourceProviderArchiveMutable
         return dmResourceProvider::RESULT_OK;
     }
 
-    static dmResourceProvider::Result LoadArchive(const dmURI::Parts* uri, dmResource::Manifest* base_manifest, dmResourceProvider::HArchiveInternal* out_archive)
+    static dmResourceProvider::Result LoadArchive(const dmURI::Parts* uri, dmResource::HManifest base_manifest, dmResourceProvider::HArchiveInternal* out_archive)
     {
         dmResourceProvider::Result result;
 
@@ -324,7 +325,7 @@ namespace dmResourceProviderArchiveMutable
         if (!MatchesUri(&uri))
             return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
-        dmResource::Manifest* manifest = 0;
+        dmResource::HManifest manifest = 0;
         if (dmResourceProvider::RESULT_OK != dmResourceProvider::GetManifest(base_archive, &manifest))
         {
             dmLogError("Failed to get manifest from base archive");
@@ -409,7 +410,7 @@ namespace dmResourceProviderArchiveMutable
         return dmResourceProvider::RESULT_OK;
     }
 
-    static dmResourceProvider::Result VerifyResource(const dmResource::Manifest* manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length)
+    static dmResourceProvider::Result VerifyResource(const dmResource::HManifest manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length)
     {
         if (manifest == 0x0 || data == 0x0)
         {
@@ -491,7 +492,7 @@ namespace dmResourceProviderArchiveMutable
         return result;
     }
 
-    static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::Manifest** out_manifest)
+    static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::HManifest* out_manifest)
     {
         GameArchiveFile* archive = (GameArchiveFile*)_archive;
         if (archive->m_Manifest)
@@ -502,7 +503,7 @@ namespace dmResourceProviderArchiveMutable
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
-    static dmResourceProvider::Result SetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::Manifest* manifest)
+    static dmResourceProvider::Result SetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::HManifest manifest)
     {
         GameArchiveFile* archive = (GameArchiveFile*)_archive;
         if (archive->m_Manifest)

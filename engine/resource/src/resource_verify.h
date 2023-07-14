@@ -23,13 +23,13 @@
 
 namespace dmResource
 {
-    struct Manifest;
+    typedef struct Manifest* HManifest;
 
     //Result VerifyManifestReferences(const Manifest* manifest);
     //Result VerifyManifest(const Manifest* manifest);
-    Result VerifyManifest(const Manifest* manifest, const char* public_key_path);
+    Result VerifyManifest(const dmResource::HManifest manifest, const char* public_key_path);
 
-    Result VerifyResource(const dmResource::Manifest* manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length);
+    Result VerifyResource(const dmResource::HManifest manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length);
 
     Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
 

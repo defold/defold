@@ -121,14 +121,14 @@ Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t*
     return archive->m_Loader->m_ReadFile(archive->m_Internal, path_hash, path, buffer, buffer_len);
 }
 
-Result GetManifest(HArchive archive, dmResource::Manifest** out_manifest)
+Result GetManifest(HArchive archive, dmResource::HManifest* out_manifest)
 {
     if (archive->m_Loader->m_GetManifest)
         return archive->m_Loader->m_GetManifest(archive->m_Internal, out_manifest);
     return RESULT_NOT_SUPPORTED;
 }
 
-Result SetManifest(HArchive archive, dmResource::Manifest* manifest)
+Result SetManifest(HArchive archive, dmResource::HManifest manifest)
 {
     if (archive->m_Loader->m_SetManifest)
         return archive->m_Loader->m_SetManifest(archive->m_Internal, manifest);

@@ -17,6 +17,7 @@
 #include "../resource_archive.h"
 #include "../resource_util.h"
 #include "../resource_manifest.h"
+#include "../resource_manifest_private.h"
 #include "../resource_private.h"
 
 #include <dlib/dstrings.h>
@@ -45,7 +46,7 @@ struct ZipProviderContext
 {
     dmURI::Parts                m_BaseUri;
     dmZip::HZip                 m_Zip;
-    dmResource::Manifest*       m_Manifest;
+    dmResource::HManifest       m_Manifest;
     dmHashTable64<EntryInfo>    m_EntryMap; // url hash -> entry in the manifest
 };
 
@@ -146,7 +147,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
     }
 }
 
-static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path, dmResource::Manifest** manifest)
+static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path, dmResource::HManifest* manifest)
 {
     dmZip::Result zr = dmZip::OpenEntry(zip, path);
     if (dmZip::RESULT_OK != zr)
@@ -299,7 +300,7 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
     return result;
 }
 
-static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::Manifest** out_manifest)
+static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal _archive, dmResource::HManifest* out_manifest)
 {
     ZipProviderContext* archive = (ZipProviderContext*)_archive;
     if (archive->m_Manifest)

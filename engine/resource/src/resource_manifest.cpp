@@ -14,6 +14,7 @@
 
 #include "resource.h"
 #include "resource_manifest.h"
+#include "resource_manifest_private.h"
 #include "resource_util.h"
 
 #include <dlib/dstrings.h>
@@ -28,7 +29,7 @@
 namespace dmResource
 {
 
-const char* GetProjectId(dmResource::Manifest* manifest, char* buffer, uint32_t buffer_size)
+const char* GetProjectId(dmResource::HManifest manifest, char* buffer, uint32_t buffer_size)
 {
     uint32_t hash_len = HashLength(dmLiveUpdateDDF::HASH_SHA1);
     if (buffer_size < (hash_len*2+1) )
@@ -43,13 +44,13 @@ const char* GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buff
     return buffer;
 }
 
-uint32_t GetEntryHashLength(dmResource::Manifest* manifest)
+uint32_t GetEntryHashLength(dmResource::HManifest manifest)
 {
     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     return dmResource::HashLength(algorithm);
 }
 
-void DeleteManifest(dmResource::Manifest* manifest)
+void DeleteManifest(dmResource::HManifest manifest)
 {
     if (!manifest)
         return;
@@ -60,7 +61,7 @@ void DeleteManifest(dmResource::Manifest* manifest)
     delete manifest;
 }
 
-static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
+static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::HManifest& out_manifest)
 {
     // Read from manifest resource
     dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
@@ -91,9 +92,9 @@ static dmResource::Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, u
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::Manifest** out)
+dmResource::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer_len, dmResource::HManifest* out)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::HManifest manifest = new dmResource::Manifest();
     dmResource::Result result = ManifestLoadMessage(buffer, buffer_len, manifest);
     if (dmResource::RESULT_OK == result)
     {
@@ -106,7 +107,7 @@ dmResource::Result LoadManifestFromBuffer(const uint8_t* buffer, uint32_t buffer
     return result;
 }
 
-dmResource::Result LoadManifest(const char* path, dmResource::Manifest** out)
+dmResource::Result LoadManifest(const char* path, dmResource::HManifest* out)
 {
     uint32_t manifest_length = 0;
     uint8_t* manifest_buffer = 0x0;
@@ -135,13 +136,13 @@ dmResource::Result LoadManifest(const char* path, dmResource::Manifest** out)
     return result;
 }
 
-dmResource::Result LoadManifest(const dmURI::Parts* uri, dmResource::Manifest** out)
+dmResource::Result LoadManifest(const dmURI::Parts* uri, dmResource::HManifest* out)
 {
     char manifest_path[DMPATH_MAX_PATH];
     return LoadManifest(GetManifestPath(uri, manifest_path, sizeof(manifest_path)), out);
 }
 
-dmResource::Result WriteManifest(const char* path, dmResource::Manifest* manifest)
+dmResource::Result WriteManifest(const char* path, dmResource::HManifest manifest)
 {
     char manifest_tmp_file_path[DMPATH_MAX_PATH];
     dmSnPrintf(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", path);
@@ -162,7 +163,7 @@ dmResource::Result WriteManifest(const char* path, dmResource::Manifest* manifes
     return dmResource::RESULT_OK;
 }
 
-dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::Manifest* manifest, dmhash_t url_hash)
+dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::HManifest manifest, dmhash_t url_hash)
 {
     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
 
@@ -188,7 +189,7 @@ dmLiveUpdateDDF::ResourceEntry* FindEntry(dmResource::Manifest* manifest, dmhash
     return 0;
 }
 
-dmResource::Result GetDependencies(dmResource::Manifest* manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies)
+dmResource::Result GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies)
 {
     dmLiveUpdateDDF::ResourceEntry* entry = FindEntry(manifest, url_hash);
     if (!entry)
@@ -202,7 +203,7 @@ dmResource::Result GetDependencies(dmResource::Manifest* manifest, const dmhash_
     return dmResource::RESULT_OK;
 }
 
-void DebugPrintManifest(dmResource::Manifest* manifest)
+void DebugPrintManifest(dmResource::HManifest manifest)
 {
     for (uint32_t i = 0; i < manifest->m_DDFData->m_Resources.m_Count; ++i)
     {

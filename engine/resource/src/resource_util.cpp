@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "resource_util.h"
-#include "resource_manifest.h"
+#include "resource_manifest_private.h"
 
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
@@ -49,7 +49,7 @@ dmResource::Result DecryptBuffer(void* buffer, uint32_t buffer_len)
     return g_ResourceDecryption(buffer, buffer_len);
 }
 
-Result DecryptSignatureHash(const dmResource::Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
+Result DecryptSignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
 {
     const uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;

@@ -39,6 +39,7 @@
 #include "../resource_archive.h"
 #include "../resource_archive_private.h"
 #include "../resource_manifest.h"
+#include "../resource_manifest_private.h"
 #include "../resource_private.h"
 #include "../resource_util.h"
 #include "../resource_verify.h"
