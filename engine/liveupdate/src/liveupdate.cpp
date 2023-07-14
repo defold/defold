@@ -153,8 +153,42 @@ namespace dmLiveUpdate
 
     static dmResourceProvider::HArchive LegacyCreateMutableArchive(const char* app_support_path, dmResourceProvider::HArchive base_archive)
     {
-        dmLogError("NOT IMPLEMENTED YET");
-        return 0;
+        size_t scheme_len = strlen("dmanif:");
+        char archive_uri[DMPATH_MAX_PATH] = "dmanif:";
+        char* path = archive_uri + scheme_len;
+        dmPath::Concat(app_support_path, LIVEUPDATE_INDEX_FILENAME, path, sizeof(archive_uri)-scheme_len);
+
+        dmURI::Parts uri;
+        dmURI::Parse(archive_uri, &uri);
+
+        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive_mutable"));
+        if (!loader)
+        {
+            dmLogError("Failed to find 'archive_mutable' loader");
+            return 0;
+        }
+
+        dmResourceProvider::HArchive archive = 0;
+        dmResourceProvider::Result result = dmResourceProvider::CreateMount(loader, &uri, g_LiveUpdate.m_ResourceBaseArchive, &archive);
+        if (dmResourceProvider::RESULT_OK != result)
+        {
+            dmLogError("Failed to create new mutable archive at %s", path);
+            return 0;
+        }
+
+        if (archive)
+        {
+            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME, archive, LIVEUPDATE_LEGACY_MOUNT_PRIORITY, true);
+            if (dmResource::RESULT_OK != result)
+            {
+                dmLogError("Failed to mount legacy archive: %s", dmResource::ResultToString(result));
+            }
+
+            // Also flush the resource mounts to disc
+            // dmResourceMounts::Save(mounts);
+        }
+
+        return archive;
     }
 
     static dmResourceProvider::HArchive LegacyLoadMutableArchive(const char* app_support_path, dmResourceProvider::HArchive base_archive)
@@ -359,7 +393,8 @@ namespace dmLiveUpdate
             memset(this, 0, sizeof(*this));
         }
         dmResourceProvider::HArchive            m_Archive;
-        dmResourceArchive::LiveUpdateResource   m_Resource; // points to external, ref-counted data
+        void*                                   m_Resource; // points to external, ref-counted data from the Lua call. Released after the callback
+        uint32_t                                m_ResourceLength;
         const char*                             m_ExpectedResourceDigest;
         uint32_t                                m_ExpectedResourceDigestLength;
 
@@ -373,8 +408,6 @@ namespace dmLiveUpdate
     // Called on the worker thread
     static int StoreResourceProcess(LiveUpdateCtx* jobctx, ResourceInfo* job)
     {
-        dmLogInfo("Processing resource job '%s'", job->m_ExpectedResourceDigest);
-
         if (jobctx->m_LiveupdateArchiveManifest == 0 || jobctx->m_LiveupdateArchive == 0)
         {
             dmLogWarning("No liveupdate mount found. Have to create one now");
@@ -393,25 +426,20 @@ namespace dmLiveUpdate
         dmhash_t digest_hash = dmHashBuffer64(job->m_ExpectedResourceDigest, job->m_ExpectedResourceDigestLength);
         dmhash_t url_hash = dmResource::GetUrlHashFromHexDigest(jobctx->m_LiveupdateArchiveManifest, digest_hash);
 
-        dmLogInfo("  url_hash '%s' -> %016llx", job->m_ExpectedResourceDigest, url_hash);
-
         if (!url_hash)
             return 0;
 
         // The path, is actually just a filename when it comes to these resources
         dmResourceProvider::Result result = dmResourceProvider::WriteFile(jobctx->m_LiveupdateArchive, url_hash, job->m_ExpectedResourceDigest,
-                                                        (uint8_t*)&job->m_Resource, job->m_Resource.GetSizeWithHeader());
+                                                        (uint8_t*)job->m_Resource, job->m_ResourceLength);
 
         return dmResourceProvider::RESULT_OK == result;
     }
     // Called on the main thread (see dmJobThread::Update below)
     static void StoreResourceFinished(LiveUpdateCtx* jobctx, ResourceInfo* job, int result)
     {
-        dmLogInfo("Finishing resource job '%s'", job->m_ExpectedResourceDigest);
-
         if (job->m_Callback)
             job->m_Callback(result == 1, job->m_CallbackData);
-
         delete job;
     }
 
@@ -430,7 +458,10 @@ namespace dmLiveUpdate
 
         ResourceInfo* info = new ResourceInfo;
         info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
-        info->m_Resource.Set(*resource);
+        // The file on disc has a dmResourceArchive::LiveUpdateResourceHeader prepended to it.
+        // And we need to treat the whole blob as the resource
+        info->m_Resource = resource->GetDataWithHeader();
+        info->m_ResourceLength = resource->GetSizeWithHeader();
         info->m_ExpectedResourceDigest = expected_digest;
         info->m_ExpectedResourceDigestLength = expected_digest_length;
         info->m_Callback = callback;

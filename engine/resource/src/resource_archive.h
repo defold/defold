@@ -157,16 +157,22 @@ namespace dmResourceArchive
             *this = other;
         }
 
-        uint32_t GetSizeWithHeader() {
-            return m_Count + sizeof(LiveUpdateResource);
+        uint32_t GetSizeWithHeader() const {
+            return m_Count + (uint32_t)sizeof(LiveUpdateResourceHeader);
         }
+
         bool HasValidHeader() const {
             return m_Header != 0;
         }
 
-        const uint8_t* m_Data;
-        size_t m_Count;
-        LiveUpdateResourceHeader* m_Header;
+        void* GetDataWithHeader() const
+        {
+            return (void*)m_Header;
+        }
+
+        const uint8_t*              m_Data;
+        uint32_t                    m_Count;
+        LiveUpdateResourceHeader*   m_Header;
     };
 
     // Loads a .arci and a .arcd into an HArchiveContainer

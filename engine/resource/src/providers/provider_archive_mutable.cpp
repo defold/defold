@@ -93,6 +93,30 @@ namespace dmResourceProviderArchiveMutable
         delete archive;
     }
 
+    static void UpdateEntryMap(GameArchiveFile* archive, dmhash_t url_hash, EntryInfo& info)
+    {
+        if (archive->m_EntryMap.Full())
+        {
+            uint32_t capacity = archive->m_EntryMap.Capacity() + 32;
+            archive->m_EntryMap.SetCapacity((2*capacity)/3, capacity);
+        }
+
+        archive->m_EntryMap.Put(url_hash, info);
+
+
+        #if defined(DM_RESOURCE_DBG_LOG_LEVEL)
+        char hash_buffer[dmResourceArchive::MAX_HASH*2+1] = {0};
+        if (info.m_ManifestEntry)
+        {
+            uint32_t hash_len = dmResource::HashLength(archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm);
+            char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
+            dmResource::BytesToHexString(info.m_ManifestEntry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
+            hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
+        }
+        DM_RESOURCE_DBG_LOG(3, "Added entry: name: '%s' url_hash: %016llx\n", hash_buffer, url_hash);
+        #endif // DM_RESOURCE_DBG_LOG_LEVEL
+    }
+
     static void CreateEntryMap(GameArchiveFile* archive)
     {
         uint32_t count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
@@ -109,7 +133,7 @@ namespace dmResourceProviderArchiveMutable
 
             EntryInfo info;
             info.m_ManifestEntry = entry;
-            info.m_ArchiveInfo = 0;
+            info.m_ArchiveInfo = 0;;
             if (archive->m_ArchiveContainer)
             {
                 dmResourceArchive::Result result = dmResourceArchive::FindEntry(archive->m_ArchiveContainer,
@@ -120,15 +144,8 @@ namespace dmResourceProviderArchiveMutable
                     continue;
                 }
             }
-            archive->m_EntryMap.Put(entry->m_UrlHash, info);
 
-            #if defined(DM_RESOURCE_DBG_LOG_LEVEL)
-            uint32_t hash_len = dmResource::HashLength(archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm);
-            char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
-            dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
-            hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
-            DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx\n", hash_buffer, entry->m_UrlHash);
-            #endif // DM_RESOURCE_DBG_LOG_LEVEL
+            UpdateEntryMap(archive, entry->m_UrlHash, info);
         }
 
     }
@@ -317,6 +334,11 @@ namespace dmResourceProviderArchiveMutable
         dmURI::Parts uri;
         memcpy(&uri, _uri, sizeof(uri));
         char* suffix = strrchr(uri.m_Path, '.');
+        if (suffix != 0 && strcmp(suffix, ".tmp") == 0)
+        {
+            *suffix = 0;
+            suffix = strrchr(uri.m_Path, '.');
+        }
         if (suffix != 0 && (strcmp(suffix, ".arci") == 0 || strcmp(suffix, ".arcd") == 0))
         {
             *suffix = 0;
@@ -487,6 +509,17 @@ namespace dmResourceProviderArchiveMutable
         if (dmResourceProvider::RESULT_OK == result)
         {
             dmResourceArchive::SetNewArchiveIndex(archive->m_Manifest->m_ArchiveIndex, new_archive_index, true);
+            archive->m_ArchiveContainer = archive->m_Manifest->m_ArchiveIndex;
+        }
+
+        if (!entry->m_ArchiveInfo)
+        {
+            dmResourceArchive::Result result = dmResourceArchive::FindEntry(archive->m_ArchiveContainer,
+                                                                            entry->m_ManifestEntry->m_Hash.m_Data.m_Data, entry->m_ManifestEntry->m_Hash.m_Data.m_Count, &entry->m_ArchiveInfo);
+            if (result != dmResourceArchive::RESULT_OK)
+            {
+                dmLogError("Failed to find data entry for %s in archive", entry->m_ManifestEntry->m_Url);
+            }
         }
 
         return result;

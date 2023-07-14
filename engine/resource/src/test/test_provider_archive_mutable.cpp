@@ -121,6 +121,11 @@ TEST(ArchiveProviderBasic, CanMount)
 }
 
 // ****************************************************************************************************************
+const char* s_MutableArchivePaths[] = {
+        "build/src/test/luresources_dl.dmanifest",
+        "build/src/test/luresources_dl.arci",
+        "build/src/test/luresources_dl.arcd"
+    };
 
 class ArchiveProviderMutable : public jc_test_base_class
 {
@@ -129,28 +134,26 @@ public:
     static void SetUpTestCase()
     {
         Cleanup();
+        // Make sure the archive files don't exist yet
+        for (int i = 0; i < DM_ARRAY_SIZE(s_MutableArchivePaths); ++i)
+        {
+            ASSERT_FALSE(dmSys::Exists(s_MutableArchivePaths[i]));
+        }
     }
 
     static void TearDownTestCase()
     {
-        //Cleanup();
     }
 
 protected:
     static void Cleanup()
     {
-        const char* paths[] = {
-            "build/src/test/luresources_dl.dmanifest",
-            "build/src/test/luresources_dl.arci",
-            "build/src/test/luresources_dl.arcd"
-        };
-
-        for (int i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+        for (int i = 0; i < DM_ARRAY_SIZE(s_MutableArchivePaths); ++i)
         {
-            if (dmSys::Exists(paths[i]))
+            if (dmSys::Exists(s_MutableArchivePaths[i]))
             {
-                dmLogInfo("Cleanup of %s", paths[i]);
-                dmSys::Unlink(paths[i]);
+                dmLogInfo("Cleanup of %s", s_MutableArchivePaths[i]);
+                dmSys::Unlink(s_MutableArchivePaths[i]);
             }
         }
     }

@@ -401,7 +401,7 @@ namespace dmResourceArchive
         }
     }
 
-    Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, size_t buf_len, uint32_t& bytes_written, uint32_t& offset)
+    Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset)
     {
         ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
         FILE* res_file = afi->m_FileResourceData;
@@ -488,7 +488,7 @@ namespace dmResourceArchive
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {
-                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %zu", bytes_written, resource->m_Count);
+                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %u", bytes_written, resource->m_Count);
                 delete archive;
                 return RESULT_IO_ERROR;
             }
