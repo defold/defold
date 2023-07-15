@@ -359,7 +359,7 @@ namespace dmGameObject
     PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
 
 
-    uint32_t GetPropertyArrayLength(HInstance instance, dmhash_t component_id, dmhash_t property_id);
+    uint32_t GetPropertyArrayLength(HInstance instance, dmhash_t component_id, dmhash_t property_id); // not used
 
     /**
      * Sets the value of a property.
