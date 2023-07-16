@@ -658,6 +658,18 @@ namespace dmGameObject
      * go.get(url, "example.x", {index=1})
      * ```
      *
+     * Getting all values in a material property array as a table
+     *
+     * ```lua
+     * -- get all vector4's in the constant array
+     * go.get(url, "example")
+     * -- result: { vector4, vector4, ... }
+     *
+     * -- get all elements of the vector4's from an array
+     * go.get(url, "example.x")
+     * -- result: { number1, number2, ... }
+     * ```
+     *
      * @examples
      * Get a named property
      *
@@ -839,7 +851,7 @@ namespace dmGameObject
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:any] the value to set
+     * @param value [type:any|table] the value to set
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -869,6 +881,14 @@ namespace dmGameObject
      *
      * -- set an element of a vector4 in the array: example[0].x = 7 (the glsl indices are 0-based)
      * go.set(url, "example.x", 7, {index=1})
+     * ```
+     *
+     * Set a material property array by a table of vector4
+     *
+     * ```lua
+     * -- set the first two vector4's in the array
+     * -- if the array has more than two elements in the array they will not be set
+     * go.set(url, "example", { vmath.vector4(1,1,1,1), vmath.vector4(2,2,2,2) })
      * ```
      *
      * @examples
