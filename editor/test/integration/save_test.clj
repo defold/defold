@@ -34,7 +34,7 @@
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [util.text-util :as text-util])
-  (:import [java.io StringReader File]
+  (:import [java.io File StringReader]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
 
@@ -55,6 +55,7 @@
                  "**/collection_with_scale3.collection"
                  "**/atlas_sprite.go"
                  "**/atlas.sprite"
+                 "**/material_attributes.sprite"
                  "**/props.go"
                  "game.project"
                  "**/super_scene.gui"
@@ -83,6 +84,7 @@
                  "**/new.tilemap"
                  "**/with_cells.tilemap"
                  "**/with_layers.tilemap"
+                 "**/test_attributes.material"
                  "**/test.model"
                  "**/empty_mesh.model"
                  "**/test.label"
@@ -176,11 +178,6 @@
                 ;; We don't have a read-fn. Print a line diff.
                 (print-line-diff!)))))))))
 
-(defn- save-all! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
     :dirty?))
@@ -197,13 +194,13 @@
   (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
 
 (defn- append-lua-code-line! [node-id]
-  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n-- added line")))
+  (test-util/update-code-editor-lines! node-id conj "-- added line"))
 
 (defn- append-shader-code-line! [node-id]
-  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
+  (test-util/update-code-editor-lines! node-id conj "// added line"))
 
 (defn- append-c-code-line! [node-id]
-  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
+  (test-util/update-code-editor-lines! node-id conj "// added line"))
 
 (defn- set-setting!
   [node-id path value]
@@ -234,6 +231,7 @@
                ["/logic/two_embedded.go" delete-first-child!]
                ["/collection/all_embedded.collection" delete-first-child!]
                ["/materials/test.material" (set-prop-fn :name "new-name")]
+               ["/materials/test_attributes.material" (set-prop-fn :name "new-name")]
                ["/collection/components/test.label" (set-prop-fn :text "new-text")]
                ["/label/test.label" (set-prop-fn :text "new-text")]
                ["/label/embedded_label.go" (set-prop-fn [0] :text "new-text")]
@@ -256,6 +254,7 @@
                ["/logic/default.render_script" append-lua-code-line!]
                ["/logic/main.gui_script" append-lua-code-line!]
                ["/script/test_module.lua" append-lua-code-line!]
+               ["/sprite/material_attributes.sprite" (set-prop-fn :playback-rate 0.5)]
                ["/logic/test.vp" append-shader-code-line!]
                ["/logic/test.fp" append-shader-code-line!]
                ["/native_ext/main.cpp" append-c-code-line!]
@@ -307,7 +306,7 @@
                 (f node-id)
                 (is (true? (dirty? node-id))))))
           (is (not (clean?)))
-          (save-all! project)
+          (test-util/save-project! project)
           (is (clean?)))))))
 
 (defn- setup-scratch
@@ -458,7 +457,7 @@
         (fn [exit-event-loop!]
 
           ;; Edited by us.
-          (test-util/code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
+          (test-util/set-code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
 
           ;; Edited externally.
           (touch-file! workspace "/added_externally.md")

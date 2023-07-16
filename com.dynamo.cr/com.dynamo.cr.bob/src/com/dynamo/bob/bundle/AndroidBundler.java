@@ -66,9 +66,11 @@ import com.defold.extender.client.ExtenderResource;
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
+    private static String stripToolName = "strip_android";
+
     private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
     static {
-        platformToStripToolMap.put(Platform.Armv7Android, "strip_android");
+        platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
         platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
     }
 
@@ -338,7 +340,11 @@ public class AndroidBundler implements IBundler {
         // possibly also strip it
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), platformToStripToolMap.get(architecture));
+            String stripToolExe = stripToolName;
+            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+                stripToolName = platformToStripToolMap.get(architecture);
+            }
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
             List<String> args = new ArrayList<String>();
             args.add(stripTool);
             args.add(dest.getAbsolutePath());

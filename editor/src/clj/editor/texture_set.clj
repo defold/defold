@@ -37,12 +37,12 @@
                                  (bit-shift-left flip-horizontal 1))))
 
 (defn- ->uv-vertex
-  [vert-index ^FloatBuffer tex-coords]
-  (let [index (* vert-index 2)]
-    [(.get tex-coords ^int index) (.get tex-coords ^int (inc index))]))
+  [^long vert-index ^FloatBuffer tex-coords]
+  (let [index (int (* vert-index 2))]
+    (vector-of :double (.get tex-coords index) (.get tex-coords (inc index)))))
 
 (defn- ->uv-quad
-  [quad-index tex-coords tex-coord-order]
+  [^long quad-index tex-coords tex-coord-order]
   (let [offset (* quad-index 4)]
     (mapv #(->uv-vertex (+ offset %) tex-coords) tex-coord-order)))
 
@@ -105,7 +105,7 @@
     (.transform world-transform p)
     (vector-of :double (.x p) (.y p) (.z p) 1.0 u v page-index)))
 
-(defn vertex-data
+(defn legacy-vertex-data
   [{:keys [width height tex-coords page-index] :as _frame} world-transform]
   (let [x1 (* 0.5 width)
         y1 (* 0.5 height)
@@ -118,6 +118,27 @@
      (gen-vertex world-transform x1 y0 u3 v3 page-index)
      (gen-vertex world-transform x1 y1 u2 v2 page-index)
      (gen-vertex world-transform x0 y1 u1 v1 page-index)]))
+
+(defn position-data [animation-frame]
+  (let [^double width (:width animation-frame)
+        ^double height (:height animation-frame)
+        x1 (* 0.5 width)
+        y1 (* 0.5 height)
+        x0 (- x1)
+        y0 (- y1)
+        xynw (vector-of :double x0 y0 0.0 1.0)
+        xyne (vector-of :double x1 y0 0.0 1.0)
+        xysw (vector-of :double x0 y1 0.0 1.0)
+        xyse (vector-of :double x1 y1 0.0 1.0)]
+    [xynw xyne xysw xyne xyse xysw]))
+
+(defn uv-data [animation-frame]
+  (let [[uvnw uvsw uvse uvne] (:tex-coords animation-frame)]
+    [uvnw uvne uvsw uvne uvse uvsw]))
+
+(defn vertex-data [animation-frame]
+  {:position-data (position-data animation-frame)
+   :uv-data (uv-data animation-frame)})
 
 
 ;; animation
@@ -166,7 +187,7 @@
 
 (defn- anim-data->vbuf
   [anim-data frame-index world-transform make-vbuf-fn]
-  (let [vd (vertex-data (get-in anim-data [:frames frame-index]) world-transform)]
+  (let [vd (legacy-vertex-data (get-in anim-data [:frames frame-index]) world-transform)]
     (persistent! (reduce conj! (make-vbuf-fn (count vd)) vd))))
 
 (defn render-animation-overlay

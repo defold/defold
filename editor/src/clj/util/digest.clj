@@ -14,32 +14,63 @@
 
 (ns util.digest
   (:import [java.io InputStream OutputStream]
-           [java.security DigestOutputStream MessageDigest]
-           [org.apache.commons.codec.digest DigestUtils]
-           [org.apache.commons.codec.binary Hex]))
+           [java.security DigestInputStream DigestOutputStream MessageDigest]
+           [org.apache.commons.codec.binary Hex]
+           [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn bytes->hex [^bytes data]
+(defn bytes->hex
+  ^String [^bytes data]
   (Hex/encodeHexString data))
 
-(defn sha1 [^bytes data]
+(defn sha1
+  ^bytes [^bytes data]
   (DigestUtils/sha1 data))
 
-(defn sha1-hex [^bytes data]
+(defn sha1-hex
+  ^String [^bytes data]
   (DigestUtils/sha1Hex data))
 
-(defn string->sha1 [^String s]
+(defn string->sha1
+  ^bytes [^String s]
   (DigestUtils/sha1 s))
 
-(defn string->sha1-hex [^String s]
+(defn string->sha1-hex
+  ^String [^String s]
   (DigestUtils/sha1Hex s))
 
-(defn stream->sha1 [^InputStream stream]
+(defn string->sha256
+  ^bytes [^String s]
+  (DigestUtils/sha256 s))
+
+(defn string->sha256-hex
+  ^String [^String s]
+  (DigestUtils/sha256Hex s))
+
+(defn stream->sha1
+  ^bytes [^InputStream stream]
   (DigestUtils/sha1 stream))
 
-(defn stream->sha1-hex [^InputStream stream]
+(defn stream->sha1-hex
+  ^String [^InputStream stream]
   (DigestUtils/sha1Hex stream))
+
+(defn stream->sha256
+  ^bytes [^InputStream stream]
+  (DigestUtils/sha256 stream))
+
+(defn stream->sha256-hex
+  ^String [^InputStream stream]
+  (DigestUtils/sha256Hex stream))
+
+(defn sha1-hex? [value]
+  (and (string? value)
+       (= 40 (count value))))
+
+(defn sha256-hex? [value]
+  (and (string? value)
+       (= 64 (count value))))
 
 (def ^:private ^OutputStream sink-output-stream
   (proxy [OutputStream] []
@@ -47,13 +78,31 @@
       ([byte-or-bytes])
       ([^bytes b, ^long off, ^long len]))))
 
+(defn make-digest-input-stream
+  ^DigestInputStream [^InputStream wrapped-stream ^String algorithm]
+  (DigestInputStream. wrapped-stream (MessageDigest/getInstance algorithm)))
+
 (defn make-digest-output-stream
   ^DigestOutputStream [^String algorithm]
   (DigestOutputStream. sink-output-stream (MessageDigest/getInstance algorithm)))
 
-(defn digest-output-stream->hex
-  ^String [^DigestOutputStream digest-output-stream]
-  (-> digest-output-stream
-      .getMessageDigest
-      .digest
-      bytes->hex))
+(defn message-digest->hex
+  ^String [^MessageDigest message-digest]
+  (-> message-digest .digest bytes->hex))
+
+(defn digest-input-stream->hex
+  ^String [^DigestInputStream digest-input-stream]
+  (message-digest->hex (.getMessageDigest digest-input-stream)))
+
+(defn completed-stream->hex
+  "Given an input or output stream that has completed (i.e. all the data has
+  been read or written to it), returns the hex representation of any message
+  digest associated with it. If the stream is not a digest input or output
+  stream, returns nil."
+  ^String [completed-stream]
+  (cond
+    (instance? DigestOutputStream completed-stream)
+    (message-digest->hex (.getMessageDigest ^DigestOutputStream completed-stream))
+
+    (instance? DigestInputStream completed-stream)
+    (message-digest->hex (.getMessageDigest ^DigestInputStream completed-stream))))

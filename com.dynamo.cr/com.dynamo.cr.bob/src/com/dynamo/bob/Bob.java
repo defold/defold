@@ -600,6 +600,27 @@ public class Bob {
         return x != 0 && ((x & (x - 1)) == 0);
     }
 
+    private static StringBuilder parseMultipleException(MultipleCompileException e, boolean verbose) {
+        StringBuilder errors = new StringBuilder();
+        errors.append("\n");
+        for (MultipleCompileException.Info info : e.issues)
+        {
+            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+        }
+
+        String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
+        errors.append(msg);
+
+        if (verbose) {
+            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        }
+        return errors;
+    }
+
+    public static boolean isCause(Class<? extends Throwable> expected, Throwable exc) {
+       return expected.isInstance(exc) || (exc != null && isCause(expected, exc.getCause()));
+    }
+
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
@@ -811,18 +832,14 @@ public class Bob {
         try {
             result = project.build(new ConsoleProgress(), commands);
         } catch(MultipleCompileException e) {
+            errors = parseMultipleException(e, verbose);
             ret = false;
-            errors.append("\n");
-            for (MultipleCompileException.Info info : e.issues)
-            {
-                errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
-            }
-
-            String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
-            errors.append(msg);
-
-            if (verbose) {
-                errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        } catch(CompileExceptionError e) {
+            ret = false;
+            if (isCause(MultipleCompileException.class, e)) {
+                errors = parseMultipleException((MultipleCompileException)e.getCause(), verbose);
+            } else {
+                throw e;
             }
         }
         for (TaskResult taskResult : result) {
