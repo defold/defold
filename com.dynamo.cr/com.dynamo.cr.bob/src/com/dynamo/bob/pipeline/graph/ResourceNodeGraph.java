@@ -48,14 +48,17 @@ public class ResourceNodeGraph {
     }
 
     /**
-     * Get a resource node graph of all project resources. Each resource in the
-     * graph will only exist once per encountered collection proxy, even if it
-     * might be used multiple times.
+     * Get a resource node graph of all project resources.
+     * Use 'ignoreDuplicates' to control how duplicates of resources should be
+     * treated when creating the resource graph.
      * @param project The project the resources belong to.
      * @param rootResource The root resource to create graph from.
+     * @param ignoreDuplicates Set to true to only include a resource only once
+     * per collection proxy, even if a resource happens to be used more than one
+     * time.
      * @return rootNode The root node
      */
-    public static ResourceNode get(Project project, IResource rootResource) throws CompileExceptionError {
+    public static ResourceNode get(Project project, IResource rootResource, boolean ignoreDuplicates) throws CompileExceptionError {
         final Stack<GraphState> stack = new Stack<>();
         
         ResourceWalker.walk(project, rootResource, new IResourceVisitor() {
@@ -64,8 +67,11 @@ public class ResourceNodeGraph {
                 if (stack.empty()) {
                     return true;
                 }
-                GraphState state = stack.peek();
-                return !state.visitedNodes.contains(resource.output().getAbsPath());
+                if (ignoreDuplicates) {
+                    GraphState state = stack.peek();
+                    return !state.visitedNodes.contains(resource.output().getAbsPath());
+                }
+                return true;
             }
 
             @Override
