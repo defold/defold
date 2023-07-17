@@ -17,7 +17,7 @@ def build(bld):
     texc_sources = bld.path.ant_glob("*.cpp")
 
     # The static library for the tests
-    texc = bld.stlib(features = 'cxx',
+    texc = bld.stlib(features = 'c cxx',
                    source = texc_sources,
                    includes = ['.'],
                    target   = 'texc')

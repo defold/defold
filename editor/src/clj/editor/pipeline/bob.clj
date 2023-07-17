@@ -315,6 +315,17 @@
               "mobileprovisioning" provisioning-profile-path
               "identity" code-signing-identity))))))
 
+(def ^:private html5-architecture-option->bob-architecture-string
+  {:architecture-js-web? "js-web"
+   :architecture-wasm-web? "wasm-web"})
+
+(defn- html5-bundle-bob-args [{:keys [] :as bundle-options}]
+  (let [bob-architectures (for [[option-key bob-architecture] html5-architecture-option->bob-architecture-string
+                                :when (bundle-options option-key)]
+                            bob-architecture)
+        bob-args {"architectures" (string/join "," bob-architectures)}]
+    bob-args))
+
 (def ^:private macos-architecture-option->bob-architecture-string
   {:architecture-x86_64? "x86_64-macos"
    :architecture-arm64? "arm64-macos"})
@@ -331,7 +342,7 @@
 (defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
 (defmethod bundle-bob-args :default [_prefs platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-bob-args :android [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (android-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (html5-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
 (defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (macos-bundle-bob-args bundle-options)))

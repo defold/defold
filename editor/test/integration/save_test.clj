@@ -34,7 +34,7 @@
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [util.text-util :as text-util])
-  (:import [java.io StringReader File]
+  (:import [java.io File StringReader]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
 
@@ -55,6 +55,7 @@
                  "**/collection_with_scale3.collection"
                  "**/atlas_sprite.go"
                  "**/atlas.sprite"
+                 "**/material_attributes.sprite"
                  "**/props.go"
                  "game.project"
                  "**/super_scene.gui"
@@ -83,6 +84,7 @@
                  "**/new.tilemap"
                  "**/with_cells.tilemap"
                  "**/with_layers.tilemap"
+                 "**/test_attributes.material"
                  "**/test.model"
                  "**/empty_mesh.model"
                  "**/test.label"
@@ -229,6 +231,7 @@
                ["/logic/two_embedded.go" delete-first-child!]
                ["/collection/all_embedded.collection" delete-first-child!]
                ["/materials/test.material" (set-prop-fn :name "new-name")]
+               ["/materials/test_attributes.material" (set-prop-fn :name "new-name")]
                ["/collection/components/test.label" (set-prop-fn :text "new-text")]
                ["/label/test.label" (set-prop-fn :text "new-text")]
                ["/label/embedded_label.go" (set-prop-fn [0] :text "new-text")]
@@ -251,6 +254,7 @@
                ["/logic/default.render_script" append-lua-code-line!]
                ["/logic/main.gui_script" append-lua-code-line!]
                ["/script/test_module.lua" append-lua-code-line!]
+               ["/sprite/material_attributes.sprite" (set-prop-fn :playback-rate 0.5)]
                ["/logic/test.vp" append-shader-code-line!]
                ["/logic/test.fp" append-shader-code-line!]
                ["/native_ext/main.cpp" append-c-code-line!]

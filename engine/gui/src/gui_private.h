@@ -164,6 +164,9 @@ namespace dmGui
 
         void*       m_CustomData;
 
+        dmhash_t    m_MaterialNameHash;
+        void*       m_Material;
+
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;
         dmParticle::HInstance   m_ParticleInstance;
@@ -274,13 +277,14 @@ namespace dmGui
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
         dmArray<Animation>      m_Animations;
-        dmHashTable<uintptr_t, dmhash_t> m_ResourceToPath;
-        dmHashTable64<void*>    m_Fonts;
-        dmHashTable64<TextureInfo>    m_Textures;
-        dmHashTable64<DynamicTexture> m_DynamicTextures;
-        dmParticle::HParticleContext m_ParticlefxContext;
-        dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
-        dmArray<ParticlefxComponent> m_AliveParticlefxs;
+        dmHashTable<uintptr_t, dmhash_t>      m_ResourceToPath;
+        dmHashTable64<void*>                  m_Fonts;
+        dmHashTable64<TextureInfo>            m_Textures;
+        dmHashTable64<DynamicTexture>         m_DynamicTextures;
+        dmHashTable64<dmRender::HMaterial>    m_Materials;
+        dmParticle::HParticleContext          m_ParticlefxContext;
+        dmHashTable64<dmParticle::HPrototype> m_Particlefxs;
+        dmArray<ParticlefxComponent>          m_AliveParticlefxs;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;
         dmArray<void*>          m_LayoutsNodeDescs;

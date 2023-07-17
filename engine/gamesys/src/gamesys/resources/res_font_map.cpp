@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,7 @@
 
 #include <render/font_renderer.h>
 #include <render/render_ddf.h>
+#include <dmsdk/gamesys/resources/res_material.h>
 
 namespace dmGameSystem
 {
@@ -29,7 +30,7 @@ namespace dmGameSystem
     {
         *font_map_out = 0;
 
-        dmRender::HMaterial material;
+        MaterialResource* material;
         dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
         if (result != dmResource::RESULT_OK)
         {
@@ -90,10 +91,12 @@ namespace dmGameSystem
         else
         {
             dmRender::SetFontMap(font_map, params);
-            dmResource::Release(factory, dmRender::GetFontMapMaterial(font_map));
+            dmResource::Release(factory, dmRender::GetFontMapUserData(font_map));
         }
 
-        dmRender::SetFontMapMaterial(font_map, material);
+        // a workaround. ideally we'd have a FontmapResource* // MAWE
+        dmRender::SetFontMapUserData(font_map, (void*)material);
+        dmRender::SetFontMapMaterial(font_map, material->m_Material);
 
         dmDDF::FreeMessage(ddf);
 
@@ -139,7 +142,7 @@ namespace dmGameSystem
     dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams& params)
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)params.m_Resource->m_Resource;
-        dmResource::Release(params.m_Factory, (void*)dmRender::GetFontMapMaterial(font_map));
+        dmResource::Release(params.m_Factory, (void*)dmRender::GetFontMapUserData(font_map));
         dmRender::DeleteFontMap(font_map);
         return dmResource::RESULT_OK;
     }

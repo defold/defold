@@ -831,6 +831,72 @@
       (set-generic-headers! view issues [:architecture :code-signing-identity :provisioning-profile]))))
 
 ;; -----------------------------------------------------------------------------
+;; HTML5
+;; -----------------------------------------------------------------------------
+
+(defn- make-html5-controls [refresh! owner-window]
+  (assert (fn? refresh!))
+  (let [architecture-controls (doto (VBox.)
+                                (ui/children! [(make-labeled-check-box "asm.js" "architecture-js-web-check-box" false refresh!)
+                                               (make-labeled-check-box "WebAssembly (wasm)" "architecture-wasm-web-check-box" true refresh!)]))]
+    (doto (VBox.)
+      (ui/add-style! "settings")
+      (ui/add-style! "html5")
+      (ui/children! [(labeled! "Architectures" architecture-controls)]))))
+
+(defn- load-html5-prefs! [prefs view]
+  (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
+    (ui/value! architecture-js-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-js-web?" false))
+    (ui/value! architecture-wasm-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-wasm-web?" true))))
+
+(defn- save-html5-prefs! [prefs view]
+  (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
+    (prefs/set-prefs prefs "bundle-html5-architecture-js-web?" (ui/value architecture-js-web-check-box))
+    (prefs/set-prefs prefs "bundle-html5-architecture-wasm-web?" (ui/value architecture-wasm-web-check-box))))
+
+(defn- get-html5-options [view]
+  (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
+    {:architecture-js-web? (ui/value architecture-js-web-check-box)
+     :architecture-wasm-web? (ui/value architecture-wasm-web-check-box)}))
+
+(defn- set-html5-options! [view {:keys [architecture-js-web? architecture-wasm-web?] :as _options} issues]
+  (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box ok-button]
+    (doto architecture-js-web-check-box
+      (ui/value! architecture-js-web?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-wasm-web-check-box
+      (ui/value! architecture-wasm-web?)
+      (set-field-status! (:architecture issues)))
+    (ui/enable! ok-button (nil? (:architecture issues)))))
+
+(defn- get-html5-issues [{:keys [architecture-js-web? architecture-wasm-web?] :as _options}]
+  {:architecture (when-not (or architecture-js-web? architecture-wasm-web?)
+                   [:fatal "At least one architecture must be selected."])})
+
+(deftype HTML5BundleOptionsPresenter [workspace view variant-choices compression-choices]
+  BundleOptionsPresenter
+  (make-views [this owner-window]
+    (let [refresh! (make-presenter-refresher this)]
+      (into [(make-generic-headers "Bundle HTML5 Application")
+             (make-html5-controls refresh! owner-window)]
+             (make-generic-controls refresh! variant-choices compression-choices))))
+  (load-prefs! [_this prefs]
+    (load-generic-prefs! prefs view)
+    (load-html5-prefs! prefs view))
+  (save-prefs! [_this prefs]
+    (save-generic-prefs! prefs view)
+    (save-html5-prefs! prefs view))
+  (get-options [_this]
+    (merge {:platform "js-web"}
+           (get-generic-options view)
+           (get-html5-options view)))
+  (set-options! [_this options]
+    (let [issues (get-html5-issues options)]
+      (set-generic-options! view options workspace)
+      (set-html5-options! view options issues )
+      (set-generic-headers! view issues [:architecture]))))
+
+;; -----------------------------------------------------------------------------
 
 (def ^:private common-variants [["Debug" "debug"]
                                 ["Release" "release"]])
@@ -844,7 +910,7 @@
 (defmulti bundle-options-presenter (fn [_workspace _view platform] platform))
 (defmethod bundle-options-presenter :default [_workspace _view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view common-variants common-compressions))
-(defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants common-compressions))
+(defmethod bundle-options-presenter :html5   [workspace view _platform] (HTML5BundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
 (defmethod bundle-options-presenter :macos   [workspace view _platform] (MacOSBundleOptionsPresenter. workspace view desktop-variants common-compressions))

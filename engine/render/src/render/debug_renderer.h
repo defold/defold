@@ -15,8 +15,6 @@
 #ifndef DM_RENDER_DEBUG_RENDERER_H
 #define DM_RENDER_DEBUG_RENDERER_H
 
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
-
 #include "render.h"
 
 namespace dmRender

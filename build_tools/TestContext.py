@@ -16,9 +16,15 @@
 class TestContext(object):
 	env = None
 	all_task_gen = None
-	def initialize(self, bld_env, bld_tasks):
+	targets = None
+	def initialize(self, bld_env, bld_tasks, bld_targets):
 		self.env = bld_env
 		self.all_task_gen = bld_tasks
+		if bld_targets and isinstance(bld_targets, str):
+			bld_targets = [bld_targets]
+		else:
+			bld_targets = []
+		self.targets = bld_targets
 
 	def get_all_task_gen(self):
 		return self.all_task_gen
@@ -32,4 +38,4 @@ def is_valid(ctx):
 def initialize_test_context(ctx, bld):
 	if ctx == None:
 		return
-	ctx.initialize(bld.env, bld.get_all_task_gen())
+	ctx.initialize(bld.env, bld.get_all_task_gen(), bld.targets)
