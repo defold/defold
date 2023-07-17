@@ -74,11 +74,13 @@ public class ResourceWalker {
 
         int i = resource.getPath().lastIndexOf(".");
         if (i == -1) {
+            visitor.leave(resource);
             return;
         }
 
         String ext = resource.getPath().substring(i);
         if (!ProtoBuilder.supportsType(ext)) {
+            visitor.leave(resource);
             return;
         }
 
