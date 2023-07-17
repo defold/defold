@@ -136,7 +136,6 @@ namespace dmLiveUpdate
         cb->m_HexDigest = hex_digest;
         cb->m_HexDigestRef = hex_digest_ref;
         cb->m_ResourceRef = buf_ref;
-        //res = dmLiveUpdate::StoreResourceAsync(manifest, hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
         dmLiveUpdate::Result res = dmLiveUpdate::StoreResourceAsync(hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
@@ -161,8 +160,10 @@ namespace dmLiveUpdate
         return 0;
     }
 
-    static void Callback_StoreManifest(dmScript::LuaCallbackInfo* cbk, int status)
+    static void Callback_StoreManifest(int _result, void* _cbk)
     {
+        dmLiveUpdate::Result result = (dmLiveUpdate::Result)_result;
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)_cbk;
         if (!dmScript::IsCallbackValid(cbk))
             return;
 
@@ -175,22 +176,30 @@ namespace dmLiveUpdate
             return;
         }
 
-        lua_pushinteger(L, status);
+        lua_pushinteger(L, result);
 
         dmScript::PCall(L, 2, 0); // instance + 1
 
         dmScript::TeardownCallback(cbk);
+        dmScript::DestroyCallback(cbk);
     }
 
     static int Resource_StoreManifest(lua_State* L)
     {
-dmLogWarning("%s TEMPORARILY DISABLED!", __FUNCTION__);
-        // DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 0);
 
-        // size_t manifest_len = 0;
-        // const uint8_t* manifest_data = (const uint8_t*)luaL_checklstring(L, 1, &manifest_len);
+        size_t manifest_len = 0;
+        const uint8_t* manifest_data = (const uint8_t*)luaL_checklstring(L, 1, &manifest_len);
 
-        // dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 2);
+        dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 2);
+
+        dmLiveUpdate::Result res = dmLiveUpdate::StoreManifestAsync(manifest_data, manifest_len, Callback_StoreManifest, cbk);
+        if (dmLiveUpdate::RESULT_OK != res)
+        {
+            dmLogError("The liveupdate manifest could not be stored: %s", dmLiveUpdate::ResultToString(res));
+            dmScript::DestroyCallback(cbk);
+        }
+        return 0;
 
         // dmResource::Manifest* manifest = 0;
         // dmResource::Result result = dmResource::LoadManifestFromBuffer(manifest_data, manifest_len, &manifest);
@@ -428,24 +437,35 @@ DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
     };
 
 
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
+#define SETCONSTANT(_NAME) \
+        lua_pushnumber(L, (lua_Number)dmLiveUpdate::RESULT_ ## _NAME); \
+        lua_setfield(L, -2, "LIVEUPDATE_" #_NAME );\
+
+    static void SetConstants(lua_State* L)
+    {
+        SETCONSTANT(OK);
+        SETCONSTANT(INVALID_HEADER);
+        SETCONSTANT(MEM_ERROR);
+        SETCONSTANT(INVALID_RESOURCE);
+        SETCONSTANT(VERSION_MISMATCH);
+        SETCONSTANT(ENGINE_VERSION_MISMATCH);
+        SETCONSTANT(SIGNATURE_MISMATCH);
+        SETCONSTANT(SCHEME_MISMATCH);
+        SETCONSTANT(BUNDLED_RESOURCE_MISMATCH);
+        SETCONSTANT(FORMAT_ERROR);
+        SETCONSTANT(IO_ERROR);
+        SETCONSTANT(INVAL);
+        SETCONSTANT(UNKNOWN);
+    }
+
+#undef SETCONSTANT
 
     // LiveUpdate functionality in resource namespace
     static void LuaInitDeprecated(lua_State* L)
     {
         int top = lua_gettop(L);
         luaL_register(L, "resource", ResourceModule_methods); // get or create the resource module!
-
-        SETCONSTANT(LIVEUPDATE_OK, dmLiveUpdate::RESULT_OK);
-        SETCONSTANT(LIVEUPDATE_INVALID_RESOURCE, dmLiveUpdate::RESULT_INVALID_RESOURCE);
-        SETCONSTANT(LIVEUPDATE_VERSION_MISMATCH, dmLiveUpdate::RESULT_VERSION_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_FORMAT_ERROR, dmLiveUpdate::RESULT_FORMAT_ERROR);
+        SetConstants(L);
 
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
@@ -455,21 +475,11 @@ DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
     {
         int top = lua_gettop(L);
         luaL_register(L, "liveupdate", Module_methods);
-
-        SETCONSTANT(LIVEUPDATE_OK, dmLiveUpdate::RESULT_OK);
-        SETCONSTANT(LIVEUPDATE_INVALID_RESOURCE, dmLiveUpdate::RESULT_INVALID_RESOURCE);
-        SETCONSTANT(LIVEUPDATE_VERSION_MISMATCH, dmLiveUpdate::RESULT_VERSION_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
-        SETCONSTANT(LIVEUPDATE_FORMAT_ERROR, dmLiveUpdate::RESULT_FORMAT_ERROR);
-
+        SetConstants(L);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
 
-#undef SETCONSTANT
 
     void ScriptInit(lua_State* L, dmResource::HFactory factory)
     {

@@ -41,8 +41,11 @@ namespace dmLiveUpdate
         RESULT_BUNDLED_RESOURCE_MISMATCH = -8,
         RESULT_FORMAT_ERROR              = -9,
         RESULT_IO_ERROR                  = -10,
+        RESULT_INVAL                     = -11,
+        RESULT_UNKNOWN                   = -1000,
     };
 
+    const char* ResultToString(Result result);
 
     /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
@@ -56,11 +59,15 @@ namespace dmLiveUpdate
     // Scripting
     bool HasLiveUpdateMount();
 
-    Result StoreResourceAsync(const char* expected_digest, const uint32_t expected_digest_length,
+    // For .arci/.arcd storage using the "archive" provider
+    Result StoreResourceAsync(const char* expected_digest, uint32_t expected_digest_length,
                                     const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
 
-    /*# Registers an archive (.zip) on disc
-     */
+    Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data);
+
+
+    // For .zip storage using the "zip" provider
+    // Registers an archive (.zip) on disc
     Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive);
 
     //Result StoreManifestToMutableArchive(dmResource::Manifest* manifest);

@@ -34,6 +34,7 @@
 #include <resource/resource_archive.h>
 #include <resource/resource_mounts.h>
 #include <resource/resource_manifest.h> // project id len
+#include <resource/resource_verify.h>   // VerifyManifest
 #include <resource/resource_util.h>     // BytesToHexString for debug printing
 #include <resource/providers/provider.h>
 
@@ -72,6 +73,30 @@ namespace dmLiveUpdate
             default: break;
         }
         return RESULT_INVALID_RESOURCE;
+    }
+
+    const char* ResultToString(Result result)
+    {
+        #define DM_LU_RESULT_TO_STR(x) case RESULT_##x: return #x
+        switch (result)
+        {
+            DM_LU_RESULT_TO_STR(OK);
+            DM_LU_RESULT_TO_STR(INVALID_HEADER);
+            DM_LU_RESULT_TO_STR(MEM_ERROR);
+            DM_LU_RESULT_TO_STR(INVALID_RESOURCE);
+            DM_LU_RESULT_TO_STR(VERSION_MISMATCH);
+            DM_LU_RESULT_TO_STR(ENGINE_VERSION_MISMATCH);
+            DM_LU_RESULT_TO_STR(SIGNATURE_MISMATCH);
+            DM_LU_RESULT_TO_STR(SCHEME_MISMATCH);
+            DM_LU_RESULT_TO_STR(BUNDLED_RESOURCE_MISMATCH);
+            DM_LU_RESULT_TO_STR(FORMAT_ERROR);
+            DM_LU_RESULT_TO_STR(IO_ERROR);
+            DM_LU_RESULT_TO_STR(INVAL);
+            DM_LU_RESULT_TO_STR(UNKNOWN);
+            default: break;
+        }
+        #undef DM_LU_RESULT_TO_STR
+        return "RESULT_UNDEFINED";
     }
 
     struct LiveUpdateCtx
@@ -338,6 +363,41 @@ namespace dmLiveUpdate
         return archive;
     }
 
+    // Legacy function
+    static dmResource::Result LegacyStoreManifestToMutableArchive(dmResource::Manifest* manifest)
+    {
+        if (!g_LiveUpdate.m_LiveupdateArchive)
+        {
+            if (!manifest)
+            {
+                dmLogWarning("Trying to set a null manifest to a non existing liveupdate archive");
+                return dmResource::RESULT_INVAL;
+            }
+
+            // time to create a liveupdate mutable archive (legacy)
+            g_LiveUpdate.m_LiveupdateArchive = LegacyCreateMutableArchive(g_LiveUpdate.m_AppSupportPath, g_LiveUpdate.m_ResourceBaseArchive);
+        }
+
+        dmResourceProvider::Result result = dmResourceProvider::SetManifest(g_LiveUpdate.m_LiveupdateArchive, manifest);
+        if (dmResourceProvider::RESULT_OK != result)
+        {
+            dmURI::Parts uri;
+            dmResourceProvider::GetUri(g_LiveUpdate.m_LiveupdateArchive, &uri);
+            dmLogWarning("Failed to set manifest to mounted archive uri: %s:%s/%s\n", uri.m_Scheme, uri.m_Location, uri.m_Path);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
+        return dmResource::RESULT_OK;
+        // char app_support_path[DMPATH_MAX_PATH];
+        // if (dmResource::RESULT_OK != GetApplicationSupportPath(manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
+        // {
+        //     return RESULT_IO_ERROR;
+        // }
+
+        // // Store the manifest file to disc
+        // return StoreManifestInternal(g_LiveUpdate.m_AppSupportPath, manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
+    }
+
     // ******************************************************************
     // ** LiveUpdate async functions
     // ******************************************************************
@@ -352,40 +412,7 @@ namespace dmLiveUpdate
     // ** LiveUpdate script functions
     // ******************************************************************
 
-    // Legacy function
-    Result StoreManifestToMutableArchive(dmResource::Manifest* manifest)
-    {
-        if (!g_LiveUpdate.m_LiveupdateArchive)
-        {
-            if (!manifest)
-            {
-                dmLogWarning("Trying to set a null manifest to a non existing liveupdate archive");
-                return RESULT_OK;
-            }
-
-            // time to create a liveupdate mutable archive (legacy)
-            g_LiveUpdate.m_LiveupdateArchive = LegacyCreateMutableArchive(g_LiveUpdate.m_AppSupportPath, g_LiveUpdate.m_ResourceBaseArchive);
-        }
-
-        dmResourceProvider::Result result = dmResourceProvider::SetManifest(g_LiveUpdate.m_LiveupdateArchive, manifest);
-        if (dmResourceProvider::RESULT_OK != result)
-        {
-            dmURI::Parts uri;
-            dmResourceProvider::GetUri(g_LiveUpdate.m_LiveupdateArchive, &uri);
-            dmLogWarning("Failed to set manifest to mounted archive uri: %s:%s/%s\n", uri.m_Scheme, uri.m_Location, uri.m_Path);
-            return RESULT_INVALID_RESOURCE;
-        }
-
-        return RESULT_OK;
-        // char app_support_path[DMPATH_MAX_PATH];
-        // if (dmResource::RESULT_OK != GetApplicationSupportPath(manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-        // {
-        //     return RESULT_IO_ERROR;
-        // }
-
-        // // Store the manifest file to disc
-        // return StoreManifestInternal(g_LiveUpdate.m_AppSupportPath, manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
-    }
+    // ******************************************************************************************************************************************
 
     struct ResourceInfo
     {
@@ -470,6 +497,98 @@ namespace dmLiveUpdate
         bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreResourceProcess, (dmJobThread::FCallback)StoreResourceFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
+
+    // ******************************************************************************************************************************************
+
+    struct StoreManifestInfo
+    {
+        StoreManifestInfo() {
+            memset(this, 0, sizeof(*this));
+        }
+        dmResourceProvider::HArchive            m_Archive;
+        const uint8_t*                          m_Data; // points to external, ref-counted data from the Lua call. Released after the callback
+        uint32_t                                m_DataLength;
+        void                                    (*m_Callback)(int, void*);
+        void*                                   m_CallbackData;
+        uint8_t                                 m_Verify:1;
+    };
+
+    // Called on the worker thread
+    static int StoreManifestProcess(LiveUpdateCtx* jobctx, StoreManifestInfo* job)
+    {
+        dmResource::Manifest* manifest = 0;
+        dmResource::Result result = dmResource::LoadManifestFromBuffer(job->m_Data, job->m_DataLength, &manifest);
+
+        if (result == dmResource::RESULT_OK)
+        {
+            if (job->m_Verify)
+            {
+                const char* public_key_path = dmResource::GetPublicKeyPath(g_LiveUpdate.m_ResourceFactory);
+                result = dmResource::VerifyManifest(manifest, public_key_path);
+                if (result != dmResource::RESULT_OK)
+                {
+                    dmLogError("Manifest verification failed. Manifest was not stored. %d %s", result, dmResource::ResultToString(result));
+                }
+
+                dmLogWarning("Currently disabled verification of existance of resources in liveupdate archive");
+                //result = dmResource::VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::Manifest* manifest);
+
+                // result = dmLiveUpdate::VerifyManifestReferences(manifest);
+                // if (result != dmResource::RESULT_OK)
+                // {
+                //     dmLogError("Manifest references non existing resources. Manifest was not stored. %d %s", result, dmResource::ResultToString(result));
+                // }
+            }
+            else {
+                dmLogDebug("Skipping manifest validation");
+            }
+        }
+        else
+        {
+            dmLogError("Failed to parse manifest, result: %s", dmResource::ResultToString(result));
+        }
+
+        // Store
+        if (dmResource::RESULT_OK == result)
+        {
+            result = LegacyStoreManifestToMutableArchive(manifest);
+        }
+        dmResource::DeleteManifest(manifest);
+
+        return result;
+    }
+
+    // Called on the main thread (see dmJobThread::Update below)
+    static void StoreManifestFinished(LiveUpdateCtx* jobctx, StoreManifestInfo* job, int result)
+    {
+        dmLogInfo("Finishing manifest job");
+        if (job->m_Callback)
+            job->m_Callback(result, job->m_CallbackData);
+        delete job;
+    }
+
+    Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data)
+    {
+        if (!manifest_data || manifest_len == 0)
+        {
+            return RESULT_INVAL;
+        }
+
+        StoreManifestInfo* info = new StoreManifestInfo;
+        info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
+        // The file on disc has a dmResourceArchive::LiveUpdateResourceHeader prepended to it.
+        // And we need to treat the whole blob as the resource
+        info->m_Data = manifest_data;
+        info->m_DataLength = manifest_len;
+        info->m_Callback = callback;
+        info->m_CallbackData = callback_data;
+        info->m_Verify = true;
+
+        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreManifestProcess, (dmJobThread::FCallback)StoreManifestFinished, (void*)&g_LiveUpdate, info);
+        return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
+    }
+
+    // ******************************************************************************************************************************************
 
     Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
     {
