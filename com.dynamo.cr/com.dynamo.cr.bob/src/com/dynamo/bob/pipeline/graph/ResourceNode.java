@@ -96,7 +96,7 @@ public class ResourceNode {
 
     public String toJSON() throws IOException {
         StringWriter stringWriter = new StringWriter();
-        BufferedWriter writer = new BufferedWriter(stringWriter);;
+        BufferedWriter writer = new BufferedWriter(stringWriter);
         JsonGenerator generator = null;
         try {
             generator = (new JsonFactory()).createJsonGenerator(writer);
@@ -112,5 +112,9 @@ public class ResourceNode {
         return stringWriter.toString();
     }
 
+    @Override
+    public String toString() {
+        return "[ResourceNode path: " + relativeFilepath + "]";
+    }
 
 }

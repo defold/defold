@@ -41,6 +41,10 @@ public class ResourceNodeGraph {
             this.visitedNodes = visitedNodes;
             this.node = node;
         }
+
+        public String toString() {
+            return "[GraphState node: " + node + ", visited nodes: " + visitedNodes + "]";
+        }
     }
 
     /**
