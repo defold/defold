@@ -25,60 +25,76 @@ import com.dynamo.bob.pipeline.graph.ResourceWalker;
 import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
 
 
-public class ResourceNodeGraph {
+public class ResourceGraph {
 
     // helper class to keep track of current state while traversing
     // the graph
-    private static class GraphState {
+    private static class GraphTraversalState {
         public Set<String> visitedNodes;
         public ResourceNode node;
 
-        public GraphState(ResourceNode node) {
+        public GraphTraversalState(ResourceNode node) {
             this.visitedNodes = new HashSet<String>();
             this.node = node;
         }
-        public GraphState(ResourceNode node, Set<String> visitedNodes) {
+        public GraphTraversalState(ResourceNode node, Set<String> visitedNodes) {
             this.visitedNodes = visitedNodes;
             this.node = node;
         }
 
         public String toString() {
-            return "[GraphState node: " + node + ", visited nodes: " + visitedNodes + "]";
+            return "[GraphTraversalState node: " + node + ", visited nodes: " + visitedNodes + "]";
         }
     }
 
+    public enum GraphType {
+        // Graph with resources added only once per collection proxy
+        LIVE_UPDATE,
+        // Full graph with all resources
+        FULL
+    }
+
+
+    private Project project;
+    private GraphType type;
+    private Set<String> resourcePaths = new HashSet<>();
+    private ResourceNode root = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
+
+
+    public ResourceGraph(GraphType type, Project project) {
+        this.type = type;
+        this.project = project;
+    }
+
     /**
-     * Get a resource node graph of all project resources.
-     * Use 'ignoreDuplicates' to control how duplicates of resources should be
-     * treated when creating the resource graph.
-     * @param project The project the resources belong to.
-     * @param rootResource The root resource to create graph from.
-     * @param ignoreDuplicates Set to true to only include a resource only once
-     * per collection proxy, even if a resource happens to be used more than one
-     * time.
-     * @return rootNode The root node
+     * Add a resource to the graph. This will add the resource and all sub-resources
+     * to the graph, optionally filtering which resources to add based on the
+     * graph type.
+     * @param rootResource The resource to create graph from.
      */
-    public static ResourceNode get(Project project, IResource rootResource, boolean ignoreDuplicates) throws CompileExceptionError {
-        final Stack<GraphState> stack = new Stack<>();
+    public void add(IResource rootResource) throws CompileExceptionError {
+        final Stack<GraphTraversalState> stack = new Stack<>();
         
         ResourceWalker.walk(project, rootResource, new IResourceVisitor() {
             @Override
             public boolean shouldVisit(IResource resource) {
+                if (type == GraphType.FULL) {
+                    return true;
+                }
                 if (stack.empty()) {
                     return true;
                 }
-                if (ignoreDuplicates) {
-                    GraphState state = stack.peek();
-                    return !state.visitedNodes.contains(resource.output().getAbsPath());
-                }
-                return true;
+                GraphTraversalState state = stack.peek();
+                return !state.visitedNodes.contains(resource.output().getAbsPath());
             }
 
             @Override
             public void visit(IResource resource) throws CompileExceptionError {
+                resourcePaths.add(resource.output().getAbsPath());
+
                 ResourceNode currentNode = new ResourceNode(resource);
                 if (stack.empty()) {
-                    GraphState state = new GraphState(currentNode, new HashSet<String>());
+                    GraphTraversalState state = new GraphTraversalState(currentNode, new HashSet<String>());
                     state.visitedNodes.add(resource.output().getAbsPath());
                     // push the first stack item twice so that we have one left
                     // when all resources have been visited (we pop in leave())
@@ -86,14 +102,14 @@ public class ResourceNodeGraph {
                     stack.push(state);
                 }
                 else {
-                    GraphState state = stack.peek();
+                    GraphTraversalState state = stack.peek();
                     ResourceNode parentNode = state.node;
                     parentNode.addChild(currentNode);
                     if (resource.output().getPath().endsWith(".collectionproxyc")) {
-                        state = new GraphState(currentNode, new HashSet<String>());
+                        state = new GraphTraversalState(currentNode, new HashSet<String>());
                     }
                     else {
-                        state = new GraphState(currentNode, state.visitedNodes);
+                        state = new GraphTraversalState(currentNode, state.visitedNodes);
                     }
                     state.visitedNodes.add(resource.output().getAbsPath());
                     stack.push(state);
@@ -105,8 +121,24 @@ public class ResourceNodeGraph {
                 stack.pop();
             }
         });
-        GraphState state = stack.pop();
-        return state.node;
+        GraphTraversalState state = stack.pop();
+        root.addChild(state.node);
     }
 
+    /**
+     * Get the root resource node of the graph. All resources added to the graph
+     * will exist as children of the root resource.
+     * @return The root node
+     */
+    public ResourceNode getRootNode() {
+        return root;
+    }
+
+    /**
+     * Get a set of all resource paths added to the graph.
+     * @return A set of resource paths
+     */
+    public Set<String> getResourcePaths() {
+        return resourcePaths;
+    }
 }

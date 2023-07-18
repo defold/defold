@@ -319,7 +319,7 @@ public class ComponentsCounter {
         }
     }
 
-    public static void excludeCounterPaths(HashSet<String> paths) {
+    public static void excludeCounterPaths(Set<String> paths) {
         Iterator<String> iterator = paths.iterator();
         while (iterator.hasNext()) {
             String path = iterator.next();

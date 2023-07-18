@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -59,8 +60,8 @@ import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.pipeline.graph.ResourceSet;
-import com.dynamo.bob.pipeline.graph.ResourceNodeGraph;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
+import com.dynamo.bob.pipeline.graph.ResourceGraphs;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -254,37 +255,8 @@ public class GameProjectBuilder extends Builder<Void> {
         TimeProfiler.stop();
     }
 
-    private static final String[][] ROOT_NODES = new String[][] {
-        {"bootstrap", "main_collection", "/logic/main.collectionc"},
-        {"bootstrap", "render", "/builtins/render/default.renderc"},
-        {"bootstrap", "debug_init_script", null},
-        {"input", "game_binding", "/input/game.input_bindingc"},
-        {"input", "gamepads", "/builtins/input/default.gamepadsc"},
-        {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
-
-    private HashSet<String> findResources(Project project) throws CompileExceptionError {
-        HashSet<String> resources = new HashSet<String>();
-
-        if (project.option("keep-unused", "false").equals("true")) {
-            // All outputs of the project should be considered resources
-            for (String path : project.getOutputs().keySet()) {
-                resources.add(path);
-            }
-        }
-        else {
-            // Root nodes to follow (default values from engine.cpp)
-            for (String[] tuples : ROOT_NODES) {
-                final String category = tuples[0];
-                final String key = tuples[1];
-                final String defaultValue = tuples[2];
-                String path = project.getProjectProperties().getStringValue(category, key, defaultValue);
-                if (path != null) {
-                    resources.addAll(ResourceSet.get(project, project.getResource(path)));
-                }
-            }
-        }
-
-        // Custom resources
+    private Set<String> getCustomResources(Project project) {
+        Set<String> resources = new HashSet<>();
         String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
         for (String s : custom_resources) {
             s = s.trim();
@@ -297,36 +269,38 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
             }
         }
-
         return resources;
     }
 
-    private ResourceNode createResourceNodeGraph(Project project, boolean ignoreDuplicates) throws CompileExceptionError {
-        ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
+    private ResourceGraphs createResourceGraphs(Project project) throws CompileExceptionError {
+        ResourceGraphs graphs = new ResourceGraphs(project);
 
         if (project.option("keep-unused", "false").equals("true")) {
-            return rootNode;
+            return graphs;
         }
 
         // Root nodes to follow (default values from engine.cpp)
+        final String[][] ROOT_NODES = new String[][] {
+            {"bootstrap", "main_collection", "/logic/main.collectionc"},
+            {"bootstrap", "render", "/builtins/render/default.renderc"},
+            {"bootstrap", "debug_init_script", null},
+            {"input", "game_binding", "/input/game.input_bindingc"},
+            {"input", "gamepads", "/builtins/input/default.gamepadsc"},
+            {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
         for (String[] tuples : ROOT_NODES) {
             String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
             if (path != null) {
-                rootNode.addChild(ResourceNodeGraph.get(project, project.getResource(path), ignoreDuplicates));
+                IResource resource = project.getResource(path);
+                graphs.add(resource);
             }
         }
 
         // Editor debugger scripts
         if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
-            rootNode.addChild(ResourceNodeGraph.get(project, project.getResource("/builtins/scripts/debugger.luac"), ignoreDuplicates));
+            IResource resource = project.getResource("/builtins/scripts/debugger.luac");
+            graphs.add(resource);
         }
-        return rootNode;
-    }
-    private ResourceNode createFullResourceNodeGraph(Project project) throws CompileExceptionError {
-        return createResourceNodeGraph(project, false);
-    }
-    private ResourceNode createUniqueResourceNodeGraph(Project project) throws CompileExceptionError {
-        return createResourceNodeGraph(project, true);
+        return graphs;
     }
 
     private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResources) throws IOException {
@@ -437,9 +411,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
         try {
             if (project.option("archive", "false").equals("true")) {
-                HashSet<String> resources = findResources(project);
-                ResourceNode uniqueResourceGraph = createUniqueResourceNodeGraph(project);
-                ResourceNode fullResourceGraph = createFullResourceNodeGraph(project);
+                ResourceGraphs resourceGraphs = createResourceGraphs(project);
+                ResourceGraph fullGraph = resourceGraphs.getFullGraph();
+                ResourceGraph liveUpdateGraph = resourceGraphs.getLiveUpdateGraph();
+
+                Set<String> resources = getCustomResources(project);
+                resources.addAll(fullGraph.getResourcePaths());
 
                 List<String> excludedResources = new ArrayList<String>();
                 boolean shouldPublish = project.option("liveupdate", "false").equals("true");
@@ -449,7 +426,7 @@ public class GameProjectBuilder extends Builder<Void> {
                     }
                 }
 
-                ManifestBuilder manifestBuilder = prepareManifestBuilder(uniqueResourceGraph, excludedResources);
+                ManifestBuilder manifestBuilder = prepareManifestBuilder(liveUpdateGraph.getRootNode(), excludedResources);
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
@@ -488,8 +465,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
                 // game.graph.json
-                String fullResourceGraphJSON = fullResourceGraph.toJSON();
-                task.getOutputs().get(5).setContent(fullResourceGraphJSON.getBytes());
+                String fullGraphJSON = fullGraph.getRootNode().toJSON();
+                task.getOutputs().get(5).setContent(fullGraphJSON.getBytes());
 
                 // Add copy of game.dmanifest to be published with liveupdate resources
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
