@@ -14,7 +14,9 @@
 
 #include "liveupdate.h"
 #include "liveupdate_private.h"
+#include "liveupdate_verify.h"
 #include "script_liveupdate.h"
+#include "job_thread.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -48,12 +50,12 @@ namespace dmLiveUpdate
     const char* LIVEUPDATE_LEGACY_MOUNT_NAME        = "_liveupdate";
     const int   LIVEUPDATE_LEGACY_MOUNT_PRIORITY    = 10;
 
-    const char* LIVEUPDATE_MANIFEST_FILENAME        = "liveupdate.dmanifest";
-    const char* LIVEUPDATE_MANIFEST_TMP_FILENAME    = "liveupdate.dmanifest.tmp";
+    // const char* LIVEUPDATE_MANIFEST_FILENAME        = "liveupdate.dmanifest";
+    // const char* LIVEUPDATE_MANIFEST_TMP_FILENAME    = "liveupdate.dmanifest.tmp";
     const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
     const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
-    const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
-    const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
+    // const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
+    // const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
     const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.ref";
     const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.ref.tmp";
     const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
@@ -114,39 +116,11 @@ namespace dmLiveUpdate
         dmResource::HManifest           m_LiveupdateArchiveManifest;
 
         dmJobThread::HContext           m_JobThread;
-    };
-
-    LiveUpdateCtx g_LiveUpdate;
+    } g_LiveUpdate;
 
     // ******************************************************************
     // ** LiveUpdate legacy functions
     // ******************************************************************
-
-//     static Result StoreManifestInternal(const char* app_support_path, dmResource::Manifest* manifest)
-//     {
-// Replace with HArchive, and call SetManifest()
-
-//         char manifest_file_path[DMPATH_MAX_PATH];
-//         char manifest_tmp_file_path[DMPATH_MAX_PATH];
-
-//         dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
-//         dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_TMP_FILENAME, manifest_tmp_file_path, DMPATH_MAX_PATH);
-
-//         // write to tempfile, if successful move/rename and then delete tmpfile
-//         dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
-//         if (ddf_result != dmDDF::RESULT_OK)
-//         {
-//             dmLogError("Failed storing manifest to file '%s', result: %i", manifest_tmp_file_path, ddf_result);
-//             return RESULT_IO_ERROR;
-//         }
-//         dmSys::Result sys_result = dmSys::Rename(manifest_file_path, manifest_tmp_file_path);
-//         if (sys_result != dmSys::RESULT_OK)
-//         {
-//             return RESULT_IO_ERROR;
-//         }
-//         dmLogInfo("Stored manifest: '%s'", manifest_file_path);
-//         return RESULT_OK;
-//     }
 
     // Clean up old mount file formats that we don't need any more
     // TODO: Only do this until we persist the mounts
@@ -590,25 +564,103 @@ namespace dmLiveUpdate
 
     // ******************************************************************************************************************************************
 
-    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
+    struct StoreArchiveInfo
     {
-        // if (!dmSys::Exists(path)) {
-        //     dmLogError("File does not exist: '%s'", path);
-        //     return RESULT_INVALID_RESOURCE;
-        // }
+        StoreArchiveInfo() {
+            memset(this, 0, sizeof(*this));
+        }
+        dmResourceProvider::HArchive    m_Archive;
+        const char*                     m_Path; // The path to the zip file
+        const char*                     m_Name; // The name of the mount
+        void                            (*m_Callback)(const char*, int, void*);
+        void*                           m_CallbackData;
+        int                             m_Priority;
+        uint8_t                         m_Verify:1;
+    };
 
-        // AsyncResourceRequest request;
-        // request.m_CallbackData = callback_data;
-        // request.m_Callback = callback;
-        // request.m_Path = path;
-        // request.m_IsArchive = 1;
-        // request.m_VerifyArchive = verify_archive;
-        // //request.m_Manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
-        // dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &request.m_Manifest);
+    // Called on the worker thread
+    static int StoreArchiveProcess(LiveUpdateCtx* jobctx, StoreArchiveInfo* job)
+    {
+        if (job->m_Verify)
+        {
+            const char* public_key_path = dmResource::GetPublicKeyPath(g_LiveUpdate.m_ResourceFactory);
+            dmResource::Result result = dmLiveUpdate::VerifyZipArchive(job->m_Path, public_key_path);
+            if (dmResource::RESULT_OK != result)
+            {
+                dmLogError("Zip archive verification failed. Archive was not stored. %d %s", result, dmResource::ResultToString(result));
+                return RESULT_INVALID_RESOURCE;
+            }
+        }
 
-        // bool res = AddAsyncResourceRequest(request);
-        // return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
-        return RESULT_INVALID_RESOURCE;
+        size_t scheme_len = strlen("zip:");
+        char archive_uri[DMPATH_MAX_PATH] = "zip:";
+        char* path = archive_uri + scheme_len;
+        dmSnPrintf(archive_uri, sizeof(archive_uri), "zip:%s", job->m_Path);
+
+        dmURI::Parts uri;
+        dmURI::Parse(archive_uri, &uri);
+
+        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
+        if (!loader)
+        {
+            dmLogError("Failed to find 'archive_mutable' loader");
+            return RESULT_IO_ERROR;
+        }
+
+        dmResourceProvider::HArchive archive = 0;
+        dmResourceProvider::Result result = dmResourceProvider::CreateMount(loader, &uri, g_LiveUpdate.m_ResourceBaseArchive, &archive);
+        if (dmResourceProvider::RESULT_OK != result)
+        {
+            dmLogError("Failed to create new zip archive from %s", path);
+            return RESULT_UNKNOWN;
+        }
+
+        if (archive)
+        {
+            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority, true);
+            if (dmResource::RESULT_OK != result)
+            {
+                dmLogError("Failed to mount zip archive: %s", dmResource::ResultToString(result));
+            }
+
+            // Also flush the resource mounts to disc
+            // dmResourceMounts::Save(mounts);
+        }
+
+        // Legacy. This makes less sense when using multiple mounted archives
+        g_LiveUpdate.m_LiveupdateArchive = archive;
+
+        return RESULT_OK;
+    }
+
+    // Called on the main thread (see dmJobThread::Update below)
+    static void StoreArchiveFinished(LiveUpdateCtx* jobctx, StoreArchiveInfo* job, int result)
+    {
+        dmLogInfo("Finishing archive job: %d", result);
+        if (job->m_Callback)
+            job->m_Callback(job->m_Path, result, job->m_CallbackData);
+        free((void*)job->m_Path);
+        delete job;
+    }
+
+    Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive)
+    {
+        if (!dmSys::Exists(path)) {
+            dmLogError("File does not exist: '%s'", path);
+            return RESULT_INVALID_RESOURCE;
+        }
+
+        StoreArchiveInfo* info = new StoreArchiveInfo;
+        info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
+        info->m_Name = mountname;
+        info->m_Priority = priority;
+        info->m_Path = strdup(path);
+        info->m_Callback = callback;
+        info->m_CallbackData = callback_data;
+        info->m_Verify = true;
+
+        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreArchiveProcess, (dmJobThread::FCallback)StoreArchiveFinished, (void*)&g_LiveUpdate, info);
+        return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
     // ******************************************************************
@@ -665,6 +717,12 @@ namespace dmLiveUpdate
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
         g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
 
+        if (!g_LiveUpdate.m_ResourceBaseArchive)
+        {
+            dmLogError("Could not find base .arci/.arcd. Liveupdate disabled");
+            return dmExtension::RESULT_OK;
+        }
+
         dmResource::Manifest* manifest;
         dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
         if (dmResourceProvider::RESULT_OK != p_result)
@@ -709,13 +767,17 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Finalize(dmExtension::Params* params)
     {
-        dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
+        if (g_LiveUpdate.m_JobThread)
+            dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
         g_LiveUpdate.m_ResourceFactory = 0;
         return dmExtension::RESULT_OK;
     }
 
     static dmExtension::Result Update(dmExtension::Params* params)
     {
+        if (!g_LiveUpdate.m_ResourceBaseArchive)
+            return dmExtension::RESULT_OK;
+
         DM_PROFILE("LiveUpdate");
         dmJobThread::Update(g_LiveUpdate.m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
         return dmExtension::RESULT_OK;

@@ -68,7 +68,7 @@ namespace dmLiveUpdate
 
     // For .zip storage using the "zip" provider
     // Registers an archive (.zip) on disc
-    Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive);
+    Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive);
 
     //Result StoreManifestToMutableArchive(dmResource::Manifest* manifest);
 

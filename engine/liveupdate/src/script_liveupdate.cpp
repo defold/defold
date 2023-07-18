@@ -14,6 +14,7 @@
 
 #include "script_liveupdate.h"
 #include "liveupdate.h"
+#include "liveupdate_private.h"
 
 #include <dlib/log.h>
 #include <extension/extension.h>
@@ -24,8 +25,6 @@
 namespace dmLiveUpdate
 {
     const int MANIFEST_MAGIC_VALUE = 0x0ac83fcc; // Totally made up and never used. We need to deprecate this /MAWE
-
-    extern const char* LIVEUPDATE_LEGACY_MOUNT_NAME; // "_liveupdate";
 
     struct LiveUpdateScriptContext
     {
@@ -200,110 +199,68 @@ namespace dmLiveUpdate
             dmScript::DestroyCallback(cbk);
         }
         return 0;
-
-        // dmResource::Manifest* manifest = 0;
-        // dmResource::Result result = dmResource::LoadManifestFromBuffer(manifest_data, manifest_len, &manifest);
-
-        // if (result == dmResource::RESULT_OK)
-        // {
-        //     const char* public_key_path = dmResource::GetPublicKeyPath(g_LUScriptCtx.m_Factory);
-        //     result = dmResource::VerifyManifest(manifest, public_key_path);
-        //     if (result != dmResource::RESULT_OK)
-        //     {
-        //         dmLogError("Manifest verification failed. Manifest was not stored. %d %s", result, dmResource::ResultToString(result));
-        //     }
-
-        //     dmLogWarning("Currently disabled verification of existance of resources in liveupdate archive");
-        //     //result = dmResource::VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer archive, const dmResource::Manifest* manifest);
-
-        //     // result = dmLiveUpdate::VerifyManifestReferences(manifest);
-        //     // if (result != dmResource::RESULT_OK)
-        //     // {
-        //     //     dmLogError("Manifest references non existing resources. Manifest was not stored. %d %s", result, dmResource::ResultToString(result));
-        //     // }
-        // }
-        // else
-        // {
-        //     dmLogError("Failed to parse manifest, result: %s", dmResource::ResultToString(result));
-        // }
-
-        // // Store
-        // if (dmResource::RESULT_OK == result)
-        // {
-        //     result = dmLiveUpdate::StoreManifestToMutableArchive(manifest);
-        // }
-        // dmResource::DeleteManifest(manifest);
-
-        // Callback_StoreManifest(cbk, result);
-        // dmScript::DestroyCallback(cbk);
-
-        return 0;
     }
 
-    static void Callback_StoreArchive(bool status, void* _data)
+    static void Callback_StoreArchive(const char* path, int result, void* _cbk)
     {
-        StoreArchiveCallbackData* callback_data = (StoreArchiveCallbackData*)_data;
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)_cbk;
 
-        if (!dmScript::IsCallbackValid(callback_data->m_Callback))
+        if (!dmScript::IsCallbackValid(cbk))
             return;
 
-        lua_State* L = dmScript::GetCallbackLuaContext(callback_data->m_Callback);
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0)
 
-        if (!dmScript::SetupCallback(callback_data->m_Callback))
+        if (!dmScript::SetupCallback(cbk))
         {
             dmLogError("Failed to setup callback");
             return;
         }
 
-        lua_pushstring(L, callback_data->m_Path);
-        lua_pushboolean(L, status);
+        printf("MAWE %s %d\n", path, result);
+        lua_pushstring(L, path);
+        lua_pushboolean(L, dmLiveUpdate::RESULT_OK == result);
 
         dmScript::PCall(L, 3, 0); // instance + 2
 
-        dmScript::TeardownCallback(callback_data->m_Callback);
-        dmScript::DestroyCallback(callback_data->m_Callback);
-        free((void*)callback_data->m_Path);
-        delete callback_data;
+        dmScript::TeardownCallback(cbk);
+        dmScript::DestroyCallback(cbk);
     }
 
     static int Resource_StoreArchive(lua_State* L)
     {
-dmLogWarning("%s TEMPORARILY DISABLED!", __FUNCTION__);
-        // DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
 
-        // int top = lua_gettop(L);
+        const char* path = luaL_checkstring(L, 1);
 
-        // const char* path = luaL_checkstring(L, 1);
+        dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 2);
 
-        // StoreArchiveCallbackData* cb = new StoreArchiveCallbackData;
-        // cb->m_Callback = dmScript::CreateCallback(L, 2);
-        // cb->m_Path = strdup(path);
+        bool verify_archive = true;
+        if (top > 2 && !lua_isnil(L, 3)) {
+            luaL_checktype(L, 3, LUA_TTABLE);
+            lua_pushvalue(L, 3);
+            lua_pushnil(L);
+            while (lua_next(L, -2)) {
+                const char* attr = lua_tostring(L, -2);
+                if (strcmp(attr, "verify") == 0)
+                {
+                    verify_archive = lua_toboolean(L, -1);
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
 
-        // bool verify_archive = true;
-        // if (top > 2 && !lua_isnil(L, 3)) {
-        //     luaL_checktype(L, 3, LUA_TTABLE);
-        //     lua_pushvalue(L, 3);
-        //     lua_pushnil(L);
-        //     while (lua_next(L, -2)) {
-        //         const char* attr = lua_tostring(L, -2);
-        //         if (strcmp(attr, "verify") == 0)
-        //         {
-        //             verify_archive = lua_toboolean(L, -1);
-        //         }
-        //         lua_pop(L, 1);
-        //     }
-        //     lua_pop(L, 1);
-        // }
+        const char* name = LIVEUPDATE_LEGACY_MOUNT_NAME;
+        int priority = LIVEUPDATE_LEGACY_MOUNT_PRIORITY;
 
-        // dmLiveUpdate::Result res = dmLiveUpdate::StoreArchiveAsync(path, Callback_StoreArchive, cb, verify_archive);
-
-        // if (dmLiveUpdate::RESULT_OK != res)
-        // {
-        //     dmLogError("Failed to store archive: %d", res);
-        //     Callback_StoreArchive(false, (void*)cb);
-        // }
-
+        dmLiveUpdate::Result res = dmLiveUpdate::StoreArchiveAsync(path, Callback_StoreArchive, cbk, name, priority, verify_archive);
+        if (dmLiveUpdate::RESULT_OK != res)
+        {
+            dmLogError("The liveupdate archive '%s' could not be stored: %s", path, dmLiveUpdate::ResultToString(res));
+            dmScript::DestroyCallback(cbk);
+        }
         return 0;
     }
 
