@@ -166,6 +166,17 @@ namespace dmGameObject
         "on_reload"
     };
 
+    static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
+        "number",        // PROPERTY_TYPE_NUMBER
+        "hash",          // PROPERTY_TYPE_HASH
+        "msg.url",       // PROPERTY_TYPE_URL
+        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
+        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
+        "vmath.quat",    // PROPERTY_TYPE_QUAT
+        "boolean",       // PROPERTY_TYPE_BOOLEAN
+        "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
+    };
+
     HRegister g_Register = 0;
 
     CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
@@ -556,7 +567,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    static int HandleGoGetResult(lua_State* L, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested)
+    static int CheckGoGetResult(lua_State* L, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested)
     {
         switch (result)
         {
@@ -755,34 +766,33 @@ namespace dmGameObject
         {
             lua_newtable(L);
 
-            // We already have the first value, so no need to get it again
-            HandleGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+            // We already have the first value, so no need to get it again.
+            // But we do need to check the result, we could still get errors even if the result is OK
+            int handle_go_get_result = CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+            if (handle_go_get_result != 1)
+            {
+                return handle_go_get_result;
+            }
             lua_rawseti(L, -2, 1);
 
+            // Get the rest of the array elements and check each result individually
             for (int i = 1; i < property_desc.m_ArrayLength; ++i)
             {
                 property_options.m_Index = i;
-                result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                HandleGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+                result                   = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
+                handle_go_get_result     = CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+                if (handle_go_get_result != 1)
+                {
+                    return handle_go_get_result;
+                }
                 lua_rawseti(L, -2, i + 1);
             }
 
             return 1;
         }
         
-        return HandleGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+        return CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
     }
-
-    static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
-        "number",        // PROPERTY_TYPE_NUMBER
-        "hash",          // PROPERTY_TYPE_HASH
-        "msg.url",       // PROPERTY_TYPE_URL
-        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
-        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
-        "vmath.quat",    // PROPERTY_TYPE_QUAT
-        "boolean",       // PROPERTY_TYPE_BOOLEAN
-        "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
-    };
 
     static int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)
     {
