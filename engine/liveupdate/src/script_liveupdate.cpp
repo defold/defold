@@ -217,7 +217,6 @@ namespace dmLiveUpdate
             return;
         }
 
-        printf("MAWE %s %d\n", path, result);
         lua_pushstring(L, path);
         lua_pushboolean(L, dmLiveUpdate::RESULT_OK == result);
 

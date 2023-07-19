@@ -166,6 +166,14 @@ def build(bld):
                 source       = 'test_resource_archive.cpp',
                 embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
 
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderFile', 'ResourceProviderZip', 'ResourceProviderArchive'],
+                target       = 'test_resource_mounts',
+                source       = 'test_resource_mounts.cpp',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+
     bld.program(features     = 'cxx embed test',
                 includes     = '.. ../../proto',
                 defines      = defines,

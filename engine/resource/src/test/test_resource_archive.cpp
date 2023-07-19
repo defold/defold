@@ -124,55 +124,6 @@ static uint32_t GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be
     return index_alloc_size;
 }
 
-// // Call to this should be free'd with FreeMutableIndexData(...)
-// static void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t num_entries_to_keep)
-// {
-//     uint32_t num_lu_entries = 2 - num_entries_to_keep; // 2 LiveUpdate resources in archive in total
-//     ASSERT_EQ(true, num_lu_entries >= 0);
-//     arci_data = (void*)new uint8_t[RESOURCES_ARCI_SIZE - ENTRY_SIZE * num_lu_entries];
-//     // Init archive container including LU resources
-//     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-//     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
-//     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-
-    // uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-    // uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-    // uint32_t entries_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-//     dmResourceArchive::EntryData* entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entries_offset);
-
-//     // Construct "bundled" archive
-//     uint8_t* cursor = (uint8_t*)arci_data;
-//     uint8_t* cursor_hash = (uint8_t*)((uintptr_t)arci_data + hash_offset);
-//     uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * dmResourceArchive::MAX_HASH);
-//     memcpy(cursor, RESOURCES_ARCI, sizeof(dmResourceArchive::ArchiveIndex)); // Copy header
-//     int lu_entries_to_copy = num_entries_to_keep;
-//     for (uint32_t i = 0; i < entry_count; ++i)
-//     {
-//         dmResourceArchive::EntryData& e = entries[i];
-//         bool is_lu_entry = dmEndian::ToNetwork(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
-//         if (!is_lu_entry || lu_entries_to_copy > 0)
-//         {
-//             if (is_lu_entry)
-//             {
-//                 --lu_entries_to_copy;
-//             }
-
-//             memcpy(cursor_hash, (void*)((uintptr_t)RESOURCES_ARCI + hash_offset + dmResourceArchive::MAX_HASH * i), dmResourceArchive::MAX_HASH);
-//             memcpy(cursor_entry, &e, sizeof(dmResourceArchive::EntryData));
-
-//             cursor_hash = (uint8_t*)((uintptr_t)cursor_hash + dmResourceArchive::MAX_HASH);
-//             cursor_entry = (uint8_t*)((uintptr_t)cursor_entry + sizeof(dmResourceArchive::EntryData));
-//         }
-//     }
-//     dmResourceArchive::ArchiveIndex* ai = (dmResourceArchive::ArchiveIndex*)arci_data;
-//     ai->m_EntryDataOffset = dmEndian::ToHost(entries_offset - num_lu_entries * dmResourceArchive::MAX_HASH);
-//     ai->m_EntryDataCount = dmEndian::ToHost(entry_count - num_lu_entries);
-
-//     arci_size = sizeof(dmResourceArchive::ArchiveIndex) + dmEndian::ToNetwork(ai->m_EntryDataCount) * (ENTRY_SIZE);
-
-//     dmResourceArchive::Delete(archive);
-// }
-
 static void FreeMutableIndexData(void*& arci_data)
 {
     delete[] (uint8_t*)arci_data; // it is new[] uint8_t from the resource_archive.cpp
@@ -189,23 +140,6 @@ bool IsLiveUpdateResource(dmhash_t lu_path_hash)
     }
     return false;
 }
-
-// void CreateBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_archive_container, dmResourceArchive::HArchiveIndex& bundled_archive_index, uint32_t num_entries_to_keep)
-// {
-//     bundled_archive_container = 0;
-//     bundled_archive_index = 0;
-//     uint32_t bundled_archive_size = 0;
-//     GetMutableBundledIndexData((void*&)bundled_archive_index, bundled_archive_size, num_entries_to_keep);
-//     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*&) bundled_archive_index, bundled_archive_size, false, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &bundled_archive_container);
-//     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-//     ASSERT_EQ(5U + num_entries_to_keep, dmResourceArchive::GetEntryCount(bundled_archive_container));
-// }
-
-// void FreeBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_archive_container, dmResourceArchive::HArchiveIndex& bundled_archive_index)
-// {
-//     dmResourceArchive::Delete(bundled_archive_container);
-//     FreeMutableIndexData((void*&)bundled_archive_index);
-// }
 
 TEST(dmResourceArchive, ShiftInsertResource)
 {

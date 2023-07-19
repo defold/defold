@@ -667,25 +667,6 @@ namespace dmLiveUpdate
     // ** LiveUpdate utility functions
     // ******************************************************************
 
-    static Result GetApplicationSupportPath(dmResource::Manifest* manifest, char* buffer, uint32_t buffer_len)
-    {
-        char id_buf[dmResource::MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-        const char* project_id = dmResource::GetProjectId(manifest, id_buf, sizeof(id_buf));
-        if (project_id == 0)
-        {
-            dmLogError("Failed get project id from manifest");
-            return RESULT_IO_ERROR;
-        }
-
-        dmSys::Result s_result = dmSys::GetApplicationSupportPath(id_buf, buffer, buffer_len);
-        if (dmSys::RESULT_OK != s_result)
-        {
-            dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, dmSys::RESULT_OK);
-            return RESULT_IO_ERROR;
-        }
-        return RESULT_OK;
-    }
-
     static dmResourceProvider::HArchive FindLiveupdateArchiveMount(dmResourceMounts::HContext mounts, const char* name)
     {
         dmResourceMounts::SGetMountResult info;
@@ -731,7 +712,7 @@ namespace dmLiveUpdate
             return dmExtension::RESULT_OK;
         }
 
-        Result result = GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
+        Result result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
         if (RESULT_OK != result)
         {
             dmLogError("Could not determine liveupdate folder. Liveupdate disabled");

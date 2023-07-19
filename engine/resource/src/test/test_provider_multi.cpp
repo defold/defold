@@ -75,7 +75,7 @@ protected:
             result = Mount(loader_zip, "zip:build/src/test/luresources_compressed.zip", &m_Archives[2]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
-            m_Mounts = dmResourceMounts::Create();
+            m_Mounts = dmResourceMounts::Create(0);
             ASSERT_NE((dmResourceMounts::HContext)0, m_Mounts);
         }
 
@@ -106,7 +106,6 @@ protected:
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
         }
 
-        dmResourceMounts::DestroyArchives(m_Mounts); // All archives have already been removed, but let's keep the code path active
         dmResourceMounts::Destroy(m_Mounts);
     }
 

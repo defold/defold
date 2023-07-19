@@ -70,7 +70,8 @@ namespace dmResourceProviderArchive
 
     static bool MatchesUri(const dmURI::Parts* uri)
     {
-        return strcmp(uri->m_Scheme, "dmanif") == 0;
+        return strcmp(uri->m_Scheme, "dmanif") == 0 ||
+               strcmp(uri->m_Scheme, "archive") == 0;
     }
 
     static void DeleteArchive(GameArchiveFile* archive)

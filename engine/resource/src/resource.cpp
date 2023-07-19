@@ -214,7 +214,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
-    factory->m_Mounts = dmResourceMounts::Create();
+    factory->m_Mounts = 0;
 
     // Mount the base archive, regardless of the _resource_mounts.txt
     struct SchemeMountTypePair
@@ -252,6 +252,13 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 continue;
             }
             ++num_mounted;
+
+            // Create the mounts context with the base archive
+            if (!factory->m_Mounts)
+            {
+                factory->m_Mounts = dmResourceMounts::Create(archive);
+            }
+
             dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, 0, false);
 
             if (strcmp("archive", type_pairs[i].m_ProviderType) == 0)
@@ -344,7 +351,8 @@ void DeleteFactory(HFactory factory)
 
     ReleaseBuiltinsArchive(factory);
 
-    dmResourceMounts::Destroy(factory->m_Mounts);
+    if (factory->m_Mounts)
+        dmResourceMounts::Destroy(factory->m_Mounts);
 
     if (factory->m_Resources && !factory->m_Resources->Empty())
     {

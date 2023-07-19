@@ -46,6 +46,9 @@ namespace dmResource
 
     const char*         GetManifestPath(const dmURI::Parts* uri, char* buffer, uint32_t buffer_size); // .dmanifest
 
+    // Where the liveupdate files are stored "app-support-path/project-id-sha1"
+    dmResource::Result  GetApplicationSupportPath(dmResource::HManifest manifest, char* buffer, uint32_t buffer_len);
+
     uint32_t            GetEntryHashLength(dmResource::HManifest manifest);
 
     void                DeleteManifest(dmResource::HManifest manifest);

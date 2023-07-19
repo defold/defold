@@ -28,12 +28,13 @@ namespace dmResourceMounts
 {
     typedef struct ResourceMountsContext* HContext;
 
-    HContext    Create();
+    HContext    Create(dmResourceProvider::HArchive base_archive);
     void        Destroy(HContext context);
 
     dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
-    dmResource::Result DestroyArchives(HContext ctx);
+    dmResource::Result LoadMounts(HContext ctx, const char* app_support_path);
+    dmResource::Result SaveMounts(HContext ctx, const char* app_support_path);
 
     dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash);
     dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
@@ -45,6 +46,7 @@ namespace dmResourceMounts
         const char*                  m_Name;
         dmResourceProvider::HArchive m_Archive;
         int                          m_Priority;
+        uint8_t                      m_Persist:1;
     };
 
     uint32_t GetNumMounts(HContext ctx);

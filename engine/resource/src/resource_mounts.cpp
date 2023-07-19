@@ -1,16 +1,23 @@
 #include "resource_mounts.h"
+#include "resource_mounts_file.h"
 #include "resource_manifest.h"
 #include "resource_private.h" // for log
 #include "resource_mounts.h"
 #include "providers/provider.h"
 #include <resource/liveupdate_ddf.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/mutex.h>
+#include <dlib/sys.h>
 #include <algorithm> // std::sort
 
 namespace dmResourceMounts
 {
+
+const char* MOUNTS_FILENAME = "liveupdate.mounts";
+
+const int MAX_NAME_LENGTH = 64;
 
 struct ArchiveMount
 {
@@ -23,8 +30,9 @@ struct ArchiveMount
 struct ResourceMountsContext
 {
     // The currently mounted archives, in sorted order
-    dmArray<ArchiveMount> m_Mounts;
-    dmMutex::HMutex       m_Mutex;
+    dmArray<ArchiveMount>           m_Mounts;
+    dmResourceProvider::HArchive    m_ResourceBaseArchive;
+    dmMutex::HMutex                 m_Mutex;
 };
 
 
@@ -39,12 +47,14 @@ static dmResource::Result ProviderResultToResult(dmResourceProvider::Result resu
     }
 }
 
+static dmResource::Result DestroyMounts(HContext ctx);
 
-HContext Create()
+HContext Create(dmResourceProvider::HArchive base_archive)
 {
     ResourceMountsContext* ctx = new ResourceMountsContext;
     ctx->m_Mounts.SetCapacity(2);
     ctx->m_Mutex = dmMutex::New();
+    ctx->m_ResourceBaseArchive = base_archive;
     return ctx;
 }
 
@@ -52,7 +62,7 @@ void Destroy(HContext ctx)
 {
     {
         DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
-        DestroyArchives(ctx);
+        DestroyMounts(ctx);
     }
     dmMutex::Delete(ctx->m_Mutex);
     delete ctx;
@@ -88,7 +98,7 @@ static void DebugPrintMount(int level, const ArchiveMount& mount)
 {
     dmURI::Parts uri;
     dmResourceProvider::GetUri(mount.m_Archive, &uri);
-    DM_RESOURCE_DBG_LOG(level, "Mount:  prio: %3d  p: %p  uri: %s:%s/%s\n", mount.m_Priority, mount.m_Archive, uri.m_Scheme, uri.m_Location, uri.m_Path);
+    DM_RESOURCE_DBG_LOG(level, "Mount:  prio: %3d  %s  p: %p  uri: %s:%s/%s\n", mount.m_Priority, mount.m_Name, mount.m_Archive, uri.m_Scheme, uri.m_Location, uri.m_Path);
 }
 
 static void DebugPrintMounts(HContext ctx)
@@ -103,7 +113,18 @@ static void DebugPrintMounts(HContext ctx)
 
 dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist)
 {
-    // TODO: Make sure a uri wasn't already added!
+    if (strlen(name) >= MAX_NAME_LENGTH)
+    {
+        dmLogError("Mount has too long name. Max character count is %d: '%s'", MAX_NAME_LENGTH, name);
+        return dmResource::RESULT_INVAL;
+    }
+
+    SGetMountResult mount_info;
+    if (dmResource::RESULT_OK == GetMountByName(ctx, name, &mount_info))
+    {
+        dmLogError("Mount with name already exists: '%s'", name);
+        return dmResource::RESULT_INVAL;
+    }
 
     ArchiveMount mount;
     mount.m_Name = strdup(name);
@@ -140,7 +161,113 @@ uint32_t GetNumMounts(HContext ctx)
     return ctx->m_Mounts.Size();
 }
 
-// Unit tests
+static dmResource::Result LoadMount(HContext ctx, int priority, const char* name, const char* path, bool persist)
+{
+    dmURI::Parts uri;
+    dmURI::Parse(path, &uri);
+
+    dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64(uri.m_Scheme));
+    if (!loader)
+    {
+        dmLogError("Couldn't find loader for scheme '%s' (uri '%s')", uri.m_Scheme, path);
+        return dmResource::RESULT_NOT_SUPPORTED;
+    }
+
+    if (!dmResourceProvider::CanMountUri(loader, &uri))
+    {
+        dmLogError("Loader can't mount uri '%s'", path);
+        return dmResource::RESULT_NOT_SUPPORTED;
+    }
+
+    dmResourceProvider::HArchive archive;
+    dmResourceProvider::Result provider_result = dmResourceProvider::CreateMount(loader, &uri, ctx->m_ResourceBaseArchive, &archive);
+    if (dmResourceProvider::RESULT_OK != provider_result)
+    {
+        dmLogError("Failed to create mount '%s' - '%s': %d", name, path, provider_result);
+        return dmResource::RESULT_IO_ERROR;
+    }
+
+    dmResourceMounts::AddMount(ctx, name, archive, priority, persist);
+
+    return dmResource::RESULT_OK;
+}
+
+dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
+{
+    char path[DMPATH_MAX_PATH];
+    dmPath::Concat(app_support_path, MOUNTS_FILENAME, path, sizeof(path));
+
+    if (!dmSys::Exists(path))
+    {
+        DM_RESOURCE_DBG_LOG(1, "No mount file detected: '%s'\n", path);
+        return dmResource::RESULT_OK;
+    }
+
+    DM_RESOURCE_DBG_LOG(1, "Loading mounts '%s'\n", path);
+
+    dmArray<MountFileEntry> entries;
+    dmResource::Result result = ReadMountsFile(path, entries);
+    if (dmResource::RESULT_OK != result)
+    {
+        dmLogError("Failed to read mounts file");
+        return result;
+    }
+
+    uint32_t size = entries.Size();
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        MountFileEntry& entry = entries[i];
+
+        DM_RESOURCE_DBG_LOG(2, "  mounting: '%s' %d '%s'\n", entry.m_Name, entry.m_Priority, entry.m_Uri);
+        LoadMount(ctx, entry.m_Priority, entry.m_Name, entry.m_Uri, true);
+    }
+
+    FreeMountsFile(entries);
+    return dmResource::RESULT_OK;
+}
+
+dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
+{
+    char path[DMPATH_MAX_PATH];
+    dmPath::Concat(app_support_path, MOUNTS_FILENAME, path, sizeof(path));
+
+    DM_RESOURCE_DBG_LOG(1, "Saving mounts '%s'\n", path);
+
+    dmArray<MountFileEntry> entries;
+
+    uint32_t size = ctx->m_Mounts.Size();
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        ArchiveMount& mount = ctx->m_Mounts[i];
+        if (!mount.m_Persist)
+            continue;
+
+        if (entries.Full())
+            entries.OffsetCapacity(8);
+
+        dmURI::Parts uri;
+        dmResourceProvider::GetUri(mount.m_Archive, &uri);
+
+        char uri_str[1024];
+        if (uri.m_Location[0] == '\0')
+            dmSnPrintf(uri_str, sizeof(uri_str), "%s:%s", uri.m_Scheme, uri.m_Path);
+        else
+            dmSnPrintf(uri_str, sizeof(uri_str), "%s:%s/%s", uri.m_Scheme, uri.m_Location, uri.m_Path);
+
+        MountFileEntry entry;
+        entry.m_Name = strdup(mount.m_Name);
+        entry.m_Uri = strdup(uri_str);
+        entry.m_Priority = mount.m_Priority;
+
+        entries.Push(entry);
+    }
+
+    dmResource::Result result = WriteMountsFile(path, entries);
+    FreeMountsFile(entries);
+
+    return result;
+}
+
 dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
@@ -168,7 +295,7 @@ dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResul
     return dmResource::RESULT_INVAL;
 }
 
-dmResource::Result DestroyArchives(HContext ctx)
+static dmResource::Result DestroyMounts(HContext ctx)
 {
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
