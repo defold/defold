@@ -315,6 +315,15 @@ namespace dmGameSystem
      * @param [play_id] [type:number] id number supplied when the message was posted.
      */
 
+    /*# reports when a sound has been manually stopped
+     * This message is sent back to the sender of a `play_sound` message, if the sound
+     * has been manually stopped.
+     *
+     * @message
+     * @name sound_stopped
+     * @param [play_id] [type:number] id number supplied when the message was posted.
+     */
+
     static dmGameObject::PropertyResult SoundSetParameter(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, dmSound::Parameter type, float value)
     {
         switch(type) {
