@@ -435,7 +435,7 @@ public class ShaderUtil {
                 input = input.replaceAll("\\b" + glFragDataKeyword + "\\[(\\d+)\\]", glFragColorRep + "_$1");
             }
 
-            String[] inputLines = input.split(System.lineSeparator());
+            String[] inputLines = input.split("\\r?\\n");
 
             // Find the first non directive line
             Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
