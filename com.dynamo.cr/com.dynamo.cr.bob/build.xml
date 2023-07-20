@@ -336,6 +336,7 @@
               <include name="jaxb-core-2.3.0.jar"/>
               <include name="jaxb-impl-2.3.0.jar"/>
               <include name="antlr-runtime-4.9.1.jar"/>
+              <include name="jmustache-1.8.jar"/>
             </zipgroupfileset>
          </jar>
 
