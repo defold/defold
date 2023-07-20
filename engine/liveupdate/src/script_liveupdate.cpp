@@ -313,6 +313,9 @@ namespace dmLiveUpdate
 
         const char* name = luaL_checkstring(L, 1);
 
+        if (name[0] == '_')
+            return DM_LUA_ERROR("Cannot remove base mounts: %s", name);
+
         dmResourceMounts::HContext mounts = dmResource::GetMountsContext(g_LUScriptCtx.m_Factory);
         dmResource::Result result = dmResourceMounts::RemoveMountByName(mounts, name);
 
@@ -380,24 +383,11 @@ namespace dmLiveUpdate
         return 1;
     }
 
-    // *********************
-
-    // static int Resource_VerifyZipArchive(lua_State* L)
-    // {
-    //     // char app_support_path[DMPATH_MAX_PATH];
-    //     // if (dmResource::RESULT_OK != dmResource::GetApplicationSupportPath(manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-
-    //     const char* public_key_path = dmResource::GetPublicKeyPath(factory);
-
-    //     return 0;
-    // }
-
     // ************************************************************************************
 
     static const luaL_reg Module_methods[] =
     {
-        //{"verify_zip_archive", dmLiveUpdate::Resource_VerifyZipArchive},
-
+// Legacy api
         {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},        /// bogus data, and never used?
         {"is_using_liveupdate_data", dmLiveUpdate::Resource_IsUsingLiveUpdateData},
         {"store_resource", dmLiveUpdate::Resource_StoreResource}, // Stores a single resource

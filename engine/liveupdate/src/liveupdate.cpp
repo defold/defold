@@ -47,17 +47,13 @@
 
 namespace dmLiveUpdate
 {
-    const char* LIVEUPDATE_LEGACY_MOUNT_NAME        = "_liveupdate";
+    const char* LIVEUPDATE_LEGACY_MOUNT_NAME        = "liveupdate"; // By not prefixing it, the user may then remove it
     const int   LIVEUPDATE_LEGACY_MOUNT_PRIORITY    = 10;
 
-    // const char* LIVEUPDATE_MANIFEST_FILENAME        = "liveupdate.dmanifest";
-    // const char* LIVEUPDATE_MANIFEST_TMP_FILENAME    = "liveupdate.dmanifest.tmp";
     const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
     const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
-    // const char* LIVEUPDATE_DATA_FILENAME            = "liveupdate.arcd";
-    // const char* LIVEUPDATE_DATA_TMP_FILENAME        = "liveupdate.arcd.tmp";
-    const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.ref";
-    const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.ref.tmp";
+    const char* LIVEUPDATE_ZIP_ARCHIVE_FILENAME         = "liveupdate.ref";
+    const char* LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME     = "liveupdate.ref.tmp";
     const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
 
     Result ResourceResultToLiveupdateResult(dmResource::Result r)
@@ -109,13 +105,16 @@ namespace dmLiveUpdate
         }
 
         char                            m_AppSupportPath[DMPATH_MAX_PATH]; // app support path using the project id as the folder name
-        dmResource::HFactory            m_ResourceFactory;      // Resource system factory
         dmResourceMounts::HContext      m_ResourceMounts;       // The resource mounts
         dmResourceProvider::HArchive    m_ResourceBaseArchive;  // The "game.arcd" archive
+
+        dmJobThread::HContext           m_JobThread;
+
+        // Legacy functionality
+        dmResource::HFactory            m_ResourceFactory;      // Resource system factory
         dmResourceProvider::HArchive    m_LiveupdateArchive;
         dmResource::HManifest           m_LiveupdateArchiveManifest;
 
-        dmJobThread::HContext           m_JobThread;
     } g_LiveUpdate;
 
     // ******************************************************************
@@ -123,10 +122,9 @@ namespace dmLiveUpdate
     // ******************************************************************
 
     // Clean up old mount file formats that we don't need any more
-    // TODO: Only do this until we persist the mounts
     static void LegacyCleanOldMountFormats(const char* app_support_path)
     {
-        const char* filenames[] = {LIVEUPDATE_ARCHIVE_TMP_FILENAME, LIVEUPDATE_ARCHIVE_FILENAME, LIVEUPDATE_BUNDLE_VER_FILENAME};
+        const char* filenames[] = {LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME, LIVEUPDATE_ZIP_ARCHIVE_FILENAME, LIVEUPDATE_BUNDLE_VER_FILENAME};
         for (int i = 0; i < DM_ARRAY_SIZE(filenames); ++i)
         {
             char path[DMPATH_MAX_PATH];
@@ -269,7 +267,7 @@ namespace dmLiveUpdate
         if (!loader)
             return 0;
 
-        const char* filenames[] = {LIVEUPDATE_ARCHIVE_TMP_FILENAME, LIVEUPDATE_ARCHIVE_FILENAME};
+        const char* filenames[] = {LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME, LIVEUPDATE_ZIP_ARCHIVE_FILENAME};
         for (int i = 0; i < DM_ARRAY_SIZE(filenames); ++i)
         {
             char ref_path[DMPATH_MAX_PATH];
