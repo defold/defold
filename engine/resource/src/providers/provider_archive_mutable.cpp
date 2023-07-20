@@ -571,6 +571,6 @@ namespace dmResourceProviderArchiveMutable
         loader->m_WriteFile     = WriteFile;
     }
 
-    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "archive_mutable", SetupArchiveLoader);
+    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "archivemutable", SetupArchiveLoader);
 }
 

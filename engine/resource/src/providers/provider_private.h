@@ -29,7 +29,7 @@ namespace dmResourceProvider
 
     struct ArchiveLoader
     {
-        dmhash_t                m_NameHash;         // E.g. "http", "archive", "archive_mutable", "file", "zip"
+        dmhash_t                m_NameHash;         // E.g. "http", "archive", "archivemutable", "file", "zip"
         FCanMount               m_CanMount;
         FMount                  m_Mount;
         FUnmount                m_Unmount;

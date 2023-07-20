@@ -300,13 +300,16 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
-    dmResource::HManifest manifest;
-    if (RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
+    if (factory->m_BaseArchiveMount)
     {
-        char app_support_path[DMPATH_MAX_PATH];
-        if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+        dmResource::HManifest manifest;
+        if (RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
         {
-            dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+            char app_support_path[DMPATH_MAX_PATH];
+            if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+            {
+                dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+            }
         }
     }
 
