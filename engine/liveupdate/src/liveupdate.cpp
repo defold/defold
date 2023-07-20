@@ -182,9 +182,10 @@ namespace dmLiveUpdate
             {
                 dmLogError("Failed to mount legacy archive: %s", dmResource::ResultToString(result));
             }
-
-            // Also flush the resource mounts to disc
-            // dmResourceMounts::Save(mounts);
+            else {
+                // Flush the resource mounts to disc
+                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
+            }
         }
 
         return archive;
@@ -220,7 +221,7 @@ namespace dmLiveUpdate
             }
         }
 
-        dmLogInfo("Found no liveupdate index paths");
+        dmLogInfo("Found no legacy liveupdate index paths");
 
         return 0;
     }
@@ -305,7 +306,7 @@ namespace dmLiveUpdate
             }
         }
 
-        dmLogInfo("Found no liveupdate zip file references");
+        dmLogInfo("Found no legacy liveupdate zip file references");
         return 0;
     }
 
@@ -329,9 +330,11 @@ namespace dmLiveUpdate
             {
                 dmLogError("Failed to mount legacy archive: %s", dmResource::ResultToString(result));
             }
-
-            // Also flush the resource mounts to disc
-            // dmResourceMounts::Save(mounts);
+            else
+            {
+                // Flush the resource mounts to disc
+                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
+            }
         }
 
         return archive;
@@ -362,14 +365,6 @@ namespace dmLiveUpdate
         }
 
         return dmResource::RESULT_OK;
-        // char app_support_path[DMPATH_MAX_PATH];
-        // if (dmResource::RESULT_OK != GetApplicationSupportPath(manifest, app_support_path, (uint32_t)sizeof(app_support_path)))
-        // {
-        //     return RESULT_IO_ERROR;
-        // }
-
-        // // Store the manifest file to disc
-        // return StoreManifestInternal(g_LiveUpdate.m_AppSupportPath, manifest) == RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
     // ******************************************************************
@@ -622,9 +617,11 @@ namespace dmLiveUpdate
             {
                 dmLogError("Failed to mount zip archive: %s", dmResource::ResultToString(result));
             }
-
-            // Also flush the resource mounts to disc
-            // dmResourceMounts::Save(mounts);
+            else
+            {
+                // Flush the resource mounts to disc
+                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
+            }
         }
 
         // Legacy. This makes less sense when using multiple mounted archives
@@ -679,12 +676,34 @@ namespace dmLiveUpdate
     }
 
     // ******************************************************************
-    // ** LiveUpdate scripting
+    // **
     // ******************************************************************
+
+    dmResourceMounts::HContext GetMountsContext()
+    {
+        return g_LiveUpdate.m_ResourceMounts;
+    }
 
     bool HasLiveUpdateMount()
     {
-        return g_LiveUpdate.m_LiveupdateArchive != 0;
+        dmResourceMounts::HContext mounts = dmLiveUpdate::GetMountsContext();
+        dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
+        DM_MUTEX_SCOPED_LOCK(mutex);
+
+        uint32_t count = dmResourceMounts::GetNumMounts(mounts);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmResourceMounts::SGetMountResult info;
+            dmResource::Result result = dmResourceMounts::GetMountByIndex(mounts, i, &info);
+            if (dmResource::RESULT_OK == result)
+            {
+                if (info.m_Priority >= 0)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // ******************************************************************
@@ -704,7 +723,7 @@ namespace dmLiveUpdate
             return dmExtension::RESULT_OK;
         }
 
-        dmResource::Manifest* manifest;
+        dmResource::HManifest manifest;
         dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
         if (dmResourceProvider::RESULT_OK != p_result)
         {
@@ -712,8 +731,8 @@ namespace dmLiveUpdate
             return dmExtension::RESULT_OK;
         }
 
-        Result result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
-        if (RESULT_OK != result)
+        dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
+        if (dmResource::RESULT_OK != r_result)
         {
             dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
             return dmExtension::RESULT_OK;

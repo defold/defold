@@ -40,9 +40,10 @@
 #include <dlib/uri.h>
 
 #include "resource.h"
+#include "resource_manifest.h"
+#include "resource_mounts.h"
 #include "resource_private.h"
 #include "resource_util.h"
-#include "resource_mounts.h"
 #include <resource/resource_ddf.h>
 
 #include "providers/provider.h"         // dmResourceProviderArchive::Result
@@ -85,11 +86,11 @@ struct ResourceReloadedCallbackPair
 struct SResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
-    dmHashTable<uint64_t, SResourceDescriptor>*  m_Resources;
+    dmHashTable64<SResourceDescriptor>*          m_Resources;
     dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     // Used for reloading of resources
-    dmHashTable<uint64_t, const char*>*          m_ResourceHashToFilename;
+    dmHashTable64<const char*>*                  m_ResourceHashToFilename;
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     dmArray<ResourceReloadedCallbackPair>*       m_ResourceReloadedCallbacks;
     SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
@@ -186,7 +187,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
         return RESULT_NOT_LOADED;
     }
 
-    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, 1, false);
+    dmResourceMounts::AddMount(factory->m_Mounts, "_builtin", factory->m_BuiltinMount, -5, false);
     return RESULT_OK;
 }
 
@@ -259,7 +260,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 factory->m_Mounts = dmResourceMounts::Create(archive);
             }
 
-            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, 0, false);
+            dmResourceMounts::AddMount(factory->m_Mounts, "_base", archive, -10, false);
 
             if (strcmp("archive", type_pairs[i].m_ProviderType) == 0)
             {
@@ -298,12 +299,22 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    dmResource::HManifest manifest;
+    if (RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
+    {
+        char app_support_path[DMPATH_MAX_PATH];
+        if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+        {
+            dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+        }
+    }
+
     dmLogDebug("Created resource factory with uri %s\n", uri);
 
     factory->m_ResourceTypesCount = 0;
 
     const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
-    factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>();
+    factory->m_Resources = new dmHashTable64<SResourceDescriptor>();
     factory->m_Resources->SetCapacity(table_size, params->m_MaxResources);
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
@@ -311,7 +322,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (params->m_Flags & RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT)
     {
-        factory->m_ResourceHashToFilename = new dmHashTable<uint64_t, const char*>();
+        factory->m_ResourceHashToFilename = new dmHashTable64<const char*>();
         factory->m_ResourceHashToFilename->SetCapacity(table_size, params->m_MaxResources);
 
         factory->m_ResourceReloadedCallbacks = new dmArray<ResourceReloadedCallbackPair>();

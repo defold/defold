@@ -18,6 +18,7 @@
 #include "resource.h"
 #include <dlib/array.h>
 #include <dlib/hash.h>
+#include <dlib/mutex.h>
 
 namespace dmResourceProvider
 {
@@ -30,6 +31,8 @@ namespace dmResourceMounts
 
     HContext    Create(dmResourceProvider::HArchive base_archive);
     void        Destroy(HContext context);
+
+    dmMutex::HMutex GetMutex(HContext ctx);
 
     dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);

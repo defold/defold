@@ -111,6 +111,11 @@ static void DebugPrintMounts(HContext ctx)
     }
 }
 
+dmMutex::HMutex GetMutex(HContext ctx)
+{
+    return ctx->m_Mutex;
+}
+
 dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist)
 {
     if (strlen(name) >= MAX_NAME_LENGTH)
@@ -205,6 +210,8 @@ dmResource::Result LoadMounts(HContext ctx, const char* app_support_path)
 
     DM_RESOURCE_DBG_LOG(1, "Loading mounts '%s'\n", path);
 
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex); // avoid reading while it might be written
+
     dmArray<MountFileEntry> entries;
     dmResource::Result result = ReadMountsFile(path, entries);
     if (dmResource::RESULT_OK != result)
@@ -232,6 +239,8 @@ dmResource::Result SaveMounts(HContext ctx, const char* app_support_path)
     dmPath::Concat(app_support_path, MOUNTS_FILENAME, path, sizeof(path));
 
     DM_RESOURCE_DBG_LOG(1, "Saving mounts '%s'\n", path);
+
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
 
     dmArray<MountFileEntry> entries;
 

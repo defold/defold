@@ -169,6 +169,24 @@ TEST(MountsFile, ReadBadEntry)
     dmResourceMounts::FreeMountsFile(entries);
 }
 
+TEST(MountsFile, ReadFileWithSpaces)
+{
+    char path[1024];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/mountfiles/spaces.mounts");
+
+    dmArray<dmResourceMounts::MountFileEntry> entries;
+    dmResource::Result result = dmResourceMounts::ReadMountsFile(path, entries);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(1u, entries.Size());
+
+    const dmResourceMounts::MountFileEntry entry0 = entries[0];
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(10, entry0.m_Priority);
+    ASSERT_STREQ("_liveupdate", entry0.m_Name);
+    ASSERT_STREQ("zip:/Users/mawe/Library/Application Support/LiveUpdateDemo/defold.resourcepack.zip", entry0.m_Uri);
+
+    dmResourceMounts::FreeMountsFile(entries);
+}
 
 
 class ArchiveProvidersMounts : public jc_test_base_class
@@ -176,47 +194,6 @@ class ArchiveProvidersMounts : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        // dmResourceProvider::ArchiveLoader* loader_file = dmResourceProvider::FindLoaderByName(dmHashString64("file"));
-        // dmResourceProvider::ArchiveLoader* loader_zip = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
-        // dmResourceProvider::ArchiveLoader* loader_archive = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
-
-        // ASSERT_NE((dmResourceProvider::ArchiveLoader*)0, loader_file);
-        // ASSERT_NE((dmResourceProvider::ArchiveLoader*)0, loader_zip);
-        // ASSERT_NE((dmResourceProvider::ArchiveLoader*)0, loader_archive);
-
-        // {
-        //     dmResourceProvider::Result result;
-
-        //     result = Mount(loader_file, "build/src/test/overrides", &m_Archives[0]);
-        //     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-
-        //     result = Mount(loader_archive, "dmanif:build/src/test/resources", &m_Archives[1]);
-        //     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-
-        //     result = Mount(loader_zip, "zip:build/src/test/luresources_compressed.zip", &m_Archives[2]);
-        //     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-
-        //     m_Mounts = dmResourceMounts::Create(0);
-        //     ASSERT_NE((dmResourceMounts::HContext)0, m_Mounts);
-        // }
-
-        // // Mount them in order:
-        // //  archive - 10
-        // //  zip     - 20
-        // //  file    - 30
-        // {
-        //     dmResource::Result result;
-        //     result = dmResourceMounts::AddMount(m_Mounts, "a", m_Archives[0], 30, false); // file
-        //     ASSERT_EQ(dmResource::RESULT_OK, result);
-
-        //     result = dmResourceMounts::AddMount(m_Mounts, "b", m_Archives[1], 10, false); // archive
-        //     ASSERT_EQ(dmResource::RESULT_OK, result);
-
-        //     result = dmResourceMounts::AddMount(m_Mounts, "c", m_Archives[2], 20, false); // zip
-        //     ASSERT_EQ(dmResource::RESULT_OK, result);
-        // }
-
-
         dmArray<dmResourceMounts::MountFileEntry> entries;
         entries.SetCapacity(8);
 
@@ -328,44 +305,6 @@ TEST_F(ArchiveProvidersMounts, SaveAndLoad)
 
     ASSERT_EQ(2, dmResourceMounts::GetNumMounts(m_Mounts));
 }
-
-// TEST_F(ArchiveProvidersMounts, GetMounts)
-// {
-//     // Note: The mounts are sorted on priority: Highest number comes first in the list
-//     dmResourceMounts::SGetMountResult result;
-
-//     // By index
-//     ASSERT_EQ(3, dmResourceMounts::GetNumMounts(m_Mounts));
-
-//     ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByIndex(m_Mounts, 4, &result));
-
-//     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 0, &result));
-//     ASSERT_STREQ("a", result.m_Name);
-//     ASSERT_EQ(30, result.m_Priority);
-
-//     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 1, &result));
-//     ASSERT_STREQ("c", result.m_Name);
-//     ASSERT_EQ(20, result.m_Priority);
-
-//     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 2, &result));
-//     ASSERT_STREQ("b", result.m_Name);
-//     ASSERT_EQ(10, result.m_Priority);
-
-//     // By name
-//     ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByName(m_Mounts, "not_exist", &result));
-
-//     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "c", &result));
-//     ASSERT_STREQ("c", result.m_Name);
-//     ASSERT_EQ(20, result.m_Priority);
-
-//     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "a", &result));
-//     ASSERT_STREQ("a", result.m_Name);
-//     ASSERT_EQ(30, result.m_Priority);
-
-//     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "b", &result));
-//     ASSERT_STREQ("b", result.m_Name);
-//     ASSERT_EQ(10, result.m_Priority);
-// }
 
 int main(int argc, char **argv)
 {

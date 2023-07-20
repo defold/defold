@@ -17,9 +17,12 @@
 #include "liveupdate_private.h"
 
 #include <dlib/log.h>
+#include <dlib/uri.h>
 #include <extension/extension.h>
 #include <resource/resource_manifest.h>
+#include <resource/resource_mounts.h>
 #include <resource/resource_verify.h>
+#include <resource/providers/provider.h>
 #include <script/script.h>
 
 namespace dmLiveUpdate
@@ -264,7 +267,52 @@ namespace dmLiveUpdate
     }
 
     // ************************************************************************************
-    // .zip support
+    // Mount support
+
+    // *********************
+
+    static int Resource_GetMounts(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmResourceMounts::HContext mounts = dmLiveUpdate::GetMountsContext();
+        dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
+        DM_MUTEX_SCOPED_LOCK(mutex);
+
+        uint32_t count = dmResourceMounts::GetNumMounts(mounts);
+
+        lua_createtable(L, count, 0);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmResourceMounts::SGetMountResult info;
+            dmResource::Result result = dmResourceMounts::GetMountByIndex(mounts, i, &info);
+            if (dmResource::RESULT_OK == result)
+            {
+                dmURI::Parts uri;
+                dmResourceProvider::GetUri(info.m_Archive, &uri);
+
+                lua_pushinteger(L, i+1);
+                lua_newtable(L);
+
+                    lua_pushinteger(L, info.m_Priority);
+                    lua_setfield(L, -2, "priority");
+
+                    lua_pushstring(L, info.m_Name);
+                    lua_setfield(L, -2, "name");
+
+                    if (uri.m_Location[0] == '\0')
+                        lua_pushfstring(L, "%s:%s", uri.m_Scheme, uri.m_Path);
+                    else
+                        lua_pushfstring(L, "%s:%s/%s", uri.m_Scheme, uri.m_Location, uri.m_Path);
+                    lua_setfield(L, -2, "uri");
+
+                lua_settable(L, -3);
+            }
+        }
+
+        return 1;
+    }
 
     // static void Callback_Mount_Common(dmScript::LuaCallbackInfo* cbk, const char* path, dmResourceProvider::HArchive archive, bool status)
     // {
@@ -362,7 +410,7 @@ namespace dmLiveUpdate
 // New api
         // {"mount_archive", dmLiveUpdate::Resource_MountArchive},     // Store a link to a .zip archive
         // {"unmount_archive", dmLiveUpdate::Resource_UnmountArchive}, // Remove a link to a .zip archive
-        // {"get_mounts",    dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
+        {"get_mounts",    dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
 
         {0, 0}
     };

@@ -23,6 +23,11 @@ namespace dmResourceArchive
     struct LiveUpdateResource;
 }
 
+namespace dmResourceMounts
+{
+    typedef struct ResourceMountsContext* HContext;
+}
+
 namespace dmLiveUpdate
 {
     /**
@@ -47,17 +52,9 @@ namespace dmLiveUpdate
 
     const char* ResultToString(Result result);
 
-    /*
-     * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
-     */
-    //Result VerifyManifest(const dmResource::Manifest* manifest);
-
-    //Result VerifyManifestReferences(const dmResource::Manifest* manifest);
-
-    // Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length);
-
     // Scripting
     bool HasLiveUpdateMount();
+    dmResourceMounts::HContext GetMountsContext();
 
     // For .arci/.arcd storage using the "archive" provider
     Result StoreResourceAsync(const char* expected_digest, uint32_t expected_digest_length,
@@ -69,16 +66,6 @@ namespace dmLiveUpdate
     // For .zip storage using the "zip" provider
     // Registers an archive (.zip) on disc
     Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive);
-
-    //Result StoreManifestToMutableArchive(dmResource::Manifest* manifest);
-
-    // -1: not using liveupdate
-    // 0: single files
-    // 1: zip file
-    //int GetLiveupdateType();
-
-    // resource_util.h
-    //char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
 };
 
 #endif // DM_LIVEUPDATE_H
