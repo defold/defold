@@ -62,7 +62,9 @@ import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.logging.Logger;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
 
 import java.awt.AlphaComposite;
@@ -84,6 +86,7 @@ public class BundleHelper {
     private Map<String, Map<String, Object>> propertiesMap;
 
     public static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
+    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
     private static final String[] ARCHIVE_FILE_NAMES = {
         "game.projectc",
         "game.arci",
@@ -157,7 +160,16 @@ public class BundleHelper {
         String s = new String(data);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
-        template.execute(propertiesMap, properties, sw);
+        try {
+            template.execute(propertiesMap, properties, sw);
+         } catch (MustacheException e) {
+            MustacheException.Context context = (MustacheException.Context) e;
+            String key = context.key;
+            int lineNo = context.lineNo;
+            String path = resource.getPath();
+            String cause = String.format("File '%s' requires '%s' in line %d. Make sure you have '%s' in your game.project", path, key, lineNo, key);
+            throw new MustacheException(cause);
+         }
         sw.flush();
         return sw.toString();
     }
