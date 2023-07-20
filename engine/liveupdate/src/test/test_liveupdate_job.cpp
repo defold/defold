@@ -14,90 +14,104 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <resource/resource.h>
-#include "../liveupdate.h"
-#include "../liveupdate_private.h"
 
-class LiveUpdateJob : public jc_test_base_class
+#include "../job_thread.h"
+
+static volatile bool g_TestAsyncCallbackComplete = false;
+
+class AsyncTest : public jc_test_base_class
 {
 public:
     virtual void SetUp()
     {
-        dmResource::NewFactoryParams params;
-        params.m_MaxResources = 16;
-        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Factory = dmResource::NewFactory(&params, ".");
-        ASSERT_NE((void*) 0, m_Factory);
-
-        dmLiveUpdate::Initialize(m_Factory);
-        dmLiveUpdate::RegisterArchiveLoaders();
+        m_JobThread = dmJobThread::Create("test_jobs");
     }
     virtual void TearDown()
     {
-        dmLiveUpdate::Finalize();
-        if (m_Factory)
-            dmResource::DeleteFactory(m_Factory);
+        dmJobThread::Destroy(m_JobThread);
     }
 
-    dmResource::HFactory m_Factory;
+    dmJobThread::HContext m_JobThread;
 };
 
-struct JobCallbackContext
+struct JobData
 {
-    int m_Count;
-    int m_Multiply;
+    char m_Char;
+    int  m_Result;
 };
 
-struct JobCallbackData
+static int ProcessData(void* context, void* _data)
 {
-    int m_Input;
-    int m_Result;
-    int m_Expected;
-};
+    HashState64* hash_state = (HashState64*)context;
+    JobData* data = (JobData*)_data;
 
-static int JobItemProcess(void* jobctx, void* jobdata)
-{
-    JobCallbackContext* ctx = (JobCallbackContext*)jobctx;
-    JobCallbackData* data = (JobCallbackData*)jobdata;
-    data->m_Result = data->m_Input * ctx->m_Multiply;
+    data->m_Char--;
+    dmHashUpdateBuffer64(hash_state, &data->m_Char, 1);
+    return data->m_Char;
 }
 
-static void JobItemCallback(void* jobctx, void* jobdata, int result)
+static void FinishData(void* context, void* _data, int result)
 {
-    JobCallbackContext* ctx = (JobCallbackContext*)jobctx;
-    ctx->m_Count++;
-
-    JobCallbackData* data = (JobCallbackData*)jobdata;
-    ASSERT_EQ(data->m_Expected, data->m_Result);
-
-    printf("Finished job %d\n", data->m_Input);
-    delete data;
+    JobData* data = (JobData*)_data;
+    data->m_Result = result;
 }
 
-TEST_F(LiveUpdateJob, TestJob)
+static void PushJob(dmJobThread::HContext thread, HashState64* hash_state, JobData* data)
 {
-    JobCallbackContext ctx;
-    ctx.m_Count = 0;
-    ctx.m_Multiply = 3;
+    dmJobThread::PushJob(thread, (dmJobThread::FProcess)ProcessData, (dmJobThread::FCallback)FinishData, (void*)hash_state, (void*)data);
+}
 
-    uint32_t num_jobs = 4;
+TEST_F(AsyncTest, TestJobs)
+{
+    const char* test_data = "TESTSTRING";
+    uint32_t num_jobs = (uint32_t)strlen(test_data);
+    JobData contexts[num_jobs];
+
+    HashState64 hash_state;
+    dmHashInit64(&hash_state, false);
+
     for (uint32_t i = 0; i < num_jobs; ++i)
     {
-        JobCallbackData* data = new JobCallbackData;
-        data->m_Input = i+1;
-        data->m_Expected = data->m_Input * ctx.m_Multiply;
-        ASSERT_TRUE(dmLiveUpdate::PushAsyncJob(JobItemProcess, JobItemCallback, &ctx, data));
+        contexts[i].m_Char = test_data[i] + 1;
+        contexts[i].m_Result = 0;
+
+        PushJob(m_JobThread, &hash_state, &contexts[i]);
     }
 
-    while (ctx.m_Count < num_jobs)
+    uint64_t time_start = dmTime::GetTime();
+    while (true)
     {
-        dmTime::Sleep(100);
-        dmLiveUpdate::Update();
+        if ((dmTime::GetTime() - time_start) >= 5 * 10000000)
+        {
+            dmLogError("Test timed out!");
+            break;
+        }
+
+        dmJobThread::Update(m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
+
+        int num_finished = 0;
+        for (uint32_t i = 0; i < num_jobs; ++i)
+        {
+            num_finished += (contexts[i].m_Result ? 1 : 0);
+        }
+
+        if (num_finished == num_jobs)
+            break;
     }
+
+    for (uint32_t i = 0; i < num_jobs; ++i)
+    {
+        ASSERT_EQ(test_data[i], (char)contexts[i].m_Result);
+    }
+
+    // we make sure they all are executed in sequence
+    dmhash_t digest = dmHashFinal64(&hash_state);
+    ASSERT_EQ(dmHashString64(test_data), digest);
 }
 
 

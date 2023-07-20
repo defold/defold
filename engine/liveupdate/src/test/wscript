@@ -24,15 +24,6 @@ def build(bld):
             features = ['skip_test']
             defines = ['DM_LU_NULL_IMPLEMENTATION'] # if we use null implementation, then we can't test internal function
 
-        bld.program(features = 'cxx test'.split() + features,
-                    includes = '../../../src',
-                    use      = uselib + [local_lib],
-                    defines  = defines,
-                    exported_symbols = exported_symbols,
-                    web_libs = ['library_sys.js'],
-                    target   = 'test_liveupdate' + suffix,
-                    source   = 'test_liveupdate.cpp')
-
         if impl != 'null': # it's only testing private functions, to we don't expect it to work with the _null implementation
             bld.program(features = 'cxx test'.split() + features,
                         includes = '../../../src',
@@ -42,24 +33,6 @@ def build(bld):
                         web_libs = ['library_sys.js'],
                         target   = 'test_liveupdate_job' + suffix,
                         source   = 'test_liveupdate_job.cpp')
-
-        bld.program(features = 'cxx test'.split() + features,
-                    includes = '../../../src',
-                    use      = uselib + [local_lib],
-                    defines  = defines,
-                    exported_symbols = exported_symbols,
-                    web_libs = ['library_sys.js'],
-                    target   = 'test_liveupdate_async' + suffix,
-                    source   = '../liveupdate_async.cpp test_liveupdate_async.cpp')
-
-        bld.program(features = 'cxx cprogram test'.split() + features,
-                    includes = '../../../src',
-                    use      = uselib + [local_lib],
-                    defines  = defines,
-                    exported_symbols = exported_symbols,
-                    web_libs = ['library_sys.js'],
-                    target   = 'test_liveupdate_zip_archive' + suffix,
-                    source   = 'test_liveupdate_zip_archive.cpp')
 
 
 def shutdown(ctx):

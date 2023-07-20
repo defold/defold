@@ -370,8 +370,6 @@ namespace dmLiveUpdate
 
         // options at #4
 
-        dmResourceMounts::HContext mounts = dmResource::GetMountsContext(g_LUScriptCtx.m_Factory);
-
         dmLiveUpdate::Result res = dmLiveUpdate::AddMountAsync(name, uri, priority, Callback_AddMount, cbk);
         if (dmLiveUpdate::RESULT_OK != res)
         {
