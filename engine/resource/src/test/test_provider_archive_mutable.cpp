@@ -94,7 +94,7 @@ TEST(ArchiveProviderBasic, Registered)
 {
     dmResourceProvider::ArchiveLoader* loader;
 
-    loader = dmResourceProvider::FindLoaderByName(dmHashString64("archivemutable"));
+    loader = dmResourceProvider::FindLoaderByName(dmHashString64("mutable"));
     ASSERT_NE((ArchiveLoader*)0, loader);
 
     loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
@@ -106,7 +106,7 @@ TEST(ArchiveProviderBasic, Registered)
 
 TEST(ArchiveProviderBasic, CanMount)
 {
-    dmResourceProvider::ArchiveLoader* loader = dmResourceProvider::FindLoaderByName(dmHashString64("archivemutable"));
+    dmResourceProvider::ArchiveLoader* loader = dmResourceProvider::FindLoaderByName(dmHashString64("mutable"));
     ASSERT_NE((ArchiveLoader*)0, loader);
 
     dmURI::Parts uri;
@@ -162,7 +162,7 @@ protected:
     {
         m_BaseLoader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
         ASSERT_NE((ArchiveLoader*)0, m_BaseLoader);
-        m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("archivemutable"));
+        m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("mutable"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
 
         {

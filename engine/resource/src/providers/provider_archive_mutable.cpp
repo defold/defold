@@ -62,7 +62,8 @@ namespace dmResourceProviderArchiveMutable
 
     static bool MatchesUri(const dmURI::Parts* uri)
     {
-        return strcmp(uri->m_Scheme, "dmanif") == 0;
+        return strcmp(uri->m_Scheme, "mutable") == 0 ||
+               strcmp(uri->m_Scheme, "dmanif") == 0;
     }
 
     static dmResourceProvider::Result MountArchive(const dmURI::Parts* uri, dmResourceArchive::HArchiveIndexContainer* out)
@@ -571,6 +572,6 @@ namespace dmResourceProviderArchiveMutable
         loader->m_WriteFile     = WriteFile;
     }
 
-    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "archivemutable", SetupArchiveLoader);
+    DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "mutable", SetupArchiveLoader);
 }
 

@@ -152,18 +152,18 @@ namespace dmLiveUpdate
 
     static dmResourceProvider::HArchive LegacyCreateMutableArchive(const char* app_support_path, dmResourceProvider::HArchive base_archive)
     {
-        size_t scheme_len = strlen("dmanif:");
-        char archive_uri[DMPATH_MAX_PATH] = "dmanif:";
+        char archive_uri[DMPATH_MAX_PATH] = "mutable:";
+        size_t scheme_len = strlen(archive_uri);
         char* path = archive_uri + scheme_len;
         dmPath::Concat(app_support_path, LIVEUPDATE_INDEX_FILENAME, path, sizeof(archive_uri)-scheme_len);
 
         dmURI::Parts uri;
         dmURI::Parse(archive_uri, &uri);
 
-        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive_mutable"));
+        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64(uri.m_Scheme));
         if (!loader)
         {
-            dmLogError("Failed to find 'archive_mutable' loader");
+            dmLogError("Failed to find '%s' loader", uri.m_Scheme);
             return 0;
         }
 
@@ -171,7 +171,7 @@ namespace dmLiveUpdate
         dmResourceProvider::Result result = dmResourceProvider::CreateMount(loader, &uri, g_LiveUpdate.m_ResourceBaseArchive, &archive);
         if (dmResourceProvider::RESULT_OK != result)
         {
-            dmLogError("Failed to create new mutable archive at %s", path);
+            dmLogError("Failed to create new archive at '%s'", archive_uri);
             return 0;
         }
 
@@ -180,7 +180,7 @@ namespace dmLiveUpdate
             dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME, archive, LIVEUPDATE_LEGACY_MOUNT_PRIORITY, true);
             if (dmResource::RESULT_OK != result)
             {
-                dmLogError("Failed to mount legacy archive: %s", dmResource::ResultToString(result));
+                dmLogError("Failed to mount legacy archive '%s': %s", archive_uri, dmResource::ResultToString(result));
             }
             else {
                 // Flush the resource mounts to disc
@@ -193,15 +193,15 @@ namespace dmLiveUpdate
 
     static dmResourceProvider::HArchive LegacyLoadMutableArchive(const char* app_support_path, dmResourceProvider::HArchive base_archive)
     {
-        dmResourceProvider::HArchiveLoader loader = LegacyGetLoader("archive_mutable");
+        dmResourceProvider::HArchiveLoader loader = LegacyGetLoader("mutable");
         if (!loader)
             return 0;
 
         const char* filenames[] = {LIVEUPDATE_INDEX_TMP_FILENAME, LIVEUPDATE_INDEX_FILENAME};
         for (int i = 0; i < DM_ARRAY_SIZE(filenames); ++i)
         {
-            size_t scheme_len = strlen("dmanif:");
-            char index_uri[DMPATH_MAX_PATH] = "dmanif:";
+            char index_uri[DMPATH_MAX_PATH] = "mutable:";
+            size_t scheme_len = strlen(index_uri);
             char* index_path = index_uri + scheme_len;
             dmPath::Concat(app_support_path, filenames[i], index_path, sizeof(index_uri)-scheme_len);
             if (!dmSys::Exists(index_path))
@@ -320,8 +320,7 @@ namespace dmLiveUpdate
             archive = LegacyLoadMutableArchive(app_support_path, base_archive);
         }
 
-        // Don't remove these files until we can persist the mounts!
-        //LegacyCleanOldMountFormats(app_support_path);
+        LegacyCleanOldMountFormats(app_support_path);
 
         if (archive)
         {
@@ -587,9 +586,7 @@ namespace dmLiveUpdate
             }
         }
 
-        size_t scheme_len = strlen("zip:");
-        char archive_uri[DMPATH_MAX_PATH] = "zip:";
-        char* path = archive_uri + scheme_len;
+        char archive_uri[DMPATH_MAX_PATH];
         dmSnPrintf(archive_uri, sizeof(archive_uri), "zip:%s", job->m_Path);
 
         dmURI::Parts uri;
@@ -598,7 +595,7 @@ namespace dmLiveUpdate
         dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
         if (!loader)
         {
-            dmLogError("Failed to find 'archive_mutable' loader");
+            dmLogError("Failed to find 'mutable' loader");
             return RESULT_IO_ERROR;
         }
 
@@ -606,7 +603,7 @@ namespace dmLiveUpdate
         dmResourceProvider::Result result = dmResourceProvider::CreateMount(loader, &uri, g_LiveUpdate.m_ResourceBaseArchive, &archive);
         if (dmResourceProvider::RESULT_OK != result)
         {
-            dmLogError("Failed to create new zip archive from %s", path);
+            dmLogError("Failed to create new zip archive from '%s'", archive_uri);
             return RESULT_UNKNOWN;
         }
 
