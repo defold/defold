@@ -43,17 +43,6 @@ namespace dmLiveUpdate
         const char*                 m_HexDigest;
     };
 
-    struct StoreArchiveCallbackData
-    {
-        dmScript::LuaCallbackInfo*  m_Callback;
-        const char*                 m_Path;
-    };
-
-    struct MountArchiveCallbackData
-    {
-        dmScript::LuaCallbackInfo*  m_Callback;
-    };
-
     // ******************************************************************************************
 
     static int Resource_GetCurrentManifest(lua_State* L)
@@ -204,6 +193,8 @@ namespace dmLiveUpdate
         return 0;
     }
 
+    //  ************************************
+
     static void Callback_StoreArchive(const char* path, int result, void* _cbk)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)_cbk;
@@ -275,7 +266,7 @@ namespace dmLiveUpdate
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmResourceMounts::HContext mounts = dmLiveUpdate::GetMountsContext();
+        dmResourceMounts::HContext mounts = dmResource::GetMountsContext(g_LUScriptCtx.m_Factory);
         dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
@@ -314,74 +305,80 @@ namespace dmLiveUpdate
         return 1;
     }
 
-    // static void Callback_Mount_Common(dmScript::LuaCallbackInfo* cbk, const char* path, dmResourceProvider::HArchive archive, bool status)
-    // {
-    //     if (!dmScript::IsCallbackValid(cbk))
-    //         return;
+    // *********************
 
-    //     lua_State* L = dmScript::GetCallbackLuaContext(cbk);
-    //     DM_LUA_STACK_CHECK(L, 0);
+    static int Resource_RemoveMount(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
 
-    //     if (!dmScript::SetupCallback(cbk))
-    //     {
-    //         dmLogError("Failed to setup callback");
-    //         return;
-    //     }
+        const char* name = luaL_checkstring(L, 1);
 
-    //     lua_pushstring(L, path);
-    //     lua_pushboolean(L, archive != 0);
-    //     lua_pushboolean(L, status);
+        dmResourceMounts::HContext mounts = dmResource::GetMountsContext(g_LUScriptCtx.m_Factory);
+        dmResource::Result result = dmResourceMounts::RemoveMountByName(mounts, name);
 
-    //     dmScript::PCall(L, 4, 0); // instance + 3
+        dmLiveUpdate::Result r = dmLiveUpdate::ResourceResultToLiveupdateResult(result);
+        lua_pushinteger(L, r);
+        return 1;
+    }
 
-    //     dmScript::TeardownCallback(cbk);
-    //     dmScript::DestroyCallback(cbk);
-    // }
+    // *********************
 
-    // static void Callback_MountUnMountArchive(const char* path, dmResourceProvider::HArchive archive, bool status, void* _data)
-    // {
+    static void Callback_AddMount(const char* path, const char* uri, int result, void* _cbk)
+    {
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)_cbk;
 
-    //     StoreArchiveCallbackData* callback_data = (StoreArchiveCallbackData*)_data;
-    //     Callback_Mount_Common(callback_data->m_Callback, path, archive, status);
-    //     delete callback_data;
-    // }
+        if (!dmScript::IsCallbackValid(cbk))
+            return;
 
-    // // ***********
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0)
 
-    // static int Resource_MountArchive(lua_State* L)
-    // {
-    //     DM_LUA_STACK_CHECK(L, 0);
+        if (!dmScript::SetupCallback(cbk))
+        {
+            dmLogError("Failed to setup callback");
+            return;
+        }
 
-    //     const char* path = luaL_checkstring(L, 1);
+        lua_pushstring(L, path);
+        lua_pushstring(L, uri);
+        lua_pushinteger(L, result);
 
-    //     MountArchiveCallbackData* cb = new MountArchiveCallbackData;
-    //     cb->m_Callback = dmScript::CreateCallback(L, 2);
+        dmScript::PCall(L, 4, 0); // instance + 3
 
-    //     dmLiveUpdate::Result res = dmLiveUpdate::MountArchive(path, Callback_MountUnMountArchive, cb);
-    //     if (dmLiveUpdate::RESULT_OK != res)
-    //     {
-    //         return DM_LUA_ERROR("Failed to mount archive: %d", res);
-    //     }
-    //     return 0;
-    // }
+        dmScript::TeardownCallback(cbk);
+        dmScript::DestroyCallback(cbk);
+    }
 
-    // // ***********
+    static int Resource_AddMount(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
 
-    // static int Resource_UnmountArchive(lua_State* L)
-    // {
-    //     DM_LUA_STACK_CHECK(L, 0);
-    //     dmLiveUpdate::HMount mount = (dmLiveUpdate::HMount)luaL_checkinteger(L, 1);
+        const char* name = luaL_checkstring(L, 1);
+        const char* uri = luaL_checkstring(L, 2);
+        int priority = luaL_checkinteger(L, 3);
+        dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 4);
 
-    //     MountArchiveCallbackData* cb = new MountArchiveCallbackData;
-    //     cb->m_Callback = dmScript::CreateCallback(L, 2);
+        // validate args
+        if (priority < 0)
+            return DM_LUA_ERROR("Priority needs to be a positive number: %d", priority);
 
-    //     dmLiveUpdate::Result res = dmLiveUpdate::UnmountArchive(mount, Callback_MountUnMountArchive, cb);
-    //     if (dmLiveUpdate::RESULT_OK != res)
-    //     {
-    //         return DM_LUA_ERROR("Failed to mount archive: %d", res);
-    //     }
-    //     return 0;
-    // }
+        if (name[0] == '_')
+            return DM_LUA_ERROR("Name must not start with '_': %s", name);
+
+        // options at #4
+
+        dmResourceMounts::HContext mounts = dmResource::GetMountsContext(g_LUScriptCtx.m_Factory);
+
+        dmLiveUpdate::Result res = dmLiveUpdate::AddMountAsync(name, uri, priority, Callback_AddMount, cbk);
+        if (dmLiveUpdate::RESULT_OK != res)
+        {
+            dmLogError("The liveupdate mount '%s' - '%s' was not stored: %s", name, uri, dmLiveUpdate::ResultToString(res));
+            dmScript::DestroyCallback(cbk);
+        }
+
+        lua_pushinteger(L, res);
+        return 1;
+    }
 
     // *********************
 
@@ -408,9 +405,9 @@ namespace dmLiveUpdate
         {"store_archive", dmLiveUpdate::Resource_StoreArchive},   // Store a .zip archive
 
 // New api
-        // {"mount_archive", dmLiveUpdate::Resource_MountArchive},     // Store a link to a .zip archive
-        // {"unmount_archive", dmLiveUpdate::Resource_UnmountArchive}, // Remove a link to a .zip archive
-        {"get_mounts",    dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
+        {"get_mounts",      dmLiveUpdate::Resource_GetMounts},      // Gets a list of the current mounts
+        {"add_mount",       dmLiveUpdate::Resource_AddMount},
+        {"remove_mount",    dmLiveUpdate::Resource_RemoveMount},
 
         {0, 0}
     };

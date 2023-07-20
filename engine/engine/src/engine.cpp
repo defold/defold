@@ -610,7 +610,7 @@ namespace dmEngine
                 }
                 if (dmSys::ResourceExists(tmp))
                 {
-                    dmStrlCpy(project_file_uri, "dmanif:", sizeof(project_file_uri));
+                    dmStrlCpy(project_file_uri, "archive:", sizeof(project_file_uri));
                     dmStrlCat(project_file_uri, tmp, sizeof(project_file_uri));
                 }
             }

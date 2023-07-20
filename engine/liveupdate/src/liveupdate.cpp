@@ -636,6 +636,7 @@ namespace dmLiveUpdate
         dmLogInfo("Finishing archive job: %d", result);
         if (job->m_Callback)
             job->m_Callback(job->m_Path, result, job->m_CallbackData);
+        free((void*)job->m_Name);
         free((void*)job->m_Path);
         delete job;
     }
@@ -649,14 +650,102 @@ namespace dmLiveUpdate
 
         StoreArchiveInfo* info = new StoreArchiveInfo;
         info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
-        info->m_Name = mountname;
         info->m_Priority = priority;
+        info->m_Name = strdup(mountname);
         info->m_Path = strdup(path);
         info->m_Callback = callback;
         info->m_CallbackData = callback_data;
         info->m_Verify = true;
 
         bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)StoreArchiveProcess, (dmJobThread::FCallback)StoreArchiveFinished, (void*)&g_LiveUpdate, info);
+        return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
+    }
+
+    // ******************************************************************
+    // ** LiveUpdate add mount
+    // ******************************************************************
+
+    struct AddMountInfo
+    {
+        AddMountInfo() {
+            memset(this, 0, sizeof(*this));
+        }
+        dmResourceProvider::HArchive    m_Archive;
+        const char*                     m_Uri;
+        const char*                     m_Name;
+        void                            (*m_Callback)(const char*, const char*, int, void*);
+        void*                           m_CallbackData;
+        int                             m_Priority;
+    };
+
+    // Called on the worker thread
+    static int AddMountProcess(LiveUpdateCtx* jobctx, AddMountInfo* job)
+    {
+        dmURI::Parts uri;
+        dmURI::Parse(job->m_Uri, &uri);
+
+        // size_t scheme_len = strlen("zip:");
+        // char archive_uri[DMPATH_MAX_PATH] = "zip:";
+        // char* path = archive_uri + scheme_len;
+        // dmSnPrintf(archive_uri, sizeof(archive_uri), "zip:%s", job->m_Path);
+
+        // dmURI::Parts uri;
+        // dmURI::Parse(archive_uri, &uri);
+
+        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64(uri.m_Scheme));
+        if (!loader)
+        {
+            dmLogError("Failed to find loader for scheme '%s'", uri.m_Scheme);
+            return RESULT_IO_ERROR;
+        }
+
+        dmResourceProvider::HArchive archive = 0;
+        dmResourceProvider::Result result = dmResourceProvider::CreateMount(loader, &uri, g_LiveUpdate.m_ResourceBaseArchive, &archive);
+        if (dmResourceProvider::RESULT_OK != result)
+        {
+            dmLogError("Failed to create new mount from %s", job->m_Uri);
+            return RESULT_UNKNOWN;
+        }
+
+        if (archive)
+        {
+            dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority, true);
+            if (dmResource::RESULT_OK != result)
+            {
+                dmLogError("Failed to mount zip archive: %s", dmResource::ResultToString(result));
+            }
+            else
+            {
+                // Flush the resource mounts to disc
+                dmResourceMounts::SaveMounts(g_LiveUpdate.m_ResourceMounts, g_LiveUpdate.m_AppSupportPath);
+            }
+        }
+
+        return RESULT_OK;
+    }
+
+    // Called on the main thread (see dmJobThread::Update below)
+    static void AddMountFinished(LiveUpdateCtx* jobctx, AddMountInfo* job, int result)
+    {
+        dmLogInfo("Finishing add mount job: %d", result);
+        if (job->m_Callback)
+            job->m_Callback(job->m_Name, job->m_Uri, result, job->m_CallbackData);
+        free((void*)job->m_Name);
+        free((void*)job->m_Uri);
+        delete job;
+    }
+
+    Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* callback_data)
+    {
+        AddMountInfo* info = new AddMountInfo;
+        info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
+        info->m_Priority = priority;
+        info->m_Name = strdup(name);
+        info->m_Uri = strdup(uri);
+        info->m_Callback = callback;
+        info->m_CallbackData = callback_data;
+
+        bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)AddMountProcess, (dmJobThread::FCallback)AddMountFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -679,22 +768,16 @@ namespace dmLiveUpdate
     // **
     // ******************************************************************
 
-    dmResourceMounts::HContext GetMountsContext()
-    {
-        return g_LiveUpdate.m_ResourceMounts;
-    }
-
     bool HasLiveUpdateMount()
     {
-        dmResourceMounts::HContext mounts = dmLiveUpdate::GetMountsContext();
-        dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
+        dmMutex::HMutex mutex = dmResourceMounts::GetMutex(g_LiveUpdate.m_ResourceMounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
-        uint32_t count = dmResourceMounts::GetNumMounts(mounts);
+        uint32_t count = dmResourceMounts::GetNumMounts(g_LiveUpdate.m_ResourceMounts);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmResourceMounts::SGetMountResult info;
-            dmResource::Result result = dmResourceMounts::GetMountByIndex(mounts, i, &info);
+            dmResource::Result result = dmResourceMounts::GetMountByIndex(g_LiveUpdate.m_ResourceMounts, i, &info);
             if (dmResource::RESULT_OK == result)
             {
                 if (info.m_Priority >= 0)
@@ -710,24 +793,13 @@ namespace dmLiveUpdate
     // ** LiveUpdate life cycle functions
     // ******************************************************************
 
-    static dmExtension::Result Initialize(dmExtension::Params* params)
+    static dmExtension::Result InitializeLegacy(dmExtension::Params* params)
     {
-        dmResource::HFactory factory = params->m_ResourceFactory;
-        g_LiveUpdate.m_ResourceFactory = factory;
-        g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
-        g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
-
-        if (!g_LiveUpdate.m_ResourceBaseArchive)
-        {
-            dmLogError("Could not find base .arci/.arcd. Liveupdate disabled");
-            return dmExtension::RESULT_OK;
-        }
-
         dmResource::HManifest manifest;
         dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
         if (dmResourceProvider::RESULT_OK != p_result)
         {
-            dmLogError("Could not get base archive manifest project id. Liveupdate disabled");
+            dmLogError("Could not get base archive manifest project id");
             return dmExtension::RESULT_OK;
         }
 
@@ -756,12 +828,30 @@ namespace dmLiveUpdate
         {
             dmResourceProvider::GetManifest(g_LiveUpdate.m_LiveupdateArchive, &g_LiveUpdate.m_LiveupdateArchiveManifest);
         }
+        return dmExtension::RESULT_OK;
+    }
 
-        //dmLiveUpdate::AsyncInitialize(factory);
+    static dmExtension::Result Initialize(dmExtension::Params* params)
+    {
+        dmResource::HFactory factory = params->m_ResourceFactory;
+        g_LiveUpdate.m_ResourceFactory = factory;
+        g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
+        g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
+
+        if (!g_LiveUpdate.m_ResourceBaseArchive)
+        {
+            dmLogError("Could not find base .arci/.arcd. Liveupdate disabled");
+            return dmExtension::RESULT_OK;
+        }
+
         g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
 
         if (params->m_L) // TODO: until unit tests have been updated with a Lua context
             ScriptInit(params->m_L, factory);
+
+        // initialize legacy mode
+        InitializeLegacy(params);
+
         return dmExtension::RESULT_OK;
     }
 
@@ -769,6 +859,7 @@ namespace dmLiveUpdate
     {
         if (g_LiveUpdate.m_JobThread)
             dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
+        g_LiveUpdate.m_JobThread = 0;
         g_LiveUpdate.m_ResourceFactory = 0;
         return dmExtension::RESULT_OK;
     }

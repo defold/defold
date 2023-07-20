@@ -226,6 +226,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     } type_pairs[] = {
         {"http", "http", false},
         {"https", "http", false},
+        {"archive", "archive", true},
         {"dmanif", "archive", true},
         {"file", "file", true},
 #if defined(__NX__)

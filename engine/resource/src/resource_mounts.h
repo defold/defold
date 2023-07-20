@@ -36,6 +36,8 @@ namespace dmResourceMounts
 
     dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
+    dmResource::Result RemoveMountByName(HContext ctx, const char* name);
+
     dmResource::Result LoadMounts(HContext ctx, const char* app_support_path);
     dmResource::Result SaveMounts(HContext ctx, const char* app_support_path);
 

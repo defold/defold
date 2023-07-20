@@ -140,6 +140,19 @@ dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::
     return dmResource::RESULT_OK;
 }
 
+// Assumes mutex lock is held
+static dmResource::Result RemoveMountByIndexInternal(HContext ctx, uint32_t index)
+{
+    if (index >= ctx->m_Mounts.Size())
+        return dmResource::RESULT_RESOURCE_NOT_FOUND;
+
+    ctx->m_Mounts.EraseSwap(index); // TODO: We'd like an Erase() function in dmArray, to keep the internal ordering
+    SortMounts(ctx->m_Mounts);
+
+    DM_RESOURCE_DBG_LOG(1, "Removed archive %p\n", archive);
+    return dmResource::RESULT_OK;
+}
+
 dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
@@ -150,11 +163,23 @@ dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archiv
         ArchiveMount& mount = ctx->m_Mounts[i];
         if (mount.m_Archive == archive)
         {
-            ctx->m_Mounts.EraseSwap(i); // TODO: We'd like an Erase() function in dmArray, to keep the internal ordering
-            SortMounts(ctx->m_Mounts);
+            return RemoveMountByIndexInternal(ctx, i);
+        }
+    }
+    return dmResource::RESULT_RESOURCE_NOT_FOUND;
+}
 
-            DM_RESOURCE_DBG_LOG(1, "Removed archive %p\n", archive);
-            return dmResource::RESULT_OK;
+dmResource::Result RemoveMountByName(HContext ctx, const char* name)
+{
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+
+    uint32_t size = ctx->m_Mounts.Size();
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        ArchiveMount& mount = ctx->m_Mounts[i];
+        if (strcmp(mount.m_Name, name) == 0)
+        {
+            return RemoveMountByIndexInternal(ctx, i);
         }
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;

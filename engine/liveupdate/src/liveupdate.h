@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dlib/hash.h>
+#include <resource/resource.h>
 
 namespace dmResourceArchive
 {
@@ -54,7 +55,8 @@ namespace dmLiveUpdate
 
     // Scripting
     bool HasLiveUpdateMount();
-    dmResourceMounts::HContext GetMountsContext();
+
+    Result ResourceResultToLiveupdateResult(dmResource::Result r);
 
     // For .arci/.arcd storage using the "archive" provider
     Result StoreResourceAsync(const char* expected_digest, uint32_t expected_digest_length,
@@ -66,6 +68,10 @@ namespace dmLiveUpdate
     // For .zip storage using the "zip" provider
     // Registers an archive (.zip) on disc
     Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive);
+
+
+    // The new api
+    Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* cbk_ctx);
 };
 
 #endif // DM_LIVEUPDATE_H
