@@ -285,14 +285,99 @@ namespace dmLiveUpdate
  * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
  */
 
+
+/*# Get current mounts
+ *
+ * Get an array of the current mounts
+ * This can be used to determine if a new mount is needed or not
+ *
+ * @name liveupdate.get_mounts
+ * @return mounts [type:array] Array of mounts
+ * @note: Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
+ * @example
+ *
+ * Output the current resource mounts
+ *
+ * ```lua
+ * pprint("MOUNTS", liveupdate.get_mounts())
+ * ```
+ */
+
+/*# Add resource mount
+ *
+ * Adds a resource mount to the resource system.
+ * The mounts are persisted between sessions.
+ *
+ * After the mount succeeded, the resources are available to load. (i.e. no reboot required)
+ *
+ * @note The request is asynchronous
+ * @note Names cannot start with '_'
+ * @note Priority must be >= 0
+ *
+ * @name liveupdate.add_mount
+ * @param name [type:string] Unique name of the mount
+ * @param uri [type:string] The uri of the mount, including the scheme. Currently supported schemes are 'zip' and 'archive'.
+ * @param priority [type:integer] Priority of mount. Larger priority takes prescedence
+ * @param callback [type:function] Callback after the asynchronous request completed
+ *
+ * @return result [type:number] The result of the request
+ *
+ * @example
+ *
+ * Add multiple mounts. Higher priority takes precedence.
+ *
+ * ```lua
+ * liveupdate.add_mount("common", "zip:/path/to/common_stuff.zip", 10) -- base pack
+ * liveupdate.add_mount("levelpack_1", "zip:/path/to/levels_1_to_20.zip", 20) -- level pack
+ * liveupdate.add_mount("season_pack_1", "zip:/path/to/easter_pack_1.zip", 30) -- season pack, overriding content in the other packs
+ * ```
+ */
+
+
+/*# Remove resource mount
+ *
+ * Remove a mount the resource system.
+ * The remaining mounts are persisted between sessions.
+ *
+ * Removing a mount does not affect any loaded resources.
+ *
+ * @note The call is synchronous
+ *
+ * @name liveupdate.remove_mount
+ * @param name [type:string] Unique name of the mount
+ * @return result [type:number] The result of the call
+ *
+ * @example
+ *
+ * Add multiple mounts. Higher priority takes precedence.
+ *
+ * ```lua
+ * liveupdate.remove_mount("season_pack_1")
+ * ```
+ */
+
  /*# LIVEUPDATE_OK
  *
  * @name liveupdate.LIVEUPDATE_OK
  * @variable
  */
 
- /*# LIVEUPDATE_INVALID_RESOURCE
+ /*# LIVEUPDATE_INVALID_HEADER
  * The handled resource is invalid.
+ *
+ * @name liveupdate.LIVEUPDATE_INVALID_HEADER
+ * @variable
+ */
+
+ /*# LIVEUPDATE_MEM_ERROR
+ * Memory wasn't allocated
+ *
+ * @name liveupdate.LIVEUPDATE_MEM_ERROR
+ * @variable
+ */
+
+ /*# LIVEUPDATE_INVALID_RESOURCE
+ * The header of the resource is invalid.
  *
  * @name liveupdate.LIVEUPDATE_INVALID_RESOURCE
  * @variable
@@ -337,6 +422,27 @@ namespace dmLiveUpdate
  * Failed to parse manifest data buffer. The manifest was probably produced by a different engine version.
  *
  * @name liveupdate.LIVEUPDATE_FORMAT_ERROR
+ * @variable
+ */
+
+ /*# LIVEUPDATE_IO_ERROR
+ * I/O operation failed
+ *
+ * @name liveupdate.LIVEUPDATE_IO_ERROR
+ * @variable
+ */
+
+ /*# LIVEUPDATE_INVAL
+ * Argument was invalid
+ *
+ * @name liveupdate.LIVEUPDATE_INVAL
+ * @variable
+ */
+
+ /*# LIVEUPDATE_UNKNOWN
+ * Unspecified error
+ *
+ * @name liveupdate.LIVEUPDATE_UNKNOWN
  * @variable
  */
 
