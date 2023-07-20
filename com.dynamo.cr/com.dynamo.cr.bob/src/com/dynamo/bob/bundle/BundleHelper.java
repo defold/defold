@@ -62,7 +62,6 @@ import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.logging.Logger;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
@@ -86,7 +85,6 @@ public class BundleHelper {
     private Map<String, Map<String, Object>> propertiesMap;
 
     public static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
-    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
     private static final String[] ARCHIVE_FILE_NAMES = {
         "game.projectc",
         "game.arci",
