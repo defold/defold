@@ -342,7 +342,7 @@ namespace dmGameSystem
         {
             HashMaterial(&state, resource->m_Materials[i].m_Material);
 
-            dmHashUpdateBuffer32(&state, resource->m_Materials[i].m_Textures, resource->m_Materials[i].m_TexturesCount);
+            dmHashUpdateBuffer32(&state, resource->m_Materials[i].m_Textures, sizeof(dmGameSystem::MaterialTextureInfo)*resource->m_Materials[i].m_TexturesCount);
         }
 
         // The unused slots should be 0
