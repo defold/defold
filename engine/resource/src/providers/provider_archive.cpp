@@ -60,11 +60,12 @@ namespace dmResourceProviderArchive
 
         void* mount_info = 0;
         dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
-        if (dmResource::RESULT_OK == result && mount_info != 0 && *out != 0)
+        if (dmResource::RESULT_OK == result && *out != 0)
         {
             (*out)->m_UserData = mount_info;
             return dmResourceProvider::RESULT_OK;
         }
+        dmLogError("Failed to mount archive from '%s' and '%s': %s", archive_index_path, archive_data_path, dmResource::ResultToString(result));
         return dmResourceProvider::RESULT_ERROR_UNKNOWN;
     }
 

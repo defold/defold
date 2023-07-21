@@ -70,7 +70,7 @@ TEST_F(AsyncTest, TestJobs)
 {
     const char* test_data = "TESTSTRING";
     uint32_t num_jobs = (uint32_t)strlen(test_data);
-    JobData contexts[num_jobs];
+    JobData* contexts = new JobData[num_jobs];
 
     HashState64 hash_state;
     dmHashInit64(&hash_state, false);
@@ -112,6 +112,8 @@ TEST_F(AsyncTest, TestJobs)
     // we make sure they all are executed in sequence
     dmhash_t digest = dmHashFinal64(&hash_state);
     ASSERT_EQ(dmHashString64(test_data), digest);
+
+    delete[] contexts;
 }
 
 

@@ -149,7 +149,7 @@ static dmResource::Result RemoveMountByIndexInternal(HContext ctx, uint32_t inde
     ctx->m_Mounts.EraseSwap(index); // TODO: We'd like an Erase() function in dmArray, to keep the internal ordering
     SortMounts(ctx->m_Mounts);
 
-    DM_RESOURCE_DBG_LOG(1, "Removed archive %p\n", archive);
+    DM_RESOURCE_DBG_LOG(1, "Removed archive index %d\n", index);
     return dmResource::RESULT_OK;
 }
 

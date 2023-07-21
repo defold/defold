@@ -412,6 +412,7 @@ public class ArchiveBuilder {
                 archiveBuilder.add(absolutePath, doCompress, encrypt, true);
 
                 String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
+                relativePath = FilenameUtils.separatorsToUnix(relativePath);
                 excludedResources.add(relativePath);
             } else {
                 archivedEntries++;
