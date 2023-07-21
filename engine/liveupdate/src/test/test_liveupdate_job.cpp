@@ -15,6 +15,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#if !defined(DM_LU_NULL_IMPLEMENTATION)
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <dlib/log.h>
@@ -24,7 +26,11 @@
 
 static volatile bool g_TestAsyncCallbackComplete = false;
 
-class AsyncTest : public jc_test_base_class
+#if defined(DM_USE_SINGLE_THREAD)
+class AsyncTestMultiThread : public jc_test_base_class
+#else
+class AsyncTestSingleThread : public jc_test_base_class
+#endif
 {
 public:
     virtual void SetUp()
@@ -66,7 +72,11 @@ static void PushJob(dmJobThread::HContext thread, HashState64* hash_state, JobDa
     dmJobThread::PushJob(thread, (dmJobThread::FProcess)ProcessData, (dmJobThread::FCallback)FinishData, (void*)hash_state, (void*)data);
 }
 
-TEST_F(AsyncTest, TestJobs)
+#if defined(DM_USE_SINGLE_THREAD)
+TEST_F(AsyncTestMultiThread, TestJobs)
+#else
+TEST_F(AsyncTestSingleThread, TestJobs)
+#endif
 {
     const char* test_data = "TESTSTRING";
     uint32_t num_jobs = (uint32_t)strlen(test_data);
@@ -116,6 +126,7 @@ TEST_F(AsyncTest, TestJobs)
     delete[] contexts;
 }
 
+#endif // DM_LU_NULL_IMPLEMENTATION
 
 int main(int argc, char **argv)
 {

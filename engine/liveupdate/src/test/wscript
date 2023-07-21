@@ -13,18 +13,24 @@ def build(bld):
     uselib = ['TESTMAIN', 'DLIB', 'SOCKET', 'DDF', 'THREAD', 'EXTENSION', 'PROFILE_NULL', 'RESOURCE', 'SCRIPT', 'LUA']
     exported_symbols = ['LiveUpdateExt', 'ResourceProviderFile']
 
-    for impl in ('', 'null'):
-        local_lib = 'liveupdate'
-        suffix = ''
-        features = []
-        defines = []
-        if impl == 'null':
-            local_lib += '_' + impl
-            suffix += '_' + impl
-            features = ['skip_test']
-            defines = ['DM_LU_NULL_IMPLEMENTATION'] # if we use null implementation, then we can't test internal function
+    for thread_version in ['multi', 'single']:
+        for impl in ('', 'null'):
+            local_lib = 'liveupdate'
+            suffix = '_%s' % thread_version
+            features = []
+            defines = []
 
-        if impl != 'null': # it's only testing private functions, to we don't expect it to work with the _null implementation
+            if impl == 'null':
+                local_lib += '_%s' % impl
+                suffix += '_%s' % impl
+                features = ['skip_test']
+                defines = ['DM_LU_NULL_IMPLEMENTATION'] # if we use null implementation, then we can't test internal function
+
+            if thread_version == 'multi':
+                defines.append('DM_HAVE_THREAD')
+            else:
+                defines.append('DM_USE_SINGLE_THREAD')
+
             bld.program(features = 'cxx test'.split() + features,
                         includes = '../../../src',
                         use      = uselib + [local_lib],

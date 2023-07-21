@@ -1,8 +1,4 @@
 
-#if !defined(__EMSCRIPTEN__)
-    #define DM_HAS_THREADS
-#endif
-
 #include <stdio.h> // printf
 
 #include <dmsdk/dlib/array.h>
@@ -12,6 +8,16 @@
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/log.h>
+
+#if !defined(__EMSCRIPTEN__)
+    #define DM_HAS_THREADS
+#endif
+
+#if defined(DM_USE_SINGLE_THREAD)
+    #if defined(DM_HAS_THREADS)
+        #undef DM_HAS_THREADS
+    #endif
+#endif
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
@@ -48,13 +54,17 @@ struct JobThreadContext
 
 struct JobContext
 {
+#if defined(DM_HAS_THREADS)
     dmThread::Thread    m_Thread;
+#endif
     JobThreadContext    m_ThreadContext;
 };
 
 static void PutWork(JobThreadContext* ctx, const JobItem* item)
 {
+#if defined(DM_HAS_THREADS)
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+#endif
     if (ctx->m_Work.Full())
         ctx->m_Work.SetCapacity(ctx->m_Work.Capacity() + 8);
     ctx->m_Work.Push(*item);
@@ -62,7 +72,9 @@ static void PutWork(JobThreadContext* ctx, const JobItem* item)
 
 static void PutDone(JobThreadContext* ctx, JobItem* item)
 {
+#if defined(DM_HAS_THREADS)
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+#endif
     if (ctx->m_Done.Full())
         ctx->m_Done.SetCapacity(ctx->m_Done.Capacity() + 8);
     ctx->m_Done.Push(*item);
@@ -79,18 +91,11 @@ static void JobThread(void* _ctx)
             DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
             while(ctx->m_Work.Empty())
             {
-    // printf("MAWE: %s %d waiting for jobs...\n", __FUNCTION__, __LINE__);
-    // fflush(stdout);
-
                 dmConditionVariable::Wait(ctx->m_WakeupCond, ctx->m_Mutex);
 
-    // printf("MAWE: %s %d Thread woke up!\n", __FUNCTION__, __LINE__);
-    // fflush(stdout);
                 if(dmAtomicGet32(&ctx->m_Run) == 0)
                     return;
             }
-    // printf("MAWE: %s %d Got a job!\n", __FUNCTION__, __LINE__);
-    // fflush(stdout);
             item = ctx->m_Work.Pop();
         }
 
@@ -104,22 +109,18 @@ static void UpdateSingleThread(JobThreadContext* ctx)
     if (ctx->m_Work.Empty())
         return;
     // TODO: Perhaps time scope a number of items!
-    JobItem item = ctx->m_Work.Back();
-    ctx->m_Work.Pop();
+    JobItem item = ctx->m_Work.Pop();
 
     item.m_Result = item.m_Process(item.m_Context, item.m_Data);
-
-    if (ctx->m_Finished.Full())
-        ctx->m_Finished.OffsetCapacity(8);
-    ctx->m_Finished.Push(item);
+    PutDone(ctx, &item);
 }
 #endif
 
 HContext Create(const char* thread_name)
 {
     JobContext* context = new JobContext;
-    context->m_Thread = 0;
 #if defined(DM_HAS_THREADS)
+    context->m_Thread = 0;
     context->m_ThreadContext.m_Mutex = dmMutex::New();
     context->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
     context->m_ThreadContext.m_Run = 1;
@@ -163,7 +164,9 @@ void PushJob(HContext context, FProcess process, FCallback callback, void* user_
     item.m_Result = 0;
 
     PutWork(&context->m_ThreadContext, &item);
+#if defined(DM_HAS_THREADS)
     dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
+#endif
 }
 
 void Update(HContext context)
@@ -172,6 +175,10 @@ void Update(HContext context)
 
     if (context->m_ThreadContext.m_Done.Empty())
         return;
+
+#if !defined(DM_HAS_THREADS)
+    UpdateSingleThread(&context->m_ThreadContext);
+#endif
 
     // Lock for as little as possible, by copying the items to an array owned by this thread
     uint32_t size;
