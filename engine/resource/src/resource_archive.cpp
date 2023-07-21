@@ -22,12 +22,6 @@
 #include "resource_private.h"
 #include "resource_util.h"
 #include "resource_archive_private.h"
-#include "providers/provider.h"
-#include "providers/provider_private.h"
-#include "providers/provider_archive.h"
-#include "providers/provider_file.h"
-#include "providers/provider_http.h"
-#include "providers/provider_zip.h"
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>

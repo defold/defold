@@ -224,7 +224,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     factory->m_Mounts = 0;
 
-    // Mount the base archive, regardless of the _resource_mounts.txt
+    // Mount the base archive, regardless of the liveupdate.mounts
     struct SchemeMountTypePair
     {
         const char* m_Scheme;

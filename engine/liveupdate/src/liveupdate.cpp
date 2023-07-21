@@ -52,6 +52,8 @@ namespace dmLiveUpdate
 
     const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
     const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
+    const char* LIVEUPDATE_ARCHIVE_FILENAME         = "liveupdate.arcd";
+    const char* LIVEUPDATE_ARCHIVE_TMP_FILENAME     = "liveupdate.arcd.tmp";
     const char* LIVEUPDATE_ZIP_ARCHIVE_FILENAME     = "liveupdate.ref";
     const char* LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME = "liveupdate.ref.tmp";
     const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
@@ -122,9 +124,25 @@ namespace dmLiveUpdate
     // ******************************************************************
 
     // Clean up old mount file formats that we don't need any more
-    static void LegacyCleanOldMountFormats(const char* app_support_path)
+    static void LegacyCleanOldZipMountFormats(const char* app_support_path)
     {
         const char* filenames[] = {LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME, LIVEUPDATE_ZIP_ARCHIVE_FILENAME, LIVEUPDATE_BUNDLE_VER_FILENAME};
+        for (int i = 0; i < DM_ARRAY_SIZE(filenames); ++i)
+        {
+            char path[DMPATH_MAX_PATH];
+            dmPath::Concat(app_support_path, filenames[i], path, sizeof(path));
+            if (dmSys::Exists(path))
+            {
+                dmLogError("Removed legacy file '%s'", path);
+                dmSys::Unlink(path);
+            }
+        }
+    }
+
+    static void LegacyCleanOldArchiveMountFormats(const char* app_support_path)
+    {
+        const char* filenames[] = {LIVEUPDATE_INDEX_FILENAME, LIVEUPDATE_INDEX_TMP_FILENAME, LIVEUPDATE_BUNDLE_VER_FILENAME,
+                                   LIVEUPDATE_ARCHIVE_FILENAME, LIVEUPDATE_ARCHIVE_TMP_FILENAME};
         for (int i = 0; i < DM_ARRAY_SIZE(filenames); ++i)
         {
             char path[DMPATH_MAX_PATH];
@@ -216,6 +234,12 @@ namespace dmLiveUpdate
             {
                 dmLogInfo("Created mutable archive mount from '%s'", index_uri);
                 return archive;
+            }
+            else if (dmResourceProvider::RESULT_SIGNATURE_MISMATCH == result)
+            {
+                dmLogError("Cleaning out old archive formats '%s'", app_support_path);
+                LegacyCleanOldArchiveMountFormats(app_support_path);
+                break; // Let the user redownload the content again
             }
         }
 
@@ -313,12 +337,19 @@ namespace dmLiveUpdate
     static dmResourceProvider::HArchive LegacyLoadArchive(dmResourceMounts::HContext mounts, dmResourceProvider::HArchive base_archive, const char* app_support_path)
     {
         dmResourceProvider::HArchive archive = LegacyLoadZipArchive(app_support_path, base_archive);
+        if (archive)
+        {
+            // we have no need for the .arci/.arcd files anymore
+            LegacyCleanOldArchiveMountFormats(app_support_path);
+        }
+
         if (!archive)
         {
             archive = LegacyLoadMutableArchive(app_support_path, base_archive);
         }
 
-        LegacyCleanOldMountFormats(app_support_path);
+        // We have no need for the .ref file anymore, since we'll store it in liveupdate.mounts instead
+        LegacyCleanOldZipMountFormats(app_support_path);
 
         if (archive)
         {
@@ -679,14 +710,6 @@ namespace dmLiveUpdate
         dmURI::Parts uri;
         dmURI::Parse(job->m_Uri, &uri);
 
-        // size_t scheme_len = strlen("zip:");
-        // char archive_uri[DMPATH_MAX_PATH] = "zip:";
-        // char* path = archive_uri + scheme_len;
-        // dmSnPrintf(archive_uri, sizeof(archive_uri), "zip:%s", job->m_Path);
-
-        // dmURI::Parts uri;
-        // dmURI::Parse(archive_uri, &uri);
-
         dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64(uri.m_Scheme));
         if (!loader)
         {
@@ -707,7 +730,7 @@ namespace dmLiveUpdate
             dmResource::Result result = dmResourceMounts::AddMount(g_LiveUpdate.m_ResourceMounts, job->m_Name, archive, job->m_Priority, true);
             if (dmResource::RESULT_OK != result)
             {
-                dmLogError("Failed to mount zip archive: %s", dmResource::ResultToString(result));
+                dmLogError("Failed to add mount for '%s': %s", job->m_Uri, dmResource::ResultToString(result));
             }
             else
             {
@@ -790,23 +813,6 @@ namespace dmLiveUpdate
 
     static dmExtension::Result InitializeLegacy(dmExtension::Params* params)
     {
-        dmResource::HManifest manifest;
-        dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
-        if (dmResourceProvider::RESULT_OK != p_result)
-        {
-            dmLogError("Could not get base archive manifest project id");
-            return dmExtension::RESULT_OK;
-        }
-
-        dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
-        if (dmResource::RESULT_OK != r_result)
-        {
-            dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
-            return dmExtension::RESULT_OK;
-        }
-
-        dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
-
         g_LiveUpdate.m_LiveupdateArchive = FindLiveupdateArchiveMount(g_LiveUpdate.m_ResourceMounts, LIVEUPDATE_LEGACY_MOUNT_NAME);
         if (!g_LiveUpdate.m_LiveupdateArchive)
         {
@@ -838,6 +844,23 @@ namespace dmLiveUpdate
             dmLogError("Could not find base .arci/.arcd. Liveupdate disabled");
             return dmExtension::RESULT_OK;
         }
+
+        dmResource::HManifest manifest;
+        dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
+        if (dmResourceProvider::RESULT_OK != p_result)
+        {
+            dmLogError("Could not get base archive manifest project id");
+            return dmExtension::RESULT_OK;
+        }
+
+        dmResource::Result r_result = dmResource::GetApplicationSupportPath(manifest, g_LiveUpdate.m_AppSupportPath, sizeof(g_LiveUpdate.m_AppSupportPath));
+        if (dmResource::RESULT_OK != r_result)
+        {
+            dmLogError("Could not determine liveupdate folder. Liveupdate disabled");
+            return dmExtension::RESULT_OK;
+        }
+
+        dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
         g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
 

@@ -315,7 +315,6 @@ dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult
     return dmResource::RESULT_OK;
 }
 
-// Unit tests
 dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);

@@ -152,9 +152,6 @@ namespace dmResourceProviderArchive
     {
         if (!MatchesUri(uri))
             return dmResourceProvider::RESULT_NOT_SUPPORTED;
-
-        //printf("\nMount archive: '%s:%s%s'\n", uri->m_Scheme, uri->m_Location, uri->m_Path);
-
         return LoadArchive(uri, out_archive);
     }
 

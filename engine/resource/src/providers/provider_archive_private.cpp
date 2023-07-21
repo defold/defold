@@ -88,11 +88,4 @@ namespace dmResourceProviderArchivePrivate
             printf("\n");
         }
     }
-
-    // required string             url = 1;
-    // required uint64             url_hash = 2;
-    // required HashDigest         hash = 3;
-    // repeated uint32             dependants = 4;
-    // required uint32             flags = 5 [default = 0]; // ResourceEntryFlag
-
 }

@@ -24,7 +24,6 @@ namespace dmURI
     struct Parts;
 }
 
-// TODO: Hide the implementation
 namespace dmLiveUpdateDDF
 {
     struct ManifestFile;
@@ -61,7 +60,6 @@ namespace dmResource
     // Gets the dependencies of a resource.
     // Note: Only returns the dependency path urls. It doesn't recurse.
     dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmhash_t>& dependencies);
-    //dmResource::Result  GetDependencies(dmResource::HManifest manifest, const dmhash_t url_hash, dmArray<dmLiveUpdateDDF::ResourceEntry*>& dependencies);
 
     /*#
      * Get the url hash given a hex digest (the actual filename)
