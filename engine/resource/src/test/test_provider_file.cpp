@@ -88,16 +88,16 @@ TEST_F(FileProviderArchive, GetSize)
     dmResourceProvider::Result result;
     uint32_t file_size;
 
-    // src/test/files/empty     da39a3ee5e6b4b0d3255bfef95601890afd80709    0 bytes
-    // src/test/files/somedata  a0b65939670bc2c010f4d5d6a0b3e4e4590fb92b    13 bytes
-
     result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/empty", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(0U, file_size);
 
+    // Avoiding the line ending due to git checkout settings
+    // with open('./src/test/files/somedata', 'wb') as f:
+    //   f.write(b'Hello World!')
     result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/somedata", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-    ASSERT_EQ(13U, file_size);
+    ASSERT_EQ(12U, file_size);
 
     result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/not_exist", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
@@ -114,7 +114,7 @@ TEST_F(FileProviderArchive, ReadFile)
 
     result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-    ASSERT_ARRAY_EQ_LEN("Hello World!\n", (char*)long_buffer, 13);
+    ASSERT_ARRAY_EQ_LEN("Hello World!", (char*)long_buffer, 12);
 }
 
 int main(int argc, char **argv)
