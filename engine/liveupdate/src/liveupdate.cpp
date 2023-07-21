@@ -47,13 +47,13 @@
 
 namespace dmLiveUpdate
 {
-    const char* LIVEUPDATE_LEGACY_MOUNT_NAME        = "liveupdate"; // By not prefixing it, the user may then remove it
+    const char* LIVEUPDATE_LEGACY_MOUNT_NAME        = "liveupdate"; // By not prefixing it with '_', the user may then remove it
     const int   LIVEUPDATE_LEGACY_MOUNT_PRIORITY    = 10;
 
     const char* LIVEUPDATE_INDEX_FILENAME           = "liveupdate.arci";
     const char* LIVEUPDATE_INDEX_TMP_FILENAME       = "liveupdate.arci.tmp";
-    const char* LIVEUPDATE_ZIP_ARCHIVE_FILENAME         = "liveupdate.ref";
-    const char* LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME     = "liveupdate.ref.tmp";
+    const char* LIVEUPDATE_ZIP_ARCHIVE_FILENAME     = "liveupdate.ref";
+    const char* LIVEUPDATE_ZIP_ARCHIVE_TMP_FILENAME = "liveupdate.ref.tmp";
     const char* LIVEUPDATE_BUNDLE_VER_FILENAME      = "bundle.ver";
 
     Result ResourceResultToLiveupdateResult(dmResource::Result r)

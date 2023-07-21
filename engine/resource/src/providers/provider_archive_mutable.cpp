@@ -291,18 +291,16 @@ namespace dmResourceProviderArchiveMutable
             dmResource::Result mresult = dmResource::LoadManifest(uri, &archive->m_Manifest);
             if (dmResource::RESULT_OK != mresult)
             {
-                dmLogError("Failed to load manifest '%s'. Cannot mount archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
-                DeleteArchive(archive);
-                return dmResourceProvider::RESULT_INVAL_ERROR;
+                dmLogError("Failed to load manifest '%s': %s", manifest_path, dmResource::ResultToString(mresult));
+                dmLogError("Removing '%s'", manifest_path);
+                dmSys::Unlink(manifest_path);
+                archive->m_Manifest = 0;
             }
         }
 
         if (!archive->m_Manifest)
         {
             archive->m_Manifest = CreateManifestCopy(base_manifest);
-
-            // dmResource::WriteManifest(manifest_path, archive->m_Manifest);
-            // dmLogInfo("Stored manifest copy '%s' for archive '%s:%s%s'", manifest_path, uri->m_Scheme, uri->m_Location, uri->m_Path);
         }
 
         archive->m_BaseManifest = base_manifest;
