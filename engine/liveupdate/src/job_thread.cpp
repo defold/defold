@@ -139,13 +139,9 @@ void Destroy(HContext context)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
         // Wake up the worker so it can exit and allow us to join
-// printf("MAWE: %s %d Signalling thread for quitting ...\n", __FUNCTION__, __LINE__);
-// fflush(stdout);
         dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
     }
 
-// printf("MAWE: %s %d Joining thread ...\n", __FUNCTION__, __LINE__);
-// fflush(stdout);
     dmThread::Join(context->m_Thread);
     dmConditionVariable::Delete(context->m_ThreadContext.m_WakeupCond);
     dmMutex::Delete(context->m_ThreadContext.m_Mutex);

@@ -51,7 +51,7 @@ import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
@@ -214,7 +214,7 @@ public class ArchiveBuilder {
 
             int resourceEntryFlags = 0;
 
-            // Encrypt data first, so we can decrypt in place at runtimeä
+            // Encrypt data first, so we can decrypt in place at runtime
             // this allows us to minimize allocations/copying
             if (entry.isEncrypted()) {
                 buffer = this.encryptResourceData(buffer);
