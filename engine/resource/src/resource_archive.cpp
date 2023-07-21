@@ -107,6 +107,7 @@ namespace dmResourceArchive
 
         if(dmEndian::ToNetwork(ai->m_Version) != VERSION)
         {
+            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION, dmEndian::ToNetwork(ai->m_Version));
             CleanupResources(f_index, f_data, aic);
             return RESULT_VERSION_MISMATCH;
         }
@@ -153,11 +154,6 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    void SetDefaultReader(HArchiveIndexContainer archive)
-    {
-        dmLogError("NOT IMPLEMENTED ANYMORE! %s: %s", __FILE__, __FUNCTION__);
-    }
-
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
                              const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
                              HArchiveIndexContainer* archive)
@@ -168,6 +164,7 @@ namespace dmResourceArchive
         uint32_t version = dmEndian::ToNetwork(a->m_Version);
         if (version != VERSION)
         {
+            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION, version);
             return RESULT_VERSION_MISMATCH;
         }
 
@@ -431,7 +428,7 @@ namespace dmResourceArchive
             dmResource::Result res = dmResource::MapFile(afi->m_Path, temp_map, map_size);
             if (res != dmResource::RESULT_OK)
             {
-                dmLogError("Failed to map liveupdate respource file, result = %i", res);
+                dmLogError("Failed to map liveupdate resource file, result = %i", res);
                 return RESULT_IO_ERROR;
             }
             afi->m_ResourceData = (uint8_t*)temp_map;

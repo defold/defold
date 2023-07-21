@@ -180,7 +180,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
     if (dmResourceProvider::RESULT_OK != result)
     {
         internal = 0;
-        dmLogError("Failed to create in-memory archive from buitin project: %d", result);
+        dmLogError("Failed to create in-memory archive from builtin project: %d", result);
         return RESULT_INVAL;
     }
 
@@ -310,7 +310,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     if (factory->m_BaseArchiveMount)
     {
         dmResource::HManifest manifest;
-        if (RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
+        if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
         {
             char app_support_path[DMPATH_MAX_PATH];
             if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))

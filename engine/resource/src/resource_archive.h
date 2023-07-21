@@ -33,7 +33,7 @@ namespace dmResourceArchive
      * to check a manifest to ensure that it's compatible with the engine's
      * version of the archive format.
      */
-    const static uint32_t VERSION = 4;
+    const static uint32_t VERSION = 5;
 
     // Maximum hash length convention. This size should large enough.
     // If this length changes the VERSION needs to be bumped.

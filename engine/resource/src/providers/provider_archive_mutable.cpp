@@ -75,6 +75,8 @@ namespace dmResourceProviderArchiveMutable
 
         void* mount_info = 0;
         dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
+        if (dmResource::RESULT_VERSION_MISMATCH == result)
+            return dmResourceProvider::RESULT_SIGNATURE_MISMATCH;
         if (dmResource::RESULT_OK == result && *out != 0)
         {
             (*out)->m_UserData = mount_info;
@@ -317,6 +319,15 @@ namespace dmResourceProviderArchiveMutable
             DeleteArchive(archive);
             return result;
         }
+
+        uint32_t version = dmEndian::ToNetwork(archive->m_ArchiveContainer->m_ArchiveIndex->m_Version);
+        if (version != dmResourceArchive::VERSION)
+        {
+            dmLogError("Archive version differs. Expected %d, but it was %d", dmResourceArchive::VERSION, version);
+            DeleteArchive(archive);
+            return dmResourceProvider::RESULT_SIGNATURE_MISMATCH;
+        }
+
         CreateEntryMap(archive);
 
         dmResourceProviderArchivePrivate::DebugPrintArchiveIndex(archive->m_ArchiveContainer);

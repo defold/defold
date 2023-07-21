@@ -131,7 +131,6 @@ message ManifestData {
  * - data                   : A data blob, which is in fact a ManifestData message
  * - signature              : A cryptographic signature of the data byte array
  * - version                : A version number to quickly identify if we can read/support the file
- * - data_format_version    : A version hash of all our supported data formats
  * - archive_identifier     : (deprecated) a hash of the corresponding archive index
  */
 message ManifestFile {
@@ -139,5 +138,4 @@ message ManifestFile {
     required bytes              signature = 2;
     optional bytes              archive_identifier = 3; // deprecated
     optional uint32             version = 4 [default = 0]; // dmResource::MANIFEST_VERSION
-    optional uint64             data_format_version = 5 [default = 0];
 }

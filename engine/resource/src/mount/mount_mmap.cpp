@@ -115,6 +115,8 @@ namespace dmResource
         {
             munmap(index_map, index_size);
             munmap(data_map, data_size);
+            if (res == dmResourceArchive::RESULT_VERSION_MISMATCH)
+                return RESULT_VERSION_MISMATCH;
             return RESULT_IO_ERROR;
         }
 
