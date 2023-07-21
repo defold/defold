@@ -12,6 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#else
+#include <alloca.h>
+#endif
+
 #include "resource.h"
 #include "resource_manifest.h"
 #include "resource_manifest_private.h"

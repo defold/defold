@@ -110,7 +110,6 @@ static void CreateEntryMap(ZipProviderContext* archive)
         added.Put(info.m_EntryIndex, true);
 
         DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", hash_buffer, entry->m_UrlHash, info.m_Size);
-
     }
 
     // Also add any other files that the developer might have added to the zip archive
