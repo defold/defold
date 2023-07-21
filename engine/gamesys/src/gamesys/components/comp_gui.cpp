@@ -1106,7 +1106,7 @@ namespace dmGameSystem
                 gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
-                color,
+                0, color, // !!
                 (void*)vb_end,
                 vb_max_size,
                 &vb_generate_size,

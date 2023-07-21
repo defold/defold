@@ -70,19 +70,18 @@ namespace dmGameSystem
 
     struct ParticleFXWorld
     {
-        dmArray<ParticleFXComponent> m_Components;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmArray<ParticleFXComponent>            m_Components;
+        dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
-        dmArray<ParticleFXComponentPrototype> m_Prototypes;
-        dmIndexPool32 m_PrototypeIndices;
-        ParticleFXContext* m_Context;
-        dmParticle::HParticleContext m_ParticleContext;
-        dmGraphics::HVertexBuffer m_VertexBuffer;
-        dmArray<dmParticle::Vertex> m_VertexBufferData;
-        dmGraphics::HVertexDeclaration m_VertexDeclaration;
-        uint32_t m_EmitterCount;
-        float m_DT;
-        uint32_t m_WarnOutOfROs : 1;
+        dmArray<ParticleFXComponentPrototype>   m_Prototypes;
+        dmIndexPool32                           m_PrototypeIndices;
+        ParticleFXContext*                      m_Context;
+        dmParticle::HParticleContext            m_ParticleContext;
+        dmGraphics::HVertexBuffer               m_VertexBuffer;
+        dmArray<uint8_t>                        m_VertexBufferData;
+        uint32_t                                m_EmitterCount;
+        float                                   m_DT;
+        uint32_t                                m_WarnOutOfROs : 1;
     };
 
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -105,22 +104,17 @@ namespace dmGameSystem
         world->m_ConstantBuffers.SetSize(max_emitter_count);
         memset(world->m_ConstantBuffers.Begin(), 0, sizeof(dmRender::HNamedConstantBuffer)*max_emitter_count);
 
-        uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount, dmParticle::PARTICLE_GO);
+        // position   : 3
+        // color      : 4
+        // texcoord0  : 2
+        // page_index : 1
+        const uint32_t default_vx_size = sizeof(float) * (3 + 4 + 2 + 1);
+        const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
+        pfx_world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6 * default_vx_size);
+
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
-
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext));
-
-        dmGraphics::AddVertexStream(stream_declaration, "position",   3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "color",      4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord0",  2, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, "page_index", 1, dmGraphics::TYPE_FLOAT, false);
-
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), stream_declaration);
-
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -146,7 +140,7 @@ namespace dmGameSystem
 
         dmParticle::DestroyContext(pfx_world->m_ParticleContext);
         dmGraphics::DeleteVertexBuffer(pfx_world->m_VertexBuffer);
-        dmGraphics::DeleteVertexDeclaration(pfx_world->m_VertexDeclaration);
+
         delete pfx_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -254,6 +248,25 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void FillParticleAttributeInfos(dmRender::HMaterial material, dmParticle::ParticleVertexAttributeInfos* infos)
+    {
+        const dmGraphics::VertexAttribute* material_attributes;
+        uint32_t material_attributes_count;
+        dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
+
+        infos->m_NumInfos     = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material));
+
+        for (int i = 0; i < infos->m_NumInfos; ++i)
+        {
+            dmParticle::ParticleVertexAttributeInfos::Info& info = infos->m_Infos[i];
+            info.m_NameHash        = material_attributes[i].m_NameHash;
+            info.m_SemanticType    = (dmParticle::ParticleVertexAttributeInfos::SemanticType) material_attributes[i].m_SemanticType;
+            info.m_CoordinateSpace = (dmParticle::ParticleVertexAttributeInfos::CoordinateSpace) material_attributes[i].m_CoordinateSpace;
+            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+        }
+    }
+
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("ParticleRenderBatch");
@@ -261,30 +274,57 @@ namespace dmGameSystem
         ParticleFXContext* pfx_context = pfx_world->m_Context;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
 
-        dmArray<dmParticle::Vertex> &vertex_buffer = pfx_world->m_VertexBufferData;
-        dmParticle::Vertex* vb_begin = vertex_buffer.End();
-        dmParticle::Vertex* vb_end = vb_begin;
+        dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) first->m_Material;
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material_res->m_Material);
+        uint32_t vx_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+        uint32_t max_size = pfx_context->m_MaxParticleCount * 6 * vx_stride;
 
-        uint32_t vb_size_init = vertex_buffer.Size() * sizeof(dmParticle::Vertex);
-        uint32_t vb_size = vb_size_init;
-        uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount, dmParticle::PARTICLE_GO);
+        if (pfx_world->m_VertexBufferData.Capacity() < max_size)
+        {
+            pfx_world->m_VertexBufferData.SetCapacity(max_size);
+        }
+
+        dmArray<uint8_t> &vertex_buffer = pfx_world->m_VertexBufferData;
+        uint8_t* vb_begin = vertex_buffer.End();
+        uint8_t* vb_end = vb_begin;
+
+        uint32_t vb_size_init = vertex_buffer.Size();
+        uint32_t vb_size      = vb_size_init;
+        uint32_t vb_max_size  = pfx_world->m_VertexBufferData.Capacity();
+
+        dmParticle::ParticleVertexAttributeInfos::Info attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        dmParticle::ParticleVertexAttributeInfos       attribute_infos = {};
+        attribute_infos.m_Infos = attributes;
+
+        FillParticleAttributeInfos(material_res->m_Material, &attribute_infos);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
-            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, Vector4(1,1,1,1), (void*)vertex_buffer.Begin(), vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(particle_context,
+                pfx_world->m_DT,
+                emitter_render_data->m_Instance,
+                emitter_render_data->m_EmitterIndex,
+                &attribute_infos, Vector4(1,1,1,1),
+                (void*)vertex_buffer.Begin(), vb_max_size, &vb_size,
+                dmParticle::PARTICLE_GO);
         }
 
-        vb_end = (vb_begin + (vb_size - vb_size_init) / sizeof(dmParticle::Vertex));
+        uint32_t ro_vertex_count = (vb_size - vb_size_init) / attribute_infos.m_VertexStride;
+
+        /*
+        // vb_end = (vb_begin + (vb_size - vb_size_init) / sizeof(dmParticle::Vertex));
+        vb_end = (vb_begin + (vb_size - vb_size_init) / attribute_infos.m_VertexStride);
 
         uint32_t ro_vertex_count = vb_end - vb_begin;
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
+        */
+
+        vertex_buffer.SetSize(vb_size); // - vertex_buffer.Begin());
 
         // In place writing of render object
         uint32_t ro_index = pfx_world->m_RenderObjects.Size();
         pfx_world->m_RenderObjects.SetSize(ro_index+1);
-
-        dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) first->m_Material;
 
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
@@ -293,9 +333,11 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = ro_vertex_count;
         ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
-        ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
+        //ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_SetBlendFactors = 1;
+        ro.m_VertexDeclaration = dmRender::GetVertexDeclaration(material_res->m_Material);
+
         SetBlendFactors(&ro, first->m_BlendMode);
 
         if (!pfx_world->m_ConstantBuffers[ro_index])
@@ -326,11 +368,11 @@ namespace dmGameSystem
         }
         else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
         {
-            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(),
+            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, pfx_world->m_VertexBufferData.Size(),
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VertexBufferData.Size());
-            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
+            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VertexBufferData.Size()); // wrong!
+            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size());
 
         }
     }

@@ -137,6 +137,38 @@ namespace dmParticle
         PARTICLE_GUI = 1,
     };
 
+    struct ParticleVertexAttributeInfos
+    {
+        enum SemanticType
+        {
+            SEMANTIC_TYPE_NONE       = 1,
+            SEMANTIC_TYPE_POSITION   = 2,
+            SEMANTIC_TYPE_TEXCOORD   = 3,
+            SEMANTIC_TYPE_PAGE_INDEX = 4,
+            SEMANTIC_TYPE_COLOR      = 5,
+        };
+
+        enum CoordinateSpace
+        {
+            COORDINATE_SPACE_WORLD = 1,
+            COORDINATE_SPACE_LOCAL = 2,
+        };
+
+        struct Info
+        {
+            dmhash_t        m_NameHash;
+            SemanticType    m_SemanticType;
+            CoordinateSpace m_CoordinateSpace;
+            const uint8_t*  m_ValuePtr;
+            uint32_t        m_ValueByteSize;
+        };
+
+        Info*    m_Infos;
+        uint32_t m_VertexStride : 16;
+        uint32_t m_NumInfos     : 8;
+        uint32_t                : 8;
+    };
+
     struct EmitterRenderData
     {
         EmitterRenderData()
@@ -212,6 +244,8 @@ namespace dmParticle
     /**
      * Particle vertex format
      */
+
+    /*
     struct Vertex
     {
         // Offset 0
@@ -224,6 +258,7 @@ namespace dmParticle
         float m_PageIndex;
         // Offset 40
     };
+    */
 
     /**
      * Particle gui vertex format (must match dmGui::ParticleGuiVertex)
@@ -386,7 +421,7 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @param vertex_format Which vertex format to use
      */
-    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
+    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const ParticleVertexAttributeInfos* attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
 
     /**
      * Debug render the status of the instances within the specified context.
