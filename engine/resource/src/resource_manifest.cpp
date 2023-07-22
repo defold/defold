@@ -32,6 +32,11 @@
 #include <dlib/uri.h>
 #include <resource/liveupdate_ddf.h>
 
+#if defined(__linux__) && !defined(__ANDROID__)
+    #define DM_HASH_FMT "%016lx"
+#else
+    #define DM_HASH_FMT "%016llx"
+#endif
 
 namespace dmResource
 {
@@ -281,7 +286,7 @@ void DebugPrintManifest(dmResource::HManifest manifest)
         printf("entry: hash: ");
         uint8_t* h = entry->m_Hash.m_Data.m_Data;
         dmResource::PrintHash(h, entry->m_Hash.m_Data.m_Count);
-        printf("  b/l/e/c: %u%u%u%u url: %llx  %s  sz: %u  csz: %u\n",
+        printf("  b/l/e/c: %u%u%u%u url: " DM_HASH_FMT "  %s  sz: %u  csz: %u\n",
                 (entry->m_Flags & dmLiveUpdateDDF::BUNDLED) != 0,
                 (entry->m_Flags & dmLiveUpdateDDF::EXCLUDED) != 0,
                 (entry->m_Flags & dmLiveUpdateDDF::ENCRYPTED) != 0,
@@ -291,3 +296,6 @@ void DebugPrintManifest(dmResource::HManifest manifest)
 }
 
 } // namespace
+
+#undef DM_HASH_FMT
+

@@ -542,3 +542,5 @@ dmResource::Result GetDependencies(HContext ctx, const SGetDependenciesParams* r
 
 }
 
+#undef DM_HASH_FMT
+
