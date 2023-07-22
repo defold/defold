@@ -180,7 +180,8 @@
         (log/error :exception e
                    :pass (:pass render-args)
                    :render-fn render-fn
-                   :message "skipping renderable")))))
+                   :message "skipping renderable"
+                   :ex-data (ex-data e))))))
 
 (defn batch-render [gl render-args renderables key-fn]
   (loop [renderables renderables

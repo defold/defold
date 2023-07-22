@@ -13,10 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.html
-  (:require
-   [dynamo.graph :as g]
-   [editor.resource-node :as resource-node]
-   [editor.workspace :as workspace]))
+  (:require [dynamo.graph :as g]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]))
 
 (g/defnode HtmlNode
   (inherits resource-node/ResourceNode)

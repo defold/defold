@@ -20,6 +20,7 @@
             [editor.core :as core]
             [editor.fs :as fs]
             [schema.core :as s]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
@@ -378,9 +379,15 @@
     (proj-path resource)
     ""))
 
-(defn resource->sha1-hex [resource]
+(defn resource->sha1-hex
+  ^String [resource]
   (with-open [rs (io/input-stream resource)]
     (digest/stream->sha1-hex rs)))
+
+(defn resource->sha256-hex
+  ^String [resource]
+  (with-open [rs (io/input-stream resource)]
+    (digest/stream->sha256-hex rs)))
 
 (defn resource->path-inclusive-sha1-hex
   "For certain files, we want to include the proj-path in the sha1 identifier
@@ -400,7 +407,22 @@
     (when-some [^String proj-path (proj-path resource)]
       (.write digest-output-stream (.getBytes proj-path "UTF-8")))
     (.flush digest-output-stream)
-    (digest/digest-output-stream->hex digest-output-stream)))
+    (digest/completed-stream->hex digest-output-stream)))
+
+(defn read-source-value+sha256-hex
+  "Returns a pair of [read-fn-result, disk-sha256-or-nil]. If the resource is a
+  file in the project, wraps the read in a DigestInputStream that concurrently
+  hashes the file contents as they are read by the read-fn and returns the
+  SHA-256 hex string in disk-sha256-or-nil. If the resource is not a project
+  file, we use a plain InputStream, and disk-sha256-or-nil will be nil."
+  [resource read-fn]
+  (with-open [^InputStream input-stream
+              (cond-> (io/input-stream resource)
+                      (file-resource? resource)
+                      (digest/make-digest-input-stream "SHA-256"))]
+    (let [source-value (read-fn input-stream)
+          disk-sha256 (digest/completed-stream->hex input-stream)]
+      (pair source-value disk-sha256))))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
 

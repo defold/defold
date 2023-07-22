@@ -56,7 +56,7 @@
           (testing "Channels are not animated by multiple tracks"
             (doseq [[channel data] data-by-channel]
               (is (not= ::conflicting-data data)
-                  (str "Found multiple tracks targetting " channel " for bone " bone-id))))
+                  (str "Found multiple tracks targeting " channel " for bone " bone-id))))
 
           (testing "Channel data matches expected strides"
             (are [stride channel]

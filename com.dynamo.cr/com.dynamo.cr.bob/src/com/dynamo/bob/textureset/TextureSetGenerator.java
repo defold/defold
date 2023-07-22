@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.textureset;
 
+import com.dynamo.bob.pipeline.GraphicsUtil;
+
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
@@ -62,11 +64,6 @@ public class TextureSetGenerator {
         }
         public L left;
         public R right;
-    }
-
-    private static ByteBuffer newBuffer(int n) {
-        ByteBuffer bb = ByteBuffer.allocateDirect(n);
-        return bb.order(ByteOrder.LITTLE_ENDIAN);
     }
 
     public static class AnimDesc {
@@ -552,9 +549,9 @@ public class TextureSetGenerator {
         iterator.rewind();
 
         final int numTexCoordsPerQuad = 8;
-        ByteBuffer texCoordsBuffer = newBuffer(numTexCoordsPerQuad * 4 * quadCount);
+        ByteBuffer texCoordsBuffer = GraphicsUtil.newByteBuffer(numTexCoordsPerQuad * 4 * quadCount);
         final int numTexDimsPerQuad = 2;
-        ByteBuffer texDimsBuffer = newBuffer(numTexDimsPerQuad * 4 * quadCount);
+        ByteBuffer texDimsBuffer = GraphicsUtil.newByteBuffer(numTexDimsPerQuad * 4 * quadCount);
 
         float oneOverWidth = 1.0f / width;
         float oneOverHeight = 1.0f / height;

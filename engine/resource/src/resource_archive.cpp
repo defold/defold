@@ -643,9 +643,9 @@ namespace dmResourceArchive
     {
         int count = dmEndian::ToNetwork(archive->m_EntryDataCount);
         size_t hash_length = dmEndian::ToNetwork(archive->m_HashLength);
-        const uint8_t* end = hashes + count * hash_length;
+        const uint8_t* end = hashes + count * dmResourceArchive::MAX_HASH;
         const uint8_t* insert = LowerBound(hashes, (size_t)count, hash_digest, hash_length);
-        if (insert == end)
+        if (insert >= end)
         {
             *out_index = count;
             return RESULT_OK;

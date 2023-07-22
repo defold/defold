@@ -15,24 +15,25 @@
 #ifndef DM_SPINLOCKTYPES_MACH_H
 #define DM_SPINLOCKTYPES_MACH_H
 
-#include <libkern/OSAtomic.h>
+#include <os/lock.h>
+
 namespace dmSpinlock
 {
-    typedef OSSpinLock Spinlock;
+    typedef struct os_unfair_lock_s Spinlock;
 
     static inline void Init(Spinlock* lock)
     {
-        *lock = 0;
+        *lock = OS_UNFAIR_LOCK_INIT;
     }
 
     static inline void Lock(Spinlock* lock)
     {
-        OSSpinLockLock(lock);
+        os_unfair_lock_lock(lock);
     }
 
     static inline void Unlock(Spinlock* lock)
     {
-        OSSpinLockUnlock(lock);
+        os_unfair_lock_unlock(lock);
     }
 }
 
