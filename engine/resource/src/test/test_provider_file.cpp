@@ -12,9 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <stdio.h>
 #include <stdint.h>
 
 #include <dlib/log.h>
+#include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
 
@@ -92,10 +94,16 @@ TEST_F(FileProviderArchive, GetSize)
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(0U, file_size);
 
-    // Avoiding the line ending due to git checkout settings
-    // with open('./src/test/files/somedata', 'wb') as f:
-    //   f.write(b'Hello World!')
-    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/somedata", &file_size);
+    char path[1024];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "somedata");
+
+    const char* content = "Hello World!";
+    FILE* f = fopen(path, "wb");
+    ASSERT_NE( (FILE*)0, f);
+    fwrite(content, strlen(content), 1, f);
+    fclose(f);
+
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/somedata", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(12U, file_size);
 
@@ -105,16 +113,21 @@ TEST_F(FileProviderArchive, GetSize)
 
 TEST_F(FileProviderArchive, ReadFile)
 {
+    char path[1024];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "somedata");
+
     dmResourceProvider::Result result;
     uint8_t short_buffer[4];
     uint8_t long_buffer[64];
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", short_buffer, sizeof(short_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", short_buffer, sizeof(short_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, result);
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", long_buffer, sizeof(long_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_ARRAY_EQ_LEN("Hello World!", (char*)long_buffer, 12);
+
+    dmSys::Unlink(path);
 }
 
 int main(int argc, char **argv)
