@@ -15,6 +15,12 @@
 namespace dmResourceMounts
 {
 
+#if defined(__linux__) && !defined(__ANDROID__)
+    #define DM_HASH_FMT "%016lx"
+#else
+    #define DM_HASH_FMT "%016llx"
+#endif
+
 const char* MOUNTS_FILENAME = "liveupdate.mounts";
 
 const int MAX_NAME_LENGTH = 64;
@@ -354,7 +360,7 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  %llx (%u bytes)\n", path, path_hash, *resource_size);
+            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes)\n", path, path_hash, *resource_size);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
@@ -502,7 +508,7 @@ static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, co
             {
                 // NOTE: It is important that we don't remove "liveupdate" resource dependencies from the manifest
                 // Otherwise we cannot get the actual path to report back to the user for the download
-                dmLogError("Couldn't get entry for dependency %llx in manifest from ´%llx`", dep_hash, url_hash);
+                dmLogError("Couldn't get entry for dependency " DM_HASH_FMT " in manifest from " DM_HASH_FMT "", dep_hash, url_hash);
                 ctx->m_UserCallback(ctx->m_UserCallbackCtx, &result);
                 continue;
             }
