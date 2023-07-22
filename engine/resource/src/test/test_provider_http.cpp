@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <stdio.h>
 #include <stdint.h>
 
 #include <dlib/log.h>
@@ -24,6 +25,12 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+// File generated with
+// data = b"\x00\x01\x02\x03\x04\x05\x06\x07"
+// with open('./src/test/files/src/test/files/somedata', 'wb') as f:
+//     f.write(data)
+const uint8_t SOMEDATA[8] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
@@ -109,16 +116,23 @@ TEST_F(HttpProviderArchive, GetSize)
 
 TEST_F(HttpProviderArchive, ReadFile)
 {
+    char path[1024];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/somedata");
+    FILE* f = fopen(path, "wb");
+    ASSERT_NE((FILE*)0, f);
+    fwrite(SOMEDATA, sizeof(SOMEDATA), 1, f);
+    fclose(f);
+
     dmResourceProvider::Result result;
     uint8_t short_buffer[4] = {0};
     uint8_t long_buffer[64] = {0};
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata.adc", short_buffer, sizeof(short_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", short_buffer, sizeof(short_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, result);
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata.adc", long_buffer, sizeof(long_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-    ASSERT_ARRAY_EQ_LEN("Hello World!\n", (char*)long_buffer, 13);
+    ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
