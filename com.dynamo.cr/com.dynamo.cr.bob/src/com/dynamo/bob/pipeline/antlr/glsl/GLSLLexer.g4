@@ -300,6 +300,7 @@ LINE_DIRECTIVE : 'line' -> channel (DIRECTIVES) , mode (LINE_DIRECTIVE_MODE) ;
 PRAGMA_DIRECTIVE : 'pragma' -> channel (DIRECTIVES) , mode (PRAGMA_DIRECTIVE_MODE) ;
 UNDEF_DIRECTIVE : 'undef' -> channel (DIRECTIVES) , mode (UNDEF_DIRECTIVE_MODE) ;
 VERSION_DIRECTIVE : 'version' -> channel (DIRECTIVES) , mode (VERSION_DIRECTIVE_MODE) ;
+INCLUDE_DIRECTIVE : 'include' -> channel (DIRECTIVES) , mode (INCLUDE_DIRECTIVE_MODE) ;
 SPACE_TAB_0 : SPACE_TAB -> channel (HIDDEN) ;
 NEWLINE_0 : NEWLINE -> channel (HIDDEN) , popMode ;
 
@@ -372,6 +373,11 @@ NEWLINE_11 : NEWLINE -> channel (HIDDEN) , popMode ;
 NUMBER : [0-9]+ -> channel (DIRECTIVES) ;
 PROFILE : ('core' | 'compatibility' | 'es') -> channel (DIRECTIVES) ;
 SPACE_TAB_7 : SPACE_TAB -> channel (HIDDEN) ;
+
+mode INCLUDE_DIRECTIVE_MODE;
+INCLUDE_PATH: '"' ( ~('\\' | '"'))* '"' -> channel (DIRECTIVES), popMode;
+NEWLINE_12 : NEWLINE -> channel (HIDDEN) , popMode ;
+SPACE_TAB_8 : SPACE_TAB -> channel (HIDDEN) ;
 
 fragment DECIMAL_CONSTANT : [1-9] [0-9]* ;
 fragment DIGIT_SEQUENCE : [0-9]+ ;
