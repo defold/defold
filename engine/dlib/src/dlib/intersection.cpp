@@ -20,7 +20,7 @@ namespace dmIntersection
 // Keeping this private for now. Making sure that the W component is always 1
 static inline float DistanceToPlane(Plane plane, dmVMath::Vector4 pos)
 {
-    return Vectormath::Aos::dot(plane,pos); // nx * px + ny * py + nz * pz + d*pw , pw - should be 1
+    return dmVMath::Dot(plane, pos); // nx * px + ny * py + nz * pz + d*pw , pw - should be 1
 }
 
 float DistanceToPlane(Plane plane, dmVMath::Point3 pos)
@@ -30,7 +30,7 @@ float DistanceToPlane(Plane plane, dmVMath::Point3 pos)
 
 static Plane NormalizePlane(Plane plane)
 {
-    float length = Vectormath::Aos::length(plane.getXYZ());
+    float length = dmVMath::Length(plane.getXYZ());
     return plane / length;
 }
 

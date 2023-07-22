@@ -80,7 +80,7 @@
                                                        :from-string str :to-string str
                                                        :options (mapv (fn [profile]
                                                                         [profile profile])
-                                                                      (get-config-file-profiles))))
+                                                                      (sort (get-config-file-profiles)))))
                      (form/update-form-setting ["liveupdate" "amazon-bucket"]
                                                #(assoc %
                                                        :type :choicebox
@@ -88,7 +88,7 @@
                                                        :to-string str
                                                        :options (mapv (fn [bucket]
                                                                         [bucket bucket])
-                                                                      amazon-buckets))))))
+                                                                      (sort amazon-buckets)))))))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))

@@ -31,15 +31,16 @@
             [editor.process :as process]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.system :as system]
             [editor.types :as types]
             [editor.util :as util]
             [editor.workspace :as workspace])
-  (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
-           [clojure.lang MultiFn]
-           [com.dynamo.bob Platform]
+  (:import [clojure.lang MultiFn]
            [com.defold.editor.luart SearchPath]
+           [com.dynamo.bob Platform]
            [java.io File]
-           [java.nio.file Path]))
+           [java.nio.file Path]
+           [org.luaj.vm2 LuaError LuaFunction LuaValue Prototype]))
 
 (set! *warn-on-reflection* true)
 
@@ -809,7 +810,10 @@
                     :globals {"editor" {"get" do-ext-get
                                         "can_get" do-ext-can-get
                                         "can_set" do-ext-can-set
-                                        "platform" (.getPair (Platform/getHostPlatform))}
+                                        "platform" (.getPair (Platform/getHostPlatform))
+                                        "version" (system/defold-version)
+                                        "engine_sha1" (system/defold-engine-sha1)
+                                        "editor_sha1" (system/defold-editor-sha1)}
                               "package" {"config" (string/join "\n" [File/pathSeparatorChar \; \? \! \-])}
                               "io" {"tmpfile" nil}
                               "os" {"execute" nil

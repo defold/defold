@@ -79,6 +79,11 @@ namespace dmHID
         uint32_t m_FlipScrollDirection : 1;
         uint32_t : 25;
     };
+
+    // TODO: start using the dmUser namespace
+    // TODO: How to represent user id from/to C/Lua
+    //      I.e. convert from uint32_t to platform type
+    bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* user_id);
 }
 
 #endif

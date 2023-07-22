@@ -161,7 +161,7 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not write to the file %s.", filename);
         }
 
-        if (dmSys::RenameFile(filename, tmp_filename) != dmSys::RESULT_OK)
+        if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)
         {
             return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
@@ -241,6 +241,39 @@ union SaveLoadBuffer
         }
         PushTable(L, buffer, nread);
         Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
+    }
+
+    /*# create a path to the host device for unit testing
+     * Create a path to the host device for unit testing
+     * Useful for saving logs etc during development
+     *
+     * @note Only enabled in debug builds. In release builds returns the string unchanged
+     * @name sys.get_host_path
+     * @param filename [type:string] file to read from
+     * @return host_path [type:string] the path prefixed with the proper host mount
+     * @examples
+     *
+     * Save data on the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * sys.save(host_path, mytable)
+     * ```
+     *
+     * Load data from the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * local table = sys.load(host_path)
+     * ```
+     */
+    static int Sys_GetHostPath(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        char host_path[DMPATH_MAX_PATH];
+        dmSys::GetHostFileName(host_path, sizeof(host_path), path);
+        lua_pushstring(L, host_path);
         return 1;
     }
 
@@ -1346,6 +1379,7 @@ union SaveLoadBuffer
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
+        {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfigString}, // deprecated
         {"get_config_string", Sys_GetConfigString},

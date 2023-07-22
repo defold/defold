@@ -902,6 +902,10 @@ namespace dmGameObject
                 }
                 return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
+        case PROPERTY_RESULT_READ_ONLY:
+            {
+                return luaL_error(L, "Unable to set the property '%s' since it is read only", dmHashReverseSafe64(property_id));
+            }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {

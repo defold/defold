@@ -131,7 +131,7 @@ namespace dmLiveUpdate
         bool luTempIndexExists = dmSys::Exists(archive_index_tmp_path);
         if (luTempIndexExists)
         {
-            dmSys::Result sys_result = dmSys::RenameFile(archive_index_path, archive_index_tmp_path);
+            dmSys::Result sys_result = dmSys::Rename(archive_index_path, archive_index_tmp_path);
             if (sys_result != dmSys::RESULT_OK)
             {
                 // The recently added resources will not be available if we proceed after this point

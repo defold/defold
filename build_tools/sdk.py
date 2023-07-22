@@ -357,7 +357,7 @@ def check_defold_sdk(sdkfolder, platform):
         folders.append(os.path.join(sdkfolder, "linux"))
 
     if not folders:
-        log.log("No SDK folders specified for %s" %platform)
+        log.log("sdk.py: No SDK folders specified for %s" %platform)
         return False
 
     count = 0

@@ -78,7 +78,7 @@
                            :columns [{:path [:input]
                                       :label "Input"
                                       :type :choicebox
-                                      :options (make-options key-values)
+                                      :options (sort-by first (make-options key-values))
                                       :default (ffirst key-values)}
                                      {:path [:action] :label "Action" :type :string}]}
                           {:path [:mouse-trigger]
@@ -87,7 +87,7 @@
                            :columns [{:path [:input]
                                       :label "Input"
                                       :type :choicebox
-                                      :options (make-options mouse-values)
+                                      :options (sort-by first (make-options mouse-values))
                                       :default (ffirst mouse-values)}
                                      {:path [:action] :label "Action" :type :string}]}
                           {:path [:gamepad-trigger]
@@ -96,7 +96,7 @@
                            :columns [{:path [:input]
                                       :label "Input"
                                       :type :choicebox
-                                      :options (make-options gamepad-values)
+                                      :options (sort-by first (make-options gamepad-values))
                                       :default (ffirst gamepad-values)}
                                      {:path [:action] :label "Action" :type :string}]}
                           {:path [:touch-trigger]
@@ -105,7 +105,7 @@
                            :columns [{:path [:input]
                                       :label "Input"
                                       :type :choicebox
-                                      :options (make-options touch-values)
+                                      :options (sort-by first (make-options touch-values))
                                       :default (ffirst touch-values)}
                                      {:path [:action] :label "Action" :type :string}]}
                           {:path [:text-trigger]
@@ -114,7 +114,7 @@
                            :columns [{:path [:input]
                                       :label "Input"
                                       :type :choicebox
-                                      :options (make-options text-values)
+                                      :options (make-options text-values) ; Unsorted.
                                       :default (ffirst text-values)}
                                      {:path [:action] :label "Action" :type :string}]}]}]}))
 
@@ -180,12 +180,12 @@
                                     :columns [{:path [:input]
                                                :label "Input"
                                                :type :choicebox
-                                               :options (make-options gamepad-values)
+                                               :options (sort-by first (make-options gamepad-values))
                                                :default (ffirst gamepad-values)}
                                               {:path [:type]
                                                :label "Type"
                                                :type :choicebox
-                                               :options (make-options gamepad-type-values)
+                                               :options (sort-by first (make-options gamepad-type-values))
                                                :default (ffirst gamepad-type-values)}
                                               {:path [:index]
                                                :label "Index"
@@ -232,7 +232,7 @@
                     :type :choicebox
                     :from-string str
                     :to-string str                  ; allow manual entry
-                    :options profile-options
+                    :options (sort-by first profile-options)
                     :default "Default"}]}
         {:path [:profiles]
          :label "Profiles"
@@ -245,7 +245,7 @@
                           :type :2panel
                           :panel-key {:path [:os]
                                       :type :choicebox
-                                      :options (make-options os-values)
+                                      :options (sort-by first (make-options os-values))
                                       :default (ffirst os-values)}
                           :panel-form {:sections
                                        [{:fields
@@ -255,17 +255,17 @@
                                            :columns [{:path [:format]
                                                       :label "Format"
                                                       :type :choicebox
-                                                      :options (make-options format-values-filtered)
+                                                      :options (sort-by first (make-options format-values-filtered))
                                                       :default (ffirst format-values-filtered)}
                                                      {:path [:compression-level]
                                                       :label "Compression"
                                                       :type :choicebox
-                                                      :options (make-options compression-values)
+                                                      :options (make-options compression-values) ; Unsorted.
                                                       :default (ffirst compression-values)}
                                                      {:path [:compression-type]
                                                       :label "Type"
                                                       :type :choicebox
-                                                      :options (make-options compression-types)
+                                                      :options (make-options compression-types) ; Unsorted.
                                                       :default (ffirst compression-types)}]}
                                           {:path [:mipmaps]
                                            :type :boolean

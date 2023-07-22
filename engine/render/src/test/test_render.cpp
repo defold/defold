@@ -15,9 +15,9 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dmsdk/dlib/intersection.h>
 
+#include <testmain/testmain.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
@@ -1378,6 +1378,7 @@ TEST(Render, BatchIterator)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

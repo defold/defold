@@ -84,6 +84,11 @@ static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
 static dmSpinlock::Spinlock g_ListenerLock; // Protects the array of listener functions
 
+#if defined(DM_HAS_NO_GETENV)
+static const char* getenv(const char*) {
+    return 0;
+}
+#endif
 static const int g_MaxListeners = 32;
 static FLogListener g_Listeners[g_MaxListeners];
 static int32_atomic_t g_ListenersCount;

@@ -391,6 +391,8 @@ public:
      * Iterator to the key/value pairs of a hash table
      * @struct
      * @name Iterator
+     * @member GetKey()
+     * @member GetValue()
      */
     struct Iterator
     {
