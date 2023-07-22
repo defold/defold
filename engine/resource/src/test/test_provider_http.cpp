@@ -95,9 +95,6 @@ TEST_F(HttpProviderArchive, GetSize)
     dmResourceProvider::Result result;
     uint32_t file_size;
 
-    // src/test/files/empty     da39a3ee5e6b4b0d3255bfef95601890afd80709    0 bytes
-    // src/test/files/somedata  a0b65939670bc2c010f4d5d6a0b3e4e4590fb92b    13 bytes
-
     result = dmResourceProvider::GetFileSize(m_Archive, 0, "/test.cont", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(35U, file_size);
@@ -116,10 +113,10 @@ TEST_F(HttpProviderArchive, ReadFile)
     uint8_t short_buffer[4] = {0};
     uint8_t long_buffer[64] = {0};
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata.scriptc", short_buffer, sizeof(short_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata.adc", short_buffer, sizeof(short_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, result);
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata.scriptc", long_buffer, sizeof(long_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata.adc", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_ARRAY_EQ_LEN("Hello World!\n", (char*)long_buffer, 13);
 }

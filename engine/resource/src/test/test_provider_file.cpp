@@ -26,6 +26,12 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+// File generated with
+// data = b"\x00\x01\x02\x03\x04\x05\x06\x07"
+// with open('./src/test/files/src/test/files/somedata', 'wb') as f:
+//     f.write(data)
+const uint8_t SOMEDATA[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
 TEST(FileProviderBasic, Registered)
@@ -94,18 +100,9 @@ TEST_F(FileProviderArchive, GetSize)
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     ASSERT_EQ(0U, file_size);
 
-    char path[1024];
-    dmTestUtil::MakeHostPath(path, sizeof(path), "somedata");
-
-    const char* content = "Hello World!";
-    FILE* f = fopen(path, "wb");
-    ASSERT_NE( (FILE*)0, f);
-    fwrite(content, strlen(content), 1, f);
-    fclose(f);
-
-    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/somedata", &file_size);
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/somedata", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-    ASSERT_EQ(12U, file_size);
+    ASSERT_EQ(8U, file_size);
 
     result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/not_exist", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
@@ -120,14 +117,12 @@ TEST_F(FileProviderArchive, ReadFile)
     uint8_t short_buffer[4];
     uint8_t long_buffer[64];
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", short_buffer, sizeof(short_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", short_buffer, sizeof(short_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_IO_ERROR, result);
 
-    result = dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", long_buffer, sizeof(long_buffer));
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
-    ASSERT_ARRAY_EQ_LEN("Hello World!", (char*)long_buffer, 12);
-
-    dmSys::Unlink(path);
+    ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
 
 int main(int argc, char **argv)
