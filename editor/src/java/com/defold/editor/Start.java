@@ -30,8 +30,10 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import java.awt.image.BufferedImage;
+import java.lang.SecurityException;
 import java.awt.Desktop;
 import java.io.File;
+import java.lang.UnsupportedOperationException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -119,7 +121,12 @@ public class Start extends Application {
     public void start(Stage primaryStage) throws Exception {
         try {
             Desktop.getDesktop().setAboutHandler(null);
-
+        } catch (final UnsupportedOperationException e) {
+            System.out.println("The os does not support: 'desktop.setAboutHandler'");
+        } catch (final SecurityException e) {
+            System.out.println("There was a security exception for: 'desktop.setAboutHandler'");
+        }
+        try {
             // Clean up old packages as they consume a lot of hard drive space.
             // NOTE! This is a temp hack to give some hard drive space back to users.
             // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
