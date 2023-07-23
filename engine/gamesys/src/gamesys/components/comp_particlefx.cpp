@@ -110,7 +110,8 @@ namespace dmGameSystem
         // page_index : 1
         const uint32_t default_vx_size = sizeof(float) * (3 + 4 + 2 + 1);
         const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
-        pfx_world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6 * default_vx_size);
+        world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6 * default_vx_size);
+        memset(world->m_VertexBufferData.Begin(), 0, world->m_VertexBufferData.Capacity());
 
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_WarnOutOfROs = 0;
@@ -288,7 +289,18 @@ namespace dmGameSystem
         uint8_t* vb_begin = vertex_buffer.End();
         uint8_t* vb_end = vb_begin;
 
-        uint32_t vb_size_init = vertex_buffer.Size();
+        // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
+        const uint32_t vb_buffer_offset = vertex_buffer.Size();
+        uint32_t vertex_offset = vb_buffer_offset / vx_stride;
+
+        if (vb_buffer_offset % vx_stride != 0)
+        {
+            vb_begin += vx_stride - vb_buffer_offset % vx_stride;
+            vb_end    = vb_begin;
+            vertex_offset++;
+        }
+
+        uint32_t vb_size_init = vb_begin - vertex_buffer.Begin();
         uint32_t vb_size      = vb_size_init;
         uint32_t vb_max_size  = pfx_world->m_VertexBufferData.Capacity();
 
@@ -302,25 +314,15 @@ namespace dmGameSystem
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
             dmParticle::GenerateVertexData(particle_context,
-                pfx_world->m_DT,
-                emitter_render_data->m_Instance,
-                emitter_render_data->m_EmitterIndex,
-                &attribute_infos, Vector4(1,1,1,1),
+                pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
+                vertex_offset, &attribute_infos, Vector4(1,1,1,1),
                 (void*)vertex_buffer.Begin(), vb_max_size, &vb_size,
                 dmParticle::PARTICLE_GO);
         }
 
         uint32_t ro_vertex_count = (vb_size - vb_size_init) / attribute_infos.m_VertexStride;
 
-        /*
-        // vb_end = (vb_begin + (vb_size - vb_size_init) / sizeof(dmParticle::Vertex));
-        vb_end = (vb_begin + (vb_size - vb_size_init) / attribute_infos.m_VertexStride);
-
-        uint32_t ro_vertex_count = vb_end - vb_begin;
-        vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
-        */
-
-        vertex_buffer.SetSize(vb_size); // - vertex_buffer.Begin());
+        vertex_buffer.SetSize(vb_size);
 
         // In place writing of render object
         uint32_t ro_index = pfx_world->m_RenderObjects.Size();
@@ -328,15 +330,14 @@ namespace dmGameSystem
 
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
-        ro.m_Material = material_res->m_Material;
-        ro.m_Textures[0] = (dmGraphics::HTexture) first->m_Texture;
-        ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
-        ro.m_VertexCount = ro_vertex_count;
-        ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
-        //ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_SetBlendFactors = 1;
+        ro.m_Material          = material_res->m_Material;
         ro.m_VertexDeclaration = dmRender::GetVertexDeclaration(material_res->m_Material);
+        ro.m_Textures[0]       = (dmGraphics::HTexture) first->m_Texture;
+        ro.m_VertexStart       = vertex_offset;
+        ro.m_VertexCount       = ro_vertex_count;
+        ro.m_VertexBuffer      = pfx_world->m_VertexBuffer;
+        ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_SetBlendFactors   = 1;
 
         SetBlendFactors(&ro, first->m_BlendMode);
 

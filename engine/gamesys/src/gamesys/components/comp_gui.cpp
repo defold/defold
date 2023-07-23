@@ -1106,6 +1106,7 @@ namespace dmGameSystem
                 gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
+                total_vertex_count,
                 0, color, // !!
                 (void*)vb_end,
                 vb_max_size,
