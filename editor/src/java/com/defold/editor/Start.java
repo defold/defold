@@ -131,10 +131,10 @@ public class Start extends Application {
         return resourcesPath != null && launcherPath != null;
     }
 
-    private static void run() throws IOException {
+    // This code is Java reimplementation of open-project function from app_view.clj
+    private static void newWindow() throws IOException {
         String resourcesPath = System.getProperty("defold.resourcespath");
         String os = com.dynamo.bob.Platform.getHostPlatform().getOs();
-        System.out.println("OS:"+os);
         File installDir;
         if (os.equals("macos")) {
             installDir = new File(resourcesPath, "../../").getCanonicalFile();
@@ -143,9 +143,7 @@ public class Start extends Application {
         } else {
             throw new UnsupportedOperationException("Unsupported OS: " + os);
         }
-        System.out.println("resourcesPath:"+resourcesPath);
         String launcherPath = System.getProperty("defold.launcherpath");
-        System.out.println("launcherPath:"+launcherPath);
         Map<String, String> env = new HashMap<>();
         env.put("PATH", System.getenv("PATH"));
         ProcessBuilder pb = new ProcessBuilder(launcherPath);
@@ -159,9 +157,9 @@ public class Start extends Application {
         try {
             Desktop.getDesktop().setAboutHandler(null);
         } catch (final UnsupportedOperationException e) {
-            System.out.println("The os does not support: 'desktop.setAboutHandler'");
+            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
         } catch (final SecurityException e) {
-            System.out.println("There was a security exception for: 'desktop.setAboutHandler'");
+            logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
         }
         try {
             // Clean up old packages as they consume a lot of hard drive space.
@@ -194,9 +192,8 @@ public class Start extends Application {
             dockMenuItem.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.out.println("Dock menu item clicked!");
                      try {
-                        run();
+                        newWindow();
                     } catch (Throwable t) {
                         logger.error("Can't open new window", t);
                     }

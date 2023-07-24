@@ -1484,6 +1484,8 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-stylesheet :global
   (run [] (ui/reload-root-styles!)))
 
+; This function re-implemented in Java in Start.java->newWindow(). If you change something
+; please, change it there as well.
 (handler/defhandler :open-project :global
   (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
   (run [] (let [resources-path (system/defold-resourcespath)
