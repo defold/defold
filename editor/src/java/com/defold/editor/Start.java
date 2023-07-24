@@ -188,22 +188,26 @@ public class Start extends Application {
             throw t;
         }
 
-        if (Taskbar.isTaskbarSupported() && isPathsAvailable()) {
-            Taskbar taskbar = Taskbar.getTaskbar();
-            PopupMenu dockMenu = new PopupMenu();
-            MenuItem dockMenuItem = new MenuItem("New window");
-            dockMenuItem.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                     try {
-                        newWindow();
-                    } catch (Throwable t) {
-                        logger.error("Can't open new window", t);
+        try {
+            if (Taskbar.isTaskbarSupported() && isPathsAvailable()) {
+                Taskbar taskbar = Taskbar.getTaskbar();
+                PopupMenu dockMenu = new PopupMenu();
+                MenuItem dockMenuItem = new MenuItem("New window");
+                dockMenuItem.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                         try {
+                            newWindow();
+                        } catch (Throwable t) {
+                            logger.error("Can't open new window", t);
+                        }
                     }
-                }
-            });
-            dockMenu.add(dockMenuItem);
-            taskbar.setMenu(dockMenu);
+                });
+                dockMenu.add(dockMenuItem);
+                taskbar.setMenu(dockMenu);
+            }
+        } catch (Throwable t) {
+            logger.error("Failed to create taskbar menu", t);
         }
     }
 
