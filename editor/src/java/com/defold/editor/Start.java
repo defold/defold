@@ -196,7 +196,7 @@ public class Start extends Application {
                 dockMenuItem.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
-                         try {
+                        try {
                             newWindow();
                         } catch (Throwable t) {
                             logger.error("Can't open new window", t);
