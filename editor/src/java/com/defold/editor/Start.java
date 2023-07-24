@@ -159,7 +159,7 @@ public class Start extends Application {
                 Desktop.getDesktop().setAboutHandler(null);
             }
         } catch (final UnsupportedOperationException e) {
-            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
+            logger.error("The OS does not support: 'desktop.setAboutHandler'", e);
         } catch (final SecurityException e) {
             logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
         }
@@ -189,7 +189,7 @@ public class Start extends Application {
         }
 
         try {
-            if (Taskbar.isTaskbarSupported() && isPathsAvailable()) {
+            if (Taskbar.isTaskbarSupported() && Taskbar.getTaskbar().isSupported(Taskbar.Feature.MENU) && isPathsAvailable()) {
                 Taskbar taskbar = Taskbar.getTaskbar();
                 PopupMenu dockMenu = new PopupMenu();
                 MenuItem dockMenuItem = new MenuItem("New window");
@@ -206,6 +206,8 @@ public class Start extends Application {
                 dockMenu.add(dockMenuItem);
                 taskbar.setMenu(dockMenu);
             }
+        } catch (final UnsupportedOperationException e) {
+            logger.error("The OS does not support taskbar menu", e);
         } catch (Throwable t) {
             logger.error("Failed to create taskbar menu", t);
         }
