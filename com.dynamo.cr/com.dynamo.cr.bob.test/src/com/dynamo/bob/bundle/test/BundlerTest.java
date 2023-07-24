@@ -108,12 +108,13 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.X86Win32});
             data.add(new Platform[]{Platform.X86_64Win32});
             data.add(new Platform[]{Platform.X86_64MacOS});
+            data.add(new Platform[]{Platform.Arm64MacOS});
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
             data.add(new Platform[]{Platform.JsWeb});
 
             // Can only do this on OSX machines currently
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
                 data.add(new Platform[]{Platform.Arm64Ios});
                 data.add(new Platform[]{Platform.X86_64Ios});
             }
@@ -126,6 +127,7 @@ public class BundlerTest {
         switch (platform)
         {
             case X86_64MacOS:
+            case Arm64MacOS:
             case Arm64Ios:
             case X86_64Ios:
                     folderName = projectName + ".app";
@@ -238,6 +240,7 @@ public class BundlerTest {
             }
             break;
             case X86_64MacOS:
+            case Arm64MacOS:
                 List<String> names = Arrays.asList(
                     String.format("Contents/MacOS/%s", exeName),
                     "Contents/Info.plist"
@@ -647,6 +650,7 @@ public class BundlerTest {
                 expectedFiles.add("Payload/unnamed.app/Icon@2x.png");
                 break;
             case X86_64MacOS:
+            case Arm64MacOS:
                 expectedFiles.add("Contents/MacOS/unnamed");
                 expectedFiles.add("Contents/Info.plist");
                 expectedFiles.add("Contents/Resources/game.arcd");
