@@ -119,12 +119,15 @@ public class Start extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
-            Desktop.getDesktop().setAboutHandler(null);
+            if (Desktop.getDesktop().isSupported(Desktop.Action.APP_ABOUT)) {
+                Desktop.getDesktop().setAboutHandler(null);
+            }
         } catch (final UnsupportedOperationException e) {
-            System.out.println("The os does not support: 'desktop.setAboutHandler'");
+            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
         } catch (final SecurityException e) {
-            System.out.println("There was a security exception for: 'desktop.setAboutHandler'");
+            logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
         }
+
         try {
             // Clean up old packages as they consume a lot of hard drive space.
             // NOTE! This is a temp hack to give some hard drive space back to users.
