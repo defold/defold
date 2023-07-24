@@ -800,10 +800,6 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
         {
             _glfwInputKey( translateKey( wParam, lParam ), GLFW_PRESS );
 
-            if( _glfwWin.charCallback )
-            {
-                translateChar( (DWORD) wParam, (DWORD) lParam, GLFW_PRESS );
-            }
             return 0;
           }
 
@@ -821,10 +817,37 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
                 _glfwInputKey( translateKey( wParam, lParam ), GLFW_RELEASE );
             }
 
-            if( _glfwWin.charCallback )
+            return 0;
+        }
+
+        case WM_CHAR:
+        case WM_SYSCHAR:
+        {
+            // Support for non-Western character input on Windows (Copied the method of GLFW3)
+            if (wParam >= 0xd800 && wParam <= 0xdbff)
+                _glfwInput.LastChar = (int) wParam;
+            else
             {
-                translateChar( (DWORD) wParam, (DWORD) lParam, GLFW_RELEASE );
+                int codepoint = 0;
+
+                if (wParam >= 0xdc00 && wParam <= 0xdfff)
+                {
+                    if (_glfwInput.LastChar)
+                    {
+                        codepoint += ((WCHAR)_glfwInput.LastChar - 0xd800) << 10;
+                        codepoint += (WCHAR) wParam - 0xdc00;
+                        codepoint += 0x10000;
+                    }
+                }
+                else
+                    codepoint = (WCHAR) wParam;
+
+                _glfwInput.LastChar = 0;
+                _glfwInputChar(codepoint, GLFW_PRESS);
             }
+
+            if (uMsg == WM_SYSCHAR) // Access to the window menu is enabled by default
+                break;
 
             return 0;
         }
@@ -1891,6 +1914,7 @@ void _glfwPlatformPollEvents( void )
 
             // Ok, send it to the window message handler
             default:
+                TranslateMessage( &msg ); // Produces WM_CHAR messages only for keys that are mapped to ASCII characters by the keyboard driver.
                 DispatchMessage( &msg );
                 break;
         }
