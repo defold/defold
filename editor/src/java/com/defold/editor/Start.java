@@ -29,14 +29,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
-import java.lang.SecurityException;
 import java.awt.Desktop;
+import java.awt.Taskbar;
+import java.awt.PopupMenu;
+import java.awt.MenuItem;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
 import java.io.File;
+import java.io.IOException;
+import java.lang.SecurityException;
 import java.lang.UnsupportedOperationException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Start extends Application {
 
@@ -116,6 +125,35 @@ public class Start extends Application {
         }
     }
 
+    private static boolean isPathsAvailable() {
+        String resourcesPath = System.getProperty("defold.resourcespath");
+        String launcherPath = System.getProperty("defold.launcherpath");
+        return resourcesPath != null && launcherPath != null;
+    }
+
+    private static void run() throws IOException {
+        String resourcesPath = System.getProperty("defold.resourcespath");
+        String os = com.dynamo.bob.Platform.getHostPlatform().getOs();
+        System.out.println("OS:"+os);
+        File installDir;
+        if (os.equals("macos")) {
+            installDir = new File(resourcesPath, "../../").getCanonicalFile();
+        } else if (os.equals("linux") || os.equals("win32")) {
+            installDir = new File(resourcesPath).getCanonicalFile();
+        } else {
+            throw new UnsupportedOperationException("Unsupported OS: " + os);
+        }
+        System.out.println("resourcesPath:"+resourcesPath);
+        String launcherPath = System.getProperty("defold.launcherpath");
+        System.out.println("launcherPath:"+launcherPath);
+        Map<String, String> env = new HashMap<>();
+        env.put("PATH", System.getenv("PATH"));
+        ProcessBuilder pb = new ProcessBuilder(launcherPath);
+        pb.directory(installDir);
+        pb.environment().putAll(env);
+        pb.start();
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
@@ -147,6 +185,25 @@ public class Start extends Application {
             t.printStackTrace();
             logger.error("failed start", t);
             throw t;
+        }
+
+        if (Taskbar.isTaskbarSupported() && isPathsAvailable()) {
+            Taskbar taskbar = Taskbar.getTaskbar();
+            PopupMenu dockMenu = new PopupMenu();
+            MenuItem dockMenuItem = new MenuItem("New window");
+            dockMenuItem.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    System.out.println("Dock menu item clicked!");
+                     try {
+                        run();
+                    } catch (Throwable t) {
+                        logger.error("Can't open new window", t);
+                    }
+                }
+            });
+            dockMenu.add(dockMenuItem);
+            taskbar.setMenu(dockMenu);
         }
     }
 
