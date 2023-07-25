@@ -23,6 +23,7 @@ env:
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
   SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
+  STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
 
 
@@ -365,6 +366,7 @@ jobs:
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
+      { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }} --steam-config-b64="${{env.STEAM_CONFIG_VDF}}"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
         shell: bash,

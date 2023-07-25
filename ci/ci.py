@@ -119,6 +119,15 @@ def setup_windows_cert(args):
         file.write(args.windows_cert_pass.encode())
     print("Wrote cert password to", cert_pass_path)
 
+def setup_steam_config(args):
+    print("Setting up Steam config")
+    system = platform.system()
+    steam_config_path = "~/.local/share/Steam/config"
+    os.makedirs(steam_config_path)
+    steam_config_file = os.path.abspath(os.path.join(steam_config_path, "config.vdf"))
+    with open(steam_config_file, "wb") as file:
+        file.write(base64.decodebytes(args.steam_config_b64.encode()))
+    print("Wrote config to", steam_config_file)
 
 def install(args):
     # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
@@ -159,9 +168,13 @@ def install(args):
             "tree",
             "valgrind",
             "lib32z1",
-            "xvfb"
+            "xvfb",
+            "steamcmd",
+            "hfsprogs"  # for mounting DMG files
         ]
         aptfast(" ".join(packages))
+        # we only do steam release from Linux on CI
+        setup_steam_config(args)
 
     elif system == "Darwin":
         if args.keychain_cert:
@@ -430,6 +443,7 @@ def main(argv):
     parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
     parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
     parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
+    parser.add_argument("--steam-config-b64", dest="steam_config_b64", help="String containing Steam config (vdf) encoded as base 64")
 
     args = parser.parse_args()
 
