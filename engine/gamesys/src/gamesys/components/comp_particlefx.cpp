@@ -111,7 +111,6 @@ namespace dmGameSystem
         const uint32_t default_vx_size = sizeof(float) * (3 + 4 + 2 + 1);
         const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
         world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6 * default_vx_size);
-        memset(world->m_VertexBufferData.Begin(), 0, world->m_VertexBufferData.Capacity());
 
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_WarnOutOfROs = 0;
@@ -249,7 +248,32 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static void FillParticleAttributeInfos(dmRender::HMaterial material, dmParticle::ParticleVertexAttributeInfos* infos)
+    static inline int32_t GetEmitterAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
+    {
+        for (int i = 0; i < attributes_count; ++i)
+        {
+            if (attributes[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static void FillEmitterAttributeInfos(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmParticle::ParticleVertexAttributeInfos* infos)
+    {
+        for (int i = 0; i < infos->m_NumInfos; ++i)
+        {
+            int32_t emitter_attribute_index = GetEmitterAttributeIndex(attributes, attributes_count, infos->m_Infos[i].m_Attribute->m_NameHash);
+            if (emitter_attribute_index >= 0)
+            {
+                infos->m_Infos[i].m_Attribute = &attributes[emitter_attribute_index];
+                dmGraphics::GetAttributeValues(attributes[emitter_attribute_index], &infos->m_Infos[i].m_ValuePtr, &infos->m_Infos[i].m_ValueByteSize);
+            }
+        }
+    }
+
+    static void FillParticleMaterialAttributeInfos(dmRender::HMaterial material, dmParticle::ParticleVertexAttributeInfos* infos)
     {
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
@@ -261,9 +285,7 @@ namespace dmGameSystem
         for (int i = 0; i < infos->m_NumInfos; ++i)
         {
             dmParticle::ParticleVertexAttributeInfos::Info& info = infos->m_Infos[i];
-            info.m_NameHash        = material_attributes[i].m_NameHash;
-            info.m_SemanticType    = (dmParticle::ParticleVertexAttributeInfos::SemanticType) material_attributes[i].m_SemanticType;
-            info.m_CoordinateSpace = (dmParticle::ParticleVertexAttributeInfos::CoordinateSpace) material_attributes[i].m_CoordinateSpace;
+            info.m_Attribute = &material_attributes[i];
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
         }
     }
@@ -308,16 +330,17 @@ namespace dmGameSystem
         dmParticle::ParticleVertexAttributeInfos       attribute_infos = {};
         attribute_infos.m_Infos = attributes;
 
-        FillParticleAttributeInfos(material_res->m_Material, &attribute_infos);
+        FillParticleMaterialAttributeInfos(material_res->m_Material, &attribute_infos);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
+
+            FillEmitterAttributeInfos(emitter_render_data->m_Attributes, emitter_render_data->m_AttributeCount, &attribute_infos);
+
             dmParticle::GenerateVertexData(particle_context,
                 pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
-                vertex_offset, &attribute_infos, Vector4(1,1,1,1),
-                (void*)vertex_buffer.Begin(), vb_max_size, &vb_size,
-                dmParticle::PARTICLE_GO);
+                &attribute_infos, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
         }
 
         uint32_t ro_vertex_count = (vb_size - vb_size_init) / attribute_infos.m_VertexStride;

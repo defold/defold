@@ -267,7 +267,7 @@ namespace dmParticle
         /// Blend mode
         dmParticleDDF::BlendMode    m_BlendMode;
         /// The max life time possible of a particle (used for quantizing particle life time when sorting)
-        float                   m_MaxParticleLifeTime;
+        float                       m_MaxParticleLifeTime;
     };
 
     /**

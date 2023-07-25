@@ -32,6 +32,7 @@ def configure(conf):
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
     conf.env['STLIB_DDF_NOASAN'] = ['ddf_noasan']
+    conf.env['STLIB_GRAPHICS_PROTO'] = ['graphics_proto']
 
     platform = conf.env['PLATFORM']
 

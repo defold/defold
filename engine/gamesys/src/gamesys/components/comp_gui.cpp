@@ -134,6 +134,16 @@ namespace dmGameSystem
         }
     }
 
+    static inline void FillAttribute(dmGraphics::VertexAttribute& attribute, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+    {
+        attribute.m_NameHash        = name_hash;
+        attribute.m_SemanticType    = semantic_type;
+        attribute.m_ElementCount    = element_count;
+        attribute.m_Normalize       = false;
+        attribute.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
+    }
+
     static dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
@@ -155,13 +165,29 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
 
+        // JG: Can we move these to dlib? We hash these all the time and even store them in some modules, feels like wasted cycles..
+        dmhash_t attribute_hash_position  = dmHashString64("position");
+        dmhash_t attribute_hash_texcoord0 = dmHashString64("texcoord0");
+        dmhash_t attribute_hash_color     = dmHashString64("color");
+
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, attribute_hash_position,  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, attribute_hash_texcoord0, 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, attribute_hash_color,     4, dmGraphics::TYPE_FLOAT, true);
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
+        FillAttribute(gui_world->m_ParticleAttributes[0], attribute_hash_position,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, 3);
+        FillAttribute(gui_world->m_ParticleAttributes[0], attribute_hash_texcoord0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, 2);
+        FillAttribute(gui_world->m_ParticleAttributes[0], attribute_hash_color,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, 4);
+
+        gui_world->m_ParticleAttributeInfos.m_VertexStride         = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
+        gui_world->m_ParticleAttributeInfos.m_NumInfos             = 3;
+        gui_world->m_ParticleAttributeInfos.m_Infos                = gui_world->m_ParticleAttributeInfosData;
+        gui_world->m_ParticleAttributeInfos.m_Infos[0].m_Attribute = &gui_world->m_ParticleAttributes[0];
+        gui_world->m_ParticleAttributeInfos.m_Infos[1].m_Attribute = &gui_world->m_ParticleAttributes[1];
+        gui_world->m_ParticleAttributeInfos.m_Infos[2].m_Attribute = &gui_world->m_ParticleAttributes[2];
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -1052,7 +1078,7 @@ namespace dmGameSystem
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_PARTICLEFX);
 
-        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI) - gui_world->m_RenderedParticlesSize;
+        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, sizeof(ParticleGuiVertex)) - gui_world->m_RenderedParticlesSize;
         uint32_t total_vertex_count = 0;
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
@@ -1106,12 +1132,11 @@ namespace dmGameSystem
                 gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
-                total_vertex_count,
-                0, color, // !!
-                (void*)vb_end,
+                (const dmParticle::ParticleVertexAttributeInfos*) &gui_world->m_ParticleAttributeInfos,
+                color,
+                (void*) vb_end,
                 vb_max_size,
-                &vb_generate_size,
-                dmParticle::PARTICLE_GUI);
+                &vb_generate_size);
 
             uint32_t emitter_vertex_count = vb_generate_size / sizeof(ParticleGuiVertex);
             total_vertex_count += emitter_vertex_count;

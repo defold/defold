@@ -119,23 +119,25 @@ namespace dmGameSystem
         CompGuiNodeSetNodeDescFn    m_SetNodeDesc;
     };
 
-
     struct GuiWorld
     {
-        dmArray<GuiRenderObject>            m_GuiRenderObjects;
-        dmArray<HComponentRenderConstants>  m_RenderConstants;
-        dmArray<GuiComponent*>              m_Components;
-        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
-        dmGraphics::HVertexBuffer           m_VertexBuffer;
-        dmArray<BoxVertex>                  m_ClientVertexBuffer;
-        dmGraphics::HTexture                m_WhiteTexture;
-        dmParticle::HParticleContext        m_ParticleContext;
-        uint32_t                            m_MaxParticleFXCount;
-        uint32_t                            m_MaxParticleCount;
-        uint32_t                            m_RenderedParticlesSize;
-        float                               m_DT;
-        dmScript::ScriptWorld*              m_ScriptWorld;
-        CompGuiContext*                     m_CompGuiContext;
+        dmArray<GuiRenderObject>                       m_GuiRenderObjects;
+        dmArray<HComponentRenderConstants>             m_RenderConstants;
+        dmArray<GuiComponent*>                         m_Components;
+        dmGraphics::HVertexDeclaration                 m_VertexDeclaration;
+        dmGraphics::HVertexBuffer                      m_VertexBuffer;
+        dmArray<BoxVertex>                             m_ClientVertexBuffer;
+        dmGraphics::HTexture                           m_WhiteTexture;
+        dmParticle::HParticleContext                   m_ParticleContext;
+        dmParticle::ParticleVertexAttributeInfos       m_ParticleAttributeInfos;
+        dmParticle::ParticleVertexAttributeInfos::Info m_ParticleAttributeInfosData[4];
+        dmGraphics::VertexAttribute                    m_ParticleAttributes[4];
+        uint32_t                                       m_MaxParticleFXCount;
+        uint32_t                                       m_MaxParticleCount;
+        uint32_t                                       m_RenderedParticlesSize;
+        float                                          m_DT;
+        dmScript::ScriptWorld*                         m_ScriptWorld;
+        CompGuiContext*                                m_CompGuiContext;
     };
 
     typedef BoxVertex ParticleGuiVertex;
