@@ -1683,8 +1683,8 @@ class Configuration(object):
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
         
         # Release to steam for stable only
-        # if tag_name and (self.channel == 'stable'):
-        #     release_to_steam.release(self, tag_name, release_sha1, releases[0])
+        # if tag_name and (self.channel == 'editor-alpha'):
+        #     self.release_to_steam()
 
     # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
     # on a branch with the correct sha1 (e.g. beta or editor-dev)
