@@ -19,6 +19,7 @@ import run
 import urllib
 import shutil
 import tempfile
+import platform
 from urllib.parse import urlparse
 
 MANIFEST_VDF = """
@@ -73,11 +74,18 @@ def unzip(filepath, dest_dir):
     run.shell_command('unzip %s -d %s' % (filepath, dest_dir))
 
 def unpack_dmg(filepath, dest_dir):
-    # TODO: For CI we need to figure out the equivalent steps on Linux
-    # (or do the release on macOS instead)
-    run.shell_command("hdiutil attach %s" % filepath)
-    shutil.copytree("/Volumes/Defold/Defold.app", os.path.join(dest_dir, "Defold.app"))
-    run.shell_command("hdiutil detach /Volumes/Defold")
+    system = platform.system()
+    if system == "Darwin":
+        run.shell_command("hdiutil attach %s" % filepath)
+        shutil.copytree("/Volumes/Defold/Defold.app", os.path.join(dest_dir, "Defold.app"))
+        run.shell_command("hdiutil detach /Volumes/Defold")
+    elif system == "Linux":
+        mountpoint = tempfile.mkdtemp()
+        run.shell_command("mount -t hfsplus %s %s" % (filepath, mountpoint))
+        shutil.copytree(os.path.join(mountpoint, "Defold.app"), os.path.join(dest_dir, "Defold.app"))
+        run.shell_command("umount %s" % (mountpoint))
+    else:
+        log("Releasing to Steam is not supported on %d", system)
 
 def release(config, tag_name, s3_release):
     log("Releasing Defold %s to Steam" % tag_name)
