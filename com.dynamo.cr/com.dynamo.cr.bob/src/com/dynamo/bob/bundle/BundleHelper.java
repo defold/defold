@@ -63,6 +63,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
 
 import java.awt.AlphaComposite;
@@ -157,7 +158,16 @@ public class BundleHelper {
         String s = new String(data);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
-        template.execute(propertiesMap, properties, sw);
+        try {
+            template.execute(propertiesMap, properties, sw);
+         } catch (MustacheException e) {
+            MustacheException.Context context = (MustacheException.Context) e;
+            String key = context.key;
+            int lineNo = context.lineNo;
+            String path = resource.getPath();
+            String cause = String.format("File '%s' requires '%s' in line %d. Make sure you have '%s' in your game.project", path, key, lineNo, key);
+            throw new MustacheException(cause);
+         }
         sw.flush();
         return sw.toString();
     }

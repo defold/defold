@@ -695,6 +695,10 @@ public class Project {
                 TimeProfiler.init(reportFiles, true);
             }
             loadProjectFile();
+            String title = projectProperties.getStringValue("project", "title");
+            if (title != null && title.isEmpty()) {
+                throw new Exception("`project.title` in `game.project` must be non-empty.");
+            }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
