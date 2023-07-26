@@ -57,6 +57,12 @@ public interface IResource {
     void setHashDigest(byte[] digest);
 
     /**
+     * Get a previously set hash digest
+     * @return The hash digest
+     */
+    byte[] getHashDigest();
+
+    /**
      * Get sha1 checksum for resource
      * @return sha1 checksum
      * @throws IOException
