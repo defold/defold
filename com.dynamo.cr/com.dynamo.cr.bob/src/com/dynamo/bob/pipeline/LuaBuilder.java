@@ -47,6 +47,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.OutputFlags;
@@ -445,7 +446,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
+        MessageDigest digest = ManifestBuilder.create().getMessageHashDigest();
+        digest.update(script.getBytes());
+
         boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
+        digest.update(useUncompressedLuaSource ? ("uncompressed").getBytes() : ("compressed").getBytes());
         // set compression and encryption flags
         // if the use-uncompressed-lua-source flag is set the project will use uncompressed plain text Lua script files
         // if the use-uncompressed-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
@@ -461,6 +466,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 }
             }
         }
+
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(getChunkName(task));
@@ -481,6 +487,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
         else {
             boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
+            digest.update(useLuaBytecodeDelta ? ("bytecodedelta-on").getBytes() : ("bytecodedelta-off").getBytes());
 
             // We may have multiple archs with same bitness
             boolean needs32bit = false;
@@ -532,6 +539,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         msg.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
+        task.output(0).setHashDigest(digest.digest());
     }
 
     private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertyResources) throws CompileExceptionError {
