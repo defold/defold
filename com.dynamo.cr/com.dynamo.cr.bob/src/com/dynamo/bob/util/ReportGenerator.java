@@ -26,6 +26,7 @@ import java.io.BufferedWriter;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ArchiveEntry;
@@ -107,8 +108,9 @@ public class ReportGenerator {
 
         String rootDir = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
-        for (String output : project.getOutputs().keySet()) {
+        for (IResource resource : project.getOutputs().keySet()) {
 
+            String output = resource.getAbsPath(); 
             String filePath = output.substring(rootDir.length());
             File file = new File(output);
             long size = file.length();

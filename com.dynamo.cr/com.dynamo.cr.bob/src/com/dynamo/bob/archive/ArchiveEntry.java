@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.File;
 import java.util.EnumSet;
 
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.OutputFlags;
 
 import org.apache.commons.io.FilenameUtils;
@@ -36,13 +37,13 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     private String fileName;
     private String hexDigest;
     private byte[] hash = null;
+    private IResource resource = null;
 
-    public ArchiveEntry(String fileName) throws IOException {
+    public ArchiveEntry(String filename) throws IOException {
         this.fileName = fileName;
         this.relName = fileName;
     }
-
-    public ArchiveEntry(String root, String fileName, EnumSet<OutputFlags> outputFlags, boolean isLiveUpdate) throws IOException {
+    public ArchiveEntry(String root, String fileName) throws IOException {
         File file = new File(fileName);
         if (!file.exists()) {
             throw new IOException(String.format("File %s does not exists",
@@ -57,7 +58,17 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         }
 
         this.size = (int) file.length();
-        if(outputFlags.contains(OutputFlags.UNCOMPRESSED)) {
+        this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
+        this.fileName = fileName;
+    }
+
+    public ArchiveEntry(String root, IResource resource) throws IOException {
+        this(root, resource.getAbsPath());
+        this.resource = resource;
+    }
+
+    public ArchiveEntry setFlags(EnumSet<OutputFlags> outputFlags) {
+        if (outputFlags.contains(OutputFlags.UNCOMPRESSED)) {
             this.compressedSize = FLAG_UNCOMPRESSED;
         } else {
             // Will be set to real value after compression
@@ -68,20 +79,17 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
             this.flags = this.flags | FLAG_ENCRYPTED;
         }
 
-        if (isLiveUpdate) {
+        return this;
+    }
+
+    public ArchiveEntry setLiveUpdate(boolean enabled) {
+        if (enabled) {
             this.flags = this.flags | FLAG_LIVEUPDATE;
         }
-
-        this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
-        this.fileName = fileName;
-    }
-
-    public ArchiveEntry(String root, String fileName, EnumSet<OutputFlags> outputFlags) throws IOException {
-        this(root, fileName, outputFlags, false);
-    }
-
-    public ArchiveEntry(String root, String fileName) throws IOException {
-        this(root, fileName, EnumSet.noneOf(OutputFlags.class), false);
+        else {
+            this.flags = this.flags & ~FLAG_LIVEUPDATE;
+        }
+        return this;
     }
 
     public int getSize() {

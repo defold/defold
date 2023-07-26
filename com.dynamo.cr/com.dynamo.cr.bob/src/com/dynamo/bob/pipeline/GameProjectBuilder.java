@@ -67,6 +67,7 @@ import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
@@ -230,7 +231,7 @@ public class GameProjectBuilder extends Builder<Void> {
         HashMap<IResource, EnumSet<OutputFlags>> outputs = project.getOutputs();
         for (IResource resource : resources) {
             EnumSet<OutputFlags> flags = outputs.get(resource);
-            archiveBuilder.add(s, flags);
+            archiveBuilder.add(resource, flags);
         }
 
         TimeProfiler.addData("resources", resources.size());
@@ -396,6 +397,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
+        logger.info("GameProjecBuilder.build()");
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
         FileInputStream resourcePackInputStream = null;

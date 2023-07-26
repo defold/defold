@@ -38,6 +38,8 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.bob.pipeline.OutputFlags;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -70,20 +72,41 @@ public class ArchiveBuilder {
         this.resourcePadding = resourcePadding;
     }
 
-    private ArchiveEntry add(String fileName, EnumSet<OutputFlags> flags, boolean isLiveUpdate) throws IOException {
-        ArchiveEntry e = new ArchiveEntry(root, fileName, flags, isLiveUpdate);
-        if (!contains(e)) {
+    private void add(ArchiveEntry e) {
+        if (!lookup.contains(e.getRelativeFilename())) {
             lookup.add(e.getRelativeFilename());
             entries.add(e);
         }
     }
 
-    public ArchiveEntry add(String fileName, EnumSet<OutputFlags> flags) throws IOException {
-        return add(fileName, flags, false);
+    private void add(IResource resource, EnumSet<OutputFlags> flags, boolean isLiveUpdate) throws IOException {
+        ArchiveEntry e = new ArchiveEntry(root, resource);
+        e.setFlags(flags);
+        e.setLiveUpdate(isLiveUpdate);
+        add(e);
     }
 
-    public ArchiveEntry add(String fileName) throws IOException {
-        return add(fileName, EnumSet.noneOf(OutputFlags.class), false);
+    public void add(IResource resource, EnumSet<OutputFlags> flags) throws IOException {
+        add(resource, flags, false);
+    }
+
+    public void add(IResource resource) throws IOException {
+        add(resource, EnumSet.noneOf(OutputFlags.class), false);
+    }
+
+    public void add(String filename, EnumSet<OutputFlags> flags, boolean isLiveUpdate) throws IOException {
+        ArchiveEntry e = new ArchiveEntry(root, filename);
+        e.setFlags(flags);
+        e.setLiveUpdate(isLiveUpdate);
+        add(e);
+    }
+
+    public void add(String filename, EnumSet<OutputFlags> flags) throws IOException {
+        add(filename, flags, false);
+    }
+
+    public void add(String filename) throws IOException {
+        add(filename, EnumSet.noneOf(OutputFlags.class), false);
     }
 
     public ArchiveEntry getArchiveEntry(int index) {
@@ -210,7 +233,14 @@ public class ArchiveBuilder {
             // Calculate hash digest values for resource
             String hexDigest = null;
             try {
-                byte[] hashDigest = CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+                byte[] hashDigest = ResourceDigestCache.digest(entry.getFilename());
+                if (hashDigest == null) {
+                    hashDigest = CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+                    System.out.println("Resource does NOT have hashDigest " + entry.getFilename());
+                }
+                else {
+                    System.out.println("Resource has hashDigest " + entry.getFilename());
+                }
                 entry.setHash(new byte[HASH_MAX_LENGTH]);
                 System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
                 hexDigest = CryptographicOperations.hexdigest(hashDigest);
@@ -370,7 +400,7 @@ public class ArchiveBuilder {
             if (luaResource) flags.add(OutputFlags.ENCRYPTED);
             if (luaResource) flags.add(OutputFlags.UNPREDICTABLE);
 
-            if (currentInput.getName().startsWith("liveupdate.")){
+            if (currentInput.getName().startsWith("liveupdate.")) {
                 excludedEntries++;
                 archiveBuilder.add(absolutePath, flags, true);
             } else {

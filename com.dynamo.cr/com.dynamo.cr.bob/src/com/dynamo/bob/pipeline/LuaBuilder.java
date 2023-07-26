@@ -36,9 +36,6 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-
 import org.apache.commons.io.IOUtils;
 
 import com.defold.extension.pipeline.ILuaObfuscator;
@@ -50,7 +47,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.ResourceDigestCache;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.OutputFlags;
@@ -436,6 +433,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
+        final IResource outputResource = task.output(0);
         final IResource sourceResource = task.input(0);
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -449,17 +447,10 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        MessageDigest digest;
-        try {
-            digest = ManifestBuilder.create().getResourceHashDigest();
-        }
-        catch (NoSuchAlgorithmException e) {
-            throw new CompileExceptionError(e);
-        }
-        digest.update(script.getBytes());
+        ResourceDigestCache.update(outputResource, script.getBytes());
 
         boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
-        digest.update(useUncompressedLuaSource ? ("uncompressed").getBytes() : ("compressed").getBytes());
+        ResourceDigestCache.update(outputResource, useUncompressedLuaSource ? ("uncompressed").getBytes() : ("compressed").getBytes());
         // set compression and encryption flags
         // if the use-uncompressed-lua-source flag is set the project will use uncompressed plain text Lua script files
         // if the use-uncompressed-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
@@ -496,7 +487,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
         else {
             boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
-            digest.update(useLuaBytecodeDelta ? ("bytecodedelta-on").getBytes() : ("bytecodedelta-off").getBytes());
+            ResourceDigestCache.update(outputResource, useLuaBytecodeDelta ? ("bytecodedelta-on").getBytes() : ("bytecodedelta-off").getBytes());
 
             // We may have multiple archs with same bitness
             boolean needs32bit = false;
@@ -548,7 +539,6 @@ public abstract class LuaBuilder extends Builder<Void> {
         msg.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
-        task.output(0).setHashDigest(digest.digest());
     }
 
     private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertyResources) throws CompileExceptionError {
