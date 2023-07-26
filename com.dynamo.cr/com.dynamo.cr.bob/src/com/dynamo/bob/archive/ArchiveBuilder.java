@@ -232,12 +232,12 @@ public class ArchiveBuilder {
                 this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
                 excludedEntries.add(entry);
-                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.EXCLUDED.getNumber());
+                manifestBuilder.addResourceEntry(normalisedPath, hashDigest, ResourceEntryFlag.EXCLUDED.getNumber());
             } else {
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
-                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.BUNDLED.getNumber());
+                manifestBuilder.addResourceEntry(normalisedPath, hashDigest, ResourceEntryFlag.BUNDLED.getNumber());
             }
         }
 

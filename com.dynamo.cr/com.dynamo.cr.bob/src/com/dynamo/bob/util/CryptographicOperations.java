@@ -165,6 +165,12 @@ public class CryptographicOperations {
         return builder.build();
     }
 
+    public static HashDigest toHashDigest(byte[] hashDigest) throws NoSuchAlgorithmException {
+        HashDigest.Builder builder = HashDigest.newBuilder();
+        builder.setData(ByteString.copyFrom(hashDigest));
+        return builder.build();
+    }
+
     public static void generateKeyPair(SignAlgorithm algorithm, String privateKeyFilepath, String publicKeyFilepath) throws NoSuchAlgorithmException, IOException {
         byte[] privateKeyContent = null;
         byte[] publicKeyContent = null;

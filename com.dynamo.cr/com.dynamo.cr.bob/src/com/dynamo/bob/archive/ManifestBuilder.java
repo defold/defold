@@ -201,12 +201,12 @@ public class ManifestBuilder {
         }
     }
 
-    public void addResourceEntry(String url, byte[] data, int flags) throws IOException {
+    public void addResourceEntry(String url, byte[] hashDigest, int flags) throws IOException {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
             builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
-            HashDigest hash = CryptographicOperations.createHashDigest(data, this.resourceHashAlgorithm);
+            HashDigest hash = CryptographicOperations.toHashDigest(hashDigest);
             builder.setHash(hash);
             builder.setFlags(flags);
             this.resourceEntries.add(builder.buildPartial());
