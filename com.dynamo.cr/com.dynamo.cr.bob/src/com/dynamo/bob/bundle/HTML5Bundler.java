@@ -335,7 +335,7 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
 
-        helper.copyOrWriteManifestFile(platform, appDir);
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
 
