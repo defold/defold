@@ -407,9 +407,9 @@ public class ArchiveBuilder {
                     filepathManifestHash.delete();
                     filepathManifestHash.createNewFile();
                 }
-                FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
-                manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
-                manifestHashOutoutStream.close();
+                FileOutputStream manifestHashOutputStream = new FileOutputStream(filepathManifestHash);
+                manifestHashOutputStream.write(manifestBuilder.getManifestDataHash());
+                manifestHashOutputStream.close();
             }
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
