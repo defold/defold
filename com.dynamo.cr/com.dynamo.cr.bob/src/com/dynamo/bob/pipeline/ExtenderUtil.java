@@ -176,34 +176,38 @@ public class ExtenderUtil {
     }
 
     private static class EmptyResource implements IResource {
-    	private String rootDir;
-    	private String path;
+        private String rootDir;
+        private String path;
 
-    	public EmptyResource(String rootDir, String path) {
+        public EmptyResource(String rootDir, String path) {
             this.rootDir = rootDir;
             this.path = path;
         }
 
-    	@Override
-		public IResource changeExt(String ext) {
-			return null;
-		}
+        @Override
+        public IResource changeExt(String ext) {
+            return null;
+        }
 
-		@Override
-		public byte[] getContent() throws IOException {
-			return new byte[0];
-		}
+        @Override
+        public byte[] getContent() throws IOException {
+            return new byte[0];
+        }
 
-		@Override
-		public void setContent(byte[] content) throws IOException {
-		}
+        @Override
+        public void setContent(byte[] content) throws IOException {
+        }
 
         @Override
         public void setHashDigest(byte[] digest) {
         }
 
-		@Override
-		public byte[] sha1() throws IOException {
+        public byte[] getHashDigest() {
+            return null;
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
             byte[] content = getContent();
             if (content == null) {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
@@ -216,55 +220,55 @@ public class ExtenderUtil {
             }
             sha1.update(content);
             return sha1.digest();
-		}
+        }
 
-		@Override
-		public boolean exists() {
-			return true;
-		}
+        @Override
+        public boolean exists() {
+            return true;
+        }
 
-		@Override
-		public boolean isFile() {
-			return false;
-		}
+        @Override
+        public boolean isFile() {
+            return false;
+        }
 
-		@Override
-		public String getAbsPath() {
+        @Override
+        public String getAbsPath() {
             return rootDir + "/" + path;
-		}
+        }
 
-		@Override
-		public String getPath() {
-			return path;
-		}
+        @Override
+        public String getPath() {
+            return path;
+        }
 
-		@Override
-		public void remove() {
-		}
+        @Override
+        public void remove() {
+        }
 
-		@Override
-		public IResource getResource(String name) {
-			return null;
-		}
+        @Override
+        public IResource getResource(String name) {
+            return null;
+        }
 
-		@Override
-		public IResource output() {
-			return null;
-		}
+        @Override
+        public IResource output() {
+            return null;
+        }
 
-		@Override
-		public boolean isOutput() {
-			return false;
-		}
+        @Override
+        public boolean isOutput() {
+            return false;
+        }
 
-		@Override
-		public void setContent(InputStream stream) throws IOException {
-		}
+        @Override
+        public void setContent(InputStream stream) throws IOException {
+        }
 
-		@Override
-		public long getLastModified() {
-	        return new File(rootDir).lastModified();
-		}
+        @Override
+        public long getLastModified() {
+            return new File(rootDir).lastModified();
+        }
 
         @Override
         public IResource disableCache() {
