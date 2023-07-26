@@ -210,10 +210,10 @@ public class ArchiveBuilder {
             // Calculate hash digest values for resource
             String hexDigest = null;
             try {
-                byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+                byte[] hashDigest = CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
                 entry.setHash(new byte[HASH_MAX_LENGTH]);
                 System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
-                hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
+                hexDigest = CryptographicOperations.hexdigest(hashDigest);
             } catch (NoSuchAlgorithmException exception) {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
@@ -262,7 +262,7 @@ public class ArchiveBuilder {
             int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
             byte[] archiveIndexBytes = new byte[num_bytes];
             archiveIndex.readFully(archiveIndexBytes);
-            this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+            this.archiveIndexMD5 = CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("The algorithm specified is not supported!");
             e.printStackTrace();
@@ -276,7 +276,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entries.size());
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
-        archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
+        archiveIndex.writeInt(CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
         archiveIndex.write(this.archiveIndexMD5);
     }
 
@@ -355,7 +355,7 @@ public class ArchiveBuilder {
 
         System.out.println("Generating private key: " + filepathPrivateKey.getCanonicalPath());
         System.out.println("Generating public key: " + filepathPublicKey.getCanonicalPath());
-        ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, filepathPrivateKey.getAbsolutePath(), filepathPublicKey.getAbsolutePath());
+        CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, filepathPrivateKey.getAbsolutePath(), filepathPublicKey.getAbsolutePath());
         manifestBuilder.setPrivateKeyFilepath(filepathPrivateKey.getAbsolutePath());
         manifestBuilder.setPublicKeyFilepath(filepathPublicKey.getAbsolutePath());
 
