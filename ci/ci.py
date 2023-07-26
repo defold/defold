@@ -135,7 +135,7 @@ def install(args):
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
         # for steamcmd
-        call("dpkg --add-architecture i386")
+        call("sudo dpkg --add-architecture i386")
         # we use apt-fast to speed up apt-get downloads
         # https://github.com/ilikenwf/apt-fast
         call("sudo add-apt-repository ppa:apt-fast/stable")
