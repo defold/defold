@@ -216,10 +216,6 @@ public class ArchiveBuilder {
                 byte[] hashDigest = ResourceDigestCache.digest(entry.getFilename());
                 if (hashDigest == null) {
                     hashDigest = CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-                    System.out.println("Resource does NOT have hashDigest " + entry.getFilename());
-                }
-                else {
-                    System.out.println("Resource has hashDigest " + entry.getFilename());
                 }
                 entry.setHash(new byte[HASH_MAX_LENGTH]);
                 System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
