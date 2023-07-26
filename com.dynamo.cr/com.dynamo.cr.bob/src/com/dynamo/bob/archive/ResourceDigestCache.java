@@ -23,49 +23,90 @@ import java.security.NoSuchAlgorithmException;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.logging.Logger;
 
 public class ResourceDigestCache {
 
-    private static Logger logger = Logger.getLogger(ResourceDigestCache.class.getName());
+    public static class ResourceDigest {
 
-    private static Map<String, byte[]> cache = new HashMap<>();
-    private static Map<String, MessageDigest> digests = new HashMap<>();
+        private String path;
+        private MessageDigest messageDigest;
+        private byte[] hash;
 
-    public static void update(String path, byte[] input) throws CompileExceptionError {
-        MessageDigest digest = digests.get(path);
-        if (digest == null) {
-            try {
-                digest = ManifestBuilder.create().getResourceHashDigest();
+        public ResourceDigest(String path, MessageDigest messageDigest) {
+            this.path = path;
+            this.messageDigest = messageDigest;
+        }
+
+        /**
+         * Update this digest with additional bytes. Calling this function has
+         * no effect if digest() has been called.
+         * @param input Bytes to add
+         * @return This instance
+         */
+        public ResourceDigest update(byte[] input) {
+            if (hash == null) {
+                messageDigest.update(input);
             }
-            catch (NoSuchAlgorithmException e) {
-                throw new CompileExceptionError(e);
+            return this;
+        }
+
+        /**
+         * Calculate the final digest. This function can be called multiple
+         * times. Once thid function has been called any subsequent call to
+         * update() will be ignored.
+         * @return The digest
+         */
+        public byte[] digest() {
+            if (hash == null) {
+                hash = messageDigest.digest();
             }
+            return hash;
+        }
+    }
+
+    private static Map<String, ResourceDigest> digests = new HashMap<>();
+
+    /**
+     * Create a resource digest for a resource path. If a cached digest already
+     * exists it will be replaced.
+     * @param path The path to get a resource digest for
+     * @return The digest
+     */
+    public static ResourceDigest create(String path) throws CompileExceptionError {
+        ResourceDigest digest = null;
+        try {
+            MessageDigest messageDigest = ManifestBuilder.create().getResourceHashDigest();
+            digest = new ResourceDigest(path, messageDigest);
             digests.put(path, digest);
         }
-        digest.update(input);
-    }
-
-    public static void update(IResource resource, byte[] input) throws CompileExceptionError {
-        update(resource.getAbsPath(), input);
-    }
-
-    public static byte[] digest(String path) throws CompileExceptionError {
-        byte[] b = cache.get(path);
-        if (b == null) {
-            MessageDigest digest = digests.get(path);
-            if (digest != null) {
-                b = digest.digest();
-                cache.put(path, b);
-            }
+        catch (NoSuchAlgorithmException e) {
+            throw new CompileExceptionError(e);
         }
-        return b;
+        return digest;
     }
 
-    public static byte[] digest(IResource resource) throws CompileExceptionError {
-        return digest(resource.getAbsPath());
+    public static ResourceDigest create(IResource resource) throws CompileExceptionError {
+        return create(resource.getAbsPath());
     }
 
+    /**
+     * Get a resource digest for a path created with 'create()'
+     * @param path The path to get a digest for
+     * @return The digest or null if none has been created
+     */
+    public static ResourceDigest get(String path) {
+        return digests.get(path);
+    }
+
+    public static ResourceDigest get(IResource resource) {
+        return get(resource.getAbsPath());
+    }
+
+    /**
+     * Check if a resource digest exists for a path.
+     * @param path The path to check for a digest
+     * @return true if a digest exists for the path
+     */
     public static boolean hasDigest(String path) {
         return digests.containsKey(path);
     }

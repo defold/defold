@@ -212,17 +212,17 @@ public class ArchiveBuilder {
 
             // Calculate hash digest values for resource
             String hexDigest = null;
-            try {
-                byte[] hashDigest = ResourceDigestCache.digest(entry.getFilename());
-                if (hashDigest == null) {
-                    hashDigest = CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-                }
-                entry.setHash(new byte[HASH_MAX_LENGTH]);
-                System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
-                hexDigest = CryptographicOperations.hexdigest(hashDigest);
-            } catch (NoSuchAlgorithmException exception) {
-                throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+            byte[] hashDigest;
+            if (ResourceDigestCache.hasDigest(entry.getFilename())) {
+                hashDigest = ResourceDigestCache.get(entry.getFilename()).digest();
             }
+            else {
+                hashDigest = ResourceDigestCache.create(entry.getFilename()).update(buffer).digest();
+            }
+            entry.setHash(new byte[HASH_MAX_LENGTH]);
+            System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
+            hexDigest = CryptographicOperations.hexdigest(hashDigest);
+
             // Store association between hexdigest and original filename in a
             // lookup table
             entry.setHexDigest(hexDigest);
