@@ -43,13 +43,13 @@ import com.defold.extension.pipeline.ILuaPreprocessor;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.OutputFlags;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
@@ -453,10 +453,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             String path = res.getAbsPath();
             if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
                 if (useUncompressedLuaSource) {
-                    project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
+                    project.addOutputFlags(path, OutputFlags.UNCOMPRESSED);
                 }
                 else {
-                    project.addOutputFlags(path, Project.OutputFlags.ENCRYPTED);
+                    project.addOutputFlags(path, OutputFlags.ENCRYPTED);
+                    project.addOutputFlags(path, OutputFlags.UNPREDICTABLE);
                 }
             }
         }

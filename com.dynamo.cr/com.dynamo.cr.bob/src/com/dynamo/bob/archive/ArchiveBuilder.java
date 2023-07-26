@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.EnumSet;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -38,6 +39,7 @@ import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.ResourceNode;
+import com.dynamo.bob.pipeline.OutputFlags;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
@@ -68,24 +70,20 @@ public class ArchiveBuilder {
         this.resourcePadding = resourcePadding;
     }
 
-    private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
-        ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
         if (!contains(e)) {
             lookup.add(e.getRelativeFilename());
+    private ArchiveEntry add(String fileName, EnumSet<OutputFlags> flags, boolean isLiveUpdate) throws IOException {
+        ArchiveEntry e = new ArchiveEntry(root, fileName, flags, isLiveUpdate);
             entries.add(e);
         }
     }
 
-    public void add(String fileName, boolean compress, boolean encrypt) throws IOException {
-        add(fileName, compress, encrypt, false);
+    public ArchiveEntry add(String fileName, EnumSet<OutputFlags> flags) throws IOException {
+        return add(fileName, flags, false);
     }
 
-    public void add(String fileName) throws IOException {
-        add(fileName, false, false, false);
-    }
-
-    private boolean contains(ArchiveEntry e) {
-        return lookup.contains(e.getRelativeFilename());
+    public ArchiveEntry add(String fileName) throws IOException {
+        return add(fileName, EnumSet.noneOf(OutputFlags.class), false);
     }
 
     public ArchiveEntry getArchiveEntry(int index) {
@@ -368,13 +366,19 @@ public class ArchiveBuilder {
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
         for (File currentInput : inputs) {
             String absolutePath = currentInput.getAbsolutePath();
-            boolean encrypt = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
+            boolean luaResource = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
+
+            EnumSet<OutputFlags> flags = EnumSet.noneOf(OutputFlags.class);
+            if (!doCompress) flags.add(OutputFlags.UNCOMPRESSED);
+            if (luaResource) flags.add(OutputFlags.ENCRYPTED);
+            if (luaResource) flags.add(OutputFlags.UNPREDICTABLE);
+
             if (currentInput.getName().startsWith("liveupdate.")){
                 excludedEntries++;
-                archiveBuilder.add(absolutePath, doCompress, encrypt, true);
+                archiveBuilder.add(absolutePath, flags, true);
             } else {
                 archivedEntries++;
-                archiveBuilder.add(absolutePath, doCompress, encrypt, false);
+                archiveBuilder.add(absolutePath, flags, false);
             }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), absolutePath);
             rootNode.addChild(currentNode);

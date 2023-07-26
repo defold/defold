@@ -59,6 +59,7 @@ import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.OutputFlags;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -221,12 +222,10 @@ public class GameProjectBuilder extends Builder<Void> {
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, resourcePadding);
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
-        HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
+        HashMap<String, EnumSet<OutputFlags>> outputs = project.getOutputs();
         for (String s : resources) {
-            EnumSet<Project.OutputFlags> flags = outputs.get(s);
-            boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
-            boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
-            archiveBuilder.add(s, compress, encrypt);
+            EnumSet<OutputFlags> flags = outputs.get(s);
+            archiveBuilder.add(s, flags);
         }
 
         TimeProfiler.addData("resources", resources.size());

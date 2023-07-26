@@ -88,6 +88,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.pipeline.OutputFlags;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -112,12 +113,6 @@ public class Project {
     public final static String CACHE_DIR = ".internal/cache";
     public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
-
-    public enum OutputFlags {
-        NONE,
-        UNCOMPRESSED,
-        ENCRYPTED
-    }
 
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
