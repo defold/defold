@@ -222,7 +222,7 @@ public class GameProjectBuilder extends Builder<Void> {
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, resourcePadding);
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
-        HashMap<String, EnumSet<OutputFlags>> outputs = project.getOutputs();
+        HashMap<IResource, EnumSet<OutputFlags>> outputs = project.getOutputs();
         for (String s : resources) {
             EnumSet<OutputFlags> flags = outputs.get(s);
             archiveBuilder.add(s, flags);

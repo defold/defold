@@ -453,11 +453,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             String path = res.getAbsPath();
             if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
                 if (useUncompressedLuaSource) {
-                    project.addOutputFlags(path, OutputFlags.UNCOMPRESSED);
+                    project.addOutputFlags(res, OutputFlags.UNCOMPRESSED);
                 }
                 else {
-                    project.addOutputFlags(path, OutputFlags.ENCRYPTED);
-                    project.addOutputFlags(path, OutputFlags.UNPREDICTABLE);
+                    project.addOutputFlags(res, OutputFlags.ENCRYPTED);
+                    project.addOutputFlags(res, OutputFlags.UNPREDICTABLE);
                 }
             }
         }

@@ -122,6 +122,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
         final String path = "/test.script";
         final String scriptSource = "function foo() print('foo') end";
+        final IResource resource = p.getResource(path);
         LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript() != null);
@@ -129,7 +130,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
-        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+        assertTrue(p.getOutputFlags(resource.output()).contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
     @Test
@@ -139,6 +140,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
         final String path = "/test.script";
         final String scriptSource = "function foo() print('foo') end";
+        final IResource resource = p.getResource(path);
         LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript() != null);
@@ -146,8 +148,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
-        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
-        assertFalse(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+        assertTrue(p.getOutputFlags(resource.output()).contains(Project.OutputFlags.ENCRYPTED));
+        assertFalse(p.getOutputFlags(resource.output()).contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
     // Leaving these tests in case we decide to reintroduce bytecode generation for Lua 5.1.5

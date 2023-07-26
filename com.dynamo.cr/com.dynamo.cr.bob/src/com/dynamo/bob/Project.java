@@ -121,7 +121,7 @@ public class Project {
     private Map<String, String> inextToOutext = new HashMap<>();
     private List<Class<? extends Builder<?>>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
-    private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
+    private HashMap<IResource, EnumSet<OutputFlags>> outputs = new HashMap<IResource, EnumSet<OutputFlags>>();
     private HashMap<String, Task<?>> tasks;
     private State state;
     private String rootDirectory = ".";
@@ -1483,7 +1483,7 @@ public class Project {
         // Keep track of the paths for all outputs
         outputs = new HashMap<>(allOutputs.size());
         for (IResource res : allOutputs) {
-            outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
+            outputs.put(res, EnumSet.noneOf(OutputFlags.class));
         }
 
         // This flag is set to true as soon as one task has failed. This will
@@ -1670,12 +1670,12 @@ run:
         this.inputs = new ArrayList<String>(inputs);
     }
 
-    public HashMap<String, EnumSet<OutputFlags>> getOutputs() {
+    public HashMap<IResource, EnumSet<OutputFlags>> getOutputs() {
         return outputs;
     }
 
-    public EnumSet<OutputFlags> getOutputFlags(String resourcePath) {
-        return outputs.get(resourcePath);
+    public EnumSet<OutputFlags> getOutputFlags(IResource resource) {
+        return outputs.get(resource);
     }
 
     /**
@@ -1683,13 +1683,13 @@ run:
      * @param resourcePath output resource absolute path
      * @param flag OutputFlag to add
      */
-    public boolean addOutputFlags(String resourcePath, OutputFlags flag) {
-        EnumSet<OutputFlags> currentFlags = outputs.get(resourcePath);
+    public boolean addOutputFlags(IResource resource, OutputFlags flag) {
+        EnumSet<OutputFlags> currentFlags = outputs.get(resource);
         if(currentFlags == null) {
             return false;
         }
         currentFlags.add(flag);
-        outputs.replace(resourcePath, currentFlags);
+        outputs.replace(resource, currentFlags);
         return true;
     }
 
