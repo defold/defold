@@ -356,12 +356,9 @@ public class ArchiveBuilder {
 
         // Create manifest and archive
 
-        ManifestBuilder manifestBuilder = new ManifestBuilder(doOutputManifestHashFile);
+        ManifestBuilder manifestBuilder = ManifestBuilder.create(doOutputManifestHashFile);
         manifestBuilder.setProjectIdentifier("<anonymous project>");
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
-        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
-        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
         System.out.println("Generating private key: " + filepathPrivateKey.getCanonicalPath());
         System.out.println("Generating public key: " + filepathPublicKey.getCanonicalPath());
