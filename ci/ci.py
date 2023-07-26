@@ -134,10 +134,11 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
+        # for steamcmd
+        call("dpkg --add-architecture i386")
         # we use apt-fast to speed up apt-get downloads
         # https://github.com/ilikenwf/apt-fast
         call("sudo add-apt-repository ppa:apt-fast/stable")
-        call("sudo add-apt-repository multiverse")
         call("sudo apt-get update", failonerror=False)
         call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
         call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
