@@ -137,6 +137,7 @@ def install(args):
         # we use apt-fast to speed up apt-get downloads
         # https://github.com/ilikenwf/apt-fast
         call("sudo add-apt-repository ppa:apt-fast/stable")
+        call("sudo add-apt-repository multiverse")
         call("sudo apt-get update", failonerror=False)
         call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
         call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
@@ -169,7 +170,7 @@ def install(args):
             "valgrind",
             "lib32z1",
             "xvfb",
-            "steamcmd",
+            "steamcmd", "lib32gcc1",
             "hfsprogs"  # for mounting DMG files
         ]
         aptfast(" ".join(packages))
