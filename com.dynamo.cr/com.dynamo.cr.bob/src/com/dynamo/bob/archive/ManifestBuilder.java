@@ -20,6 +20,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -108,14 +109,18 @@ public class ManifestBuilder {
     }
 
     public static ManifestBuilder create() {
-        ManifestBuilder manifestBuilder =  new ManifestBuilder();
+        return create(false);
+    }
+
+    public static ManifestBuilder create(boolean outputManifestHash) {
+        ManifestBuilder manifestBuilder =  new ManifestBuilder(outputManifestHash);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         return manifestBuilder;
     }
 
-    public MessageDigest getResourceHashDigest() {
+    public MessageDigest getResourceHashDigest() throws NoSuchAlgorithmException {
         return CryptographicOperations.getMessageDigest(resourceHashAlgorithm);
     }
 
