@@ -57,7 +57,7 @@ public class ResourceGraph {
 
     private Project project;
     private GraphType type;
-    private Set<String> resourcePaths = new HashSet<>();
+    private Set<IResource> resources = new HashSet<>();
     private ResourceNode root = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
 
@@ -90,7 +90,7 @@ public class ResourceGraph {
 
             @Override
             public void visit(IResource resource) throws CompileExceptionError {
-                resourcePaths.add(resource.output().getAbsPath());
+                resources.add(resource.output());
 
                 ResourceNode currentNode = new ResourceNode(resource);
                 if (stack.empty()) {
@@ -135,10 +135,10 @@ public class ResourceGraph {
     }
 
     /**
-     * Get a set of all resource paths added to the graph.
-     * @return A set of resource paths
+     * Get a set of all resources added to the graph.
+     * @return A set of resources
      */
-    public Set<String> getResourcePaths() {
-        return resourcePaths;
+    public Set<IResource> getResources() {
+        return resources;
     }
 }

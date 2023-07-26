@@ -319,11 +319,11 @@ public class ComponentsCounter {
         }
     }
 
-    public static void excludeCounterPaths(Set<String> paths) {
-        Iterator<String> iterator = paths.iterator();
+    public static void excludeCounterPaths(Set<IResource> resources) {
+        Iterator<IResource> iterator = resources.iterator();
         while (iterator.hasNext()) {
-            String path = iterator.next();
-            if (isCompCounterStorage(path)) {
+            IResource resource = iterator.next();
+            if (isCompCounterStorage(resource.getAbsPath())) {
                 iterator.remove();
             }
         }

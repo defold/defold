@@ -205,7 +205,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -227,11 +227,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
-        for (String s : resources) {
-            EnumSet<Project.OutputFlags> flags = outputs.get(s);
+        for (IResource resource : resources) {
+            String path = resource.getAbsPath();
+            EnumSet<Project.OutputFlags> flags = outputs.get(path);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
-            archiveBuilder.add(s, compress, encrypt);
+            archiveBuilder.add(path, compress, encrypt);
         }
 
         TimeProfiler.addData("resources", resources.size());
@@ -255,8 +256,8 @@ public class GameProjectBuilder extends Builder<Void> {
         TimeProfiler.stop();
     }
 
-    private Set<String> getCustomResources(Project project) {
-        Set<String> resources = new HashSet<>();
+    private Set<IResource> getCustomResources(Project project) {
+        Set<IResource> resources = new HashSet<>();
         String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
         for (String s : custom_resources) {
             s = s.trim();
@@ -265,7 +266,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 project.findResourcePaths(s, paths);
                 for (String path : paths) {
                     IResource r = project.getResource(path);
-                    resources.add(r.output().getAbsPath());
+                    resources.add(r.output());
                 }
             }
         }
@@ -415,8 +416,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 ResourceGraph fullGraph = resourceGraphs.getFullGraph();
                 ResourceGraph liveUpdateGraph = resourceGraphs.getLiveUpdateGraph();
 
-                Set<String> resources = getCustomResources(project);
-                resources.addAll(fullGraph.getResourcePaths());
+                Set<IResource> resources = getCustomResources(project);
+                resources.addAll(fullGraph.getResources());
 
                 List<String> excludedResources = new ArrayList<String>();
                 boolean shouldPublish = project.option("liveupdate", "false").equals("true");
@@ -430,7 +431,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
-                    resources.remove(resource.getAbsPath());
+                    resources.remove(resource);
                 }
                 // compcounter files shouldn't be included into archive
                 ComponentsCounter.excludeCounterPaths(resources);
