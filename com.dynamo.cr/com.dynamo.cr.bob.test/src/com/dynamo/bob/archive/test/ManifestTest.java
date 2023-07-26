@@ -42,8 +42,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.bob.util.CryptographicOperations;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;

@@ -38,8 +38,8 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.bob.pipeline.OutputFlags;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
@@ -70,10 +70,10 @@ public class ArchiveBuilder {
         this.resourcePadding = resourcePadding;
     }
 
-        if (!contains(e)) {
-            lookup.add(e.getRelativeFilename());
     private ArchiveEntry add(String fileName, EnumSet<OutputFlags> flags, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, flags, isLiveUpdate);
+        if (!contains(e)) {
+            lookup.add(e.getRelativeFilename());
             entries.add(e);
         }
     }

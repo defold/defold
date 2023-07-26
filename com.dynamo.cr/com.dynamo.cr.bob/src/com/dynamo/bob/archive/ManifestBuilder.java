@@ -40,7 +40,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
 
-import com.dynamo.bob.pipeline.ResourceNode;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.bob.logging.Logger;
@@ -214,7 +214,7 @@ public class ManifestBuilder {
         // The resource may occur at many instances in the tree
         // This map contains the mapping url -> occurrances (i.e. nodes)
 
-        String key = node.relativeFilepath;
+        String key = node.getRelativePath();
         if (!pathToOccurrances.containsKey(key)) {
             pathToOccurrances.put(key, new ArrayList<ResourceNode>());
         }
@@ -249,9 +249,9 @@ public class ManifestBuilder {
             ResourceNode current = candidates.remove(0).getParent();
             result.add(new ArrayList<String>());
             while (current != null) {
-                if (current.relativeFilepath.endsWith("collectionproxyc") ||
-                    current.relativeFilepath.endsWith("collectionc")) {
-                    result.get(i).add(current.relativeFilepath);
+                if (current.getRelativePath().endsWith("collectionproxyc") ||
+                    current.getRelativePath().endsWith("collectionc")) {
+                    result.get(i).add(current.getRelativePath());
                 }
 
                 current = current.getParent();
@@ -287,10 +287,10 @@ public class ManifestBuilder {
         dependants = new ArrayList<String>();
 
         for (ResourceNode child : candidate.getChildren()) {
-            dependants.add(child.relativeFilepath);
+            dependants.add(child.getRelativePath());
 
-            if (!child.relativeFilepath.endsWith("collectionproxyc")) {
-                dependants.addAll(getDependants(child.relativeFilepath));
+            if (!child.getRelativePath().endsWith("collectionproxyc")) {
+                dependants.addAll(getDependants(child.getRelativePath()));
             }
         }
 
@@ -318,7 +318,7 @@ public class ManifestBuilder {
     }
 
     private void buildPathToNodeMap(ResourceNode node) {
-        pathToNode.put(node.relativeFilepath, node);
+        pathToNode.put(node.getRelativePath(), node);
         for (ResourceNode child : node.getChildren()) {
             buildPathToNodeMap(child);
         }
