@@ -107,6 +107,18 @@ public class ManifestBuilder {
         this.outputManifestHash = outputManifestHash;
     }
 
+    public static ManifestBuilder create() {
+        ManifestBuilder manifestBuilder =  new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
+        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+        return manifestBuilder;
+    }
+
+    public MessageDigest getResourceHashDigest() {
+        return CryptographicOperations.getMessageDigest(resourceHashAlgorithm);
+    }
+
     public byte[] getManifestDataHash() {
         return this.manifestDataHash;
     }
