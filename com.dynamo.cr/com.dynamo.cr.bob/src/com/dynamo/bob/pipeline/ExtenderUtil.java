@@ -198,6 +198,10 @@ public class ExtenderUtil {
 		public void setContent(byte[] content) throws IOException {
 		}
 
+        @Override
+        public void setHashDigest(byte[] digest) {
+        }
+
 		@Override
 		public byte[] sha1() throws IOException {
             byte[] content = getContent();

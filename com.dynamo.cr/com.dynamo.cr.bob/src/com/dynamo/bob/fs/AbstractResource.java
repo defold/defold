@@ -27,6 +27,7 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     protected F fileSystem;
     protected String path;
     private boolean cacheable = true;
+    private byte[] digest;
 
     public AbstractResource(F fileSystem, String path) {
         this.fileSystem = fileSystem;
@@ -77,6 +78,16 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
         String basePath = FilenameUtils.getPath(this.path);
         String fullPath = FilenameUtils.normalize(FilenameUtils.concat(basePath, name), true);
         return this.fileSystem.get(fullPath);
+    }
+
+    @Override
+    public void setHashDigest(byte[] digest) {
+        this.digest = digest;
+    }
+
+    @Override
+    public byte[] getHashDigest() {
+        return digest;
     }
 
     @Override
