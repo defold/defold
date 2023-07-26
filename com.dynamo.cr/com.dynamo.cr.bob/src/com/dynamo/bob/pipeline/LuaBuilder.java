@@ -36,6 +36,9 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 import org.apache.commons.io.IOUtils;
 
 import com.defold.extension.pipeline.ILuaObfuscator;
@@ -446,7 +449,13 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        MessageDigest digest = ManifestBuilder.create().getMessageHashDigest();
+        MessageDigest digest;
+        try {
+            digest = ManifestBuilder.create().getResourceHashDigest();
+        }
+        catch (NoSuchAlgorithmException e) {
+            throw new CompileExceptionError(e);
+        }
         digest.update(script.getBytes());
 
         boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
