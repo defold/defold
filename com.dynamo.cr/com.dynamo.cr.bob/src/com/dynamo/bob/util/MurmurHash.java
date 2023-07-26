@@ -38,12 +38,10 @@ public final class MurmurHash {
     private MurmurHash() {}
 
     /**
-     * Generates 32 bit hash from byte array of the given length and
-     * seed.
+     * Generates 32 bit hash from byte array of the given length.
      *
      * @param data byte array to hash
      * @param length length of the array to hash
-     * @param seed initial seed value
      * @return 32 bit hash of the given array
      */
     public static int hash32( final byte[] data, int length) {
@@ -120,11 +118,10 @@ public final class MurmurHash {
 
 
     /**
-     * Generates 64 bit hash from byte array of the given length and seed.
+     * Generates 64 bit hash from byte array of the given length.
      *
      * @param data byte array to hash
      * @param length length of the array to hash
-     * @param seed initial seed value
      * @return 64 bit hash of the given array
      */
     public static long hash64( final byte[] data, int length) {

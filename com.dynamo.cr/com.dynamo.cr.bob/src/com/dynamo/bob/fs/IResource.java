@@ -41,7 +41,7 @@ public interface IResource {
     byte[] getContent() throws IOException;
 
     /**
-     * Set content for resource. #
+     * Set content for resource.
      * @note only valid operation for output-resources, see {@link IResource#output()}
      * @param content content to set
      * @throws IOException

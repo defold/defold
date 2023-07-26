@@ -48,6 +48,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.archive.ResourceDigestCache;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
@@ -432,6 +433,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
+        final IResource outputResource = task.output(0);
         final IResource sourceResource = task.input(0);
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -445,7 +447,10 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
+        ResourceDigestCache.update(outputResource, script.getBytes());
+
         boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
+        ResourceDigestCache.update(outputResource, useUncompressedLuaSource ? ("uncompressed").getBytes() : ("compressed").getBytes());
         // set compression and encryption flags
         // if the use-uncompressed-lua-source flag is set the project will use uncompressed plain text Lua script files
         // if the use-uncompressed-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
@@ -480,6 +485,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
         else {
             boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
+            ResourceDigestCache.update(outputResource, useLuaBytecodeDelta ? ("bytecodedelta-on").getBytes() : ("bytecodedelta-off").getBytes());
 
             // We may have multiple archs with same bitness
             boolean needs32bit = false;

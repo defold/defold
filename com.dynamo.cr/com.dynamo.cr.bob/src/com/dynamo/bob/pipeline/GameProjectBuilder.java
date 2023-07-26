@@ -62,6 +62,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
@@ -440,11 +441,8 @@ public class GameProjectBuilder extends Builder<Void> {
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
-        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        ManifestBuilder manifestBuilder = ManifestBuilder.create();
         manifestBuilder.setRoot(rootNode);
-        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
-        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
         manifestBuilder.setExcludedResources(excludedResources);
 
@@ -489,7 +487,7 @@ public class GameProjectBuilder extends Builder<Void> {
             if (!privateKeyFileHandle.exists() || !publicKeyFileHandle.exists()) {
                 logger.info("No public or private key for manifest signing set in liveupdate settings or project options, generating keys instead.");
                 try {
-                    ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
+                    CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, privateKeyFilepath, publicKeyFilepath);
                 } catch (NoSuchAlgorithmException exception) {
                     throw new IOException("Unable to create manifest, cannot create asymmetric keypair!");
                 }
