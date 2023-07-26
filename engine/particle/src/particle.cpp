@@ -676,7 +676,7 @@ namespace dmParticle
         uint32_t bytes_written = vertex_buffer_write - vertex_buffer_begin;
         *out_vertex_buffer_size += bytes_written;
 
-        context->m_Stats.m_Particles = bytes_written / vertex_size; // Debug data for editor playback
+        context->m_Stats.m_Particles = bytes_written / vertex_size / 6; // Debug data for editor playback
     }
 
     void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
