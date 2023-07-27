@@ -22,7 +22,8 @@ import java.security.NoSuchAlgorithmException;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.util.CryptographicOperations;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 public class ResourceDigestCache {
 
@@ -75,7 +76,7 @@ public class ResourceDigestCache {
     public static ResourceDigest create(String path) throws CompileExceptionError {
         ResourceDigest digest = null;
         try {
-            MessageDigest messageDigest = ManifestBuilder.getInstance().getResourceHashDigest();
+            MessageDigest messageDigest = CryptographicOperations.getMessageDigest(HashAlgorithm.HASH_SHA1);
             digest = new ResourceDigest(path, messageDigest);
             digests.put(path, digest);
         }

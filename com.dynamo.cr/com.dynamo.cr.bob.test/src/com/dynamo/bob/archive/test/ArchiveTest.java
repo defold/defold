@@ -108,7 +108,7 @@ public class ArchiveTest {
 
         resourcePackDir = Files.createTempDirectory("tmp.defold.resourcepack_");
 
-        manifestBuilder = ManifestBuilder.getInstance();
+        manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
     }
 
@@ -263,7 +263,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
 	@Test
     public void testWriteArchive() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
@@ -291,7 +291,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
 	@Test
     public void testWriteArchive_SiblingProxies() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
@@ -323,7 +323,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
     @Test
     public void testWriteArchive_SharedResourceExcludedProxy() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
@@ -355,7 +355,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
 	@Test
     public void testWriteArchive_DeepProxies() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
@@ -387,7 +387,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
     @Test
     public void testExcludeResource() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
@@ -419,7 +419,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
     @Test
     public void testWriteArchive_ResourceInBundledAndExcludedProxies() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
@@ -451,7 +451,7 @@ public class ArchiveTest {
     @SuppressWarnings("unused")
 	@Test
     public void testWriteArchive_DeepProxiesExcludeGrandparent() throws Exception {
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);

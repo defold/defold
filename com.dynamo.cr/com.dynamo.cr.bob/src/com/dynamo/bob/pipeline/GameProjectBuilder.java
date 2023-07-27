@@ -438,8 +438,11 @@ public class GameProjectBuilder extends Builder<Void> {
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
-        ManifestBuilder manifestBuilder = ManifestBuilder.getInstance();
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setRoot(rootNode);
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
+        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
         manifestBuilder.setExcludedResources(excludedResources);
 
