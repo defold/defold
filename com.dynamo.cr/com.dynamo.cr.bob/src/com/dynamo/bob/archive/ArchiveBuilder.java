@@ -232,7 +232,7 @@ public class ArchiveBuilder {
                 archiveData.write(buffer, 0, buffer.length);
             }
 
-            manifestBuilder.addResourceEntry(normalisedPath, hashDigest, resourceEntryFlags);
+            manifestBuilder.addResourceEntry(normalisedPath, CryptographicOperations.toHashDigest(hashDigest), resourceEntryFlags);
         }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash
