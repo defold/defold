@@ -136,6 +136,7 @@ def install(args):
     if system == "Linux":
         # for steamcmd
         call("sudo dpkg --add-architecture i386")
+
         # we use apt-fast to speed up apt-get downloads
         # https://github.com/ilikenwf/apt-fast
         call("sudo add-apt-repository ppa:apt-fast/stable")
