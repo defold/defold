@@ -120,10 +120,6 @@ def setup_windows_cert(args):
     print("Wrote cert password to", cert_pass_path)
 
 def setup_steam_config(args):
-    if args.steam_config_b64 is None:
-        print("Skipping setup of Steam config since 'steam_config_b64' is not set")
-        return
-
     print("Setting up Steam config")
     system = platform.system()
     steam_config_path = "~/.local/share/Steam/config"
@@ -138,12 +134,6 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # for steamcmd (and make sure to accept license agreement)
-        # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
-        call("sudo dpkg --add-architecture i386")
-        call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
-        call("echo steam steam/license note '' | sudo debconf-set-selections")
-
         # we use apt-fast to speed up apt-get downloads
         # https://github.com/ilikenwf/apt-fast
         call("sudo add-apt-repository ppa:apt-fast/stable")
@@ -178,13 +168,24 @@ def install(args):
             "tree",
             "valgrind",
             "lib32z1",
-            "xvfb",
-            "steamcmd", "lib32gcc1",
-            "hfsprogs"  # for mounting DMG files
+            "xvfb"
         ]
         aptfast(" ".join(packages))
-        # we only do steam release from Linux on CI
-        setup_steam_config(args)
+
+        if args.steam_config_b64:
+            # for steamcmd
+            # accept license agreement
+            # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
+            call("sudo dpkg --add-architecture i386")
+            call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
+            call("echo steam steam/license note '' | sudo debconf-set-selections")
+            packages = [
+                "steamcmd",
+                "lib32gcc1",
+                "hfsprogs"   # for mounting DMG files
+            ]
+            aptfast(" ".join(packages))
+            setup_steam_config(args)
 
     elif system == "Darwin":
         if args.keychain_cert:
