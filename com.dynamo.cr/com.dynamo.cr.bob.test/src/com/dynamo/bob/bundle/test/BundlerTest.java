@@ -67,6 +67,7 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -534,8 +535,8 @@ public class BundlerTest {
     public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, NoSuchAlgorithmException {
         final String expectedData = "dummy";
         final HashAlgorithm hashAlgo = HashAlgorithm.HASH_SHA1;
-        final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
-        final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
+        final byte[] expectedHash = CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
+        final int hlen = CryptographicOperations.getHashSize(hashAlgo);
         int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", expectedData);
