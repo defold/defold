@@ -20,17 +20,12 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.InvalidKeyException;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -42,7 +37,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
@@ -63,218 +57,6 @@ import com.google.protobuf.ByteString;
 public class ManifestBuilder {
 
     private static Logger logger = Logger.getLogger(ManifestBuilder.class.getName());
-
-    public static class CryptographicOperations {
-
-        private CryptographicOperations() {
-
-        }
-
-        public static byte[] hash(byte[] data, HashAlgorithm algorithm) throws NoSuchAlgorithmException {
-            MessageDigest messageDigest = null;
-            if (algorithm.equals(HashAlgorithm.HASH_MD5)) {
-                messageDigest = MessageDigest.getInstance("MD5");
-            } else if (algorithm.equals(HashAlgorithm.HASH_SHA1)) {
-                messageDigest = MessageDigest.getInstance("SHA-1");
-            } else if (algorithm.equals(HashAlgorithm.HASH_SHA256)) {
-                messageDigest = MessageDigest.getInstance("SHA-256");
-            } else if (algorithm.equals(HashAlgorithm.HASH_SHA512)) {
-                messageDigest = MessageDigest.getInstance("SHA-512");
-            } else {
-                throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
-            }
-
-            messageDigest.update(data);
-            return messageDigest.digest();
-        }
-
-        public static String hexdigest(byte[] bytes) {
-            char[] hexArray = "0123456789abcdef".toCharArray();
-            char[] hexChars = new char[bytes.length * 2];
-            for ( int j = 0; j < bytes.length; j++ ) {
-                int v = bytes[j] & 0xFF;
-                hexChars[j * 2] = hexArray[v >>> 4];
-                hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-            }
-
-            return new String(hexChars);
-        }
-
-        public static int getHashSize(HashAlgorithm algorithm) {
-            if (algorithm.equals(HashAlgorithm.HASH_MD5)) {
-                return 128 / 8;
-            } else if (algorithm.equals(HashAlgorithm.HASH_SHA1)) {
-                return 160 / 8;
-            } else if (algorithm.equals(HashAlgorithm.HASH_SHA256)) {
-                return 256 / 8;
-            } else if (algorithm.equals(HashAlgorithm.HASH_SHA512)) {
-                return 512 / 8;
-            }
-
-            return 0;
-        }
-
-        public static byte[] encrypt(byte[] plaintext, SignAlgorithm algorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-            byte[] result = null;
-            if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
-                try {
-                    final Cipher cipher = Cipher.getInstance("RSA");
-                    cipher.init(Cipher.ENCRYPT_MODE, privateKey);
-                    result = cipher.doFinal(plaintext);
-                } finally {
-                    if (privateKey != null) {
-                        try {
-                            privateKey.destroy();
-                        } catch (DestroyFailedException exception) {
-                            // java.security.PrivateKey does not implement destroy() for RSA.
-                            // It is implemented using BigInteger which is immutable.
-                            // This is a security risk, although a very small one.
-                            // System.err.println("Warning! Failed to destroy the private key after creating signature, key may remain in memory!");
-                        }
-                    }
-                }
-            } else {
-                throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
-            }
-
-            return result;
-        }
-
-        public static byte[] decrypt(byte[] ciphertext, SignAlgorithm algorithm, PublicKey publicKey) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-            byte[] result = null;
-            if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
-                final Cipher cipher = Cipher.getInstance("RSA");
-                cipher.init(Cipher.DECRYPT_MODE, publicKey);
-                result = cipher.doFinal(ciphertext);
-            } else {
-                throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
-            }
-
-            return result;
-        }
-
-        public static byte[] sign(byte[] data, HashAlgorithm hashAlgorithm, SignAlgorithm signAlgorithm, PrivateKey privateKey) throws NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, NoSuchPaddingException {
-            byte[] hash = CryptographicOperations.hash(data, hashAlgorithm);
-            byte[] ciphertext = CryptographicOperations.encrypt(hash, signAlgorithm, privateKey);
-            return ciphertext;
-        }
-
-        public static HashDigest createHashDigest(byte[] data, HashAlgorithm algorithm) throws NoSuchAlgorithmException {
-            byte[] hashDigest = CryptographicOperations.hash(data, algorithm);
-            HashDigest.Builder builder = HashDigest.newBuilder();
-            builder.setData(ByteString.copyFrom(hashDigest));
-            return builder.build();
-        }
-
-        public static void generateKeyPair(SignAlgorithm algorithm, String privateKeyFilepath, String publicKeyFilepath) throws NoSuchAlgorithmException, IOException {
-            byte[] privateKeyContent = null;
-            byte[] publicKeyContent = null;
-            if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
-                KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-                generator.initialize(1024);
-                KeyPair keyPair = generator.generateKeyPair();
-
-                // Private key
-                PKCS8EncodedKeySpec privateSpecification = new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded());
-                privateKeyContent = privateSpecification.getEncoded();
-
-                // Public key
-                X509EncodedKeySpec publicSpecification = new X509EncodedKeySpec(keyPair.getPublic().getEncoded());
-                publicKeyContent = publicSpecification.getEncoded();
-            } else {
-                throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
-            }
-
-            // Private key
-            FileOutputStream privateOutputStream = null;
-            try {
-                privateOutputStream = new FileOutputStream(privateKeyFilepath);
-                privateOutputStream.write(privateKeyContent);
-            } catch (IOException exception) {
-                throw new IOException("Unable to create asymmetric keypair, cannot write to file: " + privateKeyFilepath);
-            } finally {
-                if (privateOutputStream != null) {
-                    try {
-                        privateOutputStream.close();
-                    } catch (Exception exception) {
-                        // Nothing to do at this point
-                    }
-                }
-            }
-
-            // Public key
-            FileOutputStream publicOutputStream = null;
-            try {
-                publicOutputStream = new FileOutputStream(publicKeyFilepath);
-                publicOutputStream.write(publicKeyContent);
-            } catch (IOException exception) {
-                throw new IOException("Unable to create asymmetric keypair, cannot write to file: " + publicKeyFilepath);
-            } finally {
-                if (publicOutputStream != null) {
-                    try {
-                        publicOutputStream.close();
-                    } catch (Exception exception) {
-                        // Nothing to do at this point
-                    }
-                }
-            }
-        }
-
-        public static PrivateKey loadPrivateKey(String filepath, SignAlgorithm algorithm) throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-            PrivateKey result = null;
-            byte[] data = null;
-            try {
-                Path pathHandle = Paths.get(filepath);
-                data = Files.readAllBytes(pathHandle);
-                PKCS8EncodedKeySpec specification = new PKCS8EncodedKeySpec(data);
-                KeyFactory keyFactory = null;
-                if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
-                    keyFactory = KeyFactory.getInstance("RSA");
-                } else {
-                    throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
-                }
-
-                result = keyFactory.generatePrivate(specification);
-            } finally {
-                if (data != null) {
-                    // Always make sure that we wipe key content from memory!
-                    // When using a byte array we don't have to rely on GC to zeroize memory.
-                    Arrays.fill(data, (byte) 0x0);
-                }
-            }
-
-            // The private key should be destroyed as soon as it has been used.
-            return result;
-        }
-
-        public static PublicKey loadPublicKey(String filepath, SignAlgorithm algorithm) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
-            PublicKey result = null;
-            byte[] data = null;
-            try {
-                Path pathHandle = Paths.get(filepath);
-                data = Files.readAllBytes(pathHandle);
-                X509EncodedKeySpec specification = new X509EncodedKeySpec(data);
-                KeyFactory keyFactory = null;
-                if (algorithm.equals(SignAlgorithm.SIGN_RSA)) {
-                    keyFactory = KeyFactory.getInstance("RSA");
-                } else {
-                    throw new NoSuchAlgorithmException("The algorithm specified is not supported!");
-                }
-
-                result = keyFactory.generatePublic(specification);
-            } finally {
-                if (data != null) {
-                    // Always make sure that we wipe key content from memory!
-                    // When using a byte array we don't have to rely on GC to zeroize memory.
-                    Arrays.fill(data, (byte) 0x0);
-                }
-            }
-
-            // The public key should be destroyed shortly after it has been used.
-            return result;
-        }
-
-    }
 
     public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
     public static final int CONST_VERSION = 0x04;
