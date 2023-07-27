@@ -216,6 +216,7 @@ public class ManifestBuilder {
             addResourceEntry(url, hash, flags);
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
+        }
     }
 
     private void buildResourceOccurrancesMap(ResourceNode node) {
