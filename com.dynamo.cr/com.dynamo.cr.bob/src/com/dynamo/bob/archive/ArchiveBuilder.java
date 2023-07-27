@@ -346,8 +346,7 @@ public class ArchiveBuilder {
 
         // Create manifest and archive
 
-        ManifestBuilder manifestBuilder = new ManifestBuilder();
-        manifestBuilder.setOutputManifestHash(doOutputManifestHashFile);
+        ManifestBuilder manifestBuilder = new ManifestBuilder(doOutputManifestHashFile);
         manifestBuilder.setProjectIdentifier("<anonymous project>");
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);

@@ -103,7 +103,7 @@ public class ManifestBuilder {
     public ManifestBuilder() {
     }
 
-    public void setOutputManifestHash(boolean outputManifestHash) {
+    public ManifestBuilder(boolean outputManifestHash) {
         this.outputManifestHash = outputManifestHash;
     }
 
