@@ -40,6 +40,7 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.ResourceDigestCache;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
@@ -110,6 +111,7 @@ public class ArchiveTest {
 
         manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_SHA1;
     }
 
     @After
@@ -265,6 +267,7 @@ public class ArchiveTest {
     public void testWriteArchive() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
@@ -293,6 +296,7 @@ public class ArchiveTest {
     public void testWriteArchive_SiblingProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
@@ -325,6 +329,7 @@ public class ArchiveTest {
     public void testWriteArchive_SharedResourceExcludedProxy() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
@@ -357,6 +362,7 @@ public class ArchiveTest {
     public void testWriteArchive_DeepProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
@@ -389,6 +395,7 @@ public class ArchiveTest {
     public void testExcludeResource() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
@@ -421,6 +428,7 @@ public class ArchiveTest {
     public void testWriteArchive_ResourceInBundledAndExcludedProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
@@ -453,6 +461,7 @@ public class ArchiveTest {
     public void testWriteArchive_DeepProxiesExcludeGrandparent() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        ResourceDigestCache.algorithm = HashAlgorithm.HASH_MD5;
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
