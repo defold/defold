@@ -68,7 +68,6 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.bob.archive.ArchiveBuilder;
-import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.BundleHelper;

@@ -75,7 +75,7 @@ public class ResourceDigestCache {
     public static ResourceDigest create(String path) throws CompileExceptionError {
         ResourceDigest digest = null;
         try {
-            MessageDigest messageDigest = ManifestBuilder.create().getResourceHashDigest();
+            MessageDigest messageDigest = ManifestBuilder.getInstance().getResourceHashDigest();
             digest = new ResourceDigest(path, messageDigest);
             digests.put(path, digest);
         }

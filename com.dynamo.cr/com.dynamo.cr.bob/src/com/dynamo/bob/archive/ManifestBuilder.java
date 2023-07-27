@@ -100,25 +100,25 @@ public class ManifestBuilder {
         }
     });
 
-    public ManifestBuilder() {
+    private static ManifestBuilder instance = null;
 
+    private ManifestBuilder() {}
+
+    public static ManifestBuilder getInstance() {
+        if (instance != null) {
+            return instance;
+        }
+        instance =  new ManifestBuilder();
+        instance.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        instance.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
+        instance.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+        return instance;
     }
 
-    public ManifestBuilder(boolean outputManifestHash) {
+    public void setOutputManifestHash(boolean outputManifestHash) {
         this.outputManifestHash = outputManifestHash;
     }
 
-    public static ManifestBuilder create() {
-        return create(false);
-    }
-
-    public static ManifestBuilder create(boolean outputManifestHash) {
-        ManifestBuilder manifestBuilder =  new ManifestBuilder(outputManifestHash);
-        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
-        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
-        return manifestBuilder;
-    }
 
     public MessageDigest getResourceHashDigest() throws NoSuchAlgorithmException {
         return CryptographicOperations.getMessageDigest(resourceHashAlgorithm);
