@@ -165,7 +165,7 @@ public class CryptographicOperations {
         return builder.build();
     }
 
-    public static HashDigest toHashDigest(byte[] hashDigest) throws NoSuchAlgorithmException {
+    public static HashDigest toHashDigest(byte[] hashDigest) {
         HashDigest.Builder builder = HashDigest.newBuilder();
         builder.setData(ByteString.copyFrom(hashDigest));
         return builder.build();

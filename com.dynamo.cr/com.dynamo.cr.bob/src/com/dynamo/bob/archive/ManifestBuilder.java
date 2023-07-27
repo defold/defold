@@ -202,17 +202,13 @@ public class ManifestBuilder {
     }
 
     public void addResourceEntry(String url, byte[] hashDigest, int flags) throws IOException {
-        try {
-            ResourceEntry.Builder builder = ResourceEntry.newBuilder();
-            builder.setUrl(url);
-            builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
-            HashDigest hash = CryptographicOperations.toHashDigest(hashDigest);
-            builder.setHash(hash);
-            builder.setFlags(flags);
-            this.resourceEntries.add(builder.buildPartial());
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
-        }
+        ResourceEntry.Builder builder = ResourceEntry.newBuilder();
+        builder.setUrl(url);
+        builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
+        HashDigest hash = CryptographicOperations.toHashDigest(hashDigest);
+        builder.setHash(hash);
+        builder.setFlags(flags);
+        this.resourceEntries.add(builder.buildPartial());
     }
 
     private void buildResourceOccurrancesMap(ResourceNode node) {
