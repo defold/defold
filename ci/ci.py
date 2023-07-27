@@ -120,6 +120,10 @@ def setup_windows_cert(args):
     print("Wrote cert password to", cert_pass_path)
 
 def setup_steam_config(args):
+    if args.steam_config_b64 is None:
+        print("Skipping setup of Steam config since 'steam_config_b64' is not set")
+        return
+
     print("Setting up Steam config")
     system = platform.system()
     steam_config_path = "~/.local/share/Steam/config"
