@@ -517,11 +517,15 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
         markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
     else
         markedText = [[NSMutableAttributedString alloc] initWithString:string];
+
+    _glfwSetMarkedText((char*)[[markedText string] UTF8String]);
 }
 
 - (void)unmarkText
 {
     [[markedText mutableString] setString:@""];
+
+    _glfwSetMarkedText("");
 }
 
 - (NSArray*)validAttributesForMarkedText
