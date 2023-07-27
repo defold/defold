@@ -67,6 +67,8 @@ public class ResourceDigestCache {
 
     private static Map<String, ResourceDigest> digests = new HashMap<>();
 
+    public static HashAlgorithm algorithm = HashAlgorithm.HASH_SHA1;
+
     /**
      * Create a resource digest for a resource path. If a cached digest already
      * exists it will be replaced.
@@ -76,7 +78,7 @@ public class ResourceDigestCache {
     public static ResourceDigest create(String path) throws CompileExceptionError {
         ResourceDigest digest = null;
         try {
-            MessageDigest messageDigest = CryptographicOperations.getMessageDigest(HashAlgorithm.HASH_SHA1);
+            MessageDigest messageDigest = CryptographicOperations.getMessageDigest(algorithm);
             digest = new ResourceDigest(path, messageDigest);
             digests.put(path, digest);
         }

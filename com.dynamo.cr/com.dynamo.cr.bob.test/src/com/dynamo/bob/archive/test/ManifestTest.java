@@ -67,7 +67,7 @@ public class ManifestTest {
         public final ResourceNode dependencies;
         public final PublicKey publicKey;
 
-        public ManifestBuilder manifestBuilder = null;
+        public ManifestBuilder manifestBuilder = new ManifestBuilder();
 
         public ManifestHeader manifestHeader = null;
         public ManifestData manifestData = null;
@@ -79,7 +79,6 @@ public class ManifestTest {
             this.resources = this.createResources();
             this.dependencies = this.createDependencies();
             this.publicKey = CryptographicOperations.loadPublicKey(this.publicKeyFilepath, SignAlgorithm.SIGN_RSA);
-            manifestBuilder = new ManifestBuilder();
             manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
             manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
             manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
