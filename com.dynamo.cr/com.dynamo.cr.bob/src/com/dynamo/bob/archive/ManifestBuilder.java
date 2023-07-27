@@ -49,6 +49,7 @@ import javax.security.auth.DestroyFailedException;
 
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.CryptographicOperations;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
@@ -325,6 +326,22 @@ public class ManifestBuilder {
         this.outputManifestHash = outputManifestHash;
     }
 
+    public static ManifestBuilder create() {
+        return create(false);
+    }
+
+    public static ManifestBuilder create(boolean outputManifestHash) {
+        ManifestBuilder manifestBuilder =  new ManifestBuilder(outputManifestHash);
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
+        manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
+        return manifestBuilder;
+    }
+
+    public MessageDigest getResourceHashDigest() throws NoSuchAlgorithmException {
+        return CryptographicOperations.getMessageDigest(resourceHashAlgorithm);
+    }
+
     public byte[] getManifestDataHash() {
         return this.manifestDataHash;
     }
@@ -402,18 +419,14 @@ public class ManifestBuilder {
         }
     }
 
-    public void addResourceEntry(String url, byte[] data, int flags) throws IOException {
-        try {
-            ResourceEntry.Builder builder = ResourceEntry.newBuilder();
-            builder.setUrl(url);
-            builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
-            HashDigest hash = CryptographicOperations.createHashDigest(data, this.resourceHashAlgorithm);
-            builder.setHash(hash);
-            builder.setFlags(flags);
-            this.resourceEntries.add(builder.buildPartial());
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
-        }
+    public void addResourceEntry(String url, byte[] hashDigest, int flags) throws IOException {
+        ResourceEntry.Builder builder = ResourceEntry.newBuilder();
+        builder.setUrl(url);
+        builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
+        HashDigest hash = CryptographicOperations.toHashDigest(hashDigest);
+        builder.setHash(hash);
+        builder.setFlags(flags);
+        this.resourceEntries.add(builder.buildPartial());
     }
 
     private void buildResourceOccurrancesMap(ResourceNode node) {
