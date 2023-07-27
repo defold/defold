@@ -134,8 +134,11 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # for steamcmd
+        # for steamcmd (and make sure to accept license agreement)
+        # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
         call("sudo dpkg --add-architecture i386")
+        call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
+        call("echo steam steam/license note '' | sudo debconf-set-selections")
 
         # we use apt-fast to speed up apt-get downloads
         # https://github.com/ilikenwf/apt-fast
