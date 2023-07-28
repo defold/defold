@@ -174,9 +174,11 @@ def install(args):
 
         if args.steam_config_b64:
             # for steamcmd
-            # accept license agreement
             # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
+            # https://github.com/game-ci/steam-deploy
             call("sudo dpkg --add-architecture i386")
+            call("sudo apt-get update", failonerror=False)
+            # accept license agreement
             call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
             call("echo steam steam/license note '' | sudo debconf-set-selections")
             packages = [
