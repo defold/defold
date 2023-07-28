@@ -676,6 +676,32 @@ static void translateChar( DWORD wParam, DWORD lParam, int action )
     }
 }
 
+//========================================================================
+// Returns a UTF-8 string version of the specified wide string
+//========================================================================
+static char* createUTF8FromWideStringWin32(const WCHAR* source)
+{
+    char* target;
+    int size;
+
+    size = WideCharToMultiByte(CP_UTF8, 0, source, -1, NULL, 0, NULL, NULL);
+    if (!size)
+    {
+        fprintf( stderr, "Win32: Failed to convert string to UTF-8\n" );
+        return NULL;
+    }
+
+    target = calloc(size, 1);
+
+    if (!WideCharToMultiByte(CP_UTF8, 0, source, -1, target, size, NULL, NULL))
+    {
+        fprintf( stderr, "Win32: Failed to convert string to UTF-8\n" );
+        free(target);
+        return NULL;
+    }
+
+    return target;
+}
 
 //========================================================================
 // Window callback function (handles window events)
@@ -801,7 +827,7 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
             _glfwInputKey( translateKey( wParam, lParam ), GLFW_PRESS );
 
             return 0;
-          }
+        }
 
         case WM_KEYUP:
         case WM_SYSKEYUP:
@@ -850,6 +876,42 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
                 break;
 
             return 0;
+        }
+
+        case WM_IME_ENDCOMPOSITION:
+        {
+            _glfwSetMarkedText("");
+            break;
+        }
+
+        case WM_IME_COMPOSITION:
+        {
+            HIMC hIMC = _glfw_ImmGetContext(hWnd);
+            if (hIMC)
+            {
+                if (lParam & GCS_COMPSTR)
+                {
+                    LONG nSize = _glfw_ImmGetCompositionString(hIMC, GCS_COMPSTR, NULL, 0);
+                    if (nSize)
+                    {
+                        LPWSTR psz = (LPWSTR)LocalAlloc(LPTR, nSize + sizeof(WCHAR));
+                        if (psz)
+                        {
+                            _glfw_ImmGetCompositionString(hIMC, GCS_COMPSTR, psz, nSize);
+
+                            char* markedText = createUTF8FromWideStringWin32(psz);
+                            if (markedText)
+                            {
+                                _glfwSetMarkedText(markedText);
+                                free(markedText);
+                            }
+                            LocalFree(psz);
+                        }
+                    }
+                }
+                _glfw_ImmReleaseContext(hWnd, hIMC);
+            }
+            break;
         }
 
         case WM_LBUTTONDOWN:
