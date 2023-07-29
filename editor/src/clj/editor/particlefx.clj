@@ -27,6 +27,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.graphics :as graphics]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.material :as material]
@@ -406,7 +407,7 @@
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))
 
-(defn- render-emitters [^GL2 gl render-args renderables rcount]
+(defn- render-emitters [^GL2 gl render-args renderables _rcount]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/selection (render-lines gl render-args renderables count)
@@ -576,10 +577,24 @@
       (= :editor.resource/Resource (:k type)) [[kw (resource/resource->proj-path value)]]
       true [[kw value]])))
 
+(defn- build-target-attributes [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
+  (into []
+        (keep (fn [{:keys [name-key] :as attribute-info}]
+                ;; The values in vertex-attribute-overrides are ignored - we
+                ;; only use it to check if we have an override value. The output
+                ;; bytes are taken from the vertex-attribute-bytes map. They
+                ;; have already been coerced to the expected size.
+                (when (contains? vertex-attribute-overrides name-key)
+                  (let [attribute-bytes (get vertex-attribute-bytes name-key)]
+                    (graphics/attribute-info->build-target-attribute
+                      (assoc attribute-info :bytes attribute-bytes))))))
+        material-attribute-infos))
+
 (g/defnk produce-emitter-pb
-  [position rotation _declared-properties modifier-msgs]
+  [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (let [properties (:properties _declared-properties)]
-    (into {:position position
+    (into {:attributes (build-target-attributes material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+           :position position
            :rotation rotation
            :modifiers modifier-msgs}
           (concat
@@ -640,6 +655,105 @@
     (or (prop-resource-error :fatal _node-id :material material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
 
+(defn- attribute-property-type [attribute]
+  (case (:semantic-type attribute)
+    :semantic-type-color types/Color
+    (case (int (:element-count attribute))
+      1 g/Num
+      2 types/Vec2
+      3 types/Vec3
+      4 types/Vec4)))
+
+(defn- attribute-expected-element-count [attribute]
+  (case (:semantic-type attribute)
+    :semantic-type-color 4
+    (:element-count attribute)))
+
+(defn- attribute-update-property [current-property-value attribute new-value]
+  (assoc current-property-value (:name-key attribute) new-value))
+
+(defn- attribute-clear-property [current-property-value attribute]
+  (dissoc current-property-value (:name-key attribute)))
+
+(defn- attribute-edit-type [attribute property-type]
+  (let [attribute-element-count (:element-count attribute)
+        attribute-semantic-type (:semantic-type attribute)
+        attribute-update-fn (fn [_evaluation-context self _old-value new-value]
+                              (let [values (if (= g/Num property-type)
+                                             (vector-of :double new-value)
+                                             new-value)]
+                                (g/update-property self :vertex-attribute-overrides attribute-update-property attribute values)))
+        attribute-clear-fn (fn [self _property-label]
+                             (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
+    (cond-> {:type property-type
+             :set-fn attribute-update-fn
+             :clear-fn attribute-clear-fn}
+
+            (= attribute-semantic-type :semantic-type-color)
+            (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
+(defn- attribute-key->property-key-raw [attribute-key]
+  (keyword (str "attribute_" (name attribute-key))))
+
+(def ^:private attribute-key->property-key (memoize attribute-key->property-key-raw))
+(defn- editable-attribute-info? [attribute-info]
+  (case (:semantic-type attribute-info)
+    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
+    true))
+
+(g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
+  (let [attribute-properties
+        (keep (fn [attribute-info]
+                (when (editable-attribute-info? attribute-info)
+                  (let [attribute-key (:name-key attribute-info)
+                        semantic-type (:semantic-type attribute-info)
+                        material-values (:values attribute-info)
+                        override-values (vertex-attribute-overrides attribute-key)
+                        attribute-values (or override-values material-values)
+                        property-type (attribute-property-type attribute-info)
+                        expected-element-count (attribute-expected-element-count attribute-info)
+                        edit-type (attribute-edit-type attribute-info property-type)
+                        property-key (attribute-key->property-key attribute-key)
+                        label (props/keyword->name attribute-key)
+                        value (if (= g/Num property-type)
+                                (first attribute-values) ; The widget expects a number, not a vector.
+                                (graphics/resize-doubles attribute-values semantic-type expected-element-count))
+                        error (when (some? override-values)
+                                (graphics/validate-doubles override-values attribute-info _node-id property-key))
+                        prop {:node-id _node-id
+                              :type property-type
+                              :edit-type edit-type
+                              :label label
+                              :value value
+                              :error error}]
+                    ;; Insert the original material values as original-value if there is a vertex override.
+                    (if (some? override-values)
+                      [property-key (assoc prop :original-value material-values)]
+                      [property-key prop]))))
+              material-attribute-infos)]
+    (-> _declared-properties
+        (update :properties into attribute-properties)
+        (update :display-order into (map first) attribute-properties))))
+
+(g/defnk produce-vertex-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
+  (let [vertex-attribute-bytes
+        (into {}
+              (map (fn [{:keys [name-key] :as attribute-info}]
+                     (let [override-values (get vertex-attribute-overrides name-key)
+                           [bytes error] (if (nil? override-values)
+                                           [(:bytes attribute-info) (:error attribute-info)]
+                                           (let [{:keys [element-count semantic-type]} attribute-info
+                                                 resized-values (graphics/resize-doubles override-values semantic-type element-count)
+                                                 [bytes error-message :as bytes+error-message] (graphics/attribute->bytes+error-message attribute-info resized-values)]
+                                             (if (nil? error-message)
+                                               bytes+error-message
+                                               (let [property-key (attribute-key->property-key name-key)
+                                                     error (g/->error _node-id property-key :fatal override-values error-message)]
+                                                 [bytes error]))))]
+                       [name-key (or error bytes)])))
+              material-attribute-infos)]
+    (g/precluding-errors (vals vertex-attribute-bytes)
+      vertex-attribute-bytes)))
+
 (declare ParticleFXNode)
 
 (g/defnode EmitterNode
@@ -691,6 +805,7 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:max-page-count :material-max-page-count]
+                                            [:attribute-infos :material-attribute-infos]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
@@ -718,6 +833,9 @@
             (dynamic label (g/constantly "Size Mode")))
   (property stretch-with-velocity g/Bool)
   (property start-offset g/Num)
+  (property vertex-attribute-overrides g/Any
+            (default {})
+            (dynamic visible (g/constantly false)))
 
   (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
@@ -727,6 +845,7 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
   (input material-max-page-count g/Int)
+  (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
   (input texture-set g/Any)
   (input gpu-texture g/Any)
@@ -789,7 +908,9 @@
                  :texture-set-anim texture-set-anim
                  :tex-coords tex-coords-buffer
                  :page-indices page-indices-buffer
-                 :frame-indices frame-indices-buffer})))))
+                 :frame-indices frame-indices-buffer}))))
+  (output _properties g/Properties :cached produce-properties)
+  (output vertex-attribute-bytes g/Any :cached produce-vertex-attribute-bytes))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -973,11 +1094,16 @@
           workspace (project/workspace project)
           graph-id (g/node-id->graph-id self)
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
-          material (workspace/resolve-workspace-resource workspace (:material emitter))]
+          material (workspace/resolve-workspace-resource workspace (:material emitter))
+          vertex-attribute-overrides (into {}
+                                           (map (fn [attribute]
+                                                  [(graphics/attribute-name->key (:name attribute))
+                                                   (graphics/attribute->any-doubles attribute)]))
+                                           (:attributes emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
-                                   :tile-source tile-source :animation (:animation emitter) :material material
+                                   :tile-source tile-source :animation (:animation emitter) :material material :vertex-attribute-overrides vertex-attribute-overrides
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)

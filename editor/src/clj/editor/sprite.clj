@@ -541,8 +541,6 @@
 
 (def ^:private attribute-key->property-key (memoize attribute-key->property-key-raw))
 
-(def ^:private attribute-info->property-key (comp attribute-key->property-key :name-key))
-
 (defn- editable-attribute-info? [attribute-info]
   (case (:semantic-type attribute-info)
     (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
@@ -719,13 +717,11 @@
 (defn load-sprite [project self resource sprite]
   (let [image (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))
-
-        vertex-attribute-overrides
-        (into {}
-              (map (fn [attribute]
-                     [(graphics/attribute-name->key (:name attribute))
-                      (graphics/attribute->any-doubles attribute)]))
-              (:attributes sprite))]
+        vertex-attribute-overrides (into {}
+                                         (map (fn [attribute]
+                                                [(graphics/attribute-name->key (:name attribute))
+                                                 (graphics/attribute->any-doubles attribute)]))
+                                         (:attributes sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self :default-animation (:default-animation sprite))
