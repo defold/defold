@@ -99,10 +99,6 @@ public class ArchiveBuilder {
         return this.entries.size();
     }
 
-    public byte[] getArchiveIndexHash() {
-        return this.archiveIndexMD5;
-    }
-
     public byte[] loadResourceData(String filepath) throws IOException {
         File fhandle = new File(filepath);
         return FileUtils.readFileToByteArray(fhandle);
@@ -260,16 +256,17 @@ public class ArchiveBuilder {
         }
         archiveIndex.write(indexBuffer.array());
 
+        byte[] archiveIndexMD5 = null;
         try {
             // Calc index file MD5 hash
             archiveIndex.seek(archiveIndexHeaderOffset);
             int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
             byte[] archiveIndexBytes = new byte[num_bytes];
             archiveIndex.readFully(archiveIndexBytes);
-            this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+            archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
+            manifestBuilder.setArchiveIdentifier(archiveIndexMD5);
         } catch (NoSuchAlgorithmException e) {
-            System.err.println("The algorithm specified is not supported!");
-            e.printStackTrace();
+            throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
         }
 
         // Update index header with offsets
@@ -281,7 +278,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
-        archiveIndex.write(this.archiveIndexMD5);
+        archiveIndex.write(archiveIndexMD5);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -407,7 +404,6 @@ public class ArchiveBuilder {
 
             List<String> excludedResources = new ArrayList<String>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
-            manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();

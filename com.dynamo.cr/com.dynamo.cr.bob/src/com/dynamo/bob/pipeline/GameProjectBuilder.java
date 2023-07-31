@@ -205,13 +205,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
-        TimeProfiler.start("createArchive");
-        logger.info("GameProjectBuilder.createArchive");
-        long tstart = System.currentTimeMillis();
-
-        String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-
+    private int getResourcePadding() throws CompileExceptionError {
         int resourcePadding = 4;
         String resourcePaddingStr = project.option("archive-resource-padding", null);
         if (resourcePaddingStr != null) {
@@ -222,8 +216,13 @@ public class GameProjectBuilder extends Builder<Void> {
                 throw new CompileExceptionError(String.format("Could not parse --archive-resource-padding='%s' into a valid integer", resourcePaddingStr), e);
             }
         }
+        return resourcePadding;
+    }
 
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, resourcePadding);
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+        TimeProfiler.start("createArchive");
+        logger.info("GameProjectBuilder.createArchive");
+        long tstart = System.currentTimeMillis();
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
@@ -239,7 +238,6 @@ public class GameProjectBuilder extends Builder<Void> {
         TimeProfiler.addData("excludedResources", excludedResources.size());
 
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
-        manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 
@@ -409,6 +407,7 @@ public class GameProjectBuilder extends Builder<Void> {
         IResource input = task.input(0);
 
         BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles());
+        final String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
         try {
             if (project.option("archive", "false").equals("true")) {
@@ -428,6 +427,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
 
                 ManifestBuilder manifestBuilder = prepareManifestBuilder(liveUpdateGraph.getRootNode(), excludedResources);
+                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
@@ -444,7 +444,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, resourcePackDirectory);
+                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -466,6 +466,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
                 // game.graph.json
+                fullGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
                 String fullGraphJSON = fullGraph.getRootNode().toJSON();
                 task.getOutputs().get(5).setContent(fullGraphJSON.getBytes());
 
@@ -475,7 +476,6 @@ public class GameProjectBuilder extends Builder<Void> {
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
 
-                String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
                 ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath().toString());
                 project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
                 project.getPublisher().Publish();
