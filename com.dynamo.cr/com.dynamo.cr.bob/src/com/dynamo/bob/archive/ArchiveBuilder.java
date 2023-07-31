@@ -31,6 +31,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -55,6 +57,7 @@ public class ArchiveBuilder {
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private List<ArchiveEntry> excludedEntries = new ArrayList<ArchiveEntry>();
     private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
+    private Map<String, String> hexDigestCache = new HashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
@@ -219,9 +222,8 @@ public class ArchiveBuilder {
             } catch (NoSuchAlgorithmException exception) {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
-            // Store association between hexdigest and original filename in a
-            // lookup table
             entry.setHexDigest(hexDigest);
+            hexDigestCache.put(entry.getFilename(), hexDigest);
 
             // Write resource to resource pack or data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
@@ -290,6 +292,15 @@ public class ArchiveBuilder {
         for (int i = 0; i < (newPos - pos); ++i) {
             outFile.writeByte((byte) 0);
         }
+    }
+
+    /**
+     * Get all cached hex digests as a lookup between absolute filepath and
+     * digest.
+     * @return Map with hex digests, keyed on absolute filepath
+     */
+    public Map<String, String> getCachedHexDigests() {
+        return hexDigestCache;
     }
 
     private static void printUsageAndTerminate(String message) {
