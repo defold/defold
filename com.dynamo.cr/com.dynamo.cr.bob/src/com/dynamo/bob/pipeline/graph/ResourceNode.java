@@ -125,4 +125,18 @@ public class ResourceNode {
         return "[ResourceNode path: " + relativeFilepath + "]";
     }
 
+    @Override
+    public int hashCode() {
+        return absoluteFilepath.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof ResourceNode) {
+            ResourceNode r = (ResourceNode) obj;
+            return this.absoluteFilepath.equals(r.absoluteFilepath);
+        } else {
+            return super.equals(obj);
+        }
+    }
 }
