@@ -237,6 +237,15 @@ public class Project {
         return projectProperties;
     }
 
+    /**
+     * Convert an absolute path to a path relative to the project root
+     * @param path The path to relativize
+     * @return Relative path
+     */
+    public String getPathRelativeToRootDirectory(String path) {
+        return Path.of(rootDirectory).relativize(Path.of(path)).toString();
+    }
+
     public void setPublisher(Publisher publisher) {
         this.publisher = publisher;
     }

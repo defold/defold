@@ -275,6 +275,14 @@ public class GameProjectBuilder extends Builder<Void> {
         ResourceGraphs graphs = new ResourceGraphs(project);
 
         if (project.option("keep-unused", "false").equals("true")) {
+            // All outputs of the project should be considered resources
+            for (String path : project.getOutputs().keySet()) {
+                // the paths are absolute and include the root directory
+                // we need a path relative to the project root
+                String relativePath = project.getPathRelativeToRootDirectory(path);
+                IResource resource = project.getResource(relativePath);
+                graphs.add(resource);
+            }
             return graphs;
         }
 
