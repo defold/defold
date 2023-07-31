@@ -3,6 +3,7 @@ import os
 from waflib.Options import options
 
 def configure(conf):
+    pass
 
 def build(bld):
 
