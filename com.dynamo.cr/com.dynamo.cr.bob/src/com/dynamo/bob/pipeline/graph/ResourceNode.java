@@ -33,6 +33,7 @@ public class ResourceNode {
     private ResourceNode parent = null;
     private IResource resource;
     private String hexDigest = null;
+    private boolean excluded = false;
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
 
     public ResourceNode(IResource resource) {
@@ -85,6 +86,10 @@ public class ResourceNode {
         this.hexDigest = hexDigest;
     }
 
+    public void setExcluded(boolean excluded) {
+        this.excluded = excluded;
+    }
+
     private void writeJSON(JsonGenerator generator) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName("path");
@@ -92,6 +97,9 @@ public class ResourceNode {
 
         generator.writeFieldName("hexDigest");
         generator.writeString(hexDigest);
+
+        generator.writeFieldName("excluded");
+        generator.writeBoolean(excluded);
 
         generator.writeFieldName("children");
         generator.writeStartArray();

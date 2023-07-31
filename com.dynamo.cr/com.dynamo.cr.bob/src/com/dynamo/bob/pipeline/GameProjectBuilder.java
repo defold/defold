@@ -419,13 +419,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         try {
             if (project.option("archive", "false").equals("true")) {
-                ResourceGraphs resourceGraphs = createResourceGraphs(project);
-                ResourceGraph fullGraph = resourceGraphs.getFullGraph();
-                ResourceGraph liveUpdateGraph = resourceGraphs.getLiveUpdateGraph();
-
-                Set<IResource> resources = getCustomResources(project);
-                resources.addAll(fullGraph.getResources());
-
+                // build list of excluded resources
                 List<String> excludedResources = new ArrayList<String>();
                 boolean shouldPublish = project.option("liveupdate", "false").equals("true");
                 if (shouldPublish) {
@@ -434,15 +428,23 @@ public class GameProjectBuilder extends Builder<Void> {
                     }
                 }
 
-                ManifestBuilder manifestBuilder = prepareManifestBuilder(liveUpdateGraph.getRootNode(), excludedResources);
-                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
+                // create the resource graphs
+                // the full graph contains all resources in the project
+                // the live update graph contains each resource only once per collection proxy
+                ResourceGraphs resourceGraphs = createResourceGraphs(project);
+                ResourceGraph fullGraph = resourceGraphs.getFullGraph();
+                ResourceGraph liveUpdateGraph = resourceGraphs.getLiveUpdateGraph();
 
-                // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
+                // create full list of resources including the custom resources
+                // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
+                // also make sure to not archive the comp counter files
+                Set<IResource> resources = getCustomResources(project);
+                resources.addAll(fullGraph.getResources());
                 for (IResource resource : task.getOutputs()) {
                     resources.remove(resource);
                 }
-                // compcounter files shouldn't be included into archive
                 ComponentsCounter.excludeCounterPaths(resources);
+
 
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");
@@ -452,9 +454,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
 
-                // Create manifest
+                // create the archive and manifest
+                ManifestBuilder manifestBuilder = prepareManifestBuilder(liveUpdateGraph.getRootNode(), excludedResources);
+                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
+                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system
@@ -474,6 +478,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
                 // game.graph.json
+                fullGraph.setExcludedResources(new HashSet<>(excludedResources));
                 fullGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
                 String fullGraphJSON = fullGraph.getRootNode().toJSON();
                 task.getOutputs().get(5).setContent(fullGraphJSON.getBytes());

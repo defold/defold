@@ -149,15 +149,26 @@ public class ResourceGraph {
         return resources;
     }
 
-
     /**
      * Set hex digests for all resource nodes in the graph
-     * @param hexDigests Map with hex digested, keyed on absolute resource paths
+     * @param hexDigests Map with hex digests, keyed on absolute resource paths
      */
     public void setHexDigests(Map<String, String> hexDigests) {
         for (ResourceNode resourceNode : resourceNodes) {
             String hexDigest = hexDigests.get(resourceNode.getAbsolutePath());
             resourceNode.setHexDigest(hexDigest);
+        }
+    }
+
+    /**
+     * Set resources in the graph as excluded from the main archive (live update)
+     * @param excludedResources List of excluded resource paths (relative to root)
+     */
+    public void setExcludedResources(Set<String> excludedResources) {
+        for (ResourceNode resourceNode : resourceNodes) {
+            if (excludedResources.contains(resourceNode.getRelativePath())) {
+                resourceNode.setExcluded(true);
+            }
         }
     }
 }
