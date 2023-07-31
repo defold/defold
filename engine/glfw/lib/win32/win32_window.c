@@ -909,6 +909,28 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
                         }
                     }
                 }
+
+                if (lParam & GCS_RESULTSTR)
+                {
+                    LONG nSize = _glfw_ImmGetCompositionString(hIMC, GCS_RESULTSTR, NULL, 0);
+                    if (nSize)
+                    {
+                        LPWSTR psz = (LPWSTR)LocalAlloc(LPTR, nSize + sizeof(WCHAR));
+                        if (psz)
+                        {
+                            _glfw_ImmGetCompositionString(hIMC, GCS_RESULTSTR, psz, nSize);
+
+                            char* markedText = createUTF8FromWideStringWin32(psz);
+                            if (markedText)
+                            {
+                                _glfwSetMarkedText(markedText);
+                                free(markedText);
+                            }
+                            LocalFree(psz);
+                        }
+                    }
+                }
+
                 _glfw_ImmReleaseContext(hWnd, hIMC);
             }
             break;
