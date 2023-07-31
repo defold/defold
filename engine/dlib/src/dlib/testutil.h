@@ -34,4 +34,14 @@ namespace dmTestUtil
 #else
     const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, ...);
 #endif
+
+    // Reads a file and returns the contents
+    // * Free memory with dmMemory::AlignedFree
+    // * DM_HOSTFS is added automatically to the path argument!
+    uint8_t* ReadFile(const char* path, uint32_t* file_size);
+
+    // Reads a file and returns the contents
+    // * Free memory with dmMemory::AlignedFree
+    // * DM_HOSTFS is added automatically to the path argument!
+    uint8_t* ReadHostFile(const char* path, uint32_t* file_size);
 }

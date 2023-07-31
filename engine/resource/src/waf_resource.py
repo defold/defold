@@ -41,19 +41,21 @@ def apply_barchive_after(self):
     builder = self.create_task('resource_archive')
     builder.inputs = []
 
+    has_live_update = False
+
     # JG: This is a workaround for how this process worked in waf 1.59
     #     where we expected the tasks to already be available.
     #     I'm not 100% sure why the new waf doesn't pick them up automatically,
     #     so instead we generate the process manually here.
-    if type(self.source) == str:
-        for x in self.source.split(' '):
-            n = self.path.make_node(x)
-            hook = self.get_hook(n)
-            hook(self, n)
-    else:
-        for x in self.source:
-            hook = self.get_hook(x)
-            hook(self, x)
+    self.source = waflib.Utils.to_list(self.source)
+    for x in self.source:
+        if isinstance(x, str):
+            x = self.path.make_node(x)
+
+        has_live_update = has_live_update or 'liveupdate' in x.name
+
+        hook = self.get_hook(x)
+        hook(self, x)
 
     # We need to clear the source so we don't generate outputs more than once
     self.source = []
@@ -63,8 +65,12 @@ def apply_barchive_after(self):
             builder.set_run_after(task)
             builder.inputs.extend(task.outputs)
 
+    extensions = ['dmanifest', 'arci', 'arcd', 'public', 'manifest_hash']
+    if has_live_update:
+        extensions.append('zip')
+
     builder.outputs = []
-    for extension in ['dmanifest', 'arci', 'arcd', 'public', 'manifest_hash']:
+    for extension in extensions:
         current_filepath = '%s.%s' % (self.resource_name, extension)
         current_output = self.path.find_or_declare(current_filepath)
         builder.outputs.append(current_output)

@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -52,8 +53,12 @@ namespace dmResource
         out_map = mmap(NULL, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
         close(fd);
 
-        if (!out_map || out_map == (void*)-1)
+        if (!out_map || out_map == MAP_FAILED)
         {
+            int err = errno;
+            char errstr[128];
+            dmStrError(errstr, sizeof(errstr), err);
+            dmLogError("Failed to memory map file %s: errno: %d %s", path, err, errstr);
             return RESULT_IO_ERROR;
         }
 
@@ -110,6 +115,8 @@ namespace dmResource
         {
             munmap(index_map, index_size);
             munmap(data_map, data_size);
+            if (res == dmResourceArchive::RESULT_VERSION_MISMATCH)
+                return RESULT_VERSION_MISMATCH;
             return RESULT_IO_ERROR;
         }
 
