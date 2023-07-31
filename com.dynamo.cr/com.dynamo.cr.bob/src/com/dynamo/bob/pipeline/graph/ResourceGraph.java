@@ -17,6 +17,9 @@ package com.dynamo.bob.pipeline.graph;
 import java.util.Stack;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
@@ -58,6 +61,7 @@ public class ResourceGraph {
     private Project project;
     private GraphType type;
     private Set<IResource> resources = new HashSet<>();
+    private List<ResourceNode> resourceNodes = new ArrayList<>();
     private ResourceNode root = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
 
@@ -90,12 +94,15 @@ public class ResourceGraph {
 
             @Override
             public void visit(IResource resource) throws CompileExceptionError {
-                resources.add(resource.output());
+                IResource output = resource.output();
+                resources.add(output);
 
                 ResourceNode currentNode = new ResourceNode(resource);
+                resourceNodes.add(currentNode);
+
                 if (stack.empty()) {
                     GraphTraversalState state = new GraphTraversalState(currentNode, new HashSet<String>());
-                    state.visitedNodes.add(resource.output().getAbsPath());
+                    state.visitedNodes.add(output.getAbsPath());
                     // push the first stack item twice so that we have one left
                     // when all resources have been visited (we pop in leave())
                     stack.push(state);
@@ -105,13 +112,13 @@ public class ResourceGraph {
                     GraphTraversalState state = stack.peek();
                     ResourceNode parentNode = state.node;
                     parentNode.addChild(currentNode);
-                    if (resource.output().getPath().endsWith(".collectionproxyc")) {
+                    if (output.getPath().endsWith(".collectionproxyc")) {
                         state = new GraphTraversalState(currentNode, new HashSet<String>());
                     }
                     else {
                         state = new GraphTraversalState(currentNode, state.visitedNodes);
                     }
-                    state.visitedNodes.add(resource.output().getAbsPath());
+                    state.visitedNodes.add(output.getAbsPath());
                     stack.push(state);
                 }
             }
@@ -140,5 +147,17 @@ public class ResourceGraph {
      */
     public Set<IResource> getResources() {
         return resources;
+    }
+
+
+    /**
+     * Set hex digests for all resource nodes in the graph
+     * @param hexDigests Map with hex digested, keyed on absolute resource paths
+     */
+    public void setHexDigests(Map<String, String> hexDigests) {
+        for (ResourceNode resourceNode : resourceNodes) {
+            String hexDigest = hexDigests.get(resourceNode.getAbsolutePath());
+            resourceNode.setHexDigest(hexDigest);
+        }
     }
 }
