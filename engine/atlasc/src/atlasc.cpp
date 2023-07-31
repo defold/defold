@@ -33,10 +33,8 @@ Options::Options()
     }
 }
 
-static int CompareImages(const SourceImage** _a, const SourceImage** _b)
+static int CompareImages(const SourceImage* a, const SourceImage* b)
 {
-    const SourceImage* a = *_a;
-    const SourceImage* b = *_b;
     int a_w = a->m_Size.x;
     int a_h = a->m_Size.y;
     int b_w = b->m_Size.x;
