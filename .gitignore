@@ -49,6 +49,7 @@ com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.ja
 com.dynamo.cr/extensions/**/build
 
 /local_sdks
+engine/**/build/
 external/**/build/
 editor/resources/splash.css
 editor/.calva/output-window/output.calva-repl
