@@ -21,9 +21,9 @@
 #include <gamesys/mesh_ddf.h>
 #include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
-#include <liveupdate/liveupdate.h>
 #include <render/font_renderer.h>
 #include <resource/resource.h>
+#include <resource/resource_util.h>
 #include <gameobject/gameobject.h>
 
 #include "script_resource.h"
@@ -33,7 +33,6 @@
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
-#include "script_resource_liveupdate.h"
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
@@ -2589,19 +2588,6 @@ static int GetTextMetrics(lua_State* L)
     return 1;
 }
 
-#define DEPRECATE_LU_FUNCTION(LUA_NAME, CPP_NAME) \
-    static int Deprecated_ ## CPP_NAME(lua_State* L) \
-    { \
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "resource", LUA_NAME, "liveupdate", LUA_NAME); \
-        return dmLiveUpdate:: CPP_NAME (L); \
-    }
-
-DEPRECATE_LU_FUNCTION("get_current_manifest", Resource_GetCurrentManifest);
-DEPRECATE_LU_FUNCTION("is_using_liveupdate_data", Resource_IsUsingLiveUpdateData);
-DEPRECATE_LU_FUNCTION("store_resource", Resource_StoreResource);
-DEPRECATE_LU_FUNCTION("store_manifest", Resource_StoreManifest);
-DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
-
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
@@ -2618,14 +2604,6 @@ static const luaL_reg Module_methods[] =
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
     {"get_text_metrics", GetTextMetrics},
-
-    // LiveUpdate functionality in resource namespace
-    {"get_current_manifest", Deprecated_Resource_GetCurrentManifest},
-    {"is_using_liveupdate_data", Deprecated_Resource_IsUsingLiveUpdateData},
-    {"store_resource", Deprecated_Resource_StoreResource},
-    {"store_manifest", Deprecated_Resource_StoreManifest},
-    {"store_archive", Deprecated_Resource_StoreArchive},
-
     {0, 0}
 };
 
@@ -2862,21 +2840,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
 
 #undef SETCOMPRESSIONTYPE
-
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(LIVEUPDATE_OK, dmLiveUpdate::RESULT_OK);
-    SETCONSTANT(LIVEUPDATE_INVALID_RESOURCE, dmLiveUpdate::RESULT_INVALID_RESOURCE);
-    SETCONSTANT(LIVEUPDATE_VERSION_MISMATCH, dmLiveUpdate::RESULT_VERSION_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_FORMAT_ERROR, dmLiveUpdate::RESULT_FORMAT_ERROR);
-
-#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

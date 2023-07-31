@@ -495,7 +495,7 @@ namespace dmResource
      */
     bool PreloadHint(HPreloadHintInfo preloader, const char *name);
 
-    /**
+    /*#
      * Returns the canonical path hash of a resource
      * @param factory Factory handle
      * @param resource Resource
@@ -504,6 +504,22 @@ namespace dmResource
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
 
+    /*#
+     * Returns the canonical path hash of a resource
+     * @typedef
+     * @name FDecryptResource
+     * @param buffer [type: void*] The input/output buffer
+     * @param buffer_len [type: uint32_t] The size of the buffer (in bytes)
+     * @return RESULT_OK on success
+    */
+    typedef Result (*FDecryptResource)(void* buffer, uint32_t buffer_len);
+
+    /*#
+     * Returns the canonical path hash of a resource
+     * @name RegisterResourceDecryptionFunction
+     * @param decrypt_resource [type: dmResource::FDecryptResource] The decryption function
+    */
+    void RegisterResourceDecryptionFunction(FDecryptResource decrypt_resource);
 }
 
 #endif // DMSDK_RESOURCE_H

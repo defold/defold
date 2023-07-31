@@ -29,6 +29,7 @@
 #include "block_allocator.h"
 #include "resource.h"
 #include "resource_private.h"
+#include "resource_util.h"
 #include "async/load_queue.h"
 
 namespace dmResource
@@ -256,7 +257,7 @@ namespace dmResource
         // create a request so we can get a proper error code for the resource in the request
 
         char canonical_path[RESOURCE_PATH_MAX];
-        uint32_t canonical_path_len = GetCanonicalPath(name, canonical_path);
+        uint32_t canonical_path_len = dmResource::GetCanonicalPath(name, canonical_path);
         out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
 
         DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)

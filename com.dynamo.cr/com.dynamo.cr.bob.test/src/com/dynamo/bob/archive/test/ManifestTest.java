@@ -91,7 +91,8 @@ public class ManifestTest {
             }
 
             for (String[] entry : this.resources) {
-                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes(), ResourceEntryFlag.BUNDLED.getNumber());
+                byte[] data = entry[1].getBytes();
+                manifestBuilder.addResourceEntry(entry[0], data, data.length, data.length, ResourceEntryFlag.BUNDLED.getNumber());
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();
@@ -386,8 +387,7 @@ public class ManifestTest {
         ManifestData data = ManifestData.parseFrom(manifestFile2.getData());
         ManifestHeader header = data.getHeader();
 
-        assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
-        assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());
+        assertEquals(ManifestBuilder.CONST_VERSION, manifestFile2.getVersion());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getResourceHashAlgorithm());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
         assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());
@@ -415,8 +415,6 @@ public class ManifestTest {
         ManifestInstance instance = new ManifestInstance();
         ManifestHeader header = instance.manifestHeader;
 
-        assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
-        assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getResourceHashAlgorithm());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
         assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -276,7 +276,7 @@ public class ManifestBuilder {
     }
 
     public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
-    public static final int CONST_VERSION = 0x04;
+    public static final int CONST_VERSION = 0x05;
 
     private HashAlgorithm resourceHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
@@ -402,7 +402,7 @@ public class ManifestBuilder {
         }
     }
 
-    public void addResourceEntry(String url, byte[] data, int flags) throws IOException {
+    public void addResourceEntry(String url, byte[] data, int size, int compressed_size, int flags) throws IOException {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
@@ -410,6 +410,8 @@ public class ManifestBuilder {
             HashDigest hash = CryptographicOperations.createHashDigest(data, this.resourceHashAlgorithm);
             builder.setHash(hash);
             builder.setFlags(flags);
+            builder.setSize(size);
+            builder.setCompressedSize(compressed_size);
             this.resourceEntries.add(builder.buildPartial());
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
@@ -514,8 +516,6 @@ public class ManifestBuilder {
         }
 
         ManifestHeader.Builder builder = ManifestHeader.newBuilder();
-        builder.setMagicNumber(ManifestBuilder.CONST_MAGIC_NUMBER);
-        builder.setVersion(ManifestBuilder.CONST_VERSION);
         builder.setProjectIdentifier(projectIdentifierHash);
         builder.setResourceHashAlgorithm(this.resourceHashAlgorithm);
         builder.setSignatureHashAlgorithm(this.signatureHashAlgorithm);
@@ -583,9 +583,7 @@ public class ManifestBuilder {
                             continue;
                         }
 
-
-                        int index = resourceToIndex.get(dependant);
-                        resourceEntryBuilder.addDependants(index);
+                        resourceEntryBuilder.addDependants(resource.getUrlHash());
                     }
                 }
             }
@@ -605,6 +603,7 @@ public class ManifestBuilder {
         ManifestData manifestData = this.buildManifestData();
         builder.setData(ByteString.copyFrom(manifestData.toByteArray()));
         builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
+        builder.setVersion(ManifestBuilder.CONST_VERSION);
         PrivateKey privateKey = null;
         try {
             privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);

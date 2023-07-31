@@ -1789,6 +1789,9 @@ def detect(conf):
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
 
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_SCRIPT'] = 'script'
+
 def configure(conf):
     detect(conf)
 

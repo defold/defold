@@ -26,11 +26,6 @@
 #include <dlib/testutil.h>
 #include <ddf/ddf.h>
 
-#define TEST_HTTP_SUPPORTED
-#if defined(__NX__)
-    #undef TEST_HTTP_SUPPORTED
-#endif
-
 #if defined(DM_PLATFORM_VENDOR)
     #define TMP_DIR ""
     #define MOUNT_DIR DM_HOSTFS
@@ -41,10 +36,16 @@
 
 #include <resource/resource_ddf.h>
 #include "../resource.h"
+#include "../resource_archive.h"
+#include "../resource_archive_private.h"
+#include "../resource_manifest.h"
+#include "../resource_manifest_private.h"
 #include "../resource_private.h"
+#include "../resource_util.h"
+#include "../resource_verify.h"
 #include "test/test_resource_ddf.h"
 
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
 #include <dlib/http_client.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
@@ -85,8 +86,6 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
 
-        dmResourceArchive::ClearArchiveLoaders();
-        dmResourceArchive::RegisterDefaultArchiveLoader();
         factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((void*) 0, factory);
     }
@@ -231,26 +230,16 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
 
-        dmResourceArchive::ClearArchiveLoaders();
-        dmResourceArchive::RegisterDefaultArchiveLoader();
-
-        char url_buffer[128];
-        const char* url = GetParam();
-
-        if (strstr(url, "http:") == url)
+        const char* original_mount_path = GetParam();
+        char mountpath[512];
+        if (strstr(original_mount_path, "http") == original_mount_path)
         {
-            dmSnPrintf(url_buffer, sizeof(url_buffer), url, g_HttpAddress, g_HttpPort);
-            url = url_buffer;
-        } else if (strstr(url, "dmanif:") == url)
-        {
-            if (DM_HOSTFS[0] != 0)
-                dmSnPrintf(url_buffer, sizeof(url_buffer), url, DM_HOSTFS "/");
-            else
-                dmSnPrintf(url_buffer, sizeof(url_buffer), url, DM_HOSTFS);
-            url = url_buffer;
+            dmSnPrintf(mountpath, sizeof(mountpath), original_mount_path, g_HttpAddress, g_HttpPort);
+            original_mount_path = mountpath;
         }
 
-        m_Factory = dmResource::NewFactory(&params, url);
+        m_Factory = dmResource::NewFactory(&params, original_mount_path);
+
         ASSERT_NE((void*) 0, m_Factory);
         m_ResourceName = "/test.cont";
 
@@ -419,13 +408,16 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& p
     return dmResource::RESULT_OK;
 }
 
-#if defined(TEST_HTTP_SUPPORTED)
 TEST_P(GetResourceTest, GetTestResource)
 {
     dmResource::Result e;
 
     TestResourceContainer* test_resource_cont = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
+    if (e != dmResource::RESULT_OK)
+    {
+        printf("Failed to load resource: %s\n", m_ResourceName);
+    }
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_NE((void*) 0, test_resource_cont);
     ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
@@ -565,13 +557,12 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
 
 const char* params_resource_paths[] = {
     "build/src/test/",
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
     "http://%s:%d",
 #endif
-    "dmanif:%sbuild/src/test/resources_pb.dmanifest"};
+    "dmanif:build/src/test/resources_pb.dmanifest"
+};
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI, GetResourceTest, jc_test_values_in(params_resource_paths));
-
-#endif // TEST_HTTP_SUPPORTED
 
 TEST_P(GetResourceTest, GetReference1)
 {
@@ -925,7 +916,7 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
     }
 }
 
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
 TEST(dmResource, InvalidHost)
 {
     dmResource::NewFactoryParams params;
@@ -1464,24 +1455,21 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
 
 TEST_F(ResourceTest, ManifestLoadDdfFail)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
     const char* buf = "this is not a manifest buffer";
-    dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
+    dmResource::Manifest* manifest;
+    dmResource::Result result = dmResource::LoadManifestFromBuffer((uint8_t*)buf, strlen(buf), &manifest);
     ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
-    delete manifest;
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Manifest* manifest;
+    dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-
-    dmResourceArchive::SetDefaultReader(archive);
 
     dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
     uint32_t hash_len = dmResource::HashLength(algorithm);
@@ -1490,22 +1478,18 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerification)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::Delete(archive);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 {
-    dmResource::Manifest* manifest = new dmResource::Manifest();
-    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Manifest* manifest;
+    dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
-
-    dmResourceArchive::SetDefaultReader(archive);
 
     // Deep-copy current manifest resource entries with space for an extra resource entry
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
@@ -1542,17 +1526,50 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     free(entries);
 
     dmResourceArchive::Delete(archive);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    dmResource::DeleteManifest(manifest);
 }
+
+TEST(ResourceUtil, HexDigestLength)
+{
+    uint32_t actual = 0;
+
+    actual = dmResource::HashLength(dmLiveUpdateDDF::HASH_MD5);
+    ASSERT_EQ((128U / 8U), actual);
+
+    actual = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1);
+    ASSERT_EQ((160U / 8U), actual);
+
+    actual = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA256);
+    ASSERT_EQ((256U / 8U), actual);
+
+    actual = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA512);
+    ASSERT_EQ((512U / 8U), actual);
+}
+
+TEST(ResourceUtil, BytesToHexString)
+{
+    uint8_t instance[16] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+
+    char buffer_short[6];
+    dmResource::BytesToHexString(instance, dmResource::HashLength(dmLiveUpdateDDF::HASH_MD5), buffer_short, 6);
+    ASSERT_STREQ("00010", buffer_short);
+
+    char buffer_fitted[33];
+    dmResource::BytesToHexString(instance, dmResource::HashLength(dmLiveUpdateDDF::HASH_MD5), buffer_fitted, 33);
+    ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_fitted);
+
+    char buffer_long[513];
+    dmResource::BytesToHexString(instance, dmResource::HashLength(dmLiveUpdateDDF::HASH_MD5), buffer_long, 513);
+    ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_long);
+}
+
 
 int main(int argc, char **argv)
 {
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
 
     if(argc > 1)
@@ -1584,12 +1601,10 @@ int main(int argc, char **argv)
 
     dmHashEnableReverseHash(true);
 
-    dmHashEnableReverseHash(true);
-
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
 
-#if defined(TEST_HTTP_SUPPORTED)
+#if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
 #endif
     return ret;
