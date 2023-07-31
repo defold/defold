@@ -32,6 +32,7 @@ public class ResourceNode {
     private String absoluteFilepath;
     private ResourceNode parent = null;
     private IResource resource;
+    private String hexDigest = null;
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
 
     public ResourceNode(IResource resource) {
@@ -80,10 +81,17 @@ public class ResourceNode {
         return absoluteFilepath;
     }
 
+    public void setHexDigest(String hexDigest) {
+        this.hexDigest = hexDigest;
+    }
+
     private void writeJSON(JsonGenerator generator) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName("path");
         generator.writeString(relativeFilepath);
+
+        generator.writeFieldName("hexDigest");
+        generator.writeString(hexDigest);
 
         generator.writeFieldName("children");
         generator.writeStartArray();
