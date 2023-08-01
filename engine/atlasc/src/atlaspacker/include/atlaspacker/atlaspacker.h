@@ -75,7 +75,7 @@ typedef struct _apPacker
     void (*packImages)(struct _apPacker* packer, apContext* ctx);
 } apPacker;
 
-#pragma options align=reset
+#pragma pack(pop)
 
 /////////////////////////////////////////////////////////
 void        apSetDefaultOptions(apOptions* options);

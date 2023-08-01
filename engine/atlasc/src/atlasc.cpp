@@ -1,6 +1,7 @@
 #include "atlasc.h"
 
 #include <stdio.h>
+#include <stdlib.h> // qsort, malloc
 
 extern "C" {
     #include <atlaspacker/atlaspacker.h>
