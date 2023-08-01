@@ -71,6 +71,15 @@ namespace dmGameSystem
  *   go.set("#sprite", "material", self.my_material)
  * end
  * ```
+ *
+ * Load a material resource and update a named material with the resource:
+ *
+ * ```lua
+ * go.property("my_material", resource.material("/material.material"))
+ * function init(self)
+ *   go.set("#gui", "materials", self.my_material, {key = "my_material"})
+ * end
+ * ```
  */
 
 /*# reference to font resource

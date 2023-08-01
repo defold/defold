@@ -158,6 +158,15 @@ TEST_F(EngineTest, GuiRenderCrash)
     ASSERT_GT(frame_count, 5u);
 }
 
+TEST_F(EngineTest, GuiMaterialScriptFunctions)
+{
+    uint32_t frame_count = 0;
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui/material_script_functions.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
+    ASSERT_EQ(frame_count, 1u);
+}
+
 TEST_F(EngineTest, CrossScriptMessaging)
 {
     uint32_t frame_count = 0;

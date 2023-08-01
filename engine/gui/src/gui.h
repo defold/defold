@@ -631,7 +631,9 @@ namespace dmGui
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
 
-    Result AddMaterial(HScene scene, const char* material_name, void* material);
+    Result AddMaterial(HScene scene, dmhash_t material_name_hash, void* material);
+
+    void* GetMaterial(HScene scene, dmhash_t material_id);
 
     void AssignMaterials(HScene scene);
 
@@ -886,8 +888,10 @@ namespace dmGui
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
 
-    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id);
-    void*  GetNodeMaterial(HScene scene, HNode node);
+    Result   SetNodeMaterial(HScene scene, HNode node, const char* material_id);
+    Result   SetNodeMaterial(HScene scene, HNode node, dmhash_t material_id); // if material_id == 0, it will clear the assignment
+    void*    GetNodeMaterial(HScene scene, HNode node);
+    dmhash_t GetNodeMaterialId(HScene scene, HNode node);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);

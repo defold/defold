@@ -281,7 +281,7 @@ namespace dmGui
         dmHashTable64<void*>                  m_Fonts;
         dmHashTable64<TextureInfo>            m_Textures;
         dmHashTable64<DynamicTexture>         m_DynamicTextures;
-        dmHashTable64<dmRender::HMaterial>    m_Materials;
+        dmHashTable64<void*>                  m_MaterialResources;
         dmParticle::HParticleContext          m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype> m_Particlefxs;
         dmArray<ParticlefxComponent>          m_AliveParticlefxs;
