@@ -1885,6 +1885,108 @@ namespace dmGui
         return 1;
     }
 
+    /*# gets the assigned node material
+     * Returns the material of a node.
+     * The material must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_material
+     * @param node [type:node] node to get the material for
+     * @examples
+     *
+     * Getting the material for a node, and assign it to another node:
+     *
+     * ```lua
+     * local node1 = gui.get_node("my_node")
+     * local node2 = gui.get_node("other_node")
+     * local node1_material = gui.get_material(node1)
+     * gui.set_material(node2, node1_material)
+     * ```
+     */
+    static int LuaGetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeMaterialId(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the node material
+     * Set the material on a node. The material must be mapped to the gui scene in the gui editor, 
+     * and assigning a material is supported for all node types. To set the default material that
+     * is assigned to the gui scene node, use `gui.reset_material(node_id)` instead.
+     *
+     * @name gui.set_material
+     * @param node [type:node] node to set material for
+     * @param material [type:string|hash] material id
+     * @examples
+     *
+     * Assign an existing material to a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.set_material(node, "my_material")
+     * ```
+     */
+    static int LuaSetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        dmhash_t material_id = dmScript::CheckHashOrString(L, 2);
+
+        if (SetNodeMaterial(scene, hnode, material_id) != RESULT_OK)
+        {
+            luaL_error(L, "Material '%s' is not specified in scene", dmHashReverseSafe64(material_id));
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# resets the node material
+     * Resets the node material to the material assigned in the gui scene.
+     *
+     * @name gui.set_material
+     * @param node [type:node] node to reset the material for
+     * @examples
+     *
+     * Resetting the material for a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.reset_material(node)
+     * ```
+     */
+    static int LuaResetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        SetNodeMaterial(scene, hnode, (dmhash_t) 0);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     /*# gets the node font
      * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
      *
@@ -4304,6 +4406,9 @@ namespace dmGui
         {"new_texture",     LuaNewTexture},
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
+        {"get_material",    LuaGetMaterial},
+        {"set_material",    LuaSetMaterial},
+        {"reset_material",  LuaResetMaterial},
         {"get_font",        LuaGetFont},
         {"get_font_resource", LuaGetFontResource},
         {"set_font",        LuaSetFont},
