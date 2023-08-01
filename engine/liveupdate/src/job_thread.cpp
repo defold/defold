@@ -181,8 +181,6 @@ void Update(HContext context)
 #if defined(DM_HAS_THREADS)
         DM_MUTEX_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
 #endif
-        size = items.Size();
-
         size = context->m_ThreadContext.m_Done.Size();
         items.SetCapacity(size);
 
