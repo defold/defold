@@ -76,6 +76,8 @@ function test_create_ownership_data(self)
         assert(buffer_stream[i] == res_buffer_stream[i])
     end
 
+    -- We release the resource twice here to fully release the resource so we can reuse the resource name
+    -- 1 from resource.create_buffer and 1 from resource.get_buffer
     resource.release(res_buffer)
     resource.release(res_buffer)
 end

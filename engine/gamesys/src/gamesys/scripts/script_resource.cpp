@@ -2370,7 +2370,7 @@ static int CreateBuffer(lua_State* L)
  *
  *     local res_path = go.get("#mesh", "vertices")
  *     local buf = resource.get_buffer(res_path)
- *     local stream_positions = buffer.get_stream(self.buffer, "position")
+ *     local stream_positions = buffer.get_stream(buf, "position")
  *
  *     for i=1,#stream_positions do
  *         print(i, stream_positions[i])
@@ -2476,25 +2476,28 @@ static int SetBuffer(lua_State* L)
 
     if (transfer_ownership)
     {
-        uint32_t src_count = 0;
-        dmBuffer::Result br = dmBuffer::GetCount(src_buffer, &src_count);
-        if (br != dmBuffer::RESULT_OK)
+        if (src_buffer != dst_buffer)
         {
-            return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-        }
+            uint32_t src_count = 0;
+            dmBuffer::Result br = dmBuffer::GetCount(src_buffer, &src_count);
+            if (br != dmBuffer::RESULT_OK)
+            {
+                return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+            }
 
-        dmBuffer::Destroy(buffer_resource->m_Buffer);
-        buffer_resource->m_Buffer       = src_buffer;
-        buffer_resource->m_ElementCount = src_count;
-        buffer_resource->m_Stride       = dmBuffer::GetStructSize(src_buffer);
+            dmBuffer::Destroy(buffer_resource->m_Buffer);
+            buffer_resource->m_Buffer       = src_buffer;
+            buffer_resource->m_ElementCount = src_count;
+            buffer_resource->m_Stride       = dmBuffer::GetStructSize(src_buffer);
 
-        if (luabuf->m_Owner == dmScript::OWNER_RES)
-        {
-            // We are transferring the ownership of the resource in the lua buffer
-            // to the destination resource, so we decref the source resource.
-            // We don't need to incref the destination resource in this case,
-            // because we are simply updating the content and not the resoure itself
-            dmResource::Release(g_ResourceModule.m_Factory, luabuf->m_BufferRes);
+            if (luabuf->m_Owner == dmScript::OWNER_RES)
+            {
+                // We are transferring the ownership of the resource in the lua buffer
+                // to the destination resource, so we decref the source resource.
+                // We don't need to incref the destination resource in this case,
+                // because we are simply updating the content and not the resoure itself
+                dmResource::Release(g_ResourceModule.m_Factory, luabuf->m_BufferRes);
+            }
         }
 
         luabuf->m_Owner     = dmScript::OWNER_RES;
