@@ -48,7 +48,7 @@ namespace dmGui
 
     /*# [type:hash] gui material
      *
-     * The material used when rendering the gui. The type of the property is hash.
+     * The main material (the default material assigned to a GUI) used when rendering the gui. The type of the property is hash.
      *
      * @name material
      * @property
@@ -62,6 +62,29 @@ namespace dmGui
      *
      * function init(self)
      *   go.set("#gui", "material", self.desaturate_material)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] gui materials
+     *
+     * The materials used when rendering the gui. The type of the property is hash.
+     * Key must be specified in options table.
+     *
+     * @name materials
+     * @property
+     *
+     * @examples
+     *
+     * How to change a named material resource using a script property from a script
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/my_material.material"))
+     *
+     * function init(self)
+     *   -- this will update the "my_gui_material" entry in the GUI to use the material
+     *   -- specified in the "my_material" script property.
+     *   go.set("#gui", "materials", self.my_material, { key = "my_gui_material" })
      * end
      * ```
      */
