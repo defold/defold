@@ -49,6 +49,7 @@ namespace dmGameSystem
     static const dmhash_t PROP_FONTS = dmHashString64("fonts");
     static const dmhash_t PROP_IMAGE = dmHashString64("image");
     static const dmhash_t PROP_MATERIAL = dmHashString64("material");
+    static const dmhash_t PROP_MATERIALS = dmHashString64("materials");
     static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
         dmHashString64("texture0"),
         dmHashString64("texture1"),
