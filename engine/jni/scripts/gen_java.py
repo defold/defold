@@ -75,7 +75,7 @@ prim_defaults = {
 }
 
 # https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/types.html
-c_type_to_java_type_specifiers = {
+c_type_to_jni_type_specifiers = {
     'int':          'I',
     'bool':         'Z',
     'int8_t':       'C',
@@ -90,8 +90,9 @@ c_type_to_java_type_specifiers = {
     'double':       'D',
 }
 
-c_type_to_java_typename = {
-    'bool':     'Bool',
+# https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#Set_type_Field_routines
+c_type_to_jni_capname = {
+    'bool':     'Boolean',
     'char':     'Char',
     'int8_t':   'Char',
     'uint8_t':  'Byte',
@@ -106,7 +107,7 @@ c_type_to_java_typename = {
     'double':   'Double',
 }
 
-c_type_to_java_type = {
+c_type_to_jni_type = {
     'bool':     'jboolean',
     'char':     'jchar',
     'int8_t':   'jchar',
@@ -120,6 +121,22 @@ c_type_to_java_type = {
     'uint64_t': 'jlong',
     'float':    'jfloat',
     'double':   'jdouble',
+}
+
+c_type_to_java_type = {
+    'bool':     'boolean',
+    'char':     'char',
+    'int8_t':   'char',
+    'uint8_t':  'byte',
+    'int16_t':  'short',
+    'uint16_t': 'short',
+    'int':      'int',
+    'int32_t':  'int',
+    'uint32_t': 'int',
+    'int64_t':  'long',
+    'uint64_t': 'long',
+    'float':    'float',
+    'double':   'double',
 }
 
 struct_types = []
@@ -225,7 +242,7 @@ def is_const_struct_ptr(s):
 
 def is_struct_ptr(s):
     for struct_type in struct_types:
-        if s == f"{struct_type} *":
+        if s == f"const {struct_type} *" or s == f"{struct_type} *":
             return True
     return False
 
@@ -274,24 +291,29 @@ def gen_struct(decl, prefix):
         field_type = field_type.replace(namespace_prefix, '')
 
         if is_prim_type(field_type):
-            l(f"        public {field_type} {field_name} = {type_default_value(field_type)};")
+            jni_type = c_type_to_java_type.get(field_type);
+            suffix = ''
+            if jni_type == 'float':
+                suffix = 'f'
+            l(f"        public {jni_type} {field_name} = {type_default_value(field_type)}{suffix};")
         elif is_struct_type(field_type):
             l(f"        public {field_type} {field_name};")
         elif is_enum_type(field_type):
-            l(f"        public {field_type} {field_name} = {enum_default_item(field_type)};")
+            l(f"        public {field_type} {field_name} = {field_type}.{enum_default_item(field_type)};")
         elif util.is_string_ptr(field_type):
             l(f"        public String {field_name};")
         # elif util.is_const_void_ptr(field_type):
         #     l(f"        public {field_name}: ?*const anyopaque = null,")
         # elif util.is_void_ptr(field_type):
         #     l(f"        public {field_name}: ?*anyopaque = null,")
-        elif is_const_prim_ptr(field_type):
+        elif is_const_prim_ptr(field_type) or is_struct_ptr(field_type):
             field_type = util.extract_ptr_type(field_type)
-            if field_type == 'uint8_t':
-                field_type = 'byte'
-            l(f"        public {field_type}[] {field_name};")
+            jni_type = c_type_to_java_type.get(field_type, field_type)
+            l(f"        public {jni_type}[] {field_name};")
+
         elif util.is_dmarray_type(field_type):
             field_type = util.extract_dmarray_type(field_type)
+            field_type = c_type_to_java_type.get(field_type, field_type)
             if is_struct_ptr(field_type):
                 field_type = util.extract_ptr_type(field_type)
             l(f"        public {field_type}[] {field_name};")
@@ -519,10 +541,11 @@ def gen_namespace(inp, class_name, package_name):
             elif kind == 'func':
                 # gen_func_c(decl, prefix)
                 # gen_func_zig(decl, prefix)
-                print(f"Not implemented yet: {kind}")
+                #print(f"Not implemented yet: {kind}")
+                pass
 
 def gen_java_source(inp, class_name, package_name):
-    l('// machine generated, do not edit')
+    l('// generated, do not edit')
     l('')
     l(f'package {package_name};')
     l('import java.io.File;')
@@ -613,7 +636,7 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
             #gen_ir.printtable(field)
 
             if is_prim_type(field_type):
-                jni_type = c_type_to_java_type_specifiers.get(field_type);
+                jni_type = c_type_to_jni_type_specifiers.get(field_type);
                 l(f'        GET_FLD_TYPESTR({field_name}, "{jni_type}");')
             elif is_struct_type(field_type):
                 l(f'        GET_FLD({field_name}, "{field_type}");')
@@ -621,20 +644,28 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
                 l(f'        GET_FLD_TYPESTR({field_name}, "I");')
             elif util.is_string_ptr(field_type):
                 l(f'        GET_FLD_TYPESTR({field_name}, "Ljava/lang/String;");')
-            elif is_const_prim_ptr(field_type):
+            elif is_const_prim_ptr(field_type): # arrays: e.g. uint8_t* data;
                 field_type = util.extract_ptr_type(field_type)
-                jni_type = c_type_to_java_type_specifiers.get(field_type);
+                jni_type = c_type_to_jni_type_specifiers.get(field_type);
+                l(f'        GET_FLD_TYPESTR({field_name}, "[{jni_type}");')
+            elif is_struct_ptr(field_type):
+                jni_type = util.extract_ptr_type(field_type)
                 l(f'        GET_FLD_ARRAY({field_name}, "{jni_type}");')
+
             elif util.is_dmarray_type(field_type):
                 field_type = util.extract_dmarray_type(field_type)
 
                 if is_prim_type(field_type):
-                    jni_type = c_type_to_java_type_specifiers.get(field_type);
-                elif is_struct_ptr(field_type):
+                    jni_type = c_type_to_jni_type_specifiers.get(field_type);
+                    l(f'        GET_FLD_TYPESTR({field_name}, "[{jni_type}");')
+                    continue
+                elif is_struct_type(field_type):
                     jni_type = util.extract_ptr_type(field_type)
                 elif util.is_string_ptr(field_type):
                     jni_type = "Ljava/lang/String;"
                 l(f'        GET_FLD_ARRAY({field_name}, "{jni_type}");')
+            else:
+                print("gen_struct: Not implemented yet:", field['kind'], field_type)
 
         l(f'    }}')
     l('    #undef GET_FLD')
@@ -665,9 +696,11 @@ def gen_jni_type_create_object(namespace, class_name, package_name, header=False
     for decl in struct_jni_types:
         struct_name = decl["name"]
 
-        fn = f'jobject Create{struct_name}(JNIEnv* env, TypeInfos* types, {struct_name}* src)'
+        fn = f'jobject Create{struct_name}(JNIEnv* env, TypeInfos* types, const {struct_name}* src)'
+        fn_array = f'jobjectArray Create{struct_name}Array(JNIEnv* env, TypeInfos* types, const {struct_name}* src, uint32_t src_count)'
         if header:
             l(f'{fn};')
+            l(f'{fn_array};')
             continue
 
         l(f'{fn} {{')
@@ -684,7 +717,7 @@ def gen_jni_type_create_object(namespace, class_name, package_name, header=False
 
             # https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#Set_type_Field_routines
             if is_prim_type(field_type):
-                jni_type = c_type_to_java_typename.get(field_type, None)
+                jni_type = c_type_to_jni_capname.get(field_type, None)
                 if jni_type is not None:
                     l(f'    dmJNI::Set{jni_type}(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
             elif is_struct_type(field_type):
@@ -693,26 +726,50 @@ def gen_jni_type_create_object(namespace, class_name, package_name, header=False
                 l(f'    dmJNI::SetInt(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
             elif util.is_string_ptr(field_type):
                 l(f'    dmJNI::SetString(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
-            elif is_const_prim_ptr(field_type):
-                print(field_type, is_prim_type(field_type))
+            #elif is_const_prim_ptr(field_type):
+            elif is_const_prim_ptr(field_type) or is_struct_ptr(field_type):
                 # need a variable that designates the array size
-                field_type = util.extract_ptr_type(field_type)
-                print(field_type, is_prim_type(field_type))
-                jni_typestr = c_type_to_java_typename.get(field_type, None)
-                jni_type = c_type_to_java_type.get(field_type, None)
-
-                print(field_type, jni_typestr, jni_type)
-
                 count_name = field_name+'Count'
                 count = get_array_count_field(decl, count_name)
                 if not count:
                     print(f'Field "{field_name}" has no corresponding field "{count_name}"')
                     continue
-                l(f'    dmJNI::SetObjectDeref(env, obj, types->{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{count_name}, src->{field_name}));')
+
+                field_type = util.extract_ptr_type(field_type)
+
+                if is_struct_type(field_type):
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, Create{field_type}Array(env, types, src->{field_name}, src->{count_name}));')
+                    continue
+
+                jni_typestr = c_type_to_jni_capname.get(field_type, field_type)
+                l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{field_name}, src->{count_name}));')
+            elif util.is_dmarray_type(field_type):
+                field_type = util.extract_dmarray_type(field_type)
+                jni_typestr = c_type_to_jni_capname.get(field_type, None)
+                jni_type = c_type_to_jni_type.get(field_type, None)
+
+                if is_struct_type(field_type):
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, Create{field_type}Array(env, types, src->{field_name}.Begin(), src->{field_name}.Size()));')
+                elif is_struct_ptr(field_type):
+                    #field_type = util.extract_ptr_type(field_type)
+                    pass # not implemented yet
+                else:
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{field_name}.Begin(), src->{field_name}.Size()));')
 
         l(f'    return obj;')
         l(f'}}')
         l(f'')
+
+        l(f'{fn_array} {{')
+        l(f'    jobjectArray arr = env->NewObjectArray(src_count, types->m_{struct_name}JNI.cls, 0);')
+        l(f'    for (uint32_t i = 0; i < src_count; ++i) {{')
+        l(f'        jobject obj = Create{struct_name}(env, types, &src[i]);')
+        l(f'        env->SetObjectArrayElement(arr, i, obj);')
+        l(f'        env->DeleteLocalRef(obj);')
+        l(f'    }}')
+        l(f'    return arr;')
+        l(f'}}')
+
 
 
 def gen_jni_namespace_source(inp, class_name, package_name, header=False):
@@ -743,7 +800,7 @@ def gen_jni_namespace_source(inp, class_name, package_name, header=False):
             #     print(f"Not implemented yet: {kind}")
 
 def gen_jni_source(inp, class_name, header_name, package_name):
-    l('// machine generated, do not edit')
+    l('// generated, do not edit')
     l('')
     l('#include <jni.h>')
     l('')
@@ -758,7 +815,7 @@ def gen_jni_source(inp, class_name, header_name, package_name):
 
 
 def gen_jni_header(inp, class_name, package_name):
-    l('// machine generated, do not edit')
+    l('// generated, do not edit')
     l('')
     l('#include <jni.h>')
     l(f'#include "{class_name.lower()}.h"')

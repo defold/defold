@@ -3,6 +3,8 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertArrayEquals;
+
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.internal.TextListener;
@@ -64,6 +66,7 @@ public class JniTest
     //public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native Testapi.Vec2i TestCreateVec2i();
     public static native Testapi.Recti TestCreateRecti();
+    public static native Testapi.Arrays TestCreateArrays();
     // public static native void TestException(String message);
 
     @Test
@@ -113,6 +116,37 @@ public class JniTest
         assertEquals(4, rect.max.x);
         assertEquals(5, rect.max.y);
     }
+
+    @Test
+    public void testJniArrays() {
+        Testapi.Arrays arrays = TestCreateArrays();
+
+        byte[] data1 = new byte[] { 1,2,4,8 };
+        assertEquals(4, arrays.data.length);
+        assertArrayEquals( data1, arrays.data );
+
+        byte[] data2 = new byte[] { 2, 4, 8, 16, 32 };
+        assertEquals(5, arrays.data2.length);
+        assertArrayEquals( data2, arrays.data2 );
+
+        assertEquals(3, arrays.rects.length);
+        for (int i = 0; i < 3; ++i) {
+            assertEquals(i*4+1, arrays.rects[i].min.x);
+            assertEquals(i*4+2, arrays.rects[i].min.y);
+            assertEquals(i*4+3, arrays.rects[i].max.x);
+            assertEquals(i*4+4, arrays.rects[i].max.y);
+        }
+
+        assertEquals(3, arrays.rects2.length);
+        for (int i = 0; i < 3; ++i) {
+            assertEquals(i*4+1, arrays.rects2[i].min.x);
+            assertEquals(i*4+2, arrays.rects2[i].min.y);
+            assertEquals(i*4+3, arrays.rects2[i].max.x);
+            assertEquals(i*4+4, arrays.rects2[i].max.y);
+        }
+    }
+
+    // ----------------------------------------------------
 
     public static void main(String[] args) {
         JUnitCore junit = new JUnitCore();

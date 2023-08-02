@@ -15,6 +15,9 @@
 #ifndef DM_JNI_TESTAPI_H
 #define DM_JNI_TESTAPI_H
 
+#include <stdint.h>
+#include <dmsdk/dlib/array.h>
+
 namespace dmJniTest
 {
     const int       CONSTANT_INT = 10;
@@ -37,6 +40,17 @@ namespace dmJniTest
     {
         Vec2i m_Min;
         Vec2i m_Max;
+    };
+
+    struct Arrays
+    {
+        const uint8_t*      m_Data;
+        uint32_t            m_DataCount;
+        dmArray<uint8_t>    m_Data2;
+
+        const Recti*        m_Rects;
+        uint32_t            m_RectsCount;
+        dmArray<Recti>      m_Rects2;
     };
 }
 

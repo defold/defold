@@ -19,7 +19,9 @@ def configure(conf):
 
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
 
-    includes = [os.getcwd()]
+    dynamo_home = conf.env.DYNAMO_HOME
+    includes = [os.getcwd(),
+                os.path.join(dynamo_home, 'sdk', 'include')]
 
     def make_path(path):
         cwd = os.getcwd()

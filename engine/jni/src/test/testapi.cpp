@@ -64,6 +64,48 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateRecti(JNIEnv* env, jclass cls)
     return jrect;
 }
 
+JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
+{
+    dmLogInfo("Java_JniTest_TestCreateArrays: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
+
+    dmJniTest::TypeInfos types;
+    dmJniTest::InitializeJNITypes(env, &types);
+
+    jobject jdata = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJniTest::Arrays arrays;
+
+        const uint8_t data[] = {1,2,4,8};
+        arrays.m_Data = data;
+        arrays.m_DataCount = DM_ARRAY_SIZE(data);
+
+        const uint8_t data2[] = {2,4,8,16,32};
+        arrays.m_Data2.SetCapacity(DM_ARRAY_SIZE(data2));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(data2); ++i)
+            arrays.m_Data2.Push(data2[i]);
+
+
+        const dmJniTest::Recti rects[] = {
+            { {1,2}, {3,4} },
+            { {5,6}, {7,8} },
+            { {9,10}, {11,12} }
+        };
+
+        arrays.m_Rects = rects;
+        arrays.m_RectsCount = DM_ARRAY_SIZE(rects);
+
+        arrays.m_Rects2.SetCapacity(DM_ARRAY_SIZE(rects));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(rects); ++i)
+            arrays.m_Rects2.Push(rects[i]);
+
+        jdata = dmJniTest::CreateArrays(env, &types, &arrays);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+
+    //dmJniTest::FinalizeJNITypes(env, &types);
+    return jdata;
+}
+
 // JNIEXPORT void JNICALL Java_JniTest_TestException(JNIEnv* env, jclass cls, jstring j_message)
 // {
 //     dmJNI::SignalContextScope env_scope(env);
@@ -95,6 +137,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     static const JNINativeMethod methods[] = {
         {"TestCreateVec2i", "()L" CLASS_NAME "$Vec2i;", reinterpret_cast<void*>(Java_JniTest_TestCreateVec2i)},
         {"TestCreateRecti", "()L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestCreateRecti)},
+        {"TestCreateArrays", "()L" CLASS_NAME "$Arrays;", reinterpret_cast<void*>(Java_JniTest_TestCreateArrays)},
         //{"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_JniTest_TestException)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));

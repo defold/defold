@@ -105,6 +105,62 @@ void SetDouble(JNIEnv* env, jobject obj, jfieldID field, jdouble value)
     env->SetDoubleField(obj, field, value);
 }
 
+jbooleanArray CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count)
+{
+    jbooleanArray arr = env->NewBooleanArray(data_count);
+    env->SetBooleanArrayRegion(arr, 0, data_count, (const jboolean*)data);
+    return arr;
+}
+
+jbyteArray CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count)
+{
+    jbyteArray arr = env->NewByteArray(data_count);
+    env->SetByteArrayRegion(arr, 0, data_count, (const jbyte*)data);
+    return arr;
+
+}
+
+jcharArray CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count)
+{
+    jcharArray arr = env->NewCharArray(data_count);
+    env->SetCharArrayRegion(arr, 0, data_count, (const jchar*)data);
+    return arr;
+}
+
+jshortArray CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count)
+{
+    jshortArray arr = env->NewShortArray(data_count);
+    env->SetShortArrayRegion(arr, 0, data_count, (const jshort*)data);
+    return arr;
+}
+
+jintArray CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count)
+{
+    jintArray arr = env->NewIntArray(data_count);
+    env->SetIntArrayRegion(arr, 0, data_count, (const jint*)data);
+    return arr;
+}
+
+jlongArray CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count)
+{
+    jlongArray arr = env->NewLongArray(data_count);
+    env->SetLongArrayRegion(arr, 0, data_count, (const jlong*)data);
+    return arr;
+}
+
+jfloatArray CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count)
+{
+    jfloatArray arr = env->NewFloatArray(data_count);
+    env->SetFloatArrayRegion(arr, 0, data_count, (const jfloat*)data);
+    return arr;
+}
+
+jdoubleArray CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count)
+{
+    jdoubleArray arr = env->NewDoubleArray(data_count);
+    env->SetDoubleArrayRegion(arr, 0, data_count, (const jdouble*)data);
+    return arr;
+}
 
 // ************************************************************************************
 

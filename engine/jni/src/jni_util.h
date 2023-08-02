@@ -43,6 +43,14 @@ namespace dmJNI
     void SetFloat(JNIEnv* env, jobject obj, jfieldID field, jfloat value);
     void SetDouble(JNIEnv* env, jobject obj, jfieldID field, jdouble value);
 
+    jbooleanArray   CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count);
+    jbyteArray      CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count);
+    jcharArray      CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count);
+    jshortArray     CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count);
+    jintArray       CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count);
+    jlongArray      CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count);
+    jfloatArray     CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count);
+    jdoubleArray    CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count);
 
     void EnableDefaultSignalHandlers(JavaVM* vm);
     void EnableSignalHandlers(void* ctx, void (*callback)(int signal, void* ctx));
