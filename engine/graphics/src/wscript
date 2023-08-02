@@ -27,6 +27,13 @@ def build(bld):
                     use             = 'DDF DLIB',
                     target          = 'graphics_proto')
 
+    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+                    includes        = obj.includes,
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    protoc_includes = obj.protoc_includes,
+                    use             = obj.use,
+                    target          = 'graphics_proto_noasan')
+
     proto_cpp_source = bld.path.parent.ant_glob('build/proto/graphics/*.cpp')
     proto_cpp_includes = ['../proto']
 
