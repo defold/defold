@@ -85,6 +85,15 @@
       (assoc :emitters new-emitters)
       (dissoc :modifiers))))
 
+(defn- select-attribute-values [pb-data key]
+  (let [transformed-emitters (mapv (fn [emitter]
+                                     (-> emitter
+                                         (assoc :attributes (key emitter))
+                                         (dissoc :attributes-save-values)
+                                         (dissoc :attributes-build-target)))
+                                   (:emitters pb-data))]
+    (assoc pb-data :emitters transformed-emitters)))
+
 ; Geometry generation
 
 (defn spiraling [steps a s ps]
@@ -577,6 +586,21 @@
       (= :editor.resource/Resource (:k type)) [[kw (resource/resource->proj-path value)]]
       true [[kw value]])))
 
+(defn- save-value-attributes [material-attribute-infos vertex-attribute-overrides]
+  (into []
+        (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
+                (when-some [override-values (get vertex-attribute-overrides name-key)]
+                  ;; Ensure our saved values have the expected element-count.
+                  ;; If the material has been edited, this might have changed,
+                  ;; but specialized widgets like the one we use to edit color
+                  ;; properties may also produce a different element count from
+                  ;; what the material dictates.
+                  (let [resized-values (graphics/resize-doubles override-values semantic-type element-count)
+                        [attribute-value-keyword stored-values] (graphics/doubles->storage resized-values data-type normalize)]
+                    {:name name
+                     attribute-value-keyword {:v stored-values}}))))
+        material-attribute-infos))
+
 (defn- build-target-attributes [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (into []
         (keep (fn [{:keys [name-key] :as attribute-info}]
@@ -593,7 +617,8 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (let [properties (:properties _declared-properties)]
-    (into {:attributes (build-target-attributes material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+    (into {:attributes-save-values (save-value-attributes material-attribute-infos vertex-attribute-overrides)
+           :attributes-build-target (build-target-attributes material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
            :position position
            :rotation rotation
            :modifiers modifier-msgs}
@@ -994,10 +1019,10 @@
   (input ids g/Str :array)
 
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
-  (output save-value g/Any (gu/passthrough pb-data))
+  (output save-value g/Any (g/fnk [pb-data] (select-attribute-values pb-data :attributes-save-values)))
   (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
                                {:emitters emitter-msgs :modifiers modifier-msgs}))
-  (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
+  (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform (select-attribute-values pb-data :attributes-build-target))))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output emitter-indices g/Any :cached (g/fnk [nodes]
                                                (into {}

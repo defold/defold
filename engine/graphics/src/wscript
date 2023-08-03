@@ -27,6 +27,8 @@ def build(bld):
                     use             = 'DDF DLIB',
                     target          = 'graphics_proto')
 
+    bld.add_group()
+
     obj = bld.stlib(features        = obj.features + ['skip_asan'],
                     includes        = obj.includes,
                     source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
