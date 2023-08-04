@@ -139,9 +139,12 @@
     :type-unsigned-int :uint
     :type-float :float))
 
+(defn attribute-values+data-type->byte-size [attribute-values attribute-data-type]
+  (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type)))
+
 (defn- make-attribute-bytes
   ^bytes [attribute-data-type normalize attribute-values]
-  (let [attribute-value-byte-count (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type))
+  (let [attribute-value-byte-count (attribute-values+data-type->byte-size attribute-values attribute-data-type)
         attribute-bytes (byte-array attribute-value-byte-count)
         byte-buffer (vtx/wrap-buf attribute-bytes)
         buffer-data-type (attribute-data-type->buffer-data-type attribute-data-type)]

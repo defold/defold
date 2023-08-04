@@ -18,6 +18,7 @@
             [editor.collection :as collection]
             [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.graphics :as graphics]
             [editor.material :as material]
             [editor.workspace :as workspace]
             [editor.types :as types]
@@ -28,6 +29,31 @@
            [java.io File]
            [javax.imageio ImageIO]
            [javax.vecmath Point3d Matrix4d]))
+
+(def ^:private attribute-key->default-attribute-info
+  (into {}
+        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+               (let [attribute-key (graphics/attribute-name->key name)
+                     values (graphics/default-attribute-doubles semantic-type element-count)
+                     bytes (graphics/default-attribute-bytes semantic-type data-type element-count normalize)
+                     attribute-info (assoc attribute
+                                      :name-key attribute-key
+                                      :values values
+                                      :bytes bytes)]
+                 [attribute-key attribute-info])))
+        [{:name "position"
+          :semantic-type :semantic-type-position
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :element-count 4}
+         {:name "texcoord0"
+          :semantic-type :semantic-type-texcoord
+          :data-type :type-float
+          :element-count 2}
+         {:name "page_index"
+          :semantic-type :semantic-type-page-index
+          :data-type :type-float
+          :element-count 1}]))
 
 (defn- dump-outline [outline]
   {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
@@ -57,7 +83,11 @@
           emitter-sim-data (g/node-value node-id :emitter-sim-data)
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
           transforms [(doto (Matrix4d.) (.setIdentity))]
-          sim (plib/make-sim 16 256 prototype-msg transforms)]
+          sim (plib/make-sim 16 256 prototype-msg transforms)
+          manufactured-attribute-infos (into []
+                                             (map attribute-key->default-attribute-info)
+                                             [:position])
+          vertex-description (graphics/make-vertex-description manufactured-attribute-infos)]
       (testing "Sim sleeping"
                (is (plib/sleeping? sim))
                (plib/simulate sim 1/60 fetch-anim-fn transforms)
@@ -66,7 +96,7 @@
                (let [sim (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms))
-                     stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0])
+                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] vertex-description)
                                (plib/stats sim))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"

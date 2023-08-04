@@ -340,6 +340,11 @@ the `do-gl` macro from `editor.gl`."
         count         (mod limit (:vertex-size layout))
         buffer-starts (buffer-starts limit layout)
         slices        (b/slice buffer (map min (repeat limit) buffer-starts))]
+    (println 'vertex-overlay limit)
+    (println 'vertex-overlay count)
+    (println 'vertex-overlay buffer-starts)
+    (println 'vertex-overlay slices)
+    (println (:vertex-size layout))
     (->PersistentVertexBuffer layout count buffer slices (AtomicLong. count) not-allowed not-allowed)))
 
 (defn new-transient-vertex-buffer

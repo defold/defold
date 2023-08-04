@@ -601,7 +601,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
-    static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos* attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt);
+    static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -642,8 +642,11 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const ParticleVertexAttributeInfos* attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
+        assert(attribute_infos.m_StructSize == sizeof(ParticleVertexAttributeInfos));
+        assert(attribute_infos.m_VertexStride != 0);
+
         DM_PROFILE(__FUNCTION__);
         if (instance == INVALID_INSTANCE)
             return;
@@ -653,7 +656,7 @@ namespace dmParticle
         if (IsSleeping(inst))
             return;
 
-        uint32_t vertex_size            = attribute_infos->m_VertexStride;
+        uint32_t vertex_size            = attribute_infos.m_VertexStride;
         const uint32_t vb_buffer_offset = *out_vertex_buffer_size;
         uint32_t vertex_index           = vb_buffer_offset / vertex_size;
 
@@ -1025,32 +1028,33 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-    static uint8_t* WriteParticleVertex(const ParticleVertexAttributeInfos* attribute_infos, uint8_t* write_ptr, Vector3& position, Vector4& color, float* uv, int page_index)
+    static uint8_t* WriteParticleVertex(const ParticleVertexAttributeInfos& attribute_infos, uint8_t* write_ptr, Vector3& position, Vector4& color, float* uv, int page_index)
     {
-
-        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
+        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
-            ParticleVertexAttributeInfos::Info& info     = attribute_infos->m_Infos[i];
-            const dmGraphics::VertexAttribute* attribute = info.m_Attribute;
+            const ParticleVertexAttributeInfo& info = attribute_infos.m_Infos[i];
 
-            if (attribute->m_NameHash == VERTEX_STREAM_POSITION)
+            float* f = (float*) write_ptr;
+
+            if (info.m_NameHash == VERTEX_STREAM_POSITION)
             {
                 memcpy(write_ptr, &position, info.m_ValueByteSize);
             }
-            else if (attribute->m_NameHash == VERTEX_STREAM_TEXCOORD0)
+            else if (info.m_NameHash == VERTEX_STREAM_TEXCOORD0)
             {
                 memcpy(write_ptr, uv, info.m_ValueByteSize);
             }
-            else if (attribute->m_NameHash == VERTEX_STREAM_COLOR)
+            else if (info.m_NameHash == VERTEX_STREAM_COLOR)
             {
                 memcpy(write_ptr, &color, info.m_ValueByteSize);
             }
-            else if (attribute->m_NameHash == VERTEX_STREAM_PAGE_INDEX)
+            else if (info.m_NameHash == VERTEX_STREAM_PAGE_INDEX)
             {
                 memcpy(write_ptr, &page_index, info.m_ValueByteSize);
             }
             else
             {
+                assert(info.m_ValuePtr);
                 memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
             }
 
@@ -1064,7 +1068,7 @@ namespace dmParticle
         0.0f,1.0f, 0.0f,0.0f, 1.0f,0.0f, 1.0f,1.0f
     };
 
-    static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos* attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt)
+    static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt)
     {
         DM_PROFILE(__FUNCTION__);
         static int tex_coord_order[] = {
@@ -1074,7 +1078,7 @@ namespace dmParticle
             2,3,0,0,1,2		//hv
         };
 
-        uint32_t vertex_size = attribute_infos->m_VertexStride;
+        uint32_t vertex_size = attribute_infos.m_VertexStride;
         uint8_t* vertex_buffer_ptr = *vertex_buffer;
 
         emitter->m_VertexIndex = vertex_index;
@@ -1170,6 +1174,8 @@ namespace dmParticle
                 ddf->m_Pivot.getZ()));
         }
 
+        px_ix = 0;
+
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
@@ -1256,7 +1262,7 @@ namespace dmParticle
                 page_index                  = (float) page_indices[page_indices_index];
             }
 
-            uint8_t* write_ptr = vertex_buffer_ptr + vertex_index * attribute_infos->m_VertexStride;
+            uint8_t* write_ptr = vertex_buffer_ptr + vertex_index * attribute_infos.m_VertexStride;
             write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[0] * 2, page_index);
             write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p1, c, tex_coord + tex_lookup[1] * 2, page_index);
             write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[2] * 2, page_index);
@@ -2140,6 +2146,32 @@ namespace dmParticle
         return GetVertexBufferSize(context->m_MaxParticleCount, vertex_size);
     }
 
+    // room for a single matrix
+    #define SCRATCH_BUFFER_SIZE (sizeof(float) * 4 * 4)
+
+    static inline void EnsureScratchBuffer(HParticleContext context)
+    {
+        if (!context->m_ScratchBuffer)
+        {
+            context->m_ScratchBuffer = malloc(SCRATCH_BUFFER_SIZE);
+        }
+    }
+
+    void* GetAttributeScratchBuffer(HParticleContext context)
+    {
+        EnsureScratchBuffer(context);
+        return context->m_ScratchBuffer;
+    }
+
+    void WriteAttributeToScratchBuffer(HParticleContext context, void* bytes, uint32_t byte_count)
+    {
+        assert(byte_count < SCRATCH_BUFFER_SIZE);
+        EnsureScratchBuffer(context);
+        memcpy(context->m_ScratchBuffer, bytes, byte_count);
+    }
+
+    #undef SCRATCH_BUFFER_SIZE
+
     void ReHashEmitter(Emitter* e)
     {
         EmitterRenderData& data = e->m_RenderData;
@@ -2266,7 +2298,7 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
-    DM_PARTICLE_TRAMPOLINE9(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const ParticleVertexAttributeInfos*, const Vector4&, void*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE9(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const ParticleVertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX*);
@@ -2289,6 +2321,9 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, GetInstanceStats, HParticleContext, HInstance, InstanceStats*);
 
     DM_PARTICLE_TRAMPOLINE2(uint32_t, GetVertexBufferSize, uint32_t, uint32_t);
+
+    DM_PARTICLE_TRAMPOLINE1(void*, GetAttributeScratchBuffer, HParticleContext);
+    DM_PARTICLE_TRAMPOLINE3(void, WriteAttributeToScratchBuffer, HParticleContext, void*, uint32_t);
 
     dmhash_t Particle_Hash(const char* value)
     {

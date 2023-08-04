@@ -26,7 +26,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx]
             [editor.graphics :as graphics]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -216,9 +216,9 @@
             render-args (if (= pass/selection (:pass render-args))
                           (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
-            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
+            #_#_vertex-binding (vtx/use-with ::lines (->vb vs vcount color) shader)]
+        #_(gl/with-gl-bindings gl render-args [shader vertex-binding]
+          #_(gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))) ;; TODO custom-vertex-format: need to use vtx2 now
 
 ; Modifier geometry
 
@@ -396,18 +396,65 @@
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
-(defn- render-emitters-sim [^GL2 gl render-args renderables rcount]
+(def ^:private attribute-key->default-attribute-info
+  (into {}
+        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+               (let [attribute-key (graphics/attribute-name->key name)
+                     values (graphics/default-attribute-doubles semantic-type element-count)
+                     bytes (graphics/default-attribute-bytes semantic-type data-type element-count normalize)
+                     attribute-info (assoc attribute
+                                      :name-key attribute-key
+                                      :values values
+                                      :bytes bytes)]
+                 [attribute-key attribute-info])))
+        [{:name "position"
+          :semantic-type :semantic-type-position
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :element-count 4}
+         {:name "color"
+          :semantic-type :semantic-type-color
+          :data-type :type-float
+          :element-count 4}
+         {:name "texcoord0"
+          :semantic-type :semantic-type-texcoord
+          :data-type :type-float
+          :element-count 2}
+         {:name "page_index"
+          :semantic-type :semantic-type-page-index
+          :data-type :type-float
+          :element-count 1}]))
+
+(defn- get-shader-bound-attributes [^GL2 gl shader material-attribute-infos]
+  (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
+        declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
+        manufactured-attribute-infos (into []
+                                           (comp (remove declared-material-attribute-key?)
+                                                 (map attribute-key->default-attribute-info))
+                                           [:position :texcoord0 :page-index :color])
+        all-attributes (into manufactured-attribute-infos material-attribute-infos)]
+    (filterv shader-bound-attribute? all-attributes)))
+
+(def my-atom (atom 0))
+
+(defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
-    (let [{:keys [emitter-sim-data emitter-index color]} (:user-data renderable)
-          pfx-sim-request-id (some-> renderable :updatable :node-id)]
+    (let [user-data (:user-data renderable)
+          {:keys [emitter-sim-data emitter-index color]} user-data
+          pfx-sim-request-id (some-> renderable :updatable :node-id)
+          shader (:shader emitter-sim-data)
+          shader-bound-attributes (get-shader-bound-attributes gl shader (:material-attribute-infos user-data))
+          vertex-description (graphics/make-vertex-description shader-bound-attributes)
+          vertex-attribute-bytes (:vertex-attribute-bytes user-data)]
       (when-let [pfx-sim (when (and emitter-sim-data pfx-sim-request-id)
                            (some-> (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)) deref))]
-        (plib/gen-emitter-vertex-data pfx-sim emitter-index color)
+        (plib/gen-emitter-vertex-data pfx-sim emitter-index color vertex-description shader-bound-attributes vertex-attribute-bytes)
         (let [context (:context pfx-sim)
-              vbuf (plib/get-emitter-vertex-data pfx-sim emitter-index)]
+              raw-vbuf (plib/get-emitter-vertex-data pfx-sim emitter-index)
+              vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)]
           (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
+            (reset! my-atom pfx-sim)
             (let [gpu-texture (:gpu-texture emitter-sim-data)
-                  shader (:shader emitter-sim-data)
                   vtx-binding (vtx/use-with context vbuf shader)
                   blend-mode (convert-blend-mode (:blend-mode render-data))]
               (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
@@ -516,11 +563,13 @@
                            [+bx +bx (case type :emitter-type-circle 0.0 +bx)])))))
 
 (g/defnk produce-emitter-scene
-  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos vertex-attribute-bytes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
                    :emitter-index emitter-index
+                   :material-attribute-infos material-attribute-infos
+                   :vertex-attribute-bytes vertex-attribute-bytes
                    :color [1.0 1.0 1.0 1.0]
                    :geom-data-world (apply (:geom-data-world emitter-type)
                                            (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
@@ -721,40 +770,41 @@
 
 (def ^:private attribute-key->property-key (memoize attribute-key->property-key-raw))
 (defn- editable-attribute-info? [attribute-info]
-  (case (:semantic-type attribute-info)
-    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
-    true))
+  (if (nil? (:semantic-type attribute-info))
+    false
+    (case (:semantic-type attribute-info)
+      (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
+      true)))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
-  (let [attribute-properties
-        (keep (fn [attribute-info]
-                (when (editable-attribute-info? attribute-info)
-                  (let [attribute-key (:name-key attribute-info)
-                        semantic-type (:semantic-type attribute-info)
-                        material-values (:values attribute-info)
-                        override-values (vertex-attribute-overrides attribute-key)
-                        attribute-values (or override-values material-values)
-                        property-type (attribute-property-type attribute-info)
-                        expected-element-count (attribute-expected-element-count attribute-info)
-                        edit-type (attribute-edit-type attribute-info property-type)
-                        property-key (attribute-key->property-key attribute-key)
-                        label (props/keyword->name attribute-key)
-                        value (if (= g/Num property-type)
-                                (first attribute-values) ; The widget expects a number, not a vector.
-                                (graphics/resize-doubles attribute-values semantic-type expected-element-count))
-                        error (when (some? override-values)
-                                (graphics/validate-doubles override-values attribute-info _node-id property-key))
-                        prop {:node-id _node-id
-                              :type property-type
-                              :edit-type edit-type
-                              :label label
-                              :value value
-                              :error error}]
-                    ;; Insert the original material values as original-value if there is a vertex override.
-                    (if (some? override-values)
-                      [property-key (assoc prop :original-value material-values)]
-                      [property-key prop]))))
-              material-attribute-infos)]
+  (let [attribute-properties (keep (fn [attribute-info]
+                                     (when (editable-attribute-info? attribute-info)
+                                       (let [attribute-key (:name-key attribute-info)
+                                             semantic-type (:semantic-type attribute-info)
+                                             material-values (:values attribute-info)
+                                             override-values (vertex-attribute-overrides attribute-key)
+                                             attribute-values (or override-values material-values)
+                                             property-type (attribute-property-type attribute-info)
+                                             expected-element-count (attribute-expected-element-count attribute-info)
+                                             edit-type (attribute-edit-type attribute-info property-type)
+                                             property-key (attribute-key->property-key attribute-key)
+                                             label (props/keyword->name attribute-key)
+                                             value (if (= g/Num property-type)
+                                                     (first attribute-values) ; The widget expects a number, not a vector.
+                                                     (graphics/resize-doubles attribute-values semantic-type expected-element-count))
+                                             error (when (some? override-values)
+                                                     (graphics/validate-doubles override-values attribute-info _node-id property-key))
+                                             prop {:node-id _node-id
+                                                   :type property-type
+                                                   :edit-type edit-type
+                                                   :label label
+                                                   :value value
+                                                   :error error}]
+                                         ;; Insert the original material values as original-value if there is a vertex override.
+                                         (if (some? override-values)
+                                           [property-key (assoc prop :original-value material-values)]
+                                           [property-key prop]))))
+                                   material-attribute-infos)]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))

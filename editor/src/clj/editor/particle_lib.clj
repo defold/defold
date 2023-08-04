@@ -14,30 +14,24 @@
 
 (ns editor.particle-lib
   (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
+            [editor.graphics :as graphics]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.gl.vertex :as vertex]
-            [editor.gl.shader :as shader])
+            [util.murmur :as murmur])
   (:import [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.defold.libs ParticleLibrary ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$Quat
-            ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback
-            ParticleLibrary$FetchAnimationResult ParticleLibrary$AnimPlayback
-            ParticleLibrary$Stats ParticleLibrary$InstanceStats
-            ParticleLibrary$RenderInstanceCallback]
+           [com.defold.libs ParticleLibrary ParticleLibrary$ParticleVertexAttributeInfos ParticleLibrary$ParticleVertexAttributeInfo ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$Quat
+                            ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback
+                            ParticleLibrary$FetchAnimationResult ParticleLibrary$AnimPlayback
+                            ParticleLibrary$Stats ParticleLibrary$InstanceStats
+                            ParticleLibrary$RenderInstanceCallback]
            [com.sun.jna Pointer]
            [com.sun.jna.ptr IntByReference]
            [com.jogamp.common.nio Buffers]
-           [java.nio ByteBuffer IntBuffer]
-           [javax.vecmath Point3d Quat4d Vector3d Matrix4d]
-           [com.google.protobuf Message]))
+           [java.nio ByteBuffer]
+           [javax.vecmath Point3d Quat4d Vector3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
-
-(vertex/defvertex vertex-format
-  (vec3 position)
-  (vec4 color true)
-  (vec2 texcoord0 true)
-  (vec1 page_index))
 
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
@@ -111,9 +105,10 @@
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
     (set-instance-transform context instance transform)))
 
-(defn vertex-buffer-size [format particle-count]
-  (let [native-format (case format :go 0 :gui 1)]
-    (ParticleLibrary/Particle_GetVertexBufferSize particle-count native-format)))
+(defn vertex-buffer-size [particle-count]
+  ; TODO: This is not correct, we need to resize the vbuf dynamically depending on vx decl
+  (let [vertex-size 40]
+    (ParticleLibrary/Particle_GetVertexBufferSize particle-count vertex-size)))
 
 (defn- make-byte-buffer [size]
   (Buffers/newDirectByteBuffer ^int size))
@@ -122,7 +117,7 @@
   (into []
         (comp
           (map :max-particle-count)
-          (map (partial vertex-buffer-size :go))
+          (map (partial vertex-buffer-size))
           (map make-byte-buffer))
         emitters))
 
@@ -177,20 +172,50 @@
       (assoc :last-dt dt)
       (update :elapsed-time #(+ % dt)))))
 
-(defn gen-emitter-vertex-data [sim emitter-index color]
+(defn- attribute-name-key->byte-buffer ^ByteBuffer [name-key vertex-attribute-bytes]
+  (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]
+    (buffers/wrap-byte-array attribute-bytes)))
+
+(defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
+  (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
+        attribute-byte-size (graphics/attribute-values+data-type->byte-size (:values attribute-info) (:data-type attribute-info))
+        attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
+        attribute-bytes-count (if (nil? attribute-bytes)
+                                0
+                                (.capacity attribute-bytes))
+        particle-attribute-info (ParticleLibrary$ParticleVertexAttributeInfo.)
+        context-attribute-scratch (ParticleLibrary/Particle_GetAttributeScratchBuffer context)
+        ]
+    (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)
+    (set! (. particle-attribute-info nameHash) attribute-name-hash)
+    (set! (. particle-attribute-info valuePtr) context-attribute-scratch)
+    (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
+    particle-attribute-info))
+
+(defn- make-attribute-infos [^Pointer context vertex-description attribute-infos vertex-attribute-bytes]
+  (let [vertex-stride (:size vertex-description)
+        infos (ParticleLibrary$ParticleVertexAttributeInfos.)
+        num-attribute-infos (count attribute-infos)]
+    (doseq [i (range num-attribute-infos)]
+      (aset (.infos infos) i (attribute-info->particle-attribute-info context (get attribute-infos i) vertex-attribute-bytes)))
+    (set! (. infos vertexStride) (int vertex-stride))
+    (set! (. infos numInfos) (int num-attribute-infos))
+    infos))
+
+(defn gen-emitter-vertex-data [sim emitter-index color vertex-description attribute-infos vertex-attribute-bytes]
   (let [context (:context sim)
         raw-vbuf ^ByteBuffer ((:raw-vbufs sim) emitter-index)
         dt (:last-dt sim)
         out-size (IntByReference. 0)
         [r g b a] color
-        instances (:instances sim)]
+        instances (:instances sim)
+        attribute-infos (make-attribute-infos context vertex-description attribute-infos vertex-attribute-bytes)]
     (assert (= 1 (count instances)))
-    (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size 0)
+    (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
     (.limit raw-vbuf (.getValue out-size))
     sim))
 
-(defn get-emitter-vertex-data [sim emitter-index]
-  (vertex/vertex-overlay vertex-format ((:raw-vbufs sim) emitter-index)))
+(defn get-emitter-vertex-data [sim emitter-index] ((:raw-vbufs sim) emitter-index))
 
 (defn render-emitter [sim emitter-index]
   (let [context (:context sim)

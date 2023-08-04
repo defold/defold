@@ -189,7 +189,8 @@ namespace dmParticle
     struct Context
     {
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
-        : m_MaxParticleCount(max_particle_count)
+        : m_ScratchBuffer(0)
+        , m_MaxParticleCount(max_particle_count)
         , m_NextVersionNumber(1)
         , m_InstanceSeeding(0)
         {
@@ -212,6 +213,8 @@ namespace dmParticle
         dmArray<Instance*>  m_Instances;
         /// Index pool used to index the instance buffer.
         dmIndexPool16       m_InstanceIndexPool;
+        /// Let's see if this works first..
+        void*               m_ScratchBuffer;
         /// Maximum number of particles allowed
         uint32_t            m_MaxParticleCount;
         /// Version number used to create new handles.

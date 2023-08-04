@@ -130,8 +130,6 @@ namespace dmGameSystem
         dmGraphics::HTexture                           m_WhiteTexture;
         dmParticle::HParticleContext                   m_ParticleContext;
         dmParticle::ParticleVertexAttributeInfos       m_ParticleAttributeInfos;
-        dmParticle::ParticleVertexAttributeInfos::Info m_ParticleAttributeInfosData[4];
-        dmGraphics::VertexAttribute                    m_ParticleAttributes[4];
         uint32_t                                       m_MaxParticleFXCount;
         uint32_t                                       m_MaxParticleCount;
         uint32_t                                       m_RenderedParticlesSize;
