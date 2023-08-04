@@ -67,6 +67,10 @@ public class JniTest
     public static native Testapi.Vec2i TestCreateVec2i();
     public static native Testapi.Recti TestCreateRecti();
     public static native Testapi.Arrays TestCreateArrays();
+    public static native Testapi.Misc TestCreateMisc();
+
+    public static native Testapi.Recti TestDuplicateRecti(Testapi.Recti rect);
+
     // public static native void TestException(String message);
 
     @Test
@@ -77,10 +81,17 @@ public class JniTest
     }
 
     @Test
+    public void testEnumDefault() {
+        assertEquals(1, Testapi.TestEnumDefault.TED_VALUE_A.getValue());
+        assertEquals(2, Testapi.TestEnumDefault.TED_VALUE_B.getValue());
+        assertEquals(3, Testapi.TestEnumDefault.TED_VALUE_C.getValue());
+    }
+
+    @Test
     public void testEnum() {
-        assertEquals(1, Testapi.TestEnum.VALUE_A.getValue());
-        assertEquals(2, Testapi.TestEnum.VALUE_B.getValue());
-        assertEquals(4, Testapi.TestEnum.VALUE_C.getValue());
+        assertEquals(2, Testapi.TestEnum.TE_VALUE_A.getValue());
+        assertEquals(3, Testapi.TestEnum.TE_VALUE_B.getValue());
+        assertEquals(4, Testapi.TestEnum.TE_VALUE_C.getValue());
     }
 
     @Test
@@ -99,18 +110,18 @@ public class JniTest
 
     // ----------------------------------------------------
 
-    // Jni
+    // C to Java
 
     @Test
     public void testJniVec2i() {
-        Testapi.Vec2i vec = TestCreateVec2i(); // (1, 2)
+        Testapi.Vec2i vec = TestCreateVec2i();
         assertEquals(1, vec.x);
         assertEquals(2, vec.y);
     }
 
     @Test
     public void testJniRecti() {
-        Testapi.Recti rect = TestCreateRecti(); // (1, 2)
+        Testapi.Recti rect = TestCreateRecti();
         assertEquals(-2, rect.min.x);
         assertEquals(-3, rect.min.y);
         assertEquals(4, rect.max.x);
@@ -144,6 +155,32 @@ public class JniTest
             assertEquals(i*4+3, arrays.rects2[i].max.x);
             assertEquals(i*4+4, arrays.rects2[i].max.y);
         }
+    }
+
+    @Test
+    public void testJniMisc() {
+        Testapi.Misc misc = TestCreateMisc();
+        assertEquals(Testapi.TestEnum.TE_VALUE_B, misc.testEnum);
+        assertEquals("Hello World!", misc.string);
+    }
+
+    // ----------------------------------------------------
+
+    // Java to C
+
+    @Test
+    public void testJ2C_Recti() {
+        Testapi.Recti rect = TestCreateRecti();
+        Testapi.Recti rect2 = TestDuplicateRecti(rect);
+
+        assertEquals(-2, rect.min.x);
+        assertEquals(-3, rect.min.y);
+        assertEquals(4, rect.max.x);
+        assertEquals(5, rect.max.y);
+        assertEquals(-1, rect2.min.x);
+        assertEquals(-2, rect2.min.y);
+        assertEquals(5, rect2.max.x);
+        assertEquals(6, rect2.max.y);
     }
 
     // ----------------------------------------------------

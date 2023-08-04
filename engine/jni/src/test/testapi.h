@@ -24,11 +24,18 @@ namespace dmJniTest
     const float     CONSTANT_FLOAT = 2.5f;
     const double    CONSTANT_DOUBLE = 1.5;
 
+    enum TestEnumDefault
+    {
+        TED_VALUE_A,
+        TED_VALUE_B,
+        TED_VALUE_C,
+    };
+
     enum TestEnum
     {
-        VALUE_A = 1,
-        VALUE_B,
-        VALUE_C = 4,
+        TE_VALUE_A = 2,
+        TE_VALUE_B,
+        TE_VALUE_C = 4,
     };
 
     struct Vec2i
@@ -51,6 +58,12 @@ namespace dmJniTest
         const Recti*        m_Rects;
         uint32_t            m_RectsCount;
         dmArray<Recti>      m_Rects2;
+    };
+
+    struct Misc
+    {
+        TestEnum m_TestEnum;
+        const char* m_String;
     };
 }
 

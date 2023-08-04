@@ -22,6 +22,8 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
+#define CLASS_NAME_JNI_TEST "com/dynamo/bob/pipeline/JniTest"
+
 JNIEXPORT jobject JNICALL Java_JniTest_TestCreateVec2i(JNIEnv* env, jclass cls)
 {
     dmLogInfo("Java_JniTest_TestCreateVec2i: env = %p\n", env);
@@ -62,6 +64,60 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateRecti(JNIEnv* env, jclass cls)
 
     //dmJniTest::FinalizeJNITypes(env, &types);
     return jrect;
+}
+
+JNIEXPORT jobject JNICALL Java_JniTest_TestCreateMisc(JNIEnv* env, jclass cls)
+{
+    dmLogInfo("Java_JniTest_TestCreateMisc:\n");
+    dmJNI::SignalContextScope env_scope(env);
+
+    dmJniTest::TypeInfos types;
+    dmJniTest::InitializeJNITypes(env, &types);
+
+    jobject jmisc = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        const char* s = "Hello World!";
+        dmJniTest::Misc misc;
+        misc.m_TestEnum = dmJniTest::TE_VALUE_B;
+        misc.m_String = s;
+        jmisc = dmJniTest::CreateMisc(env, &types, &misc);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+
+    //dmJniTest::FinalizeJNITypes(env, &types);
+    return jmisc;
+}
+
+JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateRecti(JNIEnv* env, jclass cls, jobject jni_rect)
+{
+    dmLogInfo("Java_JniTest_TestDuplicateRecti: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
+
+    dmJniTest::TypeInfos types;
+    dmJniTest::InitializeJNITypes(env, &types);
+
+    jobject jni_out_rect = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+
+        dmJniTest::Recti in_rect = {};
+        dmJniTest::GetRecti(env, &types, jni_rect, &in_rect);
+        //                 dmJniTest::FromJni_CreateRecti(env, &types, jni_rect, &in_rect);
+        // jni_out_rect =  dmJniTest::CreateRecti(env, &types, &out_rect);
+
+        // dmJniTest::CreateRecti_FromJni(env, &types, jni_rect, &in_rect);
+        // dmJniTest::FromJni_CreateRecti(env, &types, jni_rect, &in_rect);
+        // dmJniTest::FromJni::CreateRecti(env, &types, jni_rect, &in_rect);
+
+        // copy and modify
+        dmJniTest::Recti out_rect;
+        out_rect.m_Min.x = in_rect.m_Min.x + 1;
+        out_rect.m_Min.y = in_rect.m_Min.y + 1;
+        out_rect.m_Max.x = in_rect.m_Max.x + 1;
+        out_rect.m_Max.y = in_rect.m_Max.y + 1;
+        jni_out_rect = dmJniTest::CreateRecti(env, &types, &out_rect);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+
+    //dmJniTest::FinalizeJNITypes(env, &types);
+    return jni_out_rect;
 }
 
 JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
@@ -127,7 +183,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     }
 
     // Find your class. JNI_OnLoad is called from the correct class loader context for this to work.
-    jclass c = env->FindClass("com/dynamo/bob/pipeline/JniTest");
+    jclass c = env->FindClass(CLASS_NAME_JNI_TEST);
     dmLogInfo("JNI_OnLoad: c = %p\n", c);
     if (c == 0)
       return JNI_ERR;
@@ -138,6 +194,10 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
         {"TestCreateVec2i", "()L" CLASS_NAME "$Vec2i;", reinterpret_cast<void*>(Java_JniTest_TestCreateVec2i)},
         {"TestCreateRecti", "()L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestCreateRecti)},
         {"TestCreateArrays", "()L" CLASS_NAME "$Arrays;", reinterpret_cast<void*>(Java_JniTest_TestCreateArrays)},
+        {"TestCreateMisc", "()L" CLASS_NAME "$Misc;", reinterpret_cast<void*>(Java_JniTest_TestCreateMisc)},
+
+        {"TestDuplicateRecti", "(L" CLASS_NAME "$Recti;)L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateRecti)},
+
         //{"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_JniTest_TestException)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
@@ -151,5 +211,17 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
 JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
 {
-    dmLogInfo("JNI_OnUnload ->\n");
+    JNIEnv* env;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_8) != JNI_OK) {
+        printf("JNI_OnUnload: GetEnv error\n");
+        return;
+    }
+
+    jclass c = env->FindClass(CLASS_NAME_JNI_TEST);
+    dmLogInfo("JNI_OnUnload: c = %p\n", c);
+    if (c == 0)
+      return;
+
+    env->UnregisterNatives(c);
+    env->DeleteLocalRef(c);
 }
