@@ -42,6 +42,23 @@ namespace dmJNI
     void SetLong(JNIEnv* env, jobject obj, jfieldID field, jlong value);
     void SetFloat(JNIEnv* env, jobject obj, jfieldID field, jfloat value);
     void SetDouble(JNIEnv* env, jobject obj, jfieldID field, jdouble value);
+    void SetString(JNIEnv* env, jobject obj, jfieldID field, const char* value);
+
+    // Requires that the enum class has a "static Enum fromValue(int value)" function.
+    void SetEnum(JNIEnv* env, jobject obj, jfieldID field, int value);
+
+    bool    GetBoolean(JNIEnv* env, jobject obj, jfieldID field);
+    uint8_t GetByte(JNIEnv* env, jobject obj, jfieldID field);
+    char    GetChar(JNIEnv* env, jobject obj, jfieldID field);
+    int16_t GetShort(JNIEnv* env, jobject obj, jfieldID field);
+    int32_t GetInt(JNIEnv* env, jobject obj, jfieldID field);
+    int64_t GetLong(JNIEnv* env, jobject obj, jfieldID field);
+    float   GetFloat(JNIEnv* env, jobject obj, jfieldID field);
+    double  GetDouble(JNIEnv* env, jobject obj, jfieldID field);
+    char*   GetString(JNIEnv* env, jobject obj, jfieldID field);
+
+    // Requires that the enum class has a "int getValue()" function.
+    int     GetEnum(JNIEnv* env, jobject obj, jfieldID field);
 
     jbooleanArray   CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count);
     jbyteArray      CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count);

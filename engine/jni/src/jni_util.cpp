@@ -105,6 +105,146 @@ void SetDouble(JNIEnv* env, jobject obj, jfieldID field, jdouble value)
     env->SetDoubleField(obj, field, value);
 }
 
+void SetString(JNIEnv* env, jobject obj, jfieldID field, const char* value)
+{
+    if (value)
+    {
+        jstring jstr = env->NewStringUTF(value);
+        env->SetObjectField(obj, field, jstr);
+        env->DeleteLocalRef(jstr);
+    }
+}
+
+char* GetClassName(JNIEnv* env, jclass cls, char* buffer, uint32_t buffer_len)
+{
+    jclass ccls = env->FindClass("java/lang/Class");
+    jmethodID mid_getName = env->GetMethodID(ccls, "getName", "()Ljava/lang/String;");
+    jstring jstr = (jstring)env->CallObjectMethod(cls, mid_getName);
+    const char* str = env->GetStringUTFChars(jstr, 0);
+    dmSnPrintf(buffer, buffer_len, "%s", str);
+    env->ReleaseStringUTFChars(jstr, str);
+    return buffer;
+}
+
+jobject GetEnumObject(JNIEnv* env, jclass cls, int value)
+{
+    char signature[1024] = "(I)L";
+    GetClassName(env, cls, signature+4, sizeof(signature)-4);
+    signature[sizeof(signature)-1] = 0;
+
+    uint32_t len = strlen(signature);
+    if (len >= (sizeof(signature)-1))
+    {
+        fprintf(stderr, "Class name buffer too small: '%s'\n", signature);
+        return 0;
+    }
+    signature[len++] = ';';
+    signature[len] = 0;
+
+    for (uint32_t i = 0; i < len; ++i)
+    {
+        if (signature[i] == '.')
+            signature[i] = '/';
+    }
+
+    jmethodID fromValue = env->GetStaticMethodID(cls, "fromValue", signature);
+    assert(fromValue != 0);
+    return env->CallStaticObjectMethod(cls, fromValue, value);
+}
+
+void PrintString(JNIEnv* env, jstring string)
+{
+    const char* str = env->GetStringUTFChars(string, 0);
+    printf("%s\n", str);
+    env->ReleaseStringUTFChars(string, str);
+}
+
+jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID)
+{
+    jclass cls = env->GetObjectClass(obj);
+    jclass field_cls = env->FindClass("java/lang/reflect/Field");
+
+    jobject field = env->ToReflectedField(cls, fieldID, JNI_FALSE);// java.lang.reflect.Field
+    jmethodID getType = env->GetMethodID(field_cls, "getType", "()Ljava/lang/Class;");
+    jobject type = env->CallObjectMethod(field, getType);
+
+    env->DeleteLocalRef(field_cls);
+    env->DeleteLocalRef(cls);
+    return (jclass)type;
+}
+
+void SetEnum(JNIEnv* env, jobject obj, jfieldID field, int value)
+{
+    jclass field_cls = GetFieldType(env, obj, field);
+    jobject enumValue = GetEnumObject(env, field_cls, value);
+    dmJNI::SetObjectDeref(env, obj, field, enumValue);
+}
+
+// **********************************************************************************
+
+bool GetBoolean(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetBooleanField(obj, field);
+}
+
+uint8_t GetByte(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetByteField(obj, field);
+}
+
+char GetChar(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetCharField(obj, field);
+}
+
+int16_t GetShort(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetShortField(obj, field);
+}
+
+int32_t GetInt(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetIntField(obj, field);
+}
+
+int64_t GetLong(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetLongField(obj, field);
+}
+
+float GetFloat(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetFloatField(obj, field);
+}
+
+double GetDouble(JNIEnv* env, jobject obj, jfieldID field)
+{
+    return env->GetDoubleField(obj, field);
+}
+
+char* GetString(JNIEnv* env, jobject obj, jfieldID field)
+{
+    jstring jstr = (jstring) env->GetObjectField(obj, field);
+    const char* str = env->GetStringUTFChars(jstr, 0);
+    char* out = strdup(str);
+    env->ReleaseStringUTFChars(jstr, str);
+    env->DeleteLocalRef(jstr);
+    return out;
+}
+
+int GetEnum(JNIEnv* env, jobject obj, jfieldID field)
+{
+    jclass cls = env->GetObjectClass(obj);
+    jmethodID getValueMethod = env->GetMethodID(cls, "getValue", "()I");
+
+    jobject value = env->GetObjectField(obj, field);
+    int result = env->CallIntMethod(value, getValueMethod);
+    env->DeleteLocalRef(cls);
+    return result;
+}
+
+// **********************************************************************************
+
 jbooleanArray CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count)
 {
     jbooleanArray arr = env->NewBooleanArray(data_count);
