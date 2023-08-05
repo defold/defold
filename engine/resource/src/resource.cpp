@@ -290,7 +290,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 char public_key_path[DMPATH_MAX_PATH];
                 dmPath::Concat(app_path, BUNDLE_PUBLIC_KEY_FILENAME, public_key_path, DMPATH_MAX_PATH);
 
-                if (dmSys::Exists(public_key_path))
+                if (dmSys::ResourceExists(public_key_path))
                 {
                     factory->m_PublicKeyPath = strdup(public_key_path);
                 }
