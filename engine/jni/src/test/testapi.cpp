@@ -28,14 +28,14 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateVec2i(JNIEnv* env, jclass cls)
 {
     dmLogInfo("Java_JniTest_TestCreateVec2i: env = %p\n", env);
     dmJNI::SignalContextScope env_scope(env);
-    dmJniTest::ScopedContext jni_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
 
     jobject jvec = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmJniTest::Vec2i vec;
         vec.x = 1;
         vec.y = 2;
-        jvec = dmJniTest::CreateVec2i(env, &jni_scope.m_TypeInfos, &vec);
+        jvec = dmJniTest::jni::C2J_CreateVec2i(env, &jni_scope.m_TypeInfos, &vec);
     DM_JNI_GUARD_SCOPE_END(return 0;);
 
     return jvec;
@@ -45,7 +45,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateRecti(JNIEnv* env, jclass cls)
 {
     dmLogInfo("Java_JniTest_TestCreatRect2i: env = %p\n", env);
     dmJNI::SignalContextScope env_scope(env);
-    dmJniTest::ScopedContext jni_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
 
     jobject jrect = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
@@ -54,7 +54,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateRecti(JNIEnv* env, jclass cls)
         rect.m_Min.y = -3;
         rect.m_Max.x = 4;
         rect.m_Max.y = 5;
-        jrect = dmJniTest::CreateRecti(env, &jni_scope.m_TypeInfos, &rect);
+        jrect = dmJniTest::jni::C2J_CreateRecti(env, &jni_scope.m_TypeInfos, &rect);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jrect;
 }
@@ -63,7 +63,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateMisc(JNIEnv* env, jclass cls)
 {
     dmLogInfo("Java_JniTest_TestCreateMisc:\n");
     dmJNI::SignalContextScope env_scope(env);
-    dmJniTest::ScopedContext jni_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
 
     jobject jmisc = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
@@ -71,7 +71,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateMisc(JNIEnv* env, jclass cls)
         dmJniTest::Misc misc;
         misc.m_TestEnum = dmJniTest::TE_VALUE_B;
         misc.m_String = s;
-        jmisc = dmJniTest::CreateMisc(env, &jni_scope.m_TypeInfos, &misc);
+        jmisc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &misc);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jmisc;
 }
@@ -80,13 +80,13 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateRecti(JNIEnv* env, jclass cl
 {
     dmLogInfo("Java_JniTest_TestDuplicateRecti: env = %p\n", env);
     dmJNI::SignalContextScope env_scope(env);
-    dmJniTest::ScopedContext jni_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
 
     jobject jni_out_rect = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
 
         dmJniTest::Recti in_rect = {};
-        dmJniTest::GetRecti(env, &jni_scope.m_TypeInfos, jni_rect, &in_rect);
+        dmJniTest::jni::J2C_CreateRecti(env, &jni_scope.m_TypeInfos, jni_rect, &in_rect);
 
         // copy and modify
         dmJniTest::Recti out_rect;
@@ -94,7 +94,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateRecti(JNIEnv* env, jclass cl
         out_rect.m_Min.y = in_rect.m_Min.y + 1;
         out_rect.m_Max.x = in_rect.m_Max.x + 1;
         out_rect.m_Max.y = in_rect.m_Max.y + 1;
-        jni_out_rect = dmJniTest::CreateRecti(env, &jni_scope.m_TypeInfos, &out_rect);
+        jni_out_rect = dmJniTest::jni::C2J_CreateRecti(env, &jni_scope.m_TypeInfos, &out_rect);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jni_out_rect;
 }
@@ -103,7 +103,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
 {
     dmLogInfo("Java_JniTest_TestCreateArrays: env = %p\n", env);
     dmJNI::SignalContextScope env_scope(env);
-    dmJniTest::ScopedContext jni_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
 
     jobject jdata = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
@@ -132,7 +132,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(rects); ++i)
             arrays.m_Rects2.Push(rects[i]);
 
-        jdata = dmJniTest::CreateArrays(env, &jni_scope.m_TypeInfos, &arrays);
+        jdata = dmJniTest::jni::C2J_CreateArrays(env, &jni_scope.m_TypeInfos, &arrays);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jdata;
 }
