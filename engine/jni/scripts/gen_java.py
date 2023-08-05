@@ -830,7 +830,7 @@ def gen_from_jni_get_object(decl, namespace, class_name, package_name, header=Fa
                 l(f'        env->DeleteLocalRef(field_object);')
                 l(f'    }}')
         elif is_enum_type(field_type):
-            l(f'    out->{field_name} = ({field_type})dmJNI::GetInt(env, obj, {field_id});')
+            l(f'    out->{field_name} = ({field_type})dmJNI::GetEnum(env, obj, {field_id});')
         elif util.is_string_ptr(field_type):
             l(f'    out->{field_name} = dmJNI::GetString(env, obj, {field_id});')
 

@@ -31,6 +31,7 @@ namespace dmJNI
 {
     // Jni helper functions
     jclass GetClass(JNIEnv* env, const char* basecls, const char* clsname);
+    jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID);
 
     void SetObject(JNIEnv* env, jobject obj, jfieldID field, jobject value);
     void SetObjectDeref(JNIEnv* env, jobject obj, jfieldID field, jobject value);
@@ -138,6 +139,8 @@ namespace dmJNI
 // for testing
 // Pass in a string containing any of the SIG* numbers
     void TestSignalFromString(const char* signal);
+
+    void PrintString(JNIEnv* env, jstring string);
 }
 
 #endif

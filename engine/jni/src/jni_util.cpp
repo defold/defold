@@ -54,6 +54,22 @@ jclass GetClass(JNIEnv* env, const char* basecls, const char* clsname)
     return env->FindClass(buffer);
 }
 
+jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID)
+{
+    jclass cls = env->GetObjectClass(obj);
+    jclass field_cls = env->FindClass("java/lang/reflect/Field");
+    jmethodID getType = env->GetMethodID(field_cls, "getType", "()Ljava/lang/Class;");
+
+    jobject field = env->ToReflectedField(cls, fieldID, JNI_FALSE); // java.lang.reflect.Field
+    jobject type = env->CallObjectMethod(field, getType);
+
+    env->DeleteLocalRef(field_cls);
+    env->DeleteLocalRef(cls);
+    return (jclass)type;
+}
+
+// *******************************************************************************
+
 void SetObject(JNIEnv* env, jobject obj, jfieldID field, jobject value)
 {
     env->SetObjectField(obj, field, value);
@@ -126,7 +142,7 @@ char* GetClassName(JNIEnv* env, jclass cls, char* buffer, uint32_t buffer_len)
     return buffer;
 }
 
-jobject GetEnumObject(JNIEnv* env, jclass cls, int value)
+static jobject GetEnumObject(JNIEnv* env, jclass cls, int value)
 {
     char signature[1024] = "(I)L";
     GetClassName(env, cls, signature+4, sizeof(signature)-4);
@@ -150,27 +166,6 @@ jobject GetEnumObject(JNIEnv* env, jclass cls, int value)
     jmethodID fromValue = env->GetStaticMethodID(cls, "fromValue", signature);
     assert(fromValue != 0);
     return env->CallStaticObjectMethod(cls, fromValue, value);
-}
-
-void PrintString(JNIEnv* env, jstring string)
-{
-    const char* str = env->GetStringUTFChars(string, 0);
-    printf("%s\n", str);
-    env->ReleaseStringUTFChars(string, str);
-}
-
-jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID)
-{
-    jclass cls = env->GetObjectClass(obj);
-    jclass field_cls = env->FindClass("java/lang/reflect/Field");
-
-    jobject field = env->ToReflectedField(cls, fieldID, JNI_FALSE);// java.lang.reflect.Field
-    jmethodID getType = env->GetMethodID(field_cls, "getType", "()Ljava/lang/Class;");
-    jobject type = env->CallObjectMethod(field, getType);
-
-    env->DeleteLocalRef(field_cls);
-    env->DeleteLocalRef(cls);
-    return (jclass)type;
 }
 
 void SetEnum(JNIEnv* env, jobject obj, jfieldID field, int value)
@@ -303,6 +298,13 @@ jdoubleArray CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_co
 }
 
 // ************************************************************************************
+
+void PrintString(JNIEnv* env, jstring string)
+{
+    const char* str = env->GetStringUTFChars(string, 0);
+    printf("%s\n", str);
+    env->ReleaseStringUTFChars(string, str);
+}
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 

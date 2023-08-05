@@ -92,6 +92,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateRecti(JNIEnv* env, jclass cl
     dmLogInfo("Java_JniTest_TestDuplicateRecti: env = %p\n", env);
     dmJNI::SignalContextScope env_scope(env);
 
+    dmJniTest::ScopedContext context(env);
     dmJniTest::TypeInfos types;
     dmJniTest::InitializeJNITypes(env, &types);
 
@@ -191,12 +192,12 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. JniTest.java)
     static const JNINativeMethod methods[] = {
-        {"TestCreateVec2i", "()L" CLASS_NAME "$Vec2i;", reinterpret_cast<void*>(Java_JniTest_TestCreateVec2i)},
-        {"TestCreateRecti", "()L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestCreateRecti)},
-        {"TestCreateArrays", "()L" CLASS_NAME "$Arrays;", reinterpret_cast<void*>(Java_JniTest_TestCreateArrays)},
-        {"TestCreateMisc", "()L" CLASS_NAME "$Misc;", reinterpret_cast<void*>(Java_JniTest_TestCreateMisc)},
+        {(char*)"TestCreateVec2i", (char*)"()L" CLASS_NAME "$Vec2i;", reinterpret_cast<void*>(Java_JniTest_TestCreateVec2i)},
+        {(char*)"TestCreateRecti", (char*)"()L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestCreateRecti)},
+        {(char*)"TestCreateArrays", (char*)"()L" CLASS_NAME "$Arrays;", reinterpret_cast<void*>(Java_JniTest_TestCreateArrays)},
+        {(char*)"TestCreateMisc", (char*)"()L" CLASS_NAME "$Misc;", reinterpret_cast<void*>(Java_JniTest_TestCreateMisc)},
 
-        {"TestDuplicateRecti", "(L" CLASS_NAME "$Recti;)L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateRecti)},
+        {(char*)"TestDuplicateRecti", (char*)"(L" CLASS_NAME "$Recti;)L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateRecti)},
 
         //{"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_JniTest_TestException)},
     };

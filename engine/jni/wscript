@@ -33,6 +33,7 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'scripts/gen_java.py')
     bld.install_files('${PREFIX}/lib/python/external', 'scripts//external/gen_ir.py')
     bld.install_files('${PREFIX}/lib/python/external', 'scripts//external/gen_util.py')
+    bld.install_files('${PREFIX}/include/jni', 'src/jni_util.h')
 
 def shutdown(self):
     waf_dynamo.run_tests(test_context, valgrind = True)

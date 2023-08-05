@@ -91,7 +91,9 @@ public class JniTest
     public void testEnum() {
         assertEquals(2, Testapi.TestEnum.TE_VALUE_A.getValue());
         assertEquals(3, Testapi.TestEnum.TE_VALUE_B.getValue());
-        assertEquals(4, Testapi.TestEnum.TE_VALUE_C.getValue());
+        assertEquals(-4, Testapi.TestEnum.TE_VALUE_C.getValue());
+        assertEquals(5, Testapi.TestEnum.TE_VALUE_D.getValue());
+        assertEquals(10, Testapi.TestEnum.TE_VALUE_E.getValue());
     }
 
     @Test

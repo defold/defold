@@ -35,7 +35,9 @@ namespace dmJniTest
     {
         TE_VALUE_A = 2,
         TE_VALUE_B,
-        TE_VALUE_C = 4,
+        TE_VALUE_C = -4,
+        TE_VALUE_D = -(-5),
+        TE_VALUE_E = CONSTANT_INT,
     };
 
     struct Vec2i

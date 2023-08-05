@@ -62,7 +62,21 @@ def parse_cpp_struct(decl):
         outp['fields'].append(item)
     return outp
 
-
+def evaluate_expr(name, decl_list):
+    for inner in decl_list:
+        kind = inner['kind']
+        if kind == 'ConstantExpr':
+            return int(inner['value'])
+        elif kind == 'UnaryOperator':
+            return - int(evaluate_expr(name, inner['inner']))
+        elif kind == 'ImplicitCastExpr':
+            return evaluate_expr(name, inner['inner'])
+        elif kind == 'ConstantExpr':
+            return int(inner['value'])
+        elif kind == 'IntegerLiteral':
+            if inner['valueCategory'] not in ('rvalue', 'prvalue'):
+                sys.exit(f"ERROR: Enum value ConstantExpr must be 'rvalue' or 'prvalue' ({name}), is '{inner['valueCategory']}'")
+            return int(inner['value'])
 
 def parse_enum(decl, main_prefix=None):
     outp = {}
@@ -82,19 +96,8 @@ def parse_enum(decl, main_prefix=None):
             item = {}
             item['name'] = item_decl['name']
             if 'inner' in item_decl:
-                if item_decl['inner'][0]['kind'] == 'ImplicitCastExpr':
-                    const_expr = item_decl['inner'][0]
-                    const_expr = const_expr['inner'][0]
-                else:
-                    const_expr = item_decl['inner'][0]
-
-                if const_expr['kind'] != 'ConstantExpr':
-                    sys.exit(f"ERROR: Enum values must be a ConstantExpr ({item_decl['name']}), is '{const_expr['kind']}'")
-                if const_expr['valueCategory'] != 'rvalue' and const_expr['valueCategory'] != 'prvalue':
-                    sys.exit(f"ERROR: Enum value ConstantExpr must be 'rvalue' or 'prvalue' ({item_decl['name']}), is '{const_expr['valueCategory']}'")
-                if not ((len(const_expr['inner']) == 1) and (const_expr['inner'][0]['kind'] == 'IntegerLiteral')):
-                    sys.exit(f"ERROR: Enum value ConstantExpr must have exactly one IntegerLiteral ({item_decl['name']})")
-                item['value'] = const_expr['inner'][0]['value']
+                value = evaluate_expr(item_decl['name'], item_decl['inner'])
+                item['value'] = '%d' % value
             if needs_value and 'value' not in item:
                 sys.exit(f"ERROR: anonymous enum items require an explicit value")
             outp['items'].append(item)
