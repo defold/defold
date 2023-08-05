@@ -598,10 +598,24 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
     global struct_jni_types
 
     fn_initialize = 'void InitializeJNITypes(JNIEnv* env, TypeInfos* infos)'
-    fn_finalize = 'void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos)'
+    fn_finalize   = 'void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos)'
     if header:
+
         l(f'{fn_initialize};')
         l(f'{fn_finalize};')
+
+        l('')
+        l(f'struct ScopedContext {{')
+        l(f'    JNIEnv*   m_Env;')
+        l(f'    TypeInfos m_TypeInfos;')
+        l(f'    ScopedContext(JNIEnv* env) : m_Env(env) {{')
+        l(f'        InitializeJNITypes(m_Env, &m_TypeInfos);')
+        l(f'    }}')
+        l(f'    ~ScopedContext() {{')
+        l(f'        FinalizeJNITypes(m_Env, &m_TypeInfos);')
+        l(f'    }}')
+        l(f'}};')
+
         l('')
         return
 
@@ -680,6 +694,14 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
     l('    #undef GET_FLD_TYPESTR')
     l('}')
     l('')
+
+    l(f'{fn_finalize} {{')
+
+    for decl in struct_jni_types:
+        l(f'    env->DeleteLocalRef(infos->m_{decl["name"]}JNI.cls);')
+    l(f'}}')
+    l(f'')
+
 
 def get_array_count_field(decl, wanted_field_name):
     field = None
