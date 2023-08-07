@@ -391,7 +391,7 @@ namespace dmLiveUpdate
             dmLogWarning("Failed to set manifest to mounted archive uri: %s:%s/%s\n", uri.m_Scheme, uri.m_Location, uri.m_Path);
             return dmResource::RESULT_INVALID_DATA;
         }
-
+        dmResourceProvider::GetManifest(g_LiveUpdate.m_LiveupdateArchive, &g_LiveUpdate.m_LiveupdateArchiveManifest);
         return dmResource::RESULT_OK;
     }
 
