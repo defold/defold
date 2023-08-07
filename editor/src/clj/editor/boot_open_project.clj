@@ -14,7 +14,6 @@
 
 (ns editor.boot-open-project
   (:require [cljfx.fx.v-box :as fx.v-box]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -384,20 +383,6 @@
     (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
-(defn- show-missing-dependencies-alert! [dependencies]
-  (dialogs/make-info-dialog
-    {:title "Missing Dependencies"
-     :size :large
-     :icon :icon/triangle-error
-     :header "There are missing dependencies"
-     :content (string/join "\n" (concat ["The following dependencies are missing:"
-                                         ""]
-                                        (map dialogs/indent-with-bullet
-                                             (sort-by str dependencies))
-                                        [""
-                                         "The project might not work without them."
-                                         "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
-
 (defn open-project!
   [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
@@ -409,8 +394,6 @@
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage! workspace project prefs updater newly-created?)
-      (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
-        (show-missing-dependencies-alert! missing-dependencies)))
+      (load-stage! workspace project prefs updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))
