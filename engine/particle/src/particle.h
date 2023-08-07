@@ -226,39 +226,6 @@ namespace dmParticle
         uint32_t m_StructSize;
     };
 
-    /**
-     * Particle vertex format
-     */
-
-    /*
-    struct Vertex
-    {
-        // Offset 0
-        float m_X, m_Y, m_Z;
-        // Offset 12
-        float m_Red, m_Green, m_Blue, m_Alpha;
-        // Offset 28
-        float m_U, m_V;
-        // Offset 36
-        float m_PageIndex;
-        // Offset 40
-    };
-    */
-
-    /**
-     * Particle gui vertex format (must match dmGui::ParticleGuiVertex)
-     */
-    struct ParticleGuiVertex
-    {
-        // Offset 0
-        float    m_Position[3];
-        // Offset 12
-        float    m_UV[2];
-        // Offset 20
-        float    m_Color[4];
-        // Offset 36
-    };
-
     // For tests
     dmVMath::Vector3 GetPosition(HParticleContext context, HInstance instance);
 

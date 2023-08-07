@@ -1065,7 +1065,10 @@ namespace dmParticle
     }
 
     static float unit_tex_coords[] = {
-        0.0f,1.0f, 0.0f,0.0f, 1.0f,0.0f, 1.0f,1.0f
+        0.0f, 1.0f,
+        0.0f, 0.0f,
+        1.0f, 0.0f,
+        1.0f, 1.0f,
     };
 
     static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt)
@@ -1261,63 +1264,13 @@ namespace dmParticle
             }
 
             uint8_t* write_ptr = vertex_buffer_ptr + vertex_index * attribute_infos.m_VertexStride;
-            write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[0] * 2, page_index);
-            write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p1, c, tex_coord + tex_lookup[1] * 2, page_index);
-            write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[2] * 2, page_index);
-            write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[3] * 2, page_index);
-            write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p2, c, tex_coord + tex_lookup[4] * 2, page_index);
-            write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[5] * 2, page_index);
-            *vertex_buffer = write_ptr;
-
-            /*
-            if (format == PARTICLE_GO)
-            {
-                // Only supportyed for this format
-                float page_index = 0.0f;
-                if (frame_indices != 0x0)
-                {
-                    uint32_t page_indices_index = frame_indices[tile];
-                    page_index                  = (float) page_indices[page_indices_index];
-                }
-
-                uint8_t* write_ptr = vertex_buffer_ptr + vertex_index * attribute_infos->m_VertexStride;
-                write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[0] * 2, page_index);
-                write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p1, c, tex_coord + tex_lookup[1] * 2, page_index);
-                write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[2] * 2, page_index);
-                write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[3] * 2, page_index);
-                write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p2, c, tex_coord + tex_lookup[4] * 2, page_index);
-                write_ptr = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[5] * 2, page_index);
-                *vertex_buffer = write_ptr;
-            }
-            else if (format == PARTICLE_GUI)
-            {
-                ParticleGuiVertex* vertex = &((ParticleGuiVertex*)vertex_buffer)[vertex_index];
-
-#define SET_VERTEX_GUI(vertex, p, c, u, v)\
-    vertex->m_Position[0] = p.getX();\
-    vertex->m_Position[1] = p.getY();\
-    vertex->m_Position[2] = p.getZ();\
-    vertex->m_Color[0] = c.getX(); \
-    vertex->m_Color[1] = c.getY(); \
-    vertex->m_Color[2] = c.getZ(); \
-    vertex->m_Color[3] = c.getW(); \
-    vertex->m_UV[0] = u;\
-    vertex->m_UV[1] = v;\
-
-                SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1])
-                ++vertex;
-                SET_VERTEX_GUI(vertex, p1, c, tex_coord[tex_lookup[1] * 2], tex_coord[tex_lookup[1] * 2 + 1])
-                ++vertex;
-                SET_VERTEX_GUI(vertex, p3, c, tex_coord[tex_lookup[2] * 2], tex_coord[tex_lookup[2] * 2 + 1])
-                ++vertex;
-                SET_VERTEX_GUI(vertex, p3, c, tex_coord[tex_lookup[3] * 2], tex_coord[tex_lookup[3] * 2 + 1])
-                ++vertex;
-                SET_VERTEX_GUI(vertex, p2, c, tex_coord[tex_lookup[4] * 2], tex_coord[tex_lookup[4] * 2 + 1])
-                ++vertex;
-                SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1])
-#undef SET_VERTEX_GUI
-            }
-            */
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[0] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p1, c, tex_coord + tex_lookup[1] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[2] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, c, tex_coord + tex_lookup[3] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p2, c, tex_coord + tex_lookup[4] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, c, tex_coord + tex_lookup[5] * 2, page_index);
+            *vertex_buffer     = write_ptr;
 
             vertex_index += 6;
         }

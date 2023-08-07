@@ -285,7 +285,6 @@ namespace dmGameSystem
         for (int i = 0; i < infos->m_NumInfos; ++i)
         {
             dmParticle::ParticleVertexAttributeInfo& info = infos->m_Infos[i];
-            // info.m_Attribute = &material_attributes[i];
             infos->m_Infos[i].m_NameHash = material_attributes[i].m_NameHash;
             dmRender::GetMaterialProgramAttributeValues(material, i, (const uint8_t**) &info.m_ValuePtr, &info.m_ValueByteSize);
         }
