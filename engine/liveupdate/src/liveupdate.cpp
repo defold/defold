@@ -566,7 +566,7 @@ namespace dmLiveUpdate
 
     Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data)
     {
-        if (!manifest_data || manifest_len == 0)
+        if (!manifest_data || manifest_len == 0 || !g_LiveUpdate.m_JobThread)
         {
             return RESULT_INVAL;
         }
