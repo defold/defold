@@ -764,7 +764,7 @@ def gen_to_jni_create_object(decl, namespace, class_name, package_name, header=F
         elif util.is_string_ptr(field_type):
             l(f'    dmJNI::SetString(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
         #elif is_const_prim_ptr(field_type):
-        elif is_const_prim_ptr(field_type) or is_struct_ptr(field_type):
+        elif is_prim_ptr(field_type) or is_struct_ptr(field_type):
             # need a variable that designates the array size
             count_name = field_name+'Count'
             count = get_array_count_field(decl, count_name)
@@ -779,7 +779,7 @@ def gen_to_jni_create_object(decl, namespace, class_name, package_name, header=F
                 continue
 
             jni_typestr = c_type_to_jni_capname.get(field_type, field_type)
-            l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{field_name}, src->{count_name}));')
+            l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::C2J_Create{jni_typestr}Array(env, src->{field_name}, src->{count_name}));')
         elif util.is_dmarray_type(field_type):
             field_type = util.extract_dmarray_type(field_type)
             jni_typestr = c_type_to_jni_capname.get(field_type, None)
@@ -791,7 +791,7 @@ def gen_to_jni_create_object(decl, namespace, class_name, package_name, header=F
                 #field_type = util.extract_ptr_type(field_type)
                 pass # not implemented yet
             else:
-                l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{field_name}.Begin(), src->{field_name}.Size()));')
+                l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::C2J_Create{jni_typestr}Array(env, src->{field_name}.Begin(), src->{field_name}.Size()));')
 
     l(f'    return obj;')
     l(f'}}')
@@ -815,7 +815,7 @@ def gen_to_jni_create_object_array(decl, namespace, class_name, package_name, he
     l(f'    return arr;')
     l(f'}}')
 
-def gen_from_jni_get_object(decl, namespace, class_name, package_name, header=False):
+def gen_from_jni_create_object(decl, namespace, class_name, package_name, header=False):
     struct_name = decl["name"]
 
     fn = f'bool J2C_Create{struct_name}(JNIEnv* env, TypeInfos* types, jobject obj, {struct_name}* out)'
@@ -851,46 +851,81 @@ def gen_from_jni_get_object(decl, namespace, class_name, package_name, header=Fa
                 l(f'        J2C_Create{field_type}(env, types, field_object, &out->{field_name});')
                 l(f'        env->DeleteLocalRef(field_object);')
                 l(f'    }}')
+
         elif is_enum_type(field_type):
             l(f'    out->{field_name} = ({field_type})dmJNI::GetEnum(env, obj, {field_id});')
+
         elif util.is_string_ptr(field_type):
             l(f'    out->{field_name} = dmJNI::GetString(env, obj, {field_id});')
 
-        #     l(f'    dmJNI::SetString(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
-        # #elif is_const_prim_ptr(field_type):
-        # elif is_const_prim_ptr(field_type) or is_struct_ptr(field_type):
-        #     # need a variable that designates the array size
-        #     count_name = field_name+'Count'
-        #     count = get_array_count_field(decl, count_name)
-        #     if not count:
-        #         print(f'Field "{field_name}" has no corresponding field "{count_name}"')
-        #         continue
+        elif is_prim_ptr(field_type) or is_struct_ptr(field_type):
+            field_type = util.extract_ptr_type(field_type)
+            field_type = field_type.replace(namespace_prefix, '')
+            jni_field_name = to_jni_camel_case(field_name, 'm_')
 
-        #     field_type = util.extract_ptr_type(field_type)
+            count_name = field_name+'Count'
+            count = get_array_count_field(decl, count_name)
+            if not count:
+                print(f'Field "{field_name}" has no corresponding field "{count_name}"')
+                continue
 
-        #     if is_struct_type(field_type):
-        #         l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, Create{field_type}Array(env, types, src->{field_name}, src->{count_name}));')
-        #         continue
+            l(f'    {{')
+            l(f'        jobject field_object = env->GetObjectField(obj, types->m_{struct_name}JNI.{jni_field_name});')
+            if is_struct_type(field_type):
+                l(f'        out->{field_name} = J2C_Create{field_type}Array(env, types, (jobjectArray)field_object, &out->{count_name});')
+            else:
+                jni_typestr = c_type_to_jni_capname.get(field_type, field_type)
+                jni_type = c_type_to_jni_type.get(field_type, None)
+                l(f'        out->{field_name} = dmJNI::J2C_Create{jni_typestr}Array(env, ({jni_type}Array)field_object, &out->{count_name});')
+            l(f'        env->DeleteLocalRef(field_object);')
+            l(f'    }}')
 
-        #     jni_typestr = c_type_to_jni_capname.get(field_type, field_type)
-        #     l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{field_name}, src->{count_name}));')
-        # elif util.is_dmarray_type(field_type):
-        #     field_type = util.extract_dmarray_type(field_type)
-        #     jni_typestr = c_type_to_jni_capname.get(field_type, None)
-        #     jni_type = c_type_to_jni_type.get(field_type, None)
+        elif util.is_dmarray_type(field_type):
+            field_type = util.extract_dmarray_type(field_type)
+            jni_typestr = c_type_to_jni_capname.get(field_type, None)
+            jni_type = c_type_to_jni_type.get(field_type, None)
+            jni_field_name = to_jni_camel_case(field_name, 'm_')
 
-        #     if is_struct_type(field_type):
-        #         l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, Create{field_type}Array(env, types, src->{field_name}.Begin(), src->{field_name}.Size()));')
-        #     elif is_struct_ptr(field_type):
-        #         #field_type = util.extract_ptr_type(field_type)
-        #         pass # not implemented yet
-        #     else:
-        #         l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::Create{jni_typestr}Array(env, src->{field_name}.Begin(), src->{field_name}.Size()));')
+            if is_struct_ptr(field_type):
+                print("Arrays of pointers are not supported")
+                continue # not implemented yet
+
+            l(f'    {{')
+            l(f'        jobject field_object = env->GetObjectField(obj, types->m_{struct_name}JNI.{jni_field_name});')
+            l(f'        uint32_t tmp_count;')
+            if is_struct_type(field_type):
+                l(f'        {field_type}* tmp = J2C_Create{field_type}Array(env, types, (jobjectArray)field_object, &tmp_count);')
+
+            else:
+                l(f'        {field_type}* tmp = dmJNI::J2C_Create{jni_typestr}Array(env, ({jni_type}Array)field_object, &tmp_count);')
+
+            l(f'        out->{field_name}.Set(tmp, tmp_count, tmp_count, false);')
+            l(f'        env->DeleteLocalRef(field_object);')
+            l(f'    }}')
 
     l(f'    return true;')
     l(f'}}')
     l(f'')
 
+def gen_from_jni_create_object_array(decl, namespace, class_name, package_name, header=False):
+    struct_name = decl["name"]
+
+    fn = f'{struct_name}* J2C_Create{struct_name}Array(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count)'
+    if header:
+        l(f'{fn};')
+        return
+
+    l(f'{fn} {{')
+    l(f'    jsize len = env->GetArrayLength(arr);')
+    l(f'    {struct_name}* out = new {struct_name}[len];')
+    l(f'    for (uint32_t i = 0; i < len; ++i) {{')
+    l(f'        jobject obj = env->GetObjectArrayElement(arr, i);')
+    l(f'        J2C_Create{struct_name}(env, types, obj, &out[i]);')
+    l(f'        env->DeleteLocalRef(obj);')
+    l(f'    }}')
+    l(f'    *out_count = (uint32_t)len;')
+    l(f'    return out;')
+    l(f'}}')
 
 def gen_jni_namespace_source(inp, class_name, package_name, header=False):
     global struct_jni_types
@@ -917,9 +952,9 @@ def gen_jni_namespace_source(inp, class_name, package_name, header=False):
             l('// From Jni to C')
             l('//' + '-' * 40)
             for struct in struct_jni_types:
-                gen_from_jni_get_object(struct, namespace, class_name, package_name, header=header)
-            # for struct in struct_jni_types:
-            #     gen_from_jni_get_object_array(struct, namespace, class_name, package_name, header=header)
+                gen_from_jni_create_object(struct, namespace, class_name, package_name, header=header)
+            for struct in struct_jni_types:
+                gen_from_jni_create_object_array(struct, namespace, class_name, package_name, header=header)
             l(f'}} // jni')
             l(f'}} // {namespace}')
         # elif kind == 'consts':

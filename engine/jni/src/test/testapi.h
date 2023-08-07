@@ -53,11 +53,11 @@ namespace dmJniTest
 
     struct Arrays
     {
-        const uint8_t*      m_Data;
+        uint8_t*            m_Data;
         uint32_t            m_DataCount;
         dmArray<uint8_t>    m_Data2;
 
-        const Recti*        m_Rects;
+        Recti*              m_Rects;
         uint32_t            m_RectsCount;
         dmArray<Recti>      m_Rects2;
     };

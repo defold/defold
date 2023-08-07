@@ -109,17 +109,14 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmJniTest::Arrays arrays;
 
-        const uint8_t data[] = {1,2,4,8};
+        uint8_t data[] = {1,2,4,8};
         arrays.m_Data = data;
         arrays.m_DataCount = DM_ARRAY_SIZE(data);
 
-        const uint8_t data2[] = {2,4,8,16,32};
-        arrays.m_Data2.SetCapacity(DM_ARRAY_SIZE(data2));
-        for (uint32_t i = 0; i < DM_ARRAY_SIZE(data2); ++i)
-            arrays.m_Data2.Push(data2[i]);
+        uint8_t data2[] = {2,4,8,16,32};
+        arrays.m_Data2.Set(data2, DM_ARRAY_SIZE(data2), DM_ARRAY_SIZE(data2), true);
 
-
-        const dmJniTest::Recti rects[] = {
+        dmJniTest::Recti rects[] = {
             { {1,2}, {3,4} },
             { {5,6}, {7,8} },
             { {9,10}, {11,12} }
@@ -127,14 +124,73 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
 
         arrays.m_Rects = rects;
         arrays.m_RectsCount = DM_ARRAY_SIZE(rects);
-
-        arrays.m_Rects2.SetCapacity(DM_ARRAY_SIZE(rects));
-        for (uint32_t i = 0; i < DM_ARRAY_SIZE(rects); ++i)
-            arrays.m_Rects2.Push(rects[i]);
+        arrays.m_Rects2.Set(rects, DM_ARRAY_SIZE(rects), DM_ARRAY_SIZE(rects), true);
 
         jdata = dmJniTest::jni::C2J_CreateArrays(env, &jni_scope.m_TypeInfos, &arrays);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jdata;
+}
+
+
+JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateArrays(JNIEnv* env, jclass cls, jobject jni_arrays)
+{
+    dmLogInfo("Java_JniTest_TestDuplicateArrays: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
+
+    jobject jni_out_arrays = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+
+        dmJniTest::Arrays in_arrays = {};
+        dmJniTest::jni::J2C_CreateArrays(env, &jni_scope.m_TypeInfos, jni_arrays, &in_arrays);
+
+        // const uint8_t*      m_Data;
+        // uint32_t            m_DataCount;
+        // dmArray<uint8_t>    m_Data2;
+
+        // const Recti*        m_Rects;
+        // uint32_t            m_RectsCount;
+        // dmArray<Recti>      m_Rects2;
+
+        // copy and modify
+        dmJniTest::Arrays out_arrays;
+        out_arrays.m_DataCount = in_arrays.m_DataCount;
+        out_arrays.m_Data = new uint8_t[out_arrays.m_DataCount];
+        for (uint32_t i = 0; i < in_arrays.m_DataCount; ++i)
+        {
+            out_arrays.m_Data[i] = in_arrays.m_Data[i]+1;
+        }
+
+        out_arrays.m_RectsCount = in_arrays.m_RectsCount;
+        out_arrays.m_Rects = new dmJniTest::Recti[out_arrays.m_RectsCount];
+        for (uint32_t i = 0; i < in_arrays.m_RectsCount; ++i)
+        {
+            out_arrays.m_Rects[i].m_Min.x = in_arrays.m_Rects[i].m_Min.x+1;
+            out_arrays.m_Rects[i].m_Min.y = in_arrays.m_Rects[i].m_Min.y+1;
+            out_arrays.m_Rects[i].m_Max.x = in_arrays.m_Rects[i].m_Max.x+1;
+            out_arrays.m_Rects[i].m_Max.y = in_arrays.m_Rects[i].m_Max.y+1;
+        }
+
+        out_arrays.m_Data2.SetCapacity(in_arrays.m_Data2.Capacity());
+        out_arrays.m_Data2.SetSize(in_arrays.m_Data2.Size());
+        for (uint32_t i = 0; i < in_arrays.m_Data2.Size(); ++i)
+        {
+            out_arrays.m_Data2[i] = in_arrays.m_Data2[i] + 1;
+        }
+
+        out_arrays.m_Rects2.SetCapacity(in_arrays.m_Rects2.Capacity());
+        out_arrays.m_Rects2.SetSize(in_arrays.m_Rects2.Size());
+        for (uint32_t i = 0; i < in_arrays.m_Rects2.Size(); ++i)
+        {
+            out_arrays.m_Rects2[i].m_Min.x = in_arrays.m_Rects2[i].m_Min.x+1;
+            out_arrays.m_Rects2[i].m_Min.y = in_arrays.m_Rects2[i].m_Min.y+1;
+            out_arrays.m_Rects2[i].m_Max.x = in_arrays.m_Rects2[i].m_Max.x+1;
+            out_arrays.m_Rects2[i].m_Max.y = in_arrays.m_Rects2[i].m_Max.y+1;
+        }
+
+        jni_out_arrays = dmJniTest::jni::C2J_CreateArrays(env, &jni_scope.m_TypeInfos, &out_arrays);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return jni_out_arrays;
 }
 
 // JNIEXPORT void JNICALL Java_JniTest_TestException(JNIEnv* env, jclass cls, jstring j_message)
@@ -172,6 +228,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
         {(char*)"TestCreateMisc", (char*)"()L" CLASS_NAME "$Misc;", reinterpret_cast<void*>(Java_JniTest_TestCreateMisc)},
 
         {(char*)"TestDuplicateRecti", (char*)"(L" CLASS_NAME "$Recti;)L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateRecti)},
+        {(char*)"TestDuplicateArrays", (char*)"(L" CLASS_NAME "$Arrays;)L" CLASS_NAME "$Arrays;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateArrays)},
 
         //{"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_JniTest_TestException)},
     };

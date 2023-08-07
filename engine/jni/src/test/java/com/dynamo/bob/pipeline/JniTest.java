@@ -70,6 +70,7 @@ public class JniTest
     public static native Testapi.Misc TestCreateMisc();
 
     public static native Testapi.Recti TestDuplicateRecti(Testapi.Recti rect);
+    public static native Testapi.Arrays TestDuplicateArrays(Testapi.Arrays arrays);
 
     // public static native void TestException(String message);
 
@@ -183,6 +184,42 @@ public class JniTest
         assertEquals(-2, rect2.min.y);
         assertEquals(5, rect2.max.x);
         assertEquals(6, rect2.max.y);
+    }
+
+    @Test
+    public void testJ2C_Arrays() {
+        Testapi.Arrays arrays = TestCreateArrays();
+        assertEquals(4, arrays.data.length);
+        assertEquals(5, arrays.data2.length);
+        assertEquals(3, arrays.rects.length);
+        assertEquals(3, arrays.rects2.length);
+
+        Testapi.Arrays arrays2 = TestDuplicateArrays(arrays);
+
+
+        byte[] data1 = new byte[] { 2,3,5,9 };
+        assertEquals(4, arrays2.data.length);
+        assertArrayEquals( data1, arrays2.data );
+
+        byte[] data2 = new byte[] { 3, 5, 9, 17, 33 };
+        assertEquals(5, arrays2.data2.length);
+        assertArrayEquals( data2, arrays2.data2 );
+
+        assertEquals(3, arrays2.rects.length);
+        for (int i = 0; i < 3; ++i) {
+            assertEquals(i*4+1 + 1, arrays2.rects[i].min.x);
+            assertEquals(i*4+2 + 1, arrays2.rects[i].min.y);
+            assertEquals(i*4+3 + 1, arrays2.rects[i].max.x);
+            assertEquals(i*4+4 + 1, arrays2.rects[i].max.y);
+        }
+
+        assertEquals(3, arrays2.rects2.length);
+        for (int i = 0; i < 3; ++i) {
+            assertEquals(i*4+1 + 1, arrays2.rects2[i].min.x);
+            assertEquals(i*4+2 + 1, arrays2.rects2[i].min.y);
+            assertEquals(i*4+3 + 1, arrays2.rects2[i].max.x);
+            assertEquals(i*4+4 + 1, arrays2.rects2[i].max.y);
+        }
     }
 
     // ----------------------------------------------------

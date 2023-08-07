@@ -290,8 +290,9 @@ public:
      * @param user_array [type:T*] User-allocated array to be used as storage.
      * @param size [type:uint32_t] Initial size
      * @param capacity [type:uint32_t] Initial capacity
+     * @param user_allocated [type:bool] If false, the ownership is transferred to the dmArray
      */
-    void Set(T* user_array, uint32_t size, uint32_t capacity);
+    void Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated);
 
     /*# array eraseswap
      *
@@ -385,7 +386,7 @@ dmArray<T>::dmArray()
 template <typename T>
 dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
 {
-    Set(user_array, size, capacity);
+    Set(user_array, size, capacity, true);
 }
 
 template <typename T>
@@ -514,7 +515,7 @@ void dmArray<T>::SetSize(uint32_t size)
 }
 
 template <typename T>
-void dmArray<T>::Set(T* user_array, uint32_t size, uint32_t capacity)
+void dmArray<T>::Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated)
 {
     assert(user_array != 0);
     assert(size  <= capacity);
@@ -526,7 +527,7 @@ void dmArray<T>::Set(T* user_array, uint32_t size, uint32_t capacity)
     m_Front = user_array;
     m_End = user_array + size;
     m_Back = user_array + capacity;
-    m_UserAllocated = 1;
+    m_UserAllocated = user_allocated;
 }
 
 template <typename T>

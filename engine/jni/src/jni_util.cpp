@@ -240,14 +240,14 @@ int GetEnum(JNIEnv* env, jobject obj, jfieldID field)
 
 // **********************************************************************************
 
-jbooleanArray CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count)
+jbooleanArray C2J_CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count)
 {
     jbooleanArray arr = env->NewBooleanArray(data_count);
     env->SetBooleanArrayRegion(arr, 0, data_count, (const jboolean*)data);
     return arr;
 }
 
-jbyteArray CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count)
+jbyteArray C2J_CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count)
 {
     jbyteArray arr = env->NewByteArray(data_count);
     env->SetByteArrayRegion(arr, 0, data_count, (const jbyte*)data);
@@ -255,46 +255,127 @@ jbyteArray CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count
 
 }
 
-jcharArray CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count)
+jcharArray C2J_CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count)
 {
     jcharArray arr = env->NewCharArray(data_count);
     env->SetCharArrayRegion(arr, 0, data_count, (const jchar*)data);
     return arr;
 }
 
-jshortArray CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count)
+jshortArray C2J_CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count)
 {
     jshortArray arr = env->NewShortArray(data_count);
     env->SetShortArrayRegion(arr, 0, data_count, (const jshort*)data);
     return arr;
 }
 
-jintArray CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count)
+jintArray C2J_CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count)
 {
     jintArray arr = env->NewIntArray(data_count);
     env->SetIntArrayRegion(arr, 0, data_count, (const jint*)data);
     return arr;
 }
 
-jlongArray CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count)
+jlongArray C2J_CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count)
 {
     jlongArray arr = env->NewLongArray(data_count);
     env->SetLongArrayRegion(arr, 0, data_count, (const jlong*)data);
     return arr;
 }
 
-jfloatArray CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count)
+jfloatArray C2J_CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count)
 {
     jfloatArray arr = env->NewFloatArray(data_count);
     env->SetFloatArrayRegion(arr, 0, data_count, (const jfloat*)data);
     return arr;
 }
 
-jdoubleArray CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count)
+jdoubleArray C2J_CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count)
 {
     jdoubleArray arr = env->NewDoubleArray(data_count);
     env->SetDoubleArrayRegion(arr, 0, data_count, (const jdouble*)data);
     return arr;
+}
+
+bool* J2C_CreateBooleanArray(JNIEnv* env, jbooleanArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jboolean* carr = env->GetBooleanArrayElements(arr, 0);
+    bool* out = new bool[len];
+    memcpy(out, carr, sizeof(bool)*len);
+    env->ReleaseBooleanArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+uint8_t* J2C_CreateByteArray(JNIEnv* env, jbyteArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jbyte* carr = env->GetByteArrayElements(arr, 0);
+    uint8_t* out = new uint8_t[len];
+    memcpy(out, carr, sizeof(uint8_t)*len);
+    env->ReleaseByteArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+char* J2C_CreateCharArray(JNIEnv* env, jcharArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jchar* carr = env->GetCharArrayElements(arr, 0);
+    char* out = new char[len];
+    memcpy(out, carr, sizeof(char)*len);
+    env->ReleaseCharArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+int16_t* J2C_CreateShortArray(JNIEnv* env, jshortArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jshort* carr = env->GetShortArrayElements(arr, 0);
+    int16_t* out = new int16_t[len];
+    memcpy(out, carr, sizeof(int16_t)*len);
+    env->ReleaseShortArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+int32_t* J2C_CreateIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jint* carr = env->GetIntArrayElements(arr, 0);
+    int32_t* out = new int32_t[len];
+    memcpy(out, carr, sizeof(int32_t)*len);
+    env->ReleaseIntArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+int64_t* J2C_CreateLongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jlong* carr = env->GetLongArrayElements(arr, 0);
+    int64_t* out = new int64_t[len];
+    memcpy(out, carr, sizeof(int64_t)*len);
+    env->ReleaseLongArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+float* J2C_CreateFloatArray(JNIEnv* env, jfloatArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jfloat* carr = env->GetFloatArrayElements(arr, 0);
+    float* out = new float[len];
+    memcpy(out, carr, sizeof(float)*len);
+    env->ReleaseFloatArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
+}
+double* J2C_CreateDoubleArray(JNIEnv* env, jdoubleArray arr, uint32_t* out_count)
+{
+    jsize len = env->GetArrayLength(arr);
+    jdouble* carr = env->GetDoubleArrayElements(arr, 0);
+    double* out = new double[len];
+    memcpy(out, carr, sizeof(double)*len);
+    env->ReleaseDoubleArrayElements(arr, carr, 0);
+    *out_count = (uint32_t)len;
+    return out;
 }
 
 // ************************************************************************************

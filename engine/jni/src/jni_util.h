@@ -61,14 +61,23 @@ namespace dmJNI
     // Requires that the enum class has a "int getValue()" function.
     int     GetEnum(JNIEnv* env, jobject obj, jfieldID field);
 
-    jbooleanArray   CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count);
-    jbyteArray      CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count);
-    jcharArray      CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count);
-    jshortArray     CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count);
-    jintArray       CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count);
-    jlongArray      CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count);
-    jfloatArray     CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count);
-    jdoubleArray    CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count);
+    jbooleanArray   C2J_CreateBooleanArray(JNIEnv* env, const bool* data, uint32_t data_count);
+    jbyteArray      C2J_CreateByteArray(JNIEnv* env, const uint8_t* data, uint32_t data_count);
+    jcharArray      C2J_CreateCharArray(JNIEnv* env, const char* data, uint32_t data_count);
+    jshortArray     C2J_CreateShortArray(JNIEnv* env, const int16_t* data, uint32_t data_count);
+    jintArray       C2J_CreateIntArray(JNIEnv* env, const int32_t* data, uint32_t data_count);
+    jlongArray      C2J_CreateLongArray(JNIEnv* env, const int64_t* data, uint32_t data_count);
+    jfloatArray     C2J_CreateFloatArray(JNIEnv* env, const float* data, uint32_t data_count);
+    jdoubleArray    C2J_CreateDoubleArray(JNIEnv* env, const double* data, uint32_t data_count);
+
+    bool*           J2C_CreateBooleanArray(JNIEnv* env, jbooleanArray arr, uint32_t* out_count);
+    uint8_t*        J2C_CreateByteArray(JNIEnv* env, jbyteArray arr, uint32_t* out_count);
+    char*           J2C_CreateCharArray(JNIEnv* env, jcharArray arr, uint32_t* out_count);
+    int16_t*        J2C_CreateShortArray(JNIEnv* env, jshortArray arr, uint32_t* out_count);
+    int32_t*        J2C_CreateIntArray(JNIEnv* env, jintArray arr, uint32_t* out_count);
+    int64_t*        J2C_CreateLongArray(JNIEnv* env, jlongArray arr, uint32_t* out_count);
+    float*          J2C_CreateFloatArray(JNIEnv* env, jfloatArray arr, uint32_t* out_count);
+    double*         J2C_CreateDoubleArray(JNIEnv* env, jdoubleArray arr, uint32_t* out_count);
 
     void EnableDefaultSignalHandlers(JavaVM* vm);
     void EnableSignalHandlers(void* ctx, void (*callback)(int signal, void* ctx));
