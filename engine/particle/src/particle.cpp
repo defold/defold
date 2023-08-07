@@ -1174,8 +1174,6 @@ namespace dmParticle
                 ddf->m_Pivot.getZ()));
         }
 
-        px_ix = 0;
-
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
