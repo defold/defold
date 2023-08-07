@@ -948,8 +948,8 @@
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
     (if (workspace/dependencies-reachable? dependencies)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
-           (workspace/install-validated-libraries! workspace-id dependencies))
-      (workspace/set-project-dependencies! workspace-id dependencies))
+           (workspace/install-validated-libraries! workspace-id))
+      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))

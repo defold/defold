@@ -183,8 +183,9 @@
     (doseq [^File lib-file lib-files]
       (fs/delete-file! lib-file {:fail :silently}))))
 
-(defn- install-library! [project-directory {:keys [uri tag ^File new-file]}]
-  (fs/copy-file! new-file (library-file project-directory uri tag)))
+(defn- install-library!
+  ^File [project-directory {:keys [uri tag ^File new-file]}]
+  (second (first (fs/copy-file! new-file (library-file project-directory uri tag)))))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state

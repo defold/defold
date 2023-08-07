@@ -427,7 +427,8 @@
   Options:
   :fail :silently will not throw an exception on failure, and instead return an empty vector.
   :target :keep will not replace the target file if it exists.
-  :target :replace (default) will replace the target file if it exists."
+  :target :replace (default) will replace the target file if it exists.
+  Returns a vector of source+target pairs if successful"
   ([^File src ^File tgt]
    (copy-file! src tgt {}))
   ([^File src ^File tgt opts]
