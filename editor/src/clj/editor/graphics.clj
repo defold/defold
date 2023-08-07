@@ -13,14 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics
-  (:require [editor.gl.vertex2 :as vtx]
+  (:require [dynamo.graph :as g]
+            [editor.gl.vertex2 :as vtx]
+            [editor.gl.shader :as shader]
+            [editor.properties :as properties]
+            [editor.types :as types]
             [editor.util :as util]
             [editor.validation :as validation]
             [potemkin.namespaces :as namespaces]
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.google.protobuf ByteString]))
+  (:import [com.jogamp.opengl GL2]
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 
@@ -211,3 +216,147 @@
     (-> attribute
         (dissoc :name-hash :double-values :long-values :binary-values)
         (assoc attribute-value-keyword {:v attribute-values}))))
+
+(def ^:private attribute-key->default-attribute-info
+  (into {}
+        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+               (let [attribute-key (attribute-name->key name)
+                     values (default-attribute-doubles semantic-type element-count)
+                     bytes (default-attribute-bytes semantic-type data-type element-count normalize)
+                     attribute-info (assoc attribute
+                                      :name-key attribute-key
+                                      :values values
+                                      :bytes bytes)]
+                 [attribute-key attribute-info])))
+        [{:name "position"
+          :semantic-type :semantic-type-position
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :element-count 4}
+         {:name "color"
+          :semantic-type :semantic-type-color
+          :data-type :type-float
+          :element-count 4}
+         {:name "texcoord0"
+          :semantic-type :semantic-type-texcoord
+          :data-type :type-float
+          :element-count 2}
+         {:name "page_index"
+          :semantic-type :semantic-type-page-index
+          :data-type :type-float
+          :element-count 1}]))
+
+(defn get-shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys]
+  (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
+        declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
+        manufactured-attribute-infos (into []
+                                           (comp (remove declared-material-attribute-key?)
+                                                 (map attribute-key->default-attribute-info))
+                                           manufactured-stream-keys)
+        all-attributes (into manufactured-attribute-infos material-attribute-infos)]
+    (filterv shader-bound-attribute? all-attributes)))
+
+(defn attributes->save-values [material-attribute-infos vertex-attribute-overrides]
+  (into []
+        (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
+                (when-some [override-values (get vertex-attribute-overrides name-key)]
+                  ;; Ensure our saved values have the expected element-count.
+                  ;; If the material has been edited, this might have changed,
+                  ;; but specialized widgets like the one we use to edit color
+                  ;; properties may also produce a different element count from
+                  ;; what the material dictates.
+                  (let [resized-values (resize-doubles override-values semantic-type element-count)
+                        [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
+                    {:name name
+                     attribute-value-keyword {:v stored-values}}))))
+        material-attribute-infos))
+
+(defn attributes->build-target [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
+  (into []
+        (keep (fn [{:keys [name-key] :as attribute-info}]
+                ;; The values in vertex-attribute-overrides are ignored - we
+                ;; only use it to check if we have an override value. The output
+                ;; bytes are taken from the vertex-attribute-bytes map. They
+                ;; have already been coerced to the expected size.
+                (when (contains? vertex-attribute-overrides name-key)
+                  (let [attribute-bytes (get vertex-attribute-bytes name-key)]
+                    (attribute-info->build-target-attribute
+                      (assoc attribute-info :bytes attribute-bytes))))))
+        material-attribute-infos))
+
+(defn- editable-attribute-info? [attribute-info]
+  (case (:semantic-type attribute-info)
+    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
+    true))
+
+(defn- attribute-property-type [attribute]
+  (case (:semantic-type attribute)
+    :semantic-type-color types/Color
+    (case (int (:element-count attribute))
+      1 g/Num
+      2 types/Vec2
+      3 types/Vec3
+      4 types/Vec4)))
+
+(defn- attribute-expected-element-count [attribute]
+  (case (:semantic-type attribute)
+    :semantic-type-color 4
+    (:element-count attribute)))
+
+(defn- attribute-update-property [current-property-value attribute new-value]
+  (assoc current-property-value (:name-key attribute) new-value))
+
+(defn- attribute-clear-property [current-property-value attribute]
+  (dissoc current-property-value (:name-key attribute)))
+
+(defn- attribute-key->property-key-raw [attribute-key]
+  (keyword (str "attribute_" (name attribute-key))))
+
+(def attribute-key->property-key (memoize attribute-key->property-key-raw))
+
+(defn- attribute-edit-type [attribute property-type]
+  (let [attribute-element-count (:element-count attribute)
+        attribute-semantic-type (:semantic-type attribute)
+        attribute-update-fn (fn [_evaluation-context self _old-value new-value]
+                              (let [values (if (= g/Num property-type)
+                                             (vector-of :double new-value)
+                                             new-value)]
+                                (g/update-property self :vertex-attribute-overrides attribute-update-property attribute values)))
+        attribute-clear-fn (fn [self _property-label]
+                             (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
+    (cond-> {:type property-type
+             :set-fn attribute-update-fn
+             :clear-fn attribute-clear-fn}
+
+            (= attribute-semantic-type :semantic-type-color)
+            (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
+
+(defn produce-attribute-properties [_node-id material-attribute-infos vertex-attribute-overrides]
+  (keep (fn [attribute-info]
+          (when (editable-attribute-info? attribute-info)
+            (let [attribute-key (:name-key attribute-info)
+                  semantic-type (:semantic-type attribute-info)
+                  material-values (:values attribute-info)
+                  override-values (vertex-attribute-overrides attribute-key)
+                  attribute-values (or override-values material-values)
+                  property-type (attribute-property-type attribute-info)
+                  expected-element-count (attribute-expected-element-count attribute-info)
+                  edit-type (attribute-edit-type attribute-info property-type)
+                  property-key (attribute-key->property-key attribute-key)
+                  label (properties/keyword->name attribute-key)
+                  value (if (= g/Num property-type)
+                          (first attribute-values) ; The widget expects a number, not a vector.
+                          (resize-doubles attribute-values semantic-type expected-element-count))
+                  error (when (some? override-values)
+                          (validate-doubles override-values attribute-info _node-id property-key))
+                  prop {:node-id _node-id
+                        :type property-type
+                        :edit-type edit-type
+                        :label label
+                        :value value
+                        :error error}]
+              ;; Insert the original material values as original-value if there is a vertex override.
+              (if (some? override-values)
+                [property-key (assoc prop :original-value material-values)]
+                [property-key prop]))))
+        material-attribute-infos))
