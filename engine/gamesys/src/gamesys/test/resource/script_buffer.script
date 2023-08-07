@@ -75,10 +75,32 @@ function test_create_ownership_data(self)
     for i=1,3 do
         assert(buffer_stream[i] == res_buffer_stream[i])
     end
+
+    -- We release the resource twice here to fully release the resource so we can reuse the resource name
+    -- 1 from resource.create_buffer and 1 from resource.get_buffer
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+end
+
+function buffer_to_handle(buf)
+    local res_buf_str = tostring(buf)
+    local res_buf_handle = string.match(res_buf_str, "handle = (%d+)")
+    return tonumber(res_buf_handle)
+end
+
+function test_create_set(self)
+    local buf        = buffer.create(3, data_stream_desc)
+    local buf_bigger = buffer.create(6, data_stream_desc)
+    local res_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buf })
+    resource.set_buffer("/my_buffer.bufferc", buf_bigger, { transfer_ownership=true })
+
+    -- test that transferring ownership doesn't trigger a new clone of the buffer
+    assert(buffer_to_handle(buf_bigger), buffer_to_handle(resource.get_buffer(res_buffer)))
 end
 
 function init(self)
     test_create_get(self)
     test_create_ownership(self)
     test_create_ownership_data(self)
+    test_create_set(self)
 end

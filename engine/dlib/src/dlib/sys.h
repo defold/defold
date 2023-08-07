@@ -165,7 +165,7 @@ namespace dmSys
 
     /**
      * Prefixes a path with the correct host mount
-     * Used during develpment to read/write files on the host PC
+     * Used during development to read/write files on the host PC
      */
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path);
 

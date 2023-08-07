@@ -1,6 +1,8 @@
+import os
 import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension, extension
 from waf_dynamo import new_copy_task
+import zipfile
 
 blddir = 'build'
 
@@ -14,7 +16,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
     cmd = 'protoc --encode=%s -I ../src/test -I ${DYNAMO_HOME}/share/proto ../src/test/test_resource_ddf.proto < ${SRC} > ${TGT}' % type
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension(ext)(create)
- 
+
 create_simple_protoc_task('testresourcecont', '.cont_pb', '.cont', 'TestResource.ResourceContainerDesc', before='c cxx')
 create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.ResourceFoo', before='c cxx')
 
@@ -22,8 +24,23 @@ create_simple_protoc_task('resourcefoo', '.foo_pb', '.foo', 'TestResource.Resour
 new_copy_task('ad', '.ad', '.adc')
 new_copy_task('script', '.script', '.scriptc')
 
+
+def add_to_zip_file(task):
+    cwd = task.cwd.abspath()
+    with zipfile.ZipFile(task.outputs[0].abspath(), 'a') as zipf:
+        for i in task.inputs:
+            src = i.get_bld().abspath()
+            name, ext = os.path.splitext(src)
+            ext = ext.replace('.ad', '.adc')
+            ext = ext.replace('.script', '.scriptc')
+            src = name + ext
+            dst = os.path.relpath(src, cwd)
+            zipf.write(src, dst)
+
+
 def build(bld):
-    resources = bld(source = ['test.cont_pb', 'test_ref.cont_pb', ])
+    resources = bld(source = ['test.cont_pb', 'test_ref.cont_pb', 'empty.script'])
+    # ArchiveBuilder (in test mode) automatically marks files with "liveupdate" as excluded resources
     sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script', 'liveupdate.file7.ad', 'liveupdate.file6.script']]
 
     archive = bld(features='barchive',
@@ -42,34 +59,47 @@ def build(bld):
 
     bld.add_group()
 
-    archive_pb = bld(features='barchive',
-                     source_root='src/test',
-                     resource_name='resources_pb',
-                     use_compression=False,
-                     source=bld.path.ant_glob('*.*_pb'))
+    bld(features='barchive',
+        source_root='src/test',
+        name='luresources',
+        resource_name='luresources',
+        use_compression=False,
+        source=' '.join(sources))
 
     bld.add_group()
 
-    test_resource = bld.program(features     = 'cxx embed test',
-                                includes     = '.. ../../proto',
-                                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
-                                web_libs     = ['library_sys.js'],
-                                proto_gen_py = True,
-                                target       = 'test_resource',
-                                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
-                                embed_source = 'resources.arci resources.arcd resources.dmanifest')
+    bld(features='barchive',
+        source_root='src/test',
+        resource_name='luresources_compressed',
+        use_compression=True,
+        source=' '.join(sources))
 
-    test_resource.install_path = None
+    bld.add_group()
 
-    test_resource_archive = bld.program(features     = 'cxx embed test',
-                                        includes     = '.. ../../proto',
-                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
-                                        proto_gen_py = True,
-                                        target       = 'test_resource_archive',
-                                        source       = 'test_resource_archive.cpp',
-                                        embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+    bld(features='barchive',
+         source_root='src/test',
+         resource_name='resources_pb',
+         use_compression=False,
+         source=bld.path.ant_glob('*.*_pb'))
 
-    test_resource_archive.install_path = None
+    bld.add_group()
+
+    bld(source = bld.path.ant_glob('overrides/**/*.*') + bld.path.ant_glob('zipfiles/**/*.*'),
+        name = 'overides')
+
+    bld(rule = add_to_zip_file,
+        target = bld.path.find_or_declare('luresources.zip'),
+        source = bld.path.ant_glob('zipfiles/**/*'),
+        cwd = bld.path.find_or_declare('zipfiles'),
+        after = ['luresources', 'overides'])
+
+    bld.add_group()
+
+    defines = ['DM_TEST_HTTP_SUPPORTED']
+    if bld.env.PLATFORM in ['arm64-nx64']:
+        defines = []
+
+    # ******************************************************************************************************************************
 
     test_block_allocator = bld.program(features = 'cxx test',
                                        includes = '..',
@@ -77,5 +107,80 @@ def build(bld):
                                        target   = 'test_block_allocator',
                                        source   = 'test_block_allocator.cpp')
 
-    test_block_allocator.install_path = None
+    # ******************************************************************************************************************************
+    # Resource providers
 
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderFile'],
+                target       = 'test_provider_file',
+                source       = 'test_provider_file.cpp',)
+
+    bld.program(features     = 'cxx embed test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderArchive'],
+                target       = 'test_provider_archive',
+                source       = 'test_provider_archive.cpp',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+
+    bld.program(features = 'cxx embed test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderArchive', 'ResourceProviderArchiveMutable'],
+                target       = 'test_provider_archive_mutable',
+                source       = 'test_provider_archive_mutable.cpp',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                defines      = defines,
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderHttp'],
+                target       = 'test_provider_http',
+                source       = 'test_provider_http.cpp')
+
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderZip'],
+                target       = 'test_provider_zip',
+                source       = 'test_provider_zip.cpp',)
+
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderArchive', 'ResourceProviderZip', 'ResourceProviderFile'], # 'ResourceProviderHttp',
+                target       = 'test_provider_multi',
+                source       = 'test_provider_multi.cpp',)
+
+    # ******************************************************************************************************************************
+    # Integration tests
+
+    bld.program(features     = 'cxx embed test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                proto_gen_py = True,
+                target       = 'test_resource_archive',
+                source       = 'test_resource_archive.cpp',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderFile', 'ResourceProviderZip', 'ResourceProviderArchive'],
+                target       = 'test_resource_mounts',
+                source       = 'test_resource_mounts.cpp',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
+
+    bld.program(features     = 'cxx embed test',
+                includes     = '.. ../../proto',
+                defines      = defines,
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL THREAD LUA resource',
+                web_libs     = ['library_sys.js'],
+                proto_gen_py = True,
+                exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],
+                target       = 'test_resource',
+                source       = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
+                embed_source = 'resources.arci resources.arcd resources.dmanifest')

@@ -420,6 +420,11 @@
    :path ["gui" "max_particlefx_count"]}
   {:type :integer,
    :help
+   "max total number of active animations in gui, 1024 by default",
+   :default 1024,
+   :path ["gui" "max_animation_count"]}
+  {:type :integer,
+   :help
    "max total number of living particles in gui per collection, 1024 by default",
    :default 1024,
    :path ["gui" "max_particle_count"]}

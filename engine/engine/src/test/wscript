@@ -61,7 +61,8 @@ def build(bld):
     profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
-                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript']
+                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
+                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
 
