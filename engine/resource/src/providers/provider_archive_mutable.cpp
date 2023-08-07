@@ -565,7 +565,7 @@ namespace dmResourceProviderArchiveMutable
             dmResource::WriteManifest(manifest_path, archive->m_Manifest);
             dmLogInfo("Wrote manifest to '%s'", manifest_path);
         }
-
+        CreateEntryMap(archive);
         return dmResourceProvider::RESULT_OK;
     }
 
