@@ -268,8 +268,7 @@ namespace dmGameSystem
             if (emitter_attribute_index >= 0)
             {
                 infos->m_Infos[i].m_NameHash = attributes[emitter_attribute_index].m_NameHash;
-                // infos->m_Infos[i].m_Attribute = &attributes[emitter_attribute_index];
-                dmGraphics::GetAttributeValues(attributes[emitter_attribute_index], &infos->m_Infos[i].m_ValuePtr, &infos->m_Infos[i].m_ValueByteSize);
+                dmGraphics::GetAttributeValues(attributes[emitter_attribute_index], (const uint8_t**) &infos->m_Infos[i].m_ValuePtr, &infos->m_Infos[i].m_ValueByteSize);
             }
         }
     }
@@ -288,7 +287,7 @@ namespace dmGameSystem
             dmParticle::ParticleVertexAttributeInfo& info = infos->m_Infos[i];
             // info.m_Attribute = &material_attributes[i];
             infos->m_Infos[i].m_NameHash = material_attributes[i].m_NameHash;
-            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+            dmRender::GetMaterialProgramAttributeValues(material, i, (const uint8_t**) &info.m_ValuePtr, &info.m_ValueByteSize);
         }
     }
 
