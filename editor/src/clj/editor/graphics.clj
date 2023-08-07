@@ -217,7 +217,7 @@
         (dissoc :name-hash :double-values :long-values :binary-values)
         (assoc attribute-value-keyword {:v attribute-values}))))
 
-(def ^:private attribute-key->default-attribute-info
+(def attribute-key->default-attribute-info
   (into {}
         (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
                (let [attribute-key (attribute-name->key name)
@@ -360,3 +360,23 @@
                 [property-key (assoc prop :original-value material-values)]
                 [property-key prop]))))
         material-attribute-infos))
+
+(g/defnk produce-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
+  (let [vertex-attribute-bytes
+        (into {}
+              (map (fn [{:keys [name-key] :as attribute-info}]
+                     (let [override-values (get vertex-attribute-overrides name-key)
+                           [bytes error] (if (nil? override-values)
+                                           [(:bytes attribute-info) (:error attribute-info)]
+                                           (let [{:keys [element-count semantic-type]} attribute-info
+                                                 resized-values (resize-doubles override-values semantic-type element-count)
+                                                 [bytes error-message :as bytes+error-message] (attribute->bytes+error-message attribute-info resized-values)]
+                                             (if (nil? error-message)
+                                               bytes+error-message
+                                               (let [property-key (attribute-key->property-key name-key)
+                                                     error (g/->error _node-id property-key :fatal override-values error-message)]
+                                                 [bytes error]))))]
+                       [name-key (or error bytes)])))
+              material-attribute-infos)]
+    (g/precluding-errors (vals vertex-attribute-bytes)
+      vertex-attribute-bytes)))

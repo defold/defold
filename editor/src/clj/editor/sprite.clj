@@ -444,26 +444,6 @@
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))
 
-(g/defnk produce-vertex-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
-  (let [vertex-attribute-bytes
-        (into {}
-              (map (fn [{:keys [name-key] :as attribute-info}]
-                     (let [override-values (get vertex-attribute-overrides name-key)
-                           [bytes error] (if (nil? override-values)
-                                           [(:bytes attribute-info) (:error attribute-info)]
-                                           (let [{:keys [element-count semantic-type]} attribute-info
-                                                 resized-values (graphics/resize-doubles override-values semantic-type element-count)
-                                                 [bytes error-message :as bytes+error-message] (graphics/attribute->bytes+error-message attribute-info resized-values)]
-                                             (if (nil? error-message)
-                                               bytes+error-message
-                                               (let [property-key (graphics/attribute-key->property-key name-key)
-                                                     error (g/->error _node-id property-key :fatal override-values error-message)]
-                                                 [bytes error]))))]
-                       [name-key (or error bytes)])))
-              material-attribute-infos)]
-    (g/precluding-errors (vals vertex-attribute-bytes)
-      vertex-attribute-bytes)))
-
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
 
@@ -576,7 +556,7 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
-  (output vertex-attribute-bytes g/Any :cached produce-vertex-attribute-bytes))
+  (output vertex-attribute-bytes g/Any :cached graphics/produce-attribute-bytes))
 
 (defn load-sprite [project self resource sprite]
   (let [image (workspace/resolve-resource resource (:tile-set sprite))
