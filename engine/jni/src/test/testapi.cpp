@@ -14,7 +14,7 @@
 
 #include "testapi.h"
 #include "Testapi_jni.h"
-#include "jni_util.h"
+#include <jni/jni_util.h>
 
 #include <jni.h>
 

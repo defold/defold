@@ -979,7 +979,7 @@ def gen_jni_source(inp, class_name, header_name, package_name):
     l('#include <jni.h>')
     l('')
     l(f'#include "{header_name}"')
-    l('#include "jni_util.h"')
+    l('#include <jni/jni_util.h>')
     l('#include <dlib/array.h>')
     l('')
 
