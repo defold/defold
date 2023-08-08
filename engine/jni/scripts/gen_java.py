@@ -380,7 +380,7 @@ def gen_enum(decl, prefix):
 
     l(f'    public enum {enum_name} {{')
 
-    last_value = 0
+    last_value = -1
     count = len(decl['items'])
     for i, item in enumerate(decl['items']):
         lend = ','
