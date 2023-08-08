@@ -62,15 +62,23 @@ import com.dynamo.bob.TexcLibrary;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
+import com.dynamo.bob.Project;
 
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+
+import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
@@ -149,6 +157,52 @@ public class Fontc {
 
     private Font font;
     private BMFont bmfont;
+
+    public static long FontDescToHash(FontDesc fontDesc) {
+        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
+
+        fontDescbuilder.mergeFrom(fontDesc)
+                       .setMaterial("")
+                       .clearOutlineAlpha()
+                       .clearShadowAlpha()
+                       .clearShadowX()
+                       .clearShadowY()
+                       .clearAlpha();
+
+        byte[] fontDescBytes = fontDescbuilder.build().toByteArray();
+        return MurmurHash.hash64(fontDescBytes, fontDescBytes.length);
+    }
+
+    // These values are the same as font_renderer.cpp
+    static final int LAYER_FACE    = 0x1;
+    static final int LAYER_OUTLINE = 0x2;
+    static final int LAYER_SHADOW  = 0x4;
+
+    // The fontMapLayerMask contains a bitmask of the layers that should be rendered
+    // by the font renderer. Note that this functionality requires that the render mode
+    // property of the font resource must be set to MULTI_LAYER. Default behaviour
+    // is to render the font as single layer (for compatability reasons).
+    public static int GetFontMapLayerMask(FontDesc fontDesc)
+    {
+        int fontMapLayerMask = LAYER_FACE;
+
+        if (fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
+        {
+            if (fontDesc.getOutlineAlpha() > 0 &&
+                fontDesc.getOutlineWidth() > 0)
+            {
+                fontMapLayerMask |= LAYER_OUTLINE;
+            }
+
+            if (fontDesc.getShadowAlpha() > 0 &&
+                fontDesc.getAlpha() > 0)
+            {
+                fontMapLayerMask |= LAYER_SHADOW;
+            }
+        }
+
+        return fontMapLayerMask;
+    }
 
     public interface FontResourceResolver {
         public InputStream getResource(String resourceName) throws FileNotFoundException;
@@ -975,16 +1029,22 @@ public class Fontc {
         try {
             System.setProperty("java.awt.headless", "true");
             if (args.length != 2 && args.length != 3 && args.length != 4)    {
-                System.err.println("Usage: fontc fontfile [basedir] outfile");
+                System.err.println("Usage: fontc fontfile [basedir] outfile [project-root]");
                 System.exit(1);
             }
 
             String basedir = ".";
             String outfile = args[1];
+            String projectRootDir = "";
+
             if (args.length >= 3) {
                 basedir = args[1];
                 outfile = args[2];
             }
+            if (args.length >= 4) {
+                projectRootDir = args[3];
+            }
+
             final File fontInput = new File(args[0]);
             FileInputStream stream = new FileInputStream(fontInput);
             InputStreamReader reader = new InputStreamReader(stream);
@@ -1030,9 +1090,32 @@ public class Fontc {
                 ImageIO.write(previewImage, "png", new File(outfile + "_preview.png"));
             }
 
+            String glyphBankOutputPath   = outfile.replace("fontc", "glyph_bankc");
+            String glyphBankRelativePath = glyphBankOutputPath.replace(projectRootDir, "");
+
+            System.out.println("----------");
+            System.out.println(glyphBankOutputPath);
+            System.out.println(glyphBankRelativePath);
+            System.out.println("----------");
+
+            FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
+            fontc.getGlyphBank().writeTo(glyphBankOutputStream);
+
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
-            // fontc.getFontMap().writeTo(fontMapOutputStream);
+
+            FontMap.Builder fontMapBuilder = FontMap.newBuilder();
+            fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+            fontMapBuilder.setGlyphBank(glyphBankRelativePath);
+            fontMapBuilder.setShadowX(fontDesc.getShadowX());
+            fontMapBuilder.setShadowY(fontDesc.getShadowY());
+            fontMapBuilder.setAlpha(fontDesc.getAlpha());
+            fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
+            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
+            fontMapBuilder.setLayerMask(GetFontMapLayerMask(fontDesc));
+
+            fontMapBuilder.build().writeTo(fontMapOutputStream);
+
             fontMapOutputStream.close();
 
         } catch (IOException e) {

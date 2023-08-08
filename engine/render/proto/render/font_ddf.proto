@@ -80,8 +80,8 @@ message GlyphBank
 
 message FontMap
 {
-    optional string glyph_bank    = 1 [(resource)=true];
-    optional string material      = 2 [(resource)=true];
+    required string glyph_bank    = 1 [(resource)=true];
+    required string material      = 2 [(resource)=true];
     optional float  shadow_x      = 3 [default = 0.0];
     optional float  shadow_y      = 4 [default = 0.0];
     optional float  alpha         = 5 [default = 1.0];

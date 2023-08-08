@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_font_map.h"
+#include "res_glyph_bank.h"
 
 #include <string.h>
 
@@ -21,6 +22,7 @@
 
 #include <render/font_renderer.h>
 #include <render/render_ddf.h>
+
 #include <dmsdk/gamesys/resources/res_material.h>
 
 namespace dmGameSystem
@@ -38,12 +40,23 @@ namespace dmGameSystem
             return result;
         }
 
-        dmRender::FontMapParams params;
-        params.m_Glyphs.SetCapacity(ddf->m_Glyphs.m_Count);
-        params.m_Glyphs.SetSize(ddf->m_Glyphs.m_Count);
-        for (uint32_t i = 0; i < ddf->m_Glyphs.m_Count; ++i)
+        GlyphBankResource* glyph_bank_res;
+        result = dmResource::Get(factory, ddf->m_GlyphBank, (void**) &glyph_bank_res);
+        if (result != dmResource::RESULT_OK)
         {
-            dmRenderDDF::FontMap::Glyph& i_g = ddf->m_Glyphs[i];
+            dmDDF::FreeMessage(ddf);
+            return result;
+        }
+
+        dmRenderDDF::GlyphBank* glyph_bank = glyph_bank_res->m_DDF;
+        assert(glyph_bank);
+
+        dmRender::FontMapParams params;
+        params.m_Glyphs.SetCapacity(glyph_bank->m_Glyphs.m_Count);
+        params.m_Glyphs.SetSize(glyph_bank->m_Glyphs.m_Count);
+        for (uint32_t i = 0; i < glyph_bank->m_Glyphs.m_Count; ++i)
+        {
+            dmRenderDDF::GlyphBank::Glyph& i_g = glyph_bank->m_Glyphs[i];
             dmRender::Glyph& o_g = params.m_Glyphs[i];
             o_g.m_Character = i_g.m_Character;
             o_g.m_Advance = i_g.m_Advance;
@@ -57,34 +70,34 @@ namespace dmGameSystem
             o_g.m_GlyphDataSize = i_g.m_GlyphDataSize;
 
         }
-        params.m_ShadowX = ddf->m_ShadowX;
-        params.m_ShadowY = ddf->m_ShadowY;
-        params.m_MaxAscent = ddf->m_MaxAscent;
-        params.m_MaxDescent = ddf->m_MaxDescent;
-        params.m_SdfOffset = ddf->m_SdfOffset;
-        params.m_SdfSpread = ddf->m_SdfSpread;
-        params.m_SdfOutline = ddf->m_SdfOutline;
-        params.m_SdfShadow = ddf->m_SdfShadow;
-        params.m_OutlineAlpha = ddf->m_OutlineAlpha;
-        params.m_ShadowAlpha = ddf->m_ShadowAlpha;
-        params.m_Alpha = ddf->m_Alpha;
 
-        params.m_CacheWidth = ddf->m_CacheWidth;
-        params.m_CacheHeight = ddf->m_CacheHeight;
+        // Font map
+        params.m_ShadowX            = ddf->m_ShadowX;
+        params.m_ShadowY            = ddf->m_ShadowY;
+        params.m_OutlineAlpha       = ddf->m_OutlineAlpha;
+        params.m_ShadowAlpha        = ddf->m_ShadowAlpha;
+        params.m_Alpha              = ddf->m_Alpha;
+        params.m_LayerMask          = ddf->m_LayerMask;
 
-        params.m_GlyphChannels = ddf->m_GlyphChannels;
-
-        params.m_CacheCellWidth = ddf->m_CacheCellWidth;
-        params.m_CacheCellHeight = ddf->m_CacheCellHeight;
-        params.m_CacheCellMaxAscent = ddf->m_CacheCellMaxAscent;
-        params.m_CacheCellPadding = ddf->m_GlyphPadding;
-
-        params.m_ImageFormat = ddf->m_ImageFormat;
-        params.m_LayerMask = ddf->m_LayerMask;
+        // Glyphbank
+        params.m_MaxAscent          = glyph_bank->m_MaxAscent;
+        params.m_MaxDescent         = glyph_bank->m_MaxDescent;
+        params.m_SdfOffset          = glyph_bank->m_SdfOffset;
+        params.m_SdfSpread          = glyph_bank->m_SdfSpread;
+        params.m_SdfOutline         = glyph_bank->m_SdfOutline;
+        params.m_SdfShadow          = glyph_bank->m_SdfShadow;
+        params.m_CacheCellWidth     = glyph_bank->m_CacheCellWidth;
+        params.m_CacheCellHeight    = glyph_bank->m_CacheCellHeight;
+        params.m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
+        params.m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
+        params.m_CacheWidth         = glyph_bank->m_CacheWidth;
+        params.m_CacheHeight        = glyph_bank->m_CacheHeight;
+        params.m_ImageFormat        = glyph_bank->m_ImageFormat;
+        params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
+        params.m_GlyphData          = malloc(glyph_bank->m_GlyphData.m_Count);
 
         // Copy and unpack glyphdata
-        params.m_GlyphData = malloc(ddf->m_GlyphData.m_Count);
-        memcpy(params.m_GlyphData, ddf->m_GlyphData.m_Data, ddf->m_GlyphData.m_Count);
+        memcpy(params.m_GlyphData, glyph_bank->m_GlyphData.m_Data, glyph_bank->m_GlyphData.m_Count);
 
         if (font_map == 0)
             font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);

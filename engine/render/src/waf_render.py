@@ -27,7 +27,7 @@ def transform_material(task, msg):
 
 proto_compile_task('material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc', '.material', '.materialc', transform_material)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
+waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT} ${PROJECT_ROOT}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',
@@ -39,6 +39,7 @@ def font_file(self, node):
     fontmap = self.create_task('fontmap')
     fontmap.env['CLASSPATH'] = os.pathsep.join(classpath)
     fontmap.env['CONTENT_ROOT'] = fontmap.generator.content_root
+    fontmap.env['PROJECT_ROOT'] = fontmap.generator.project_root
     fontmap.set_inputs(node)
     obj_ext = '.fontc'
     out = node.change_ext(obj_ext)

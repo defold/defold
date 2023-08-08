@@ -28,7 +28,6 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
@@ -38,22 +37,6 @@ import com.dynamo.render.proto.Font.FontDesc;
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc")
 public class GlyphBankBuilder extends Builder<Void> {
 
-	// TODO: merge with GlyphBankBuilder.java
-	private long fontDescToHash(FontDesc fontDesc) {
-        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-
-        fontDescbuilder.mergeFrom(fontDesc)
-                       .setMaterial("")
-                       .clearOutlineAlpha()
-                       .clearShadowAlpha()
-                       .clearShadowX()
-                       .clearShadowY()
-                       .clearAlpha();
-
-        byte[] fontDescBytes = fontDescbuilder.build().toByteArray();
-        return MurmurHash.hash64(fontDescBytes, fontDescBytes.length);
-    }
-
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
 
@@ -61,7 +44,7 @@ public class GlyphBankBuilder extends Builder<Void> {
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        long fontDescHash = fontDescToHash(fontDesc);
+        long fontDescHash = Fontc.FontDescToHash(fontDesc);
         IResource glyphBank = project.createGeneratedResource(fontDescHash, "glyph_bank");
 
         Task.TaskBuilder<Void> task = Task.<Void> newBuilder(this)
