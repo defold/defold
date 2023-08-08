@@ -370,7 +370,7 @@ namespace dmLiveUpdate
 
     static bool IsLiveupdateDisabled()
     {
-        if(!g_LiveUpdate.m_JobThread)
+        if (!g_LiveUpdate.m_JobThread)
         {
             dmLogError("Liveupdate function can't be called. Liveupdate disabled");
             return true;
