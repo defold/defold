@@ -469,7 +469,7 @@ public class Bob {
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
         addOption(options, null, "build-server-header", true, "Additional build server header to set", true);
-        addOption(options, null, "use-async-build-server", false, "Use an async build process for the build server (when using native extensions)", true);
+        addOption(options, null, "use-async-build-server", false, "DEPRECATED! Asynchronous build is now the default.", true);
         addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
