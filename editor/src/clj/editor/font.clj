@@ -553,6 +553,7 @@
 (defn- build-glyph-bank [resource _dep-resources user-data]
   (let [{:keys [font type font-resource-map pb-msg]} user-data
         font-resource-resolver (make-font-resource-resolver font font-resource-map)
+        ;; JG: Why can't we use the already built font-map here?
         font-map (make-font-map nil font type pb-msg font-resource-resolver)]
     (g/precluding-errors
       [font-map]
@@ -561,11 +562,21 @@
          :content (protobuf/map->bytes Font$GlyphBank compressed-font-map)}))))
 
 (defn- make-glyph-bank-build-target [node-id glyph-bank-build-resource user-data]
-  (bt/with-content-hash
-    {:node-id node-id
-     :resource glyph-bank-build-resource
-     :build-fn build-glyph-bank
-     :user-data user-data}))
+  (let [sanitised-font-desc (:pb-msg user-data)]
+    ;; TODO: These shouldn't be included in the resource hash, but they are needed to generate the
+    ;;       font-map, and I don't know how to overcome that.
+    #_(dissoc (:pb-msg user-data)
+            :material
+            :shadow-x
+            :shadow-y
+            :alpha
+            :outline-alpha
+            :shadow-alpha)
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource glyph-bank-build-resource
+       :build-fn build-glyph-bank
+       :user-data (assoc user-data :pb-msg sanitised-font-desc)})))
 
 ;; TODO: investigate why the resource path has a different hash eventhough the content is identical between two glyph banks
 (g/defnk produce-build-targets [_node-id resource font type font-resource-map font-resource-hashes pb-msg material dep-build-targets]
@@ -584,8 +595,9 @@
             glyph-bank-resource (resource/make-memory-resource workspace glyph-bank-resource-type glyph-bank-user-data)
             glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
             glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
-            depth-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)]
-        [(pipeline/make-protobuf-build-target resource depth-build-targets+glyph-bank
+            dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)]
+        (println glyph-bank-build-target)
+        [(pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
                                               Font$FontMap
                                               {:material (str (:material pb-msg) "c")
                                                :glyph-bank (resource/proj-path glyph-bank-build-resource)
