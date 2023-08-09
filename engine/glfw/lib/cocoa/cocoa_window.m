@@ -291,10 +291,33 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 // Content view class for the GLFW window
 //========================================================================
 
-@interface GLFWContentView : NSView
+// Defines a constant for empty ranges in NSTextInputClient
+//
+static const NSRange kEmptyRange = { NSNotFound, 0 };
+
+@interface GLFWContentView : NSView <NSTextInputClient>
+{
+    NSMutableAttributedString* markedText;
+}
+
 @end
 
 @implementation GLFWContentView
+
+- (instancetype)init
+{
+    if (self = [super init])
+    {
+        markedText = [[NSMutableAttributedString alloc] init];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [markedText release];
+    [super dealloc];
+}
 
 - (BOOL)wantsUpdateLayer
 {
@@ -409,8 +432,6 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
 - (void)keyDown:(NSEvent *)event
 {
-    NSUInteger length;
-    NSString* characters;
     int i, code = convertMacKeyCode( [event keyCode] );
 
     if( code != -1 )
@@ -424,17 +445,9 @@ static int convertMacKeyCode( unsigned int macKeyCode )
                 [super keyDown:event];
             }
         }
-        else if( code != GLFW_KEY_LEFT && code != GLFW_KEY_RIGHT && code != GLFW_KEY_UP && code != GLFW_KEY_DOWN )
-        {
-            characters = [event characters];
-            length = [characters length];
-
-            for( i = 0;  i < length;  i++ )
-            {
-                _glfwInputChar( [characters characterAtIndex:i], GLFW_PRESS );
-            }
-        }
     }
+
+     [self interpretKeyEvents:@[event]];
 }
 
 - (void)flagsChanged:(NSEvent *)event
@@ -457,21 +470,11 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
 - (void)keyUp:(NSEvent *)event
 {
-    NSUInteger length;
-    NSString* characters;
     int i, code = convertMacKeyCode( [event keyCode] );
 
     if( code != -1 )
     {
         _glfwInputKey( code, GLFW_RELEASE );
-
-        characters = [event characters];
-        length = [characters length];
-
-        for( i = 0;  i < length;  i++ )
-        {
-            _glfwInputChar( [characters characterAtIndex:i], GLFW_RELEASE );
-        }
     }
 }
 
@@ -484,6 +487,104 @@ static int convertMacKeyCode( unsigned int macKeyCode )
     {
         _glfwWin.mouseWheelCallback( _glfwInput.WheelPos );
     }
+}
+
+
+- (BOOL)hasMarkedText
+{
+    return [markedText length] > 0;
+}
+
+- (NSRange)markedRange
+{
+    if ([markedText length] > 0)
+        return NSMakeRange(0, [markedText length] - 1);
+    else
+        return kEmptyRange;
+}
+
+- (NSRange)selectedRange
+{
+    return kEmptyRange;
+}
+
+- (void)setMarkedText:(id)string
+        selectedRange:(NSRange)selectedRange
+     replacementRange:(NSRange)replacementRange
+{
+    [markedText release];
+    if ([string isKindOfClass:[NSAttributedString class]])
+        markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
+    else
+        markedText = [[NSMutableAttributedString alloc] initWithString:string];
+
+    _glfwSetMarkedText((char*)[[markedText string] UTF8String]);
+}
+
+- (void)unmarkText
+{
+    [[markedText mutableString] setString:@""];
+
+    _glfwSetMarkedText("");
+}
+
+- (NSArray*)validAttributesForMarkedText
+{
+    return [NSArray array];
+}
+
+- (NSAttributedString*)attributedSubstringForProposedRange:(NSRange)range
+                                               actualRange:(NSRangePointer)actualRange
+{
+    return nil;
+}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point
+{
+    return 0;
+}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)range
+                         actualRange:(NSRangePointer)actualRange
+{
+    //const NSRect frame = [window->ns.view frame];
+    const NSRect frame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    return NSMakeRect(frame.origin.x, frame.origin.y, 0.0, 0.0);
+}
+
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange
+{
+    NSString* characters;
+    NSEvent* event = [NSApp currentEvent];
+
+    if ([string isKindOfClass:[NSAttributedString class]])
+        characters = [string string];
+    else
+        characters = (NSString*) string;
+
+    NSRange range = NSMakeRange(0, [characters length]);
+    while (range.length)
+    {
+        uint32_t codepoint = 0;
+
+        if ([characters getBytes:&codepoint
+                       maxLength:sizeof(codepoint)
+                      usedLength:NULL
+                        encoding:NSUTF32StringEncoding
+                         options:0
+                           range:range
+                  remainingRange:&range])
+        {
+            if (codepoint >= 0xf700 && codepoint <= 0xf7ff)
+                continue;
+
+            _glfwInputChar(codepoint, GLFW_PRESS);
+        }
+    }
+}
+
+- (void)doCommandBySelector:(SEL)selector
+{
 }
 
 @end
@@ -606,6 +707,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     view.wantsLayer = _glfwWin.clientAPI == GLFW_NO_API ? YES : NO;
 
     [_glfwWin.window setContentView: view];
+    [_glfwWin.window makeFirstResponder: view];
     [_glfwWin.window setDelegate:_glfwWin.delegate];
     [_glfwWin.window setAcceptsMouseMovedEvents:YES];
     [_glfwWin.window center];
