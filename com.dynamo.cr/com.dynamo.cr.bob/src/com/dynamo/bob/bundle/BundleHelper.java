@@ -733,7 +733,7 @@ public class BundleHelper {
         }
     }
 
-    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, boolean async) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -746,6 +746,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
+            boolean async = true;
             extender.build(platform, sdkVersion, allSource, zipFile, logFile, async);
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
