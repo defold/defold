@@ -27,13 +27,27 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
+    struct Resources
+    {
+        MaterialResource*  m_MaterialResource;
+        GlyphBankResource* m_GlyphBankResource;
+    };
+
+    static void ReleaseResources(dmResource::HFactory factory, void* font_map_user_data)
+    {
+        Resources* resources = (Resources*) font_map_user_data;
+        dmResource::Release(factory, (void*) resources->m_MaterialResource);
+        dmResource::Release(factory, (void*) resources->m_GlyphBankResource);
+        delete resources;
+    }
+
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
         dmRenderDDF::FontMap* ddf, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out, bool reload)
     {
         *font_map_out = 0;
 
-        MaterialResource* material;
-        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
+        MaterialResource* material_res;
+        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material_res);
         if (result != dmResource::RESULT_OK)
         {
             dmDDF::FreeMessage(ddf);
@@ -100,16 +114,23 @@ namespace dmGameSystem
         memcpy(params.m_GlyphData, glyph_bank->m_GlyphData.m_Data, glyph_bank->m_GlyphData.m_Count);
 
         if (font_map == 0)
+        {
             font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);
+        }
         else
         {
             dmRender::SetFontMap(font_map, params);
-            dmResource::Release(factory, dmRender::GetFontMapUserData(font_map));
+            ReleaseResources(factory, dmRender::GetFontMapUserData(font_map));
         }
 
-        // a workaround. ideally we'd have a FontmapResource* // MAWE
-        dmRender::SetFontMapUserData(font_map, (void*)material);
-        dmRender::SetFontMapMaterial(font_map, material->m_Material);
+        // This is a workaround, ideally we'd have a FontmapResource* // MAWE + JG
+
+        Resources* font_map_resources          = new Resources;
+        font_map_resources->m_MaterialResource  = material_res;
+        font_map_resources->m_GlyphBankResource = glyph_bank_res;
+
+        dmRender::SetFontMapUserData(font_map, (void*) font_map_resources);
+        dmRender::SetFontMapMaterial(font_map, material_res->m_Material);
 
         dmDDF::FreeMessage(ddf);
 
@@ -155,7 +176,7 @@ namespace dmGameSystem
     dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams& params)
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)params.m_Resource->m_Resource;
-        dmResource::Release(params.m_Factory, (void*)dmRender::GetFontMapUserData(font_map));
+        ReleaseResources(params.m_Factory, dmRender::GetFontMapUserData(font_map));
         dmRender::DeleteFontMap(font_map);
         return dmResource::RESULT_OK;
     }

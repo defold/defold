@@ -14,13 +14,6 @@
 
 #include "res_glyph_bank.h"
 
-// #include <string.h>
-
-// #include <dlib/dstrings.h>
-// #include <dlib/log.h>
-
-// #include <render/render_ddf.h>
-
 namespace dmGameSystem
 {
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams& params)
