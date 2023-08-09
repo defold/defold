@@ -60,6 +60,10 @@ namespace dmJniTest
         Recti*              m_Rects;
         uint32_t            m_RectsCount;
         dmArray<Recti>      m_Rects2;
+
+        Recti**             m_RectPtrs1;
+        uint32_t            m_RectPtrs1Count;
+        dmArray<Recti*>     m_RectPtrs2;
     };
 
     struct Misc

@@ -222,29 +222,20 @@ def is_struct_type(s):
 def is_enum_type(s):
     return s in enum_types
 
-def is_const_prim_ptr(s):
-    for prim_type in prim_types:
-        if s == f"const {prim_type} *":
-            return True
-    return False
-
 def is_prim_ptr(s):
-    for prim_type in prim_types:
-        if s == f"const {prim_type} *" or s == f"{prim_type} *":
-            return True
-    return False
+    c_type, _ = util.extract_ptr_type2(s)
+    return c_type in prim_types
 
-def is_const_struct_ptr(s):
-    for struct_type in struct_types:
-        if s == f"const {struct_type} *":
-            return True
-    return False
+def is_const_prim_ptr(s):
+    return is_prim_ptr(s) and 'const' in s
 
 def is_struct_ptr(s):
-    for struct_type in struct_types:
-        if s == f"const {struct_type} *" or s == f"{struct_type} *":
-            return True
-    return False
+    c_type, _ = util.extract_ptr_type2(s)
+    return c_type in struct_types
+
+def is_const_struct_ptr(s):
+    return is_struct_ptr(s) and 'const' in s
+
 
 def type_default_value(s):
     return prim_defaults[s]
@@ -308,17 +299,17 @@ def gen_struct(decl, namespace):
         #     l(f"        public {jni_field_name}: ?*const anyopaque = null,")
         # elif util.is_void_ptr(field_type):
         #     l(f"        public {jni_field_name}: ?*anyopaque = null,")
-        elif is_prim_ptr(field_type) or is_struct_ptr(field_type):
-            field_type = util.extract_ptr_type(field_type)
-            jni_type = c_type_to_java_type.get(field_type, field_type)
-            l(f"        public {jni_type}[] {jni_field_name};")
-
         elif util.is_dmarray_type(field_type):
             field_type = util.extract_dmarray_type(field_type)
-            field_type = c_type_to_java_type.get(field_type, field_type)
-            if is_struct_ptr(field_type):
-                field_type = util.extract_ptr_type(field_type)
-            l(f"        public {field_type}[] {jni_field_name};")
+            c_type, _ = util.extract_ptr_type2(field_type)
+            java_type = c_type_to_java_type.get(c_type, c_type)
+            l(f"        public {java_type}[] {jni_field_name};")
+
+        elif is_prim_ptr(field_type) or is_struct_ptr(field_type):
+            c_type, _ = util.extract_ptr_type2(field_type)
+            jni_type = c_type_to_java_type.get(c_type, c_type)
+            l(f"        public {jni_type}[] {jni_field_name};")
+
         # elif util.is_func_ptr(field_type):
         #     l(f"        public {jni_field_name}: ?*const fn ({funcptr_args_c(field_type, prefix)}) callconv(.C) {funcptr_result_c(field_type)} = null,")
         # elif util.is_1d_array_type(field_type):
@@ -412,42 +403,6 @@ def gen_enum(decl, prefix):
     l("    };")
     l("")
 
-# def gen_func_c(decl, prefix):
-#     l(f"pub extern fn {decl['name']}({funcdecl_args_c(decl, prefix)}) {funcdecl_result_c(decl, prefix)};")
-
-# def gen_func_zig(decl, prefix):
-#     c_func_name = decl['name']
-#     zig_func_name = util.as_lower_camel_case(check_override(decl['name']), prefix)
-#     if c_func_name in c_callbacks:
-#         # a simple forwarded C callback function
-#         l(f"pub const {zig_func_name} = {c_func_name};")
-#     else:
-#         zig_res_type = funcdecl_result_zig(decl, prefix)
-#         l(f"pub fn {zig_func_name}({funcdecl_args_zig(decl, prefix)}) {zig_res_type} {{")
-#         if is_zig_string(zig_res_type):
-#             # special case: convert C string to Zig string slice
-#             s = f"    return cStrToZig({c_func_name}("
-#         elif zig_res_type != 'void':
-#             s = f"    return {c_func_name}("
-#         else:
-#             s = f"    {c_func_name}("
-#         for i, param_decl in enumerate(decl['params']):
-#             if i > 0:
-#                 s += ", "
-#             arg_name = param_decl['name']
-#             arg_type = param_decl['type']
-#             if is_const_struct_ptr(arg_type):
-#                 s += f"&{arg_name}"
-#             elif util.is_string_ptr(arg_type):
-#                 s += f"@ptrCast({arg_name})"
-#             else:
-#                 s += arg_name
-#         if is_zig_string(zig_res_type):
-#             s += ")"
-#         s += ");"
-#         l(s)
-#         l("}")
-
 def pre_parse(inp):
     global struct_types
     global enum_types
@@ -464,74 +419,14 @@ def pre_parse(inp):
             for item in decl['items']:
                 enum_items[enum_name].append(item['name'])
 
-# def gen_imports(inp, dep_prefixes):
-#     l('const builtin = @import("builtin");')
-#     for dep_prefix in dep_prefixes:
-#         dep_module_name = module_names[dep_prefix]
-#         l(f'const {dep_prefix[:-1]} = @import("{dep_module_name}.zig");')
-#     l('')
-
-# def gen_helpers(inp):
-#     l('// helper function to convert a C string to a Zig string slice')
-#     l('fn cStrToZig(c_str: [*c]const u8) [:0]const u8 {')
-#     l('    return @import("std").mem.span(c_str);')
-#     l('}')
-#     if inp['prefix'] in ['sg_', 'sdtx_', 'sshape_']:
-#         l('// helper function to convert "anything" to a Range struct')
-#         l('pub fn asRange(val: anytype) Range {')
-#         l('    const type_info = @typeInfo(@TypeOf(val));')
-#         l('    switch (type_info) {')
-#         l('        .Pointer => {')
-#         l('            switch (type_info.Pointer.size) {')
-#         l('                .One => return .{ .ptr = val, .size = @sizeOf(type_info.Pointer.child) },')
-#         l('                .Slice => return .{ .ptr = val.ptr, .size = @sizeOf(type_info.Pointer.child) * val.len },')
-#         l('                else => @compileError("FIXME: Pointer type!"),')
-#         l('            }')
-#         l('        },')
-#         l('        .Struct, .Array => {')
-#         l('            @compileError("Structs and arrays must be passed as pointers to asRange");')
-#         l('        },')
-#         l('        else => {')
-#         l('            @compileError("Cannot convert to range!");')
-#         l('        },')
-#         l('    }')
-#         l('}')
-#         l('')
-#     if inp['prefix'] == 'sdtx_':
-#         l('// std.fmt compatible Writer')
-#         l('pub const Writer = struct {')
-#         l('    pub const Error = error{};')
-#         l('    pub fn writeAll(self: Writer, bytes: []const u8) Error!void {')
-#         l('        _ = self;')
-#         l('        for (bytes) |byte| {')
-#         l('            putc(byte);')
-#         l('        }')
-#         l('    }')
-#         l('    pub fn writeByteNTimes(self: Writer, byte: u8, n: u64) Error!void {')
-#         l('        _ = self;')
-#         l('        var i: u64 = 0;')
-#         l('        while (i < n) : (i += 1) {')
-#         l('            putc(byte);')
-#         l('        }')
-#         l('    }')
-#         l('};')
-#         l('// std.fmt-style formatted print')
-#         l('pub fn print(comptime fmt: anytype, args: anytype) void {')
-#         l('    var writer: Writer = .{};')
-#         l('    @import("std").fmt.format(writer, fmt, args) catch {};')
-#         l('}')
-#         l('')
-
 def gen_namespace(inp, class_name, package_name):
     prefix = inp.get('prefix', inp.get('name', 'unknown'))
     for decl in inp['decls']:
-        # if decl.get('is_dep', False):
         kind = decl['kind']
         if kind == 'namespace':
             gen_namespace(decl, class_name, package_name)
         elif kind == 'consts':
             gen_consts(decl, prefix)
-            #print(f"Not implemented yet: {kind}")
         elif kind == 'var':
             gen_const_var(decl, prefix)
         elif not check_ignore(decl['name']):
@@ -665,26 +560,40 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
                 l(f'        GET_FLD({jni_field_name}, "{field_type}");')
             elif util.is_string_ptr(field_type):
                 l(f'        GET_FLD_TYPESTR({jni_field_name}, "Ljava/lang/String;");')
-            elif is_prim_ptr(field_type): # arrays: e.g. uint8_t* data;
-                field_type = util.extract_ptr_type(field_type)
-                jni_type = c_type_to_jni_type_specifiers.get(field_type);
-                l(f'        GET_FLD_TYPESTR({jni_field_name}, "[{jni_type}");')
             elif is_struct_ptr(field_type):
-                jni_type = util.extract_ptr_type(field_type)
+                jni_type, ptr = util.extract_ptr_type2(field_type)
+                if ptr and len(ptr) > 2:
+                    print(f"Multiple indirections are not supported: {struct_name}: {field_type} {field_name}")
+                    continue
                 l(f'        GET_FLD_ARRAY({jni_field_name}, "{jni_type}");')
 
             elif util.is_dmarray_type(field_type):
                 field_type = util.extract_dmarray_type(field_type)
+                c_type, ptr = util.extract_ptr_type2(field_type)
 
-                if is_prim_type(field_type):
-                    jni_type = c_type_to_jni_type_specifiers.get(field_type);
+                if ptr and len(ptr) > 2:
+                    print(f"Multiple indirections are not supported: {struct_name}: {field_type} {field_name}")
+                    continue
+
+                if is_prim_type(c_type) and not ptr:
+                    jni_type = c_type_to_jni_type_specifiers.get(c_type);
                     l(f'        GET_FLD_TYPESTR({jni_field_name}, "[{jni_type}");')
                     continue
                 elif is_struct_type(field_type):
-                    jni_type = util.extract_ptr_type(field_type)
+                    jni_type = c_type
+
                 elif util.is_string_ptr(field_type):
                     jni_type = "Ljava/lang/String;"
                 l(f'        GET_FLD_ARRAY({jni_field_name}, "{jni_type}");')
+            elif is_prim_ptr(field_type): # arrays: e.g. uint8_t* data;
+                c_type, ptr = util.extract_ptr_type2(field_type)
+                if ptr and len(ptr) > 1:
+                    print(f"Multiple indirections are not supported: {struct_name}: {field_type} {field_name}")
+                    continue
+
+                jni_type = c_type_to_jni_type_specifiers.get(c_type);
+                l(f'        GET_FLD_TYPESTR({jni_field_name}, "[{jni_type}");')
+
             else:
                 print("gen_struct: Not implemented yet:", field['kind'], field_type)
 
@@ -763,7 +672,33 @@ def gen_to_jni_create_object(decl, namespace, class_name, package_name, header=F
             l(f'    dmJNI::SetEnum(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
         elif util.is_string_ptr(field_type):
             l(f'    dmJNI::SetString(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
-        #elif is_const_prim_ptr(field_type):
+
+        elif util.is_dmarray_type(field_type):
+            field_type = util.extract_dmarray_type(field_type)
+            c_type, ptr = util.extract_ptr_type2(field_type)
+
+            jni_typestr = c_type_to_jni_capname.get(c_type, None)
+            jni_type = c_type_to_jni_type.get(c_type, None)
+
+            # We allow dmArray<Type> or dmArray<Type*>. I.e. len(ptr) == 0 or 1
+            # We allow dmArray<uint8_t>. I.e. len(ptr) == 0 or 1
+            if not ptr:
+                if is_struct_type(c_type):
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, C2J_Create{c_type}Array(env, types, src->{field_name}.Begin(), src->{field_name}.Size()));')
+                else:
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::C2J_Create{jni_typestr}Array(env, src->{field_name}.Begin(), src->{field_name}.Size()));')
+
+            else:
+                if len(ptr) > 1:
+                    print(f"Multiple indirections are not supported: {struct_name}: {field_type} {field_name}")
+                    continue
+
+                if is_struct_ptr(field_type):
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, C2J_Create{c_type}PtrArray(env, types, src->{field_name}.Begin(), src->{field_name}.Size()));')
+                else:
+                    print(f"C2J: Arrays of primitive pointers aren't supported: {struct_name}: {field_type} {field_name}")
+                    continue
+
         elif is_prim_ptr(field_type) or is_struct_ptr(field_type):
             # need a variable that designates the array size
             count_name = field_name+'Count'
@@ -772,26 +707,27 @@ def gen_to_jni_create_object(decl, namespace, class_name, package_name, header=F
                 print(f'Field "{field_name}" has no corresponding field "{count_name}"')
                 continue
 
-            field_type = util.extract_ptr_type(field_type)
+            c_type, ptr = util.extract_ptr_type2(field_type)
 
-            if is_struct_type(field_type):
-                l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, C2J_Create{field_type}Array(env, types, src->{field_name}, src->{count_name}));')
-                continue
+            # We allow Type* or Type**. I.e. len(ptr) == 1 or 2
+            # We allow uint8_t*. I.e. len(ptr) == 1
 
-            jni_typestr = c_type_to_jni_capname.get(field_type, field_type)
-            l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::C2J_Create{jni_typestr}Array(env, src->{field_name}, src->{count_name}));')
-        elif util.is_dmarray_type(field_type):
-            field_type = util.extract_dmarray_type(field_type)
-            jni_typestr = c_type_to_jni_capname.get(field_type, None)
-            jni_type = c_type_to_jni_type.get(field_type, None)
+            if is_struct_type(c_type):
+                if len(ptr) == 2:
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, C2J_Create{c_type}PtrArray(env, types, src->{field_name}, src->{count_name}));')
+                elif len(ptr) == 1:
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, C2J_Create{c_type}Array(env, types, src->{field_name}, src->{count_name}));')
+                else:
+                    print(f"C2J: Arrays of too many indirections aren't supported: {struct_name}.{field_name} - {field_type}")
+                    continue # not supported
 
-            if is_struct_type(field_type):
-                l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, C2J_Create{field_type}Array(env, types, src->{field_name}.Begin(), src->{field_name}.Size()));')
-            elif is_struct_ptr(field_type):
-                #field_type = util.extract_ptr_type(field_type)
-                pass # not implemented yet
             else:
-                l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::C2J_Create{jni_typestr}Array(env, src->{field_name}.Begin(), src->{field_name}.Size()));')
+                if len(ptr) == 1:
+                    jni_typestr = c_type_to_jni_capname.get(c_type, c_type)
+                    l(f'    dmJNI::SetObjectDeref(env, obj, types->m_{struct_name}JNI.{jni_field_name}, dmJNI::C2J_Create{jni_typestr}Array(env, src->{field_name}, src->{count_name}));')
+                else:
+                    print(f"C2J: Arrays of too many indirections aren't supported: {struct_name}.{field_name} - {field_type}")
+                    continue # not supported
 
     l(f'    return obj;')
     l(f'}}')
@@ -809,6 +745,24 @@ def gen_to_jni_create_object_array(decl, namespace, class_name, package_name, he
     l(f'    jobjectArray arr = env->NewObjectArray(src_count, types->m_{struct_name}JNI.cls, 0);')
     l(f'    for (uint32_t i = 0; i < src_count; ++i) {{')
     l(f'        jobject obj = C2J_Create{struct_name}(env, types, &src[i]);')
+    l(f'        env->SetObjectArrayElement(arr, i, obj);')
+    l(f'        env->DeleteLocalRef(obj);')
+    l(f'    }}')
+    l(f'    return arr;')
+    l(f'}}')
+
+def gen_to_jni_create_object_ptr_array(decl, namespace, class_name, package_name, header=False):
+    struct_name = decl["name"]
+
+    fn = f'jobjectArray C2J_Create{struct_name}PtrArray(JNIEnv* env, TypeInfos* types, const {struct_name}* const* src, uint32_t src_count)'
+    if header:
+        l(f'{fn};')
+        return
+
+    l(f'{fn} {{')
+    l(f'    jobjectArray arr = env->NewObjectArray(src_count, types->m_{struct_name}JNI.cls, 0);')
+    l(f'    for (uint32_t i = 0; i < src_count; ++i) {{')
+    l(f'        jobject obj = C2J_Create{struct_name}(env, types, src[i]);')
     l(f'        env->SetObjectArrayElement(arr, i, obj);')
     l(f'        env->DeleteLocalRef(obj);')
     l(f'    }}')
@@ -858,9 +812,47 @@ def gen_from_jni_create_object(decl, namespace, class_name, package_name, header
         elif util.is_string_ptr(field_type):
             l(f'    out->{field_name} = dmJNI::GetString(env, obj, {field_id});')
 
+        elif util.is_dmarray_type(field_type):
+
+            field_type = util.extract_dmarray_type(field_type)
+            c_type, ptr = util.extract_ptr_type2(field_type)
+
+            print(f"MAWE: dmarray type: {field_name} '{field_type}' '{c_type}' '{ptr}'")
+
+            jni_typestr = c_type_to_jni_capname.get(field_type, None)
+            jni_type = c_type_to_jni_type.get(field_type, None)
+            jni_field_name = to_jni_camel_case(field_name, 'm_')
+
+            # We allow dmArray<Type> or dmArray<Type*>. I.e. len(ptr) == 0 or 1
+            # We allow dmArray<uint8_t>. I.e. len(ptr) == 0
+            if len(ptr) > 1:
+                print(f"Multiple indirections are not supported: {struct_name}: {field_type} {field_name}")
+                continue
+
+            l(f'    {{')
+            l(f'        jobject field_object = env->GetObjectField(obj, types->m_{struct_name}JNI.{jni_field_name});')
+            l(f'        uint32_t tmp_count;')
+
+            if not ptr:
+                if is_struct_type(c_type):
+                    l(f'        {c_type}* tmp = J2C_Create{c_type}Array(env, types, (jobjectArray)field_object, &tmp_count);')
+                else:
+                    l(f'        {c_type}* tmp = dmJNI::J2C_Create{jni_typestr}Array(env, ({jni_type}Array)field_object, &tmp_count);')
+            else:
+                if is_struct_type(c_type):
+                    l(f'        {c_type}** tmp = J2C_Create{c_type}PtrArray(env, types, (jobjectArray)field_object, &tmp_count);')
+                else:
+                    print(f"C2J: Arrays of primitive pointers aren't supported: {struct_name}: {field_type} {field_name}")
+                    continue
+
+            l(f'        out->{field_name}.Set(tmp, tmp_count, tmp_count, false);')
+            l(f'        env->DeleteLocalRef(field_object);')
+            l(f'    }}')
+
         elif is_prim_ptr(field_type) or is_struct_ptr(field_type):
-            field_type = util.extract_ptr_type(field_type)
+
             field_type = field_type.replace(namespace_prefix, '')
+
             jni_field_name = to_jni_camel_case(field_name, 'm_')
 
             count_name = field_name+'Count'
@@ -869,37 +861,34 @@ def gen_from_jni_create_object(decl, namespace, class_name, package_name, header
                 print(f'Field "{field_name}" has no corresponding field "{count_name}"')
                 continue
 
-            l(f'    {{')
-            l(f'        jobject field_object = env->GetObjectField(obj, types->m_{struct_name}JNI.{jni_field_name});')
-            if is_struct_type(field_type):
-                l(f'        out->{field_name} = J2C_Create{field_type}Array(env, types, (jobjectArray)field_object, &out->{count_name});')
+            c_type, ptr = util.extract_ptr_type2(field_type)
+
+            # We support Struct* and Struct**, i.e. len(ptr) is 1 or 2
+            # We support uint8_t*, i.e. len(ptr) is 1 or 2
+            if is_struct_type(c_type):
+                if len(ptr) > 2:
+                    print(f"J2C: Too many indirections: {struct_name}.{field_name}: '{field_type}'")
+                    continue
             else:
-                jni_typestr = c_type_to_jni_capname.get(field_type, field_type)
-                jni_type = c_type_to_jni_type.get(field_type, None)
-                l(f'        out->{field_name} = dmJNI::J2C_Create{jni_typestr}Array(env, ({jni_type}Array)field_object, &out->{count_name});')
-            l(f'        env->DeleteLocalRef(field_object);')
-            l(f'    }}')
+                if len(ptr) > 1:
+                    print(f"J2C: Too many indirections: {struct_name}.{field_name}: '{field_type}'")
+                    continue
 
-        elif util.is_dmarray_type(field_type):
-            field_type = util.extract_dmarray_type(field_type)
-            jni_typestr = c_type_to_jni_capname.get(field_type, None)
-            jni_type = c_type_to_jni_type.get(field_type, None)
-            jni_field_name = to_jni_camel_case(field_name, 'm_')
-
-            if is_struct_ptr(field_type):
-                print("Arrays of pointers are not supported")
-                continue # not implemented yet
+            jni_typestr = c_type_to_jni_capname.get(c_type, c_type)
+            jni_type = c_type_to_jni_type.get(c_type, None)
 
             l(f'    {{')
             l(f'        jobject field_object = env->GetObjectField(obj, types->m_{struct_name}JNI.{jni_field_name});')
-            l(f'        uint32_t tmp_count;')
-            if is_struct_type(field_type):
-                l(f'        {field_type}* tmp = J2C_Create{field_type}Array(env, types, (jobjectArray)field_object, &tmp_count);')
 
+            if is_struct_type(c_type):
+                if len(ptr) == 2:
+                    l(f'        out->{field_name} = J2C_Create{c_type}PtrArray(env, types, (jobjectArray)field_object, &out->{count_name});')
+                elif len(ptr) == 1:
+                    l(f'        out->{field_name} = J2C_Create{c_type}Array(env, types, (jobjectArray)field_object, &out->{count_name});')
             else:
-                l(f'        {field_type}* tmp = dmJNI::J2C_Create{jni_typestr}Array(env, ({jni_type}Array)field_object, &tmp_count);')
+                if len(ptr) == 1:
+                    l(f'        out->{field_name} = dmJNI::J2C_Create{jni_typestr}Array(env, ({jni_type}Array)field_object, &out->{count_name});')
 
-            l(f'        out->{field_name}.Set(tmp, tmp_count, tmp_count, false);')
             l(f'        env->DeleteLocalRef(field_object);')
             l(f'    }}')
 
@@ -927,6 +916,28 @@ def gen_from_jni_create_object_array(decl, namespace, class_name, package_name, 
     l(f'    return out;')
     l(f'}}')
 
+def gen_from_jni_create_object_ptr_array(decl, namespace, class_name, package_name, header=False):
+    struct_name = decl["name"]
+
+    fn = f'{struct_name}** J2C_Create{struct_name}PtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count)'
+    if header:
+        l(f'{fn};')
+        return
+
+    l(f'{fn} {{')
+    l(f'    jsize len = env->GetArrayLength(arr);')
+    l(f'    {struct_name}** out = new {struct_name}*[len];')
+    l(f'    for (uint32_t i = 0; i < len; ++i) {{')
+    l(f'        jobject obj = env->GetObjectArrayElement(arr, i);')
+    l(f'        {struct_name}* cobj = new {struct_name}();');
+    l(f'        out[i] = cobj;')
+    l(f'        J2C_Create{struct_name}(env, types, obj, cobj);')
+    l(f'        env->DeleteLocalRef(obj);')
+    l(f'    }}')
+    l(f'    *out_count = (uint32_t)len;')
+    l(f'    return out;')
+    l(f'}}')
+
 def gen_jni_namespace_source(inp, class_name, package_name, header=False):
     global struct_jni_types
 
@@ -948,6 +959,7 @@ def gen_jni_namespace_source(inp, class_name, package_name, header=False):
                 gen_to_jni_create_object(struct, namespace, class_name, package_name, header=header)
             for struct in struct_jni_types:
                 gen_to_jni_create_object_array(struct, namespace, class_name, package_name, header=header)
+                gen_to_jni_create_object_ptr_array(struct, namespace, class_name, package_name, header=header)
             l('//' + '-' * 40)
             l('// From Jni to C')
             l('//' + '-' * 40)
@@ -955,6 +967,7 @@ def gen_jni_namespace_source(inp, class_name, package_name, header=False):
                 gen_from_jni_create_object(struct, namespace, class_name, package_name, header=header)
             for struct in struct_jni_types:
                 gen_from_jni_create_object_array(struct, namespace, class_name, package_name, header=header)
+                gen_from_jni_create_object_ptr_array(struct, namespace, class_name, package_name, header=header)
             l(f'}} // jni')
             l(f'}} // {namespace}')
         # elif kind == 'consts':

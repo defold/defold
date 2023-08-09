@@ -158,6 +158,25 @@ public class JniTest
             assertEquals(i*4+3, arrays.rects2[i].max.x);
             assertEquals(i*4+4, arrays.rects2[i].max.y);
         }
+
+        // array of Recti*
+        assertEquals(3, arrays.rectPtrs1.length);
+        for (int i = 0; i < 3; ++i) {
+            assertEquals(i*4+1, arrays.rectPtrs1[i].min.x);
+            assertEquals(i*4+2, arrays.rectPtrs1[i].min.y);
+            assertEquals(i*4+3, arrays.rectPtrs1[i].max.x);
+            assertEquals(i*4+4, arrays.rectPtrs1[i].max.y);
+        }
+
+        // dmArray<Recti*>
+        assertEquals(3, arrays.rectPtrs2.length);
+        for (int i = 0; i < 3; ++i) {
+            assertEquals(i*4+1, arrays.rectPtrs2[i].min.x);
+            assertEquals(i*4+2, arrays.rectPtrs2[i].min.y);
+            assertEquals(i*4+3, arrays.rectPtrs2[i].max.x);
+            assertEquals(i*4+4, arrays.rectPtrs2[i].max.y);
+        }
+
     }
 
     @Test

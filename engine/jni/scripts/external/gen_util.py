@@ -4,6 +4,7 @@ import re
 re_1d_array = re.compile("^(?:const )?\w*\s*\*?\[\d*\]$")
 re_2d_array = re.compile("^(?:const )?\w*\s*\*?\[\d*\]\[\d*\]$")
 re_dmarray = re.compile("^\s*dmArray\s*<(.*)>.*$")
+re_ptr_type = re.compile("^(const )?\s*([\w0-9]+)\s*(\*+)$")
 
 def is_1d_array_type(s):
     return re_1d_array.match(s) is not None
@@ -39,12 +40,18 @@ def is_void_ptr(s):
 def is_func_ptr(s):
     return '(*)' in s
 
+# https://regex101.com/r/2tP07D/1
 def extract_ptr_type(s):
-    tokens = s.split()
-    if tokens[0] == 'const':
-        return tokens[1]
-    else:
-        return tokens[0]
+    m = re_ptr_type.match(s)
+    if m is not None:
+        return '%s %s' % (m.group(2), m.group(3)[1:]) # group 3 may contain "**"
+    return s
+
+def extract_ptr_type2(s):
+    m = re_ptr_type.match(s)
+    if m is not None:
+        return (m.group(2), m.group(3)) # ("Vec2f", "**")
+    return (s, '')
 
 # PREFIX_BLA_BLUB to bla_blub
 def as_lower_snake_case(s, prefix):

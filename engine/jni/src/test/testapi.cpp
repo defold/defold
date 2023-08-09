@@ -126,6 +126,17 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateArrays(JNIEnv* env, jclass cls)
         arrays.m_RectsCount = DM_ARRAY_SIZE(rects);
         arrays.m_Rects2.Set(rects, DM_ARRAY_SIZE(rects), DM_ARRAY_SIZE(rects), true);
 
+        dmJniTest::Recti* rect_ptrs[] = {
+            &rects[0],
+            &rects[1],
+            &rects[2]
+        };
+
+        arrays.m_RectPtrs1 = rect_ptrs;
+        arrays.m_RectPtrs1Count = DM_ARRAY_SIZE(rect_ptrs);
+
+        arrays.m_RectPtrs2.Set(rect_ptrs, DM_ARRAY_SIZE(rect_ptrs), DM_ARRAY_SIZE(rect_ptrs), true);
+
         jdata = dmJniTest::jni::C2J_CreateArrays(env, &jni_scope.m_TypeInfos, &arrays);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jdata;
@@ -186,6 +197,28 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateArrays(JNIEnv* env, jclass c
             out_arrays.m_Rects2[i].m_Min.y = in_arrays.m_Rects2[i].m_Min.y+1;
             out_arrays.m_Rects2[i].m_Max.x = in_arrays.m_Rects2[i].m_Max.x+1;
             out_arrays.m_Rects2[i].m_Max.y = in_arrays.m_Rects2[i].m_Max.y+1;
+        }
+
+        out_arrays.m_RectPtrs1Count = in_arrays.m_RectPtrs1Count;
+        out_arrays.m_RectPtrs1 = new dmJniTest::Recti*[in_arrays.m_RectPtrs1Count];
+        for (uint32_t i = 0; i < in_arrays.m_RectPtrs1Count; ++i)
+        {
+            out_arrays.m_RectPtrs1[i] = new dmJniTest::Recti();
+            out_arrays.m_RectPtrs1[i]->m_Min.x = in_arrays.m_RectPtrs1[i]->m_Min.x+1;
+            out_arrays.m_RectPtrs1[i]->m_Min.y = in_arrays.m_RectPtrs1[i]->m_Min.y+1;
+            out_arrays.m_RectPtrs1[i]->m_Max.x = in_arrays.m_RectPtrs1[i]->m_Max.x+1;
+            out_arrays.m_RectPtrs1[i]->m_Max.y = in_arrays.m_RectPtrs1[i]->m_Max.y+1;
+        }
+
+        out_arrays.m_RectPtrs2.SetCapacity(in_arrays.m_RectPtrs2.Capacity());
+        out_arrays.m_RectPtrs2.SetSize(in_arrays.m_RectPtrs2.Size());
+        for (uint32_t i = 0; i < in_arrays.m_RectPtrs2.Size(); ++i)
+        {
+            out_arrays.m_RectPtrs2[i] = new dmJniTest::Recti();
+            out_arrays.m_RectPtrs2[i]->m_Min.x = in_arrays.m_RectPtrs2[i]->m_Min.x+1;
+            out_arrays.m_RectPtrs2[i]->m_Min.y = in_arrays.m_RectPtrs2[i]->m_Min.y+1;
+            out_arrays.m_RectPtrs2[i]->m_Max.x = in_arrays.m_RectPtrs2[i]->m_Max.x+1;
+            out_arrays.m_RectPtrs2[i]->m_Max.y = in_arrays.m_RectPtrs2[i]->m_Max.y+1;
         }
 
         jni_out_arrays = dmJniTest::jni::C2J_CreateArrays(env, &jni_scope.m_TypeInfos, &out_arrays);
