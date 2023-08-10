@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,6 +63,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
 
 import java.awt.AlphaComposite;
@@ -157,7 +158,16 @@ public class BundleHelper {
         String s = new String(data);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
-        template.execute(propertiesMap, properties, sw);
+        try {
+            template.execute(propertiesMap, properties, sw);
+         } catch (MustacheException e) {
+            MustacheException.Context context = (MustacheException.Context) e;
+            String key = context.key;
+            int lineNo = context.lineNo;
+            String path = resource.getPath();
+            String cause = String.format("File '%s' requires '%s' in line %d. Make sure you have '%s' in your game.project", path, key, lineNo, key);
+            throw new MustacheException(cause);
+         }
         sw.flush();
         return sw.toString();
     }
@@ -723,7 +733,7 @@ public class BundleHelper {
         }
     }
 
-    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, boolean async) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -736,6 +746,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
+            boolean async = true;
             extender.build(platform, sdkVersion, allSource, zipFile, logFile, async);
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {

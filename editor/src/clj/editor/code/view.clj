@@ -14,8 +14,11 @@
 
 (ns editor.code.view
   (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
             [clojure.string :as string]
@@ -23,11 +26,13 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
+            [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
+            [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -53,7 +58,7 @@
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
-           [javafx.event EventHandler]
+           [javafx.event Event EventHandler]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
@@ -62,7 +67,7 @@
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
-           [javafx.scene.text Font FontSmoothingType TextAlignment]
+           [javafx.scene.text Font FontSmoothingType Text TextAlignment]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -895,6 +900,7 @@
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
+  (property edited-breakpoint r/Region (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focus-state FocusState (default :not-focused) (dynamic visible (g/constantly false)))
@@ -1750,6 +1756,16 @@
                                                   regions
                                                   breakpoint-rows)))))
 
+(handler/defhandler :edit-breakpoint :code-view
+  (run [view-node]
+    (let [lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          regions (get-property view-node :regions)]
+      (set-properties!
+        view-node
+        nil
+        (data/edit-breakpoint-from-single-cursor-range lines cursor-ranges regions)))))
+
 (handler/defhandler :reindent :code-view
   (enabled? [view-node evaluation-context]
             (not-every? data/cursor-range-empty?
@@ -1772,6 +1788,104 @@
                                                   (get-property view-node :lines)
                                                   (get-property view-node :cursor-ranges)
                                                   (get-property view-node :regions)))))
+
+(defn- show-goto-popup! [view-node open-resource-fn results]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges evaluation-context)))
+          ^Canvas canvas (get-property view-node :canvas evaluation-context)
+          ^LayoutInfo layout (get-property view-node :layout evaluation-context)
+          lines (get-property view-node :lines evaluation-context)
+          cursor-bottom (cursor-bottom layout lines cursor)
+          font-name (get-property view-node :font-name evaluation-context)
+          font-size (get-property view-node :font-size evaluation-context)
+          list-view (popup/make-choices-list-view
+                      (data/line-height (.-glyph layout))
+                      (fn [{:keys [resource cursor-range]}]
+                        {:graphic
+                         (doto (Text.
+                                 (str (resource/proj-path resource)
+                                      ":"
+                                      (data/CursorRange->line-number cursor-range)))
+                           (.setFont (Font/font font-name font-size)))}))
+          [width height] (popup/update-list-view! list-view 200.0 results 0)
+          anchor (pref-suggestions-popup-position canvas width height cursor-bottom)
+          popup (doto (popup/make-choices-popup canvas list-view)
+                  (.addEventHandler Event/ANY (ui/event-handler event (.consume event))))
+          accept! (fn [{:keys [resource cursor-range]}]
+                    (.hide popup)
+                    (open-resource-fn resource {:cursor-range cursor-range}))]
+      (hide-suggestions! view-node)
+      (doto list-view
+        ui/apply-css!
+        (.setOnMouseClicked
+          (ui/event-handler event
+            (when-let [item (ui/cell-item-under-mouse event)]
+              (accept! item))))
+        (.setOnKeyPressed
+          (ui/event-handler event
+            (let [^KeyEvent event event]
+              (when (and (= KeyEvent/KEY_PRESSED (.getEventType event)))
+                (condp = (.getCode event)
+                  KeyCode/ENTER (accept! (first (ui/selection list-view)))
+                  KeyCode/ESCAPE (.hide popup)
+                  nil))))))
+      (.show popup (.getWindow (.getScene canvas)) (.getX anchor) (.getY anchor))
+      (popup/update-list-view! list-view 200.0 results 0))))
+
+(defn- show-no-language-server-for-resource-language-notification! [resource]
+  (let [language (resource/language resource)]
+    (notifications/show!
+      (workspace/notifications (resource/workspace resource))
+      {:type :warning
+       :id [::no-lsp language]
+       :text (format "Cannot perform this action because there is no LSP Language Server running for the '%s' language"
+                     language)
+       :actions [{:text "About LSP in Defold"
+                  :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
+
+(handler/defhandler :goto-definition :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node user-data open-resource-fn]
+    (let [resource-node (get-property view-node :resource-node)
+          resource (g/node-value resource-node :resource)
+          lsp (lsp/get-node-lsp resource-node)]
+      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (lsp/goto-definition!
+          lsp
+          resource
+          (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+          (fn [results]
+            (fx/on-fx-thread
+              (case (count results)
+                0 nil
+                1 (open-resource-fn
+                    (:resource (first results))
+                    {:cursor-range (:cursor-range (first results))})
+                (show-goto-popup! view-node open-resource-fn results)))))
+        (show-no-language-server-for-resource-language-notification! resource)))))
+
+(handler/defhandler :find-references :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node user-data open-resource-fn]
+    (let [resource-node (get-property view-node :resource-node)
+          lsp (lsp/get-node-lsp resource-node)
+          resource (g/node-value resource-node :resource)]
+      (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (lsp/find-references!
+          lsp
+          resource
+          (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))
+          (fn [results]
+            (when (pos? (count results))
+              (fx/on-fx-thread
+                (show-goto-popup! view-node open-resource-fn results)))))
+        (show-no-language-server-for-resource-language-notification! resource)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
@@ -2064,14 +2178,16 @@
 
 (defn- replace-all! [view-node]
   (hide-suggestions! view-node)
-  (set-properties! view-node nil
-                   (data/replace-all (get-property view-node :lines)
-                                     (get-property view-node :regions)
-                                     (get-property view-node :layout)
-                                     (split-lines (.getValue find-term-property))
-                                     (split-lines (.getValue find-replacement-property))
-                                     (.getValue find-case-sensitive-property)
-                                     (.getValue find-whole-word-property))))
+  (let [^String find-term (.getValue find-term-property)]
+    (when (pos? (.length find-term))
+      (set-properties! view-node nil
+                       (data/replace-all (get-property view-node :lines)
+                                         (get-property view-node :regions)
+                                         (get-property view-node :layout)
+                                         (split-lines find-term)
+                                         (split-lines (.getValue find-replacement-property))
+                                         (.getValue find-case-sensitive-property)
+                                         (.getValue find-whole-word-property))))))
 
 (handler/defhandler :find-text :code-view
   (run [find-bar view-node]
@@ -2172,7 +2288,11 @@
    {:command :select-next-occurrence :label "Select Next Occurrence"}
    {:command :split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
-   {:command :toggle-breakpoint :label "Toggle Breakpoint"}])
+   {:command :goto-definition :label "Go to Definition"}
+   {:command :find-references :label "Find References"}
+   {:label :separator}
+   {:command :toggle-breakpoint :label "Toggle Breakpoint"}
+   {:command :edit-breakpoint :label "Edit Breakpoint"}])
 
 (handler/register-menu! ::menubar :editor.app-view/view-end
   [{:command :toggle-minimap :label "Minimap" :check true}
@@ -2195,7 +2315,7 @@
   ;; reached after a series of undo's could be something else entirely
   ;; than what the user saw.
   (g/with-auto-evaluation-context ec
-    (r/ensure-unmodified-lines! resource-node ec)
+    (r/ensure-loaded! resource-node ec)
     (let [glyph-metrics (g/node-value view-node :glyph-metrics ec)
           tab-spaces (g/node-value view-node :tab-spaces ec)
           tab-stops (data/tab-stops glyph-metrics tab-spaces)
@@ -2373,8 +2493,13 @@
             drawn-line-count (.drawn-line-count layout)
             dropped-line-count (.dropped-line-count layout)
             source-line-count (count lines)
-            indicator-diameter (- line-height 6.0)
-            breakpoint-rows (data/cursor-ranges->start-rows lines (filter data/breakpoint-region? regions))
+            indicator-offset 3.0
+            indicator-diameter (- line-height indicator-offset indicator-offset)
+            breakpoint-row->condition (into {}
+                                            (comp
+                                              (filter data/breakpoint-region?)
+                                              (map (juxt data/breakpoint-row #(:condition % true))))
+                                            regions)
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
             execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
             execution-marker-frame-rows (data/cursor-ranges->start-rows lines (:current-frame execution-markers-by-type))]
@@ -2382,12 +2507,36 @@
                source-line-index dropped-line-count]
           (when (and (< drawn-line-index drawn-line-count)
                      (< source-line-index source-line-count))
-            (let [y (data/row->y layout source-line-index)]
-              (when (contains? breakpoint-rows source-line-index)
+            (let [y (data/row->y layout source-line-index)
+                  condition (breakpoint-row->condition source-line-index)]
+              (when condition
                 (.setFill gc gutter-breakpoint-color)
                 (.fillOval gc
-                           (+ (.x line-numbers-rect) (.w line-numbers-rect) 3.0)
-                           (+ y 3.0) indicator-diameter indicator-diameter))
+                           (+ (.x line-numbers-rect) (.w line-numbers-rect) indicator-offset)
+                           (+ y indicator-offset) indicator-diameter indicator-diameter)
+                (when (string? condition)
+                  (doto gc
+                    (.save)
+                    (.setFill gutter-background-color)
+                    (.translate
+                      ;; align to the center of the breakpoint indicator
+                      (+ (.x line-numbers-rect)
+                         (.w line-numbers-rect)
+                         indicator-offset
+                         (* indicator-diameter 0.5))
+                      (+ y indicator-offset (* indicator-diameter 0.5)))
+                    ;; magic scaling constant to make the icon fit
+                    (.scale (/ indicator-diameter 180.0) (/ indicator-diameter 180.0))
+                    (.beginPath)
+                    ;; The following SVG path is taken from here:
+                    ;; https://uxwing.com/question-mark-icon/
+                    ;; License: All icons are free to use any personal and commercial projects without any attribution or credit
+                    ;; Then, the path was edited on this svg editor site:
+                    ;; https://yqnn.github.io/svg-path-editor/
+                    ;; I translated it up and to the left so the center of the question mark is on 0,0
+                    (.appendSVGPath "M 15.68 24.96 H -15.63 V 21.84 C -15.63 16.52 -15.04 12.19 -13.83 8.87 C -12.62 5.52 -10.82 2.51 -8.43 -0.24 C -6.04 -3 -0.67 -7.84 7.69 -14.76 C 12.14 -18.39 14.36 -21.71 14.36 -24.72 C 14.36 -27.76 13.46 -30.09 11.69 -31.78 C 9.89 -33.44 7.19 -34.28 3.56 -34.28 C -0.35 -34.28 -3.56 -32.99 -6.12 -30.4 C -8.68 -27.84 -10.31 -23.31 -11.02 -16.9 L -43 -20.87 C -41.9 -32.63 -37.63 -42.08 -30.2 -49.26 C -22.75 -56.43 -11.32 -60 4.06 -60 C 16.04 -60 25.69 -57.5 33.06 -52.52 C 43.05 -45.74 48.06 -36.74 48.06 -25.48 C 48.06 -20.81 46.77 -16.28 44.18 -11.95 C 41.62 -7.62 36.33 -2.3 28.37 3.94 C 22.83 8.36 19.31 11.87 17.85 14.55 C 16.42 17.19 15.68 20.68 15.68 24.96 L 15.68 24.96 Z M -16.72 33.29 H 16.84 V 62.89 H -16.72 V 33.29 L -16.72 33.29 Z")
+                    (.fill)
+                    (.restore))))
               (when (contains? execution-marker-current-rows source-line-index)
                 (let [x (+ (.x line-numbers-rect) (.w line-numbers-rect) 4.0)
                       y (+ y 4.0)
@@ -2530,7 +2679,7 @@
                                                          (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                            (refresh))))]
     (fx/mount-renderer state (fx/create-renderer
-                               :error-handler editor.error-reporting/report-exception!
+                               :error-handler error-reporting/report-exception!
                                :middleware (comp
                                              fxui/wrap-dedupe-desc
                                              (fx/wrap-map-desc #(hover-view canvas %)))))
@@ -2539,9 +2688,129 @@
       (ui/timer-stop! timer)
       (reset! state nil))))
 
+(defn- consume-breakpoint-popup-events [^Event e]
+  (when-not (and (instance? KeyEvent e)
+                 (= KeyEvent/KEY_PRESSED (.getEventType e))
+                 (= KeyCode/ESCAPE (.getCode ^KeyEvent e)))
+    (.consume e)))
+
+(defn- breakpoint-editor-view [^Canvas canvas {:keys [edited-breakpoint gutter-metrics layout]}]
+  (let [[^double gutter-width ^double gutter-margin] gutter-metrics
+        spacing 4
+        padding 8
+        anchor (.localToScreen canvas
+                               (- gutter-width
+                                  (* gutter-margin 0.5)
+                                  12) ;; shadow offset
+                               (+ (* ^double (data/line-height (:glyph layout)) 0.5)
+                                  (data/row->y layout (data/breakpoint-row edited-breakpoint))))]
+    {:fx/type fxui/with-popup
+     :desc {:fx/type fxui/ext-value :value (.getWindow (.getScene canvas))}
+     :showing true
+     :anchor-x (.getX anchor)
+     :anchor-y (.getY anchor)
+     :anchor-location :window-top-left
+     :auto-hide true
+     :auto-fix true
+     :hide-on-escape true
+     :on-auto-hide {:event :cancel}
+     :consume-auto-hiding-events true
+     :event-handler consume-breakpoint-popup-events
+     :content
+     [{:fx/type fx.v-box/lifecycle
+       :stylesheets [(str (io/resource "editor.css"))]
+       :children
+       [{:fx/type fx.v-box/lifecycle
+         :style-class "breakpoint-editor"
+         :fill-width false
+         :spacing -1
+         :children
+         [{:fx/type fx.region/lifecycle
+           :view-order -1
+           :style-class "breakpoint-editor-arrow"
+           :min-width 10
+           :min-height 10}
+          {:fx/type fx.stack-pane/lifecycle
+           :children
+           [{:fx/type fx.region/lifecycle
+             :style-class "breakpoint-editor-background"}
+            {:fx/type fx.v-box/lifecycle
+             :style-class "breakpoint-editor-content"
+             :spacing padding
+             :children
+             [{:fx/type fx.label/lifecycle
+               :style-class ["label" "breakpoint-editor-label" "breakpoint-editor-header"]
+               :text (format "Breakpoint on line %d" (data/CursorRange->line-number edited-breakpoint))}
+              {:fx/type fx.h-box/lifecycle
+               :spacing spacing
+               :alignment :baseline-left
+               :children
+               [{:fx/type fx.label/lifecycle
+                 :style-class ["label" "breakpoint-editor-label"]
+                 :text "Condition"}
+                {:fx/type fxui/text-field
+                 :h-box/hgrow :always
+                 :style-class ["text-field" "breakpoint-editor-label"]
+                 :prompt-text "e.g. i == 1"
+                 :text (:condition edited-breakpoint "")
+                 :on-text-changed {:event :edit}
+                 :on-action {:event :apply}}]}
+              {:fx/type fx.h-box/lifecycle
+               :spacing spacing
+               :alignment :center-right
+               :children
+               [{:fx/type fx.button/lifecycle
+                 :style-class ["button" "breakpoint-editor-button"]
+                 :text "OK"
+                 :on-action {:event :apply}}]}]}]}]}]}]}))
+
+(defn- create-breakpoint-editor! [view-node canvas ^Tab tab]
+  (let [state (atom nil)
+        timer (ui/->timer
+                10
+                "breakpoint-code-editor-timer"
+                (fn [_ _ _]
+                  (when (and (.isSelected tab) (not (ui/ui-disabled?)))
+                    (g/with-auto-evaluation-context evaluation-context
+                      (reset! state
+                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                          {:edited-breakpoint edited-breakpoint
+                           :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
+                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
+    (fx/mount-renderer
+      state
+      (fx/create-renderer
+        :error-handler error-reporting/report-exception!
+        :opts {:fx.opt/map-event-handler
+               (fn [event]
+                 (g/with-auto-evaluation-context evaluation-context
+                   (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                     (set-properties!
+                       view-node
+                       nil
+                       (case (:event event)
+                         :edit
+                         {:edited-breakpoint (assoc edited-breakpoint :condition (:fx/event event))}
+
+                         :cancel
+                         {:edited-breakpoint nil}
+
+                         :apply
+                         (assoc (data/ensure-breakpoint
+                                  (g/node-value view-node :lines evaluation-context)
+                                  (g/node-value view-node :regions evaluation-context)
+                                  edited-breakpoint)
+                           :edited-breakpoint nil))))))}
+        :middleware (comp
+                      fxui/wrap-dedupe-desc
+                      (fx/wrap-map-desc #(breakpoint-editor-view canvas %)))))
+    (ui/timer-start! timer)
+    (fn dispose-breakpoint-editor! []
+      (ui/timer-stop! timer)
+      (reset! state nil))))
+
 (defn- make-view! [graph parent resource-node opts]
-  (let [^Tab tab (:tab opts)
-        app-view (:app-view opts)
+  (let [{:keys [^Tab tab app-view grammar open-resource-fn]} opts
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
@@ -2555,8 +2824,8 @@
                                              :color-scheme code-color-scheme
                                              :font-size (.getValue font-size-property)
                                              :font-name  (.getValue font-name-property)
-                                             :grammar (:grammar opts)
-                                             :gutter-view (CodeEditorGutterView.)
+                                             :grammar grammar
+                                             :gutter-view (->CodeEditorGutterView)
                                              :highlighted-find-term (.getValue highlighted-find-term-property)
                                              :line-height-factor 1.2
                                              :suggestions-list-view suggestions-list-view
@@ -2574,11 +2843,13 @@
                                                            (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
         dispose-hover! (create-hover! view-node canvas tab)
+        dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
                      :replace-bar replace-bar
-                     :view-node view-node}]
+                     :view-node view-node
+                     :open-resource-fn open-resource-fn}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
     (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
@@ -2661,6 +2932,7 @@
                              (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
                              (dispose-hover!)
+                             (dispose-breakpoint-editor!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
                              (dispose-replace-bar! replace-bar)

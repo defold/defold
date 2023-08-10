@@ -22,8 +22,7 @@ lua_lib = bld.stlib(features = 'c cxx',
                     source = lua_lib_source,
                     defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
-is_desktop = bld.env.PLATFORM  in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
-if is_desktop:
+if bld.env.IS_TARGET_DESKTOP:
     lua = bld.program(features = 'c cxx',
                       includes = '. ../',
                       source = 'lua.c',

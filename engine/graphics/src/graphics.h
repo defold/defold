@@ -16,7 +16,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
@@ -72,13 +72,6 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
-    enum AdapterType
-    {
-        ADAPTER_TYPE_NULL,
-        ADAPTER_TYPE_OPENGL,
-        ADAPTER_TYPE_VULKAN,
-    };
-
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,
@@ -99,6 +92,7 @@ namespace dmGraphics
 
     static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
     static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t MAX_VERTEX_STREAM_COUNT      = 8;
 
     // render states
     enum State
@@ -549,6 +543,8 @@ namespace dmGraphics
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
 
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
@@ -568,12 +564,18 @@ namespace dmGraphics
     void DisableProgram(HContext context);
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
 
+    // Attributes
+    uint32_t         GetAttributeCount(HProgram prog);
+    void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
+    void             GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type);
+
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t GetUniformCount(HProgram prog);
     int32_t  GetUniformLocation(HProgram prog, const char* name);
 
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
     void SetSampler(HContext context, int32_t location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
@@ -715,6 +717,8 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
+    uint32_t GetTypeSize(dmGraphics::Type type);
 }
 
 #endif // DM_GRAPHICS_H

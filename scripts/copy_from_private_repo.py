@@ -18,7 +18,7 @@
 import os, sys, shutil, subprocess
 
 PLATFORMS=[]
-for p in ['nx64', 'ps4', 'ps5']:
+for p in ['vendor','nx64', 'ps4', 'ps5']:
     PLATFORMS.append(p)
     PLATFORMS.append(p.upper())
 

@@ -298,6 +298,9 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
 
     #undef TEST_STREAM
 
+    uint32_t vx_stride = dmGraphics::GetVertexDeclarationStride(vertex_declaration);
+    ASSERT_EQ(2 + 4 * sizeof(float), vx_stride);
+
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
@@ -362,12 +365,13 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(dmGraphics::ShaderDesc::Language language, const char* data, uint32_t count)
 {
     dmGraphics::ShaderDesc::Shader ddf;
     memset(&ddf,0,sizeof(ddf));
     ddf.m_Source.m_Data  = (uint8_t*)data;
     ddf.m_Source.m_Count = count;
+    ddf.m_Language = language;
     return ddf;
 }
 
@@ -403,8 +407,8 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, (uint32_t) strlen(vertex_data));
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, (uint32_t) strlen(fragment_data));
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, vertex_data, (uint32_t) strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, fragment_data, (uint32_t) strlen(fragment_data));
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
@@ -431,6 +435,31 @@ TEST_F(dmGraphicsTest, TestProgram)
     ASSERT_STREQ("tint", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
 
+    uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
+    ASSERT_EQ(2, attribute_count);
+    {
+        dmhash_t         name_hash;
+        dmGraphics::Type type;
+        uint32_t         element_count;
+        uint32_t         num_values;
+        int32_t          location;
+        dmGraphics::GetAttribute(program, 0, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("position"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(0, location);
+
+        dmGraphics::GetAttribute(program, 1, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("texcoord0"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC2, type);
+        ASSERT_EQ(2, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(1, location);
+    }
+
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetConstantV4(m_Context, &constant, 1, 0);
@@ -441,15 +470,84 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
     char* program_data = new char[1024];
     *program_data = 0;
-    vs_shader = MakeDDFShader(program_data, 1024);
+    vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, program_data, 1024);
     dmGraphics::ReloadVertexProgram(vp, &vs_shader);
     delete [] program_data;
     program_data = new char[1024];
     *program_data = 0;
-    fs_shader = MakeDDFShader(program_data, 1024);
+    fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, program_data, 1024);
     dmGraphics::ReloadFragmentProgram(fp, &fs_shader);
     delete [] program_data;
     dmGraphics::DisableProgram(m_Context);
+    dmGraphics::DeleteProgram(m_Context, program);
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+}
+
+TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
+{
+    const char* vertex_data = ""
+        "in mediump vec4 position;\n"
+        "in mediump vec2 texcoord0;\n"
+        "in lowp vec4 color;\n"
+
+        "uniform highp mat4 view_proj;\n"
+
+        "out mediump vec2 var_texcoord0;\n"
+        "out lowp vec4 var_color;\n"
+        "void main()\n"
+        "{\n"
+        "    var_texcoord0 = texcoord0;\n"
+        "    var_color = vec4(color.rgb * color.a, color.a);\n"
+        "    gl_Position = view_proj * vec4(position.xyz, 1.0);\n"
+        "}\n";
+
+    const char* fragment_data = ""
+        "void main()\n"
+        "{\n"
+        "    gl_FragColor = vec4(1.0);\n"
+        "}\n";
+
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vertex_data, (uint32_t) strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
+    dmGraphics::HProgram program    = dmGraphics::NewProgram(m_Context, vp, fp);
+
+    uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
+    ASSERT_EQ(3, attribute_count);
+    {
+        dmhash_t         name_hash;
+        dmGraphics::Type type;
+        uint32_t         element_count;
+        uint32_t         num_values;
+        int32_t          location;
+        dmGraphics::GetAttribute(program, 0, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("position"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(0, location);
+
+        dmGraphics::GetAttribute(program, 1, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("texcoord0"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC2, type);
+        ASSERT_EQ(2, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(1, location);
+
+        dmGraphics::GetAttribute(program, 2, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("color"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(2, location);
+    }
+
     dmGraphics::DeleteProgram(m_Context, program);
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);

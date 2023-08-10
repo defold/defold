@@ -51,6 +51,8 @@ namespace dmResource
         dmResourceArchive::Result r = LoadArchiveFromFile(index_path, data_path, archive);
         if (r != dmResourceArchive::RESULT_OK)
         {
+            if (r == dmResourceArchive::RESULT_VERSION_MISMATCH)
+                return RESULT_VERSION_MISMATCH;
             return RESULT_RESOURCE_NOT_FOUND;
         }
         return RESULT_OK;

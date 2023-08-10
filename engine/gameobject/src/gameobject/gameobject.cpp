@@ -3219,6 +3219,7 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
 
         out_value.m_ValueType = dmGameObject::PROP_VALUE_ARRAY;
+        out_value.m_ArrayLength = 0;
 
         if (component_id == 0)
         {

@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <algorithm>
@@ -652,11 +651,3 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
 #undef ASSERT_ADD_TO_UPDATE
 #undef ASSERT_UPDATE
 #undef ASSERT_FINAL
-
-int main(int argc, char **argv)
-{
-    dmDDF::RegisterAllTypes();
-    jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
-}

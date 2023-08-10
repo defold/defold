@@ -263,34 +263,6 @@ namespace dmScript
     void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
 
     /**
-     * Serialize a table to a buffer
-     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, Point3, Vector3, Vector4 and Quat
-     * Keys must be strings
-     * @param L Lua state
-     * @param buffer Buffer that will be written to (must be DM_ALIGNED(16))
-     * @param buffer_size Buffer size
-     * @param index Index of the table
-     * @return Number of bytes used in buffer
-     */
-    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
-
-    /**
-     * Get the size of a table when serialized
-     * @param L Lua state
-     * @param index Index of the table
-     * @return Number of bytes required for the serialized table
-     */
-    uint32_t CheckTableSize(lua_State* L, int index);
-
-    /**
-     * Push a serialized table to the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param data Buffer with serialized table to push
-     * @param data_size Size of buffer of serialized data
-     */
-    void PushTable(lua_State*L, const char* data, uint32_t data_size);
-
-    /**
      * Removes a hash value from the currently known hashes.
      * @param L Lua state
      * @param hash Hash value to release
@@ -533,6 +505,13 @@ namespace dmScript
      * @return config file handle
      */
     dmConfigFile::HConfig GetConfigFile(HContext context);
+
+    /**
+     * Retrieve resource factory handle from the context
+     * @param context script context
+     * @return factory Resource factory handle
+     */
+    dmResource::HFactory GetResourceFactory(HContext context);
 
     /**
      * Add (load) module

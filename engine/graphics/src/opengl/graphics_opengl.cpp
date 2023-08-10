@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,9 +38,9 @@
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
+#if defined(DM_PLATFORM_MACOS)
+// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+#include <Carbon/Carbon.h>
 #endif
 
 #include <dmsdk/graphics/glfw/glfw.h>
@@ -338,7 +338,7 @@ static void LogFrameBufferError(GLenum status)
     } \
 
 
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
     struct ChooseEAGLView
     {
         ChooseEAGLView() {
@@ -351,7 +351,7 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static int8_t          g_null_adapter_priority = 1;
-    static GraphicsAdapter g_opengl_adapter(ADAPTER_TYPE_OPENGL);
+    static GraphicsAdapter g_opengl_adapter("opengl");
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
@@ -374,7 +374,7 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
- 
+
     // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
     //       however we might want to do this the other way around perhaps? i.e special case for webgl
     //       and load functions like this for all other platforms.
@@ -472,30 +472,22 @@ static void LogFrameBufferError(GLenum status)
     {
         switch(type)
         {
-            case GL_BYTE:
-                return TYPE_BYTE;
-            case GL_UNSIGNED_BYTE:
-                return TYPE_UNSIGNED_BYTE;
-            case GL_SHORT:
-                return TYPE_SHORT;
-            case GL_UNSIGNED_SHORT:
-                return TYPE_UNSIGNED_SHORT;
-            case GL_INT:
-                return TYPE_INT;
-            case GL_UNSIGNED_INT:
-                return TYPE_UNSIGNED_INT;
-            case GL_FLOAT:
-                return TYPE_FLOAT;
-            case GL_FLOAT_VEC4:
-                return TYPE_FLOAT_VEC4;
-            case GL_FLOAT_MAT4:
-                return TYPE_FLOAT_MAT4;
-            case GL_SAMPLER_2D:
-                return TYPE_SAMPLER_2D;
-            case DMGRAPHICS_SAMPLER_2D_ARRAY:
-                return TYPE_SAMPLER_2D_ARRAY;
-            case GL_SAMPLER_CUBE:
-                return TYPE_SAMPLER_CUBE;
+            case GL_BYTE:                     return TYPE_BYTE;
+            case GL_UNSIGNED_BYTE:            return TYPE_UNSIGNED_BYTE;
+            case GL_SHORT:                    return TYPE_SHORT;
+            case GL_UNSIGNED_SHORT:           return TYPE_UNSIGNED_SHORT;
+            case GL_INT:                      return TYPE_INT;
+            case GL_UNSIGNED_INT:             return TYPE_UNSIGNED_INT;
+            case GL_FLOAT:                    return TYPE_FLOAT;
+            case GL_FLOAT_VEC2:               return TYPE_FLOAT_VEC2;
+            case GL_FLOAT_VEC3:               return TYPE_FLOAT_VEC3;
+            case GL_FLOAT_VEC4:               return TYPE_FLOAT_VEC4;
+            case GL_FLOAT_MAT2:               return TYPE_FLOAT_MAT2;
+            case GL_FLOAT_MAT3:               return TYPE_FLOAT_MAT3;
+            case GL_FLOAT_MAT4:               return TYPE_FLOAT_MAT4;
+            case GL_SAMPLER_2D:               return TYPE_SAMPLER_2D;
+            case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
             default:break;
         }
 
@@ -809,7 +801,7 @@ static void LogFrameBufferError(GLenum status)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-    #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+    #if defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
     #else
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
@@ -817,7 +809,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         bool is_desktop = false;
-#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || (defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || defined(DM_PLATFORM_MACOS)
         is_desktop = true;
 #endif
         if (is_desktop) {
@@ -994,7 +986,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_IsGles3Version = 1;
         }
 #else
-    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+    #if defined(DM_PLATFORM_IOS)
         // iOS
         context->m_IsGles3Version = 1;
         context->m_IsShaderLanguageGles = 1;
@@ -1048,7 +1040,15 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: OpenGL");
+            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
+        }
+
+#if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -1238,7 +1238,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_MaxTextureSize = gl_max_texture_size;
         CLEAR_GL_ERROR;
 
-#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS) || defined(ANDROID)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
         // The below seems to be the reported sweet spot for modern or semi-modern hardware
         context->m_MaxElementVertices = 1024*1024;
@@ -1646,25 +1646,6 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static uint32_t GetTypeSize(dmGraphics::Type type)
-    {
-        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
-        {
-            return 1;
-        }
-        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
-        {
-            return 2;
-        }
-        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
-        {
-             return 4;
-        }
-
-        assert(0);
-        return 0;
-    }
-
     static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         HVertexDeclaration vd = NewVertexDeclaration(context, stream_declaration);
@@ -1696,7 +1677,7 @@ static void LogFrameBufferError(GLenum status)
         return vd;
     }
 
-    bool OpenGLSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    static bool OpenGLSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {
         if (stream_index >= vertex_declaration->m_StreamCount) {
             return false;
@@ -1829,7 +1810,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    void OpenGLHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void OpenGLHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
         uint16_t stream_count = vertex_declaration->m_StreamCount;
         for (int i = 0; i < stream_count; ++i)
@@ -1844,6 +1825,10 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static uint32_t OpenGLGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
+    }
 
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
@@ -1947,6 +1932,8 @@ static void LogFrameBufferError(GLenum status)
 
             attr.m_Location = glGetAttribLocation(program_ptr->m_Id, attribute_name);
             attr.m_NameHash = dmHashString64(attribute_name);
+            attr.m_Count    = attr_size;
+            attr.m_Type     = attr_type;
             CHECK_GL_ERROR;
         }
     }
@@ -2194,6 +2181,51 @@ static void LogFrameBufferError(GLenum status)
 
         BuildAttributes(program_ptr);
         return true;
+    }
+
+    static uint32_t OpenGLGetAttributeCount(HProgram prog)
+    {
+        assert(prog);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        return program_ptr->m_Attributes.Size();
+    }
+
+    static uint32_t GetElementCount(GLenum type)
+    {
+        switch(type)
+        {
+            case GL_FLOAT:        return 1;
+            case GL_FLOAT_VEC2:   return 2;
+            case GL_FLOAT_VEC3:   return 3;
+            case GL_FLOAT_VEC4:   return 4;
+            case GL_FLOAT_MAT2:   return 4;
+            case GL_FLOAT_MAT3:   return 9;
+            case GL_FLOAT_MAT4:   return 16;
+            case GL_INT:          return 1;
+            case GL_INT_VEC2:     return 2;
+            case GL_INT_VEC3:     return 3;
+            case GL_INT_VEC4:     return 4;
+            case GL_UNSIGNED_INT: return 1;
+        }
+        assert(0 && "Unsupported type");
+        return 0;
+    }
+
+    static void OpenGLGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        assert(prog);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        if (index >= program_ptr->m_Attributes.Size())
+        {
+            return;
+        }
+
+        OpenglVertexAttribute& attr = program_ptr->m_Attributes[index];
+        *name_hash                  = attr.m_NameHash;
+        *type                       = GetGraphicsType(attr.m_Type);
+        *num_values                 = attr.m_Count;
+        *location                   = attr.m_Location;
+        *element_count              = GetElementCount(attr.m_Type);
     }
 
     static uint32_t OpenGLGetUniformCount(HProgram prog)
@@ -2630,7 +2662,7 @@ static void LogFrameBufferError(GLenum status)
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
             context->m_FrameBufferInvalidateBits = transient_buffer_types;
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+#if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
@@ -3707,7 +3739,7 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_PipelineState.m_StencilFrontOpFail      = sfail;
             context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
-            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
         }
     }
 

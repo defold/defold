@@ -3,19 +3,20 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include "graphics.h"
 #include "graphics_private.h"
 #include "graphics_adapter.h"
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
 #include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
 #endif
 #include <string.h>
@@ -43,42 +44,23 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool GetAdapterFromString(const char* adapter_type_str, AdapterType* adapter_type_out)
+    static bool SelectAdapterByName(const char* adapter_name)
     {
-        if (adapter_type_str)
+        if (adapter_name != 0)
         {
-            if (dmStrCaseCmp(adapter_type_str, "null") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_NULL;
-                return true;
-            }
-            else if (dmStrCaseCmp(adapter_type_str, "opengl") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_OPENGL;
-                return true;
-            }
-            else if (dmStrCaseCmp(adapter_type_str, "vulkan") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_VULKAN;
-                return true;
-            }
-        }
-        return false;
-    }
+            GraphicsAdapter* next = g_adapter_list;
 
-    static bool SelectAdapterByType(AdapterType adapter_type)
-    {
-        GraphicsAdapter* next     = g_adapter_list;
-
-        while(next)
-        {
-            if (next->m_AdapterType == adapter_type && next->m_IsSupportedCb())
+            while(next)
             {
-                g_functions = next->m_RegisterCb();
-                g_adapter   = next;
-                return true;
+                assert(next->m_AdapterName != 0);
+                if (dmStrCaseCmp(next->m_AdapterName, adapter_name) == 0 && next->m_IsSupportedCb())
+                {
+                    g_functions = next->m_RegisterCb();
+                    g_adapter   = next;
+                    return true;
+                }
+                next = next->m_Next;
             }
-            next = next->m_Next;
         }
 
         return false;
@@ -111,18 +93,6 @@ namespace dmGraphics
 
     #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
 
-    static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
-    {
-        switch(adapter_type)
-        {
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
-            default: break;
-        }
-        return "<unknown adapter type>";
-    }
-
     const char* GetTextureTypeLiteral(TextureType texture_type)
     {
         switch(texture_type)
@@ -132,7 +102,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
             default:break;
         }
-        return "<unknown texture type>";
+        return "<unknown dmGraphics::TextureType>";
     }
 
     const char* GetBufferTypeLiteral(BufferType buffer_type)
@@ -147,7 +117,32 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
             default:break;
         }
-        return "<unknown buffer type>";
+        return "<unknown dmGraphics::BufferType>";
+    }
+
+    const char* GetGraphicsTypeLiteral(Type type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_BYTE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_BYTE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SHORT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_SHORT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_INT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_INT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC4);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT4);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_CUBE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC2);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC3);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT2);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT3);
+            default:break;
+        }
+        return "<unknown dmGraphics::Type>";
     }
 
     const char* GetAssetTypeLiteral(AssetType type)
@@ -159,7 +154,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
             default:break;
         }
-        return "<unknown asset type>";
+        return "<unknown dmGraphics::AssetType>";
     }
 
     const char* GetTextureFormatLiteral(TextureFormat format)
@@ -196,7 +191,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
             default:break;
         }
-        return "<unknown texture format>";
+        return "<unknown dmGraphics::TextureFormat>";
     }
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
@@ -240,6 +235,7 @@ namespace dmGraphics
     {
         return g_functions.m_NewContext(params);
     }
+
 
     static inline BufferType GetAttachmentBufferType(RenderTargetAttachment attachment)
     {
@@ -298,6 +294,75 @@ namespace dmGraphics
         return ~0u;
     }
 
+    uint32_t GetTypeSize(dmGraphics::Type type)
+    {
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
+        {
+             return 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC2)
+        {
+            return 2 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC3)
+        {
+            return 3 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC4)
+        {
+            return 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT2)
+        {
+            return 2 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT3)
+        {
+            return 3 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT4)
+        {
+            return 4 * 4 * 4;
+        }
+        else if (type == TYPE_SAMPLER_2D || type == TYPE_SAMPLER_CUBE || type == TYPE_SAMPLER_2D_ARRAY)
+        {
+            return 0;
+        }
+
+        assert(0 && "Invalid/unsupported type");
+        return 0;
+    }
+
+    void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
+        *data_size = attribute.m_Values.m_BinaryValues.m_Count;
+    }
+
+    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return dmGraphics::TYPE_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return dmGraphics::TYPE_UNSIGNED_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return dmGraphics::TYPE_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return dmGraphics::TYPE_UNSIGNED_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return dmGraphics::TYPE_INT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return dmGraphics::TYPE_UNSIGNED_INT;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return dmGraphics::TYPE_FLOAT;
+            default: assert(0 && "Unsupported dmGraphics::VertexAttribute::DataType");
+        }
+        return (dmGraphics::Type) -1;
+    }
+
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
@@ -332,6 +397,45 @@ namespace dmGraphics
     {
         delete stream_declaration;
     }
+
+    #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
+    const char* TextureFormatToString(TextureFormat format)
+    {
+        switch(format)
+        {
+            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE_ALPHA);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_4BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG_BC5);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC7);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG32F);
+            default:break;
+        }
+        return "UNKNOWN_FORMAT";
+    }
+    #undef DM_TEXTURE_FORMAT_TO_STR_CASE
 
     // For estimating resource size
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
@@ -374,23 +478,76 @@ namespace dmGraphics
         }
     }
 
+    uint32_t GetGraphicsTypeDataSize(Type type)
+    {
+        if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == TYPE_SHORT || type == TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == TYPE_INT || type == TYPE_UNSIGNED_INT || type == TYPE_FLOAT)
+        {
+            return 4;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return 16;
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return 64;
+        }
+        assert(0 && "Unsupported data type");
+        return 0;
+    }
+
+    Type GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type)
+    {
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
+            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
+            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            default: break;
+        }
+
+        // Not supported
+        return (Type) 0xffffffff;
+    }
+
+    bool IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type)
+    {
+        return uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
+               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
+               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
+               uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+    }
+
     bool IsTextureFormatCompressed(dmGraphics::TextureFormat format)
     {
         switch(format)
         {
-        case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-        case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
-        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
-        case dmGraphics::TEXTURE_FORMAT_R_BC4:
-        case dmGraphics::TEXTURE_FORMAT_RG_BC5:
-        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
-            return true;
-        default:
-            return false;
+            case dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
+            case dmGraphics::TEXTURE_FORMAT_R_BC4:
+            case dmGraphics::TEXTURE_FORMAT_RG_BC5:
+            case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -493,29 +650,6 @@ namespace dmGraphics
         return ps;
     }
 
-    void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value)
-    {
-        switch (state)
-        {
-            case STATE_DEPTH_TEST:
-                pipeline_state.m_DepthTestEnabled = value;
-                break;
-            case STATE_STENCIL_TEST:
-                pipeline_state.m_StencilEnabled = value;
-                break;
-            case STATE_BLEND:
-                pipeline_state.m_BlendEnabled = value;
-                break;
-            case STATE_CULL_FACE:
-                pipeline_state.m_CullFaceEnabled = value;
-                break;
-            case STATE_POLYGON_OFFSET_FILL:
-                pipeline_state.m_PolygonOffsetFillEnabled = value;
-                break;
-            default: assert(0 && "EnableState: State not supported");
-        }
-    }
-
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
@@ -565,6 +699,44 @@ namespace dmGraphics
         return format;
     }
 
+    void SetPipelineStateValue(dmGraphics::PipelineState& pipeline_state, State state, uint8_t value)
+    {
+        switch(state)
+        {
+            case STATE_DEPTH_TEST:
+                pipeline_state.m_DepthTestEnabled = value;
+            break;
+            case STATE_STENCIL_TEST:
+                pipeline_state.m_StencilEnabled = value;
+            break;
+            case STATE_BLEND:
+                pipeline_state.m_BlendEnabled = value;
+            break;
+            case STATE_CULL_FACE:
+                pipeline_state.m_CullFaceEnabled = value;
+            break;
+            case STATE_POLYGON_OFFSET_FILL:
+                pipeline_state.m_PolygonOffsetFillEnabled = value;
+            break;
+            default:
+                assert(0 && "EnableState: State not supported");
+            break;
+        }
+    }
+
+    void RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
+    {
+        for(uint32_t px=0; px < num_pixels; px++)
+        {
+            rgba[0] = rgb[0];
+            rgba[1] = rgb[1];
+            rgba[2] = rgb[2];
+            rgba[3] = 255;
+            rgba+=4;
+            rgb+=3;
+        }
+    }
+
     void DeleteContext(HContext context)
     {
         g_functions.m_DeleteContext(context);
@@ -577,13 +749,7 @@ namespace dmGraphics
             return true;
         }
 
-        AdapterType adapter_type;
-        bool result = GetAdapterFromString(adapter_name_str, &adapter_type);
-
-        if (result)
-        {
-            result = SelectAdapterByType(adapter_type);
-        }
+        bool result = SelectAdapterByName(adapter_name_str);
 
         if (!result)
         {
@@ -597,17 +763,12 @@ namespace dmGraphics
 
         if (result)
         {
-            dmLogInfo("Initialised graphics device '%s'", GetGraphicsAdapterTypeLiteral(g_adapter->m_AdapterType));
+            dmLogInfo("Initialised graphics device '%s'", g_adapter->m_AdapterName);
             return true;
         }
 
         dmLogError("Could not initialize graphics. No graphics adapter was found.");
         return false;
-    }
-
-    AdapterType GetAdapterType()
-    {
-        return g_adapter->m_AdapterType;
     }
 
     void Finalize()
@@ -762,6 +923,10 @@ namespace dmGraphics
     {
         g_functions.m_HashVertexDeclaration(state, vertex_declaration);
     }
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
@@ -817,6 +982,14 @@ namespace dmGraphics
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
+    }
+    uint32_t GetAttributeCount(HProgram prog)
+    {
+        return g_functions.m_GetAttributeCount(prog);
+    }
+    void GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        return g_functions.m_GetAttribute(prog, index, name_hash, type, element_count, num_values, location);
     }
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
@@ -1044,7 +1217,7 @@ namespace dmGraphics
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
         glfwAppBootstrap(argc, argv, init_ctx, init_fn, exit_fn, create_fn, destroy_fn, update_fn, result_fn);

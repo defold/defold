@@ -171,7 +171,7 @@ TEST(Socket, BitDifference_Equal)
     ASSERT_EQ(0U, dmSocket::BitDifference(instance1, instance2));
 }
 
-#if !(defined(__NX__) || defined(__SCE__))  // until we have a helper interface wrapper for inet_addr
+#if !defined(DM_TEST_NO_INET_ADDR)  // until we have a helper interface wrapper for inet_addr
 TEST(Socket, NetworkOrder)
 {
     dmSocket::Address address;

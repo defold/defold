@@ -29,6 +29,7 @@
                 <arg value="-I../../engine/gameobject/proto" />
                 <arg value="-I../../engine/script/src" />
                 <arg value="-I../../engine/ddf/src"/>
+                <arg value="-I../../engine/graphics/proto" />
                 <arg value="@{dir}/@{file}"/>
             </exec>
         </sequential>
@@ -58,6 +59,7 @@
             <proto dir="../../engine/ddf/src" file="ddf/ddf_extensions.proto"/>
             <proto dir="../../engine/ddf/src" file="ddf/ddf_math.proto"/>
             <proto dir="../../engine/engine/proto" file="engine/engine_ddf.proto"/>
+            <proto dir="../../engine/graphics/proto" file="graphics/graphics_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject/properties_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject/gameobject_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject/lua_ddf.proto"/>
@@ -75,7 +77,6 @@
             <proto dir="../../engine/gamesys/proto" file="gamesys/mesh_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto" file="gamesys/buffer_ddf.proto"/>
             <proto dir="../../engine/rig/proto" file="rig/rig_ddf.proto"/>
-            <proto dir="../../engine/graphics/proto" file="graphics/graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input/input_ddf.proto"/>
             <proto dir="../../engine/particle/proto" file="particle/particle_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/font_ddf.proto"/>
@@ -130,6 +131,15 @@
                 <include name="luajit-64"/>
             </fileset>
         </copy>
+        <copy todir="${bob.dir}/libexec/arm64-macos" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/arm64-macos">
+                <include name="glslc"/>
+                <include name="spirv-cross"/>
+                <include name="spirv-opt"/>
+                <include name="luac-32"/>
+                <include name="luajit-64"/>
+            </fileset>
+        </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
@@ -156,6 +166,45 @@
                 <include name="spirv-cross.exe"/>
                 <include name="spirv-opt.exe"/>
             </fileset>
+        </copy>
+
+        <copy todir="${bob.dir}/libexec" overwrite="true">
+            <chainedmapper>
+                <cutdirsmapper dirs="1"/>
+                <compositemapper>
+                    <!-- Symlinks do not seem to make it through this process, so we map from versioned name
+                         to the final name. Only files that are matched by either glob below are included in
+                         the copy -->
+                    <globmapper from="x86_64-macos/luajit-2.1.0-beta3-32" to="x86_64-macos/luajit-32"/>
+                    <globmapper from="x86_64-macos/luajit-2.1.0-beta3-64" to="x86_64-macos/luajit-64"/>
+                    <globmapper from="arm64-macos/luajit-2.1.0-beta3-32" to="arm64-macos/luajit-32"/>
+                    <globmapper from="arm64-macos/luajit-2.1.0-beta3-64" to="arm64-macos/luajit-64"/>
+                    <globmapper from="x86_64-linux/luajit-2.1.0-beta3-32" to="x86_64-linux/luajit-32"/>
+                    <globmapper from="x86_64-linux/luajit-2.1.0-beta3-64" to="x86_64-linux/luajit-64"/>
+                    <globmapper from="x86_64-win32/luajit-32.exe" to="x86_64-win32/luajit-32.exe"/>
+                    <globmapper from="x86_64-win32/luajit-64.exe" to="x86_64-win32/luajit-64.exe"/>
+                </compositemapper>
+            </chainedmapper>
+            <tarfileset includes="bin/x86_64-linux/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/x86_64-win32/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/x86_64-macos/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/arm64-macos/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.1.0-6c4826f-arm64-macos.tar.gz" />
+                </gzipresource>
+            </tarfileset>
         </copy>
 
         <javac srcdir="generated"
@@ -197,19 +246,18 @@
                 <exclude name="**/*dSYM.zip"/>
             </fileset>
         </copy>
-        <!-- <copy todir="${bob.dir}/lib/arm64-macos" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/arm64-macos" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="arm64-macos/*texc_shared*"/>
+                <include name="arm64-macos/*modelc_shared*"/>
             </fileset>
-        </copy> -->
+        </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
                 <include name="x86_64-linux/*modelc_shared*"/>
                 <exclude name="**/*dSYM.zip"/>
             </fileset>
-<!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-            </fileset> -->
         </copy>
         <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
@@ -224,8 +272,6 @@
                 <include name="x86_64-win32/*modelc_shared*"/>
                 <exclude name="**/*dSYM.zip"/>
             </fileset>
-<!--             <fileset dir="${env.DYNAMO_HOME}/lib">
-            </fileset> -->
         </copy>
 <!--         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
@@ -279,8 +325,8 @@
               <include name="texturecompiler.jar"/>
               <include name="lz4-1.3.0.jar"/>
               <include name="commons-cli-1.2.jar"/>
-              <include name="jna-5.10.0.jar"/>
-              <include name="jna-platform-5.10.0.jar"/>
+              <include name="jna-5.13.0.jar"/>
+              <include name="jna-platform-5.13.0.jar"/>
               <include name="jackson-core-asl-1.9.2.jar"/>
               <include name="jackson-mapper-asl-1.9.2.jar"/>
               <include name="openmali.jar"/>
@@ -290,6 +336,7 @@
               <include name="jaxb-core-2.3.0.jar"/>
               <include name="jaxb-impl-2.3.0.jar"/>
               <include name="antlr-runtime-4.9.1.jar"/>
+              <include name="jmustache-1.8.jar"/>
             </zipgroupfileset>
          </jar>
 

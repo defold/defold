@@ -48,7 +48,7 @@ namespace dmGui
 
     /*# [type:hash] gui material
      *
-     * The material used when rendering the gui. The type of the property is hash.
+     * The main material (the default material assigned to a GUI) used when rendering the gui. The type of the property is hash.
      *
      * @name material
      * @property
@@ -62,6 +62,29 @@ namespace dmGui
      *
      * function init(self)
      *   go.set("#gui", "material", self.desaturate_material)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] gui materials
+     *
+     * The materials used when rendering the gui. The type of the property is hash.
+     * Key must be specified in options table.
+     *
+     * @name materials
+     * @property
+     *
+     * @examples
+     *
+     * How to change a named material resource using a script property from a script
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/my_material.material"))
+     *
+     * function init(self)
+     *   -- this will update the "my_gui_material" entry in the GUI to use the material
+     *   -- specified in the "my_material" script property.
+     *   go.set("#gui", "materials", self.my_material, { key = "my_gui_material" })
      * end
      * ```
      */
@@ -1885,6 +1908,108 @@ namespace dmGui
         return 1;
     }
 
+    /*# gets the assigned node material
+     * Returns the material of a node.
+     * The material must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_material
+     * @param node [type:node] node to get the material for
+     * @examples
+     *
+     * Getting the material for a node, and assign it to another node:
+     *
+     * ```lua
+     * local node1 = gui.get_node("my_node")
+     * local node2 = gui.get_node("other_node")
+     * local node1_material = gui.get_material(node1)
+     * gui.set_material(node2, node1_material)
+     * ```
+     */
+    static int LuaGetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeMaterialId(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the node material
+     * Set the material on a node. The material must be mapped to the gui scene in the gui editor, 
+     * and assigning a material is supported for all node types. To set the default material that
+     * is assigned to the gui scene node, use `gui.reset_material(node_id)` instead.
+     *
+     * @name gui.set_material
+     * @param node [type:node] node to set material for
+     * @param material [type:string|hash] material id
+     * @examples
+     *
+     * Assign an existing material to a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.set_material(node, "my_material")
+     * ```
+     */
+    static int LuaSetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        dmhash_t material_id = dmScript::CheckHashOrString(L, 2);
+
+        if (SetNodeMaterial(scene, hnode, material_id) != RESULT_OK)
+        {
+            luaL_error(L, "Material '%s' is not specified in scene", dmHashReverseSafe64(material_id));
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# resets the node material
+     * Resets the node material to the material assigned in the gui scene.
+     *
+     * @name gui.set_material
+     * @param node [type:node] node to reset the material for
+     * @examples
+     *
+     * Resetting the material for a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_node")
+     * gui.reset_material(node)
+     * ```
+     */
+    static int LuaResetMaterial(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void)n;
+
+        SetNodeMaterial(scene, hnode, (dmhash_t) 0);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     /*# gets the node font
      * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
      *
@@ -3318,6 +3443,64 @@ namespace dmGui
         }
     }
 
+    static void PushNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index);
+
+    static void PushNodeToTable(lua_State* L, dmGui::HScene scene, InternalNode* n)
+    {
+        dmGui::HNode node = GetNodeHandle(n);
+        dmScript::PushHash(L, n->m_NameHash);
+        LuaPushNode(L, scene, node);
+        lua_rawset(L, -3);
+        PushNodeListToTable(L, scene, n->m_ChildHead);
+    }
+
+    static void PushNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index)
+    {
+        uint32_t index = start_index;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* node = &scene->m_Nodes[index];
+            PushNodeToTable(L, scene, node);
+            index = node->m_NextIndex;
+        }
+    }
+
+    /*# get a node including its children
+     * Get a node and all its children as a Lua table.
+     *
+     * @name gui.get_tree
+     * @param node [type:node] root node to get node tree from
+     * @return clones [type:table] a table mapping node ids to the corresponding nodes
+     */
+    static int LuaGetTree(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+        lua_newtable(L);
+
+        // Set meta table to convert string indices to hashes
+        lua_createtable(L, 0, 1);
+        lua_pushcfunction(L, HashTableIndex);
+        lua_setfield(L, -2, "__index");
+        lua_setmetatable(L, -2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        if (!lua_isnil(L, 1))
+        {
+            dmGui::HNode hnode;
+            InternalNode* root = LuaCheckNodeInternal(L, 1, &hnode);
+            PushNodeToTable(L, scene, root);
+        }
+        else
+        {
+            PushNodeListToTable(L, scene, scene->m_RenderHead);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# resets all nodes to initial state
      * Resets all nodes in the current GUI scene to their initial state.
      * The reset only applies to static node loaded from the scene.
@@ -4246,6 +4429,9 @@ namespace dmGui
         {"new_texture",     LuaNewTexture},
         {"delete_texture",  LuaDeleteTexture},
         {"set_texture_data",LuaSetTextureData},
+        {"get_material",    LuaGetMaterial},
+        {"set_material",    LuaSetMaterial},
+        {"reset_material",  LuaResetMaterial},
         {"get_font",        LuaGetFont},
         {"get_font_resource", LuaGetFontResource},
         {"set_font",        LuaSetFont},
@@ -4279,6 +4465,7 @@ namespace dmGui
         {"set_parent",      LuaSetParent},
         {"clone",           LuaClone},
         {"clone_tree",      LuaCloneTree},
+        {"get_tree",        LuaGetTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
         {"reset_keyboard",  LuaResetKeyboard},

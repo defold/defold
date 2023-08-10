@@ -12,39 +12,16 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../script.h"
+
+#include <testmain/testmain.h>
+#include "test_script.h"
 #include "test/test_ddf.h"
 
-extern "C"
+
+class ScriptDDFTest : public dmScriptTest::ScriptTest
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-class ScriptDDFTest : public jc_test_base_class
-{
-protected:
-protected:
-    virtual void SetUp()
-    {
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-    }
-
-    virtual void TearDown()
-    {
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
-
-    dmScript::HContext m_Context;
-    lua_State* L;
 };
-
 
 TEST_F(ScriptDDFTest, TransformToDDF)
 {
@@ -398,7 +375,7 @@ struct LuaDDFBufferOverflowParam
     uint32_t m_BufferSize;
 };
 
-int ProtectedLuaDDFBufferOverflow (lua_State *L)
+static int ProtectedLuaDDFBufferOverflow(lua_State *L)
 {
     LuaDDFBufferOverflowParam* p = (LuaDDFBufferOverflowParam*) lua_touserdata(L, 1);
 
@@ -510,7 +487,7 @@ TEST_F(ScriptDDFTest, Uint64ToDDF)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

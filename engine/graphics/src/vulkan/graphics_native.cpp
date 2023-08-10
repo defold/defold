@@ -55,7 +55,7 @@ namespace dmGraphics
     #endif
     };
 
-    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
+    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
     static const char* g_validation_layers[1];
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
@@ -324,7 +324,7 @@ namespace dmGraphics
 
     void NativeSwapBuffers(HContext context)
     {
-    #if (defined(__arm__) || defined(__arm64__))
+    #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
         glfwSwapBuffers();
     #endif
     }
