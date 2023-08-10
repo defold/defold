@@ -229,12 +229,11 @@ char* GetString(JNIEnv* env, jobject obj, jfieldID field)
 
 int GetEnum(JNIEnv* env, jobject obj, jfieldID field)
 {
-    jclass cls = env->GetObjectClass(obj);
-    jmethodID getValueMethod = env->GetMethodID(cls, "getValue", "()I");
-
+    jclass field_cls = GetFieldType(env, obj, field);;
+    jmethodID getValueMethod = env->GetMethodID(field_cls, "getValue", "()I");
     jobject value = env->GetObjectField(obj, field);
     int result = env->CallIntMethod(value, getValueMethod);
-    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(field_cls);
     return result;
 }
 

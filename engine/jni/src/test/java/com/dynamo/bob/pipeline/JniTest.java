@@ -71,6 +71,7 @@ public class JniTest
 
     public static native Testapi.Recti TestDuplicateRecti(Testapi.Recti rect);
     public static native Testapi.Arrays TestDuplicateArrays(Testapi.Arrays arrays);
+    public static native Testapi.Misc TestDuplicateMisc(Testapi.Misc misc);
 
     // public static native void TestException(String message);
 
@@ -239,6 +240,19 @@ public class JniTest
             assertEquals(i*4+3 + 1, arrays2.rects2[i].max.x);
             assertEquals(i*4+4 + 1, arrays2.rects2[i].max.y);
         }
+    }
+
+    @Test
+    public void testJ2C_Misc() {
+        Testapi.Misc misc = new Testapi.Misc();
+        misc.testEnum = Testapi.TestEnum.TE_VALUE_A;
+        misc.string = "Hello From Java!";
+
+        Testapi.Misc misc2 = TestDuplicateMisc(misc);
+
+
+        assertEquals(Testapi.TestEnum.TE_VALUE_B, misc2.testEnum);
+        assertEquals("Hello From C!", misc2.string);
     }
 
     // ----------------------------------------------------

@@ -76,6 +76,34 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateMisc(JNIEnv* env, jclass cls)
     return jmisc;
 }
 
+JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateMisc(JNIEnv* env, jclass cls, jobject jni_misc)
+{
+    dmLogInfo("Java_JniTest_TestDuplicateMisc: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
+    dmJniTest::jni::ScopedContext jni_scope(env);
+
+    jobject jni_out_misc = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+
+        dmJniTest::Misc in_misc = {};
+        dmJniTest::jni::J2C_CreateMisc(env, &jni_scope.m_TypeInfos, jni_misc, &in_misc);
+
+        // copy and modify
+        dmJniTest::Misc out_misc = {};
+        out_misc.m_TestEnum = (dmJniTest::TestEnum)(in_misc.m_TestEnum + 1);
+        out_misc.m_String = strdup(in_misc.m_String);
+        char* s = strstr((char*)out_misc.m_String, "Java");
+        if (s)
+        {
+            s[0] = 'C';
+            s[1] = '!';
+            s[2] = '\0';
+        }
+        jni_out_misc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &out_misc);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return jni_out_misc;
+}
+
 JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateRecti(JNIEnv* env, jclass cls, jobject jni_rect)
 {
     dmLogInfo("Java_JniTest_TestDuplicateRecti: env = %p\n", env);
@@ -262,6 +290,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
         {(char*)"TestDuplicateRecti", (char*)"(L" CLASS_NAME "$Recti;)L" CLASS_NAME "$Recti;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateRecti)},
         {(char*)"TestDuplicateArrays", (char*)"(L" CLASS_NAME "$Arrays;)L" CLASS_NAME "$Arrays;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateArrays)},
+        {(char*)"TestDuplicateMisc", (char*)"(L" CLASS_NAME "$Misc;)L" CLASS_NAME "$Misc;", reinterpret_cast<void*>(Java_JniTest_TestDuplicateMisc)},
 
         //{"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_JniTest_TestException)},
     };
