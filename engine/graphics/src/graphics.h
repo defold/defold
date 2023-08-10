@@ -249,7 +249,8 @@ namespace dmGraphics
         uint8_t  m_SubUpdate : 1;
     };
 
-    struct RenderTargetCreationParams {
+    struct RenderTargetCreationParams
+    {
         TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureCreationParams m_DepthBufferCreationParams;
         TextureCreationParams m_StencilBufferCreationParams;

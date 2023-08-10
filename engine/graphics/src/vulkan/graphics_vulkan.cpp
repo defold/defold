@@ -352,6 +352,21 @@ namespace dmGraphics
         context->m_CurrentRenderTarget = render_target;
     }
 
+    static VkImageAspectFlags GetDefaultDepthAndStencilAspectFlags(VkFormat vk_format)
+    {
+        // The aspect flag indicates what the image should be used for,
+        // it is usually color or stencil | depth.
+        VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+            vk_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
+            vk_format == VK_FORMAT_D16_UNORM_S8_UINT)
+        {
+            vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+        return vk_aspect;
+    }
+
     static void GetDepthFormatAndTiling(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_list, uint8_t vk_format_list_size, VkFormat* vk_format_out, VkImageTiling* vk_tiling_out)
     {
         // Depth formats are optional, so we need to query
@@ -385,29 +400,19 @@ namespace dmGraphics
     }
 
     static VkResult CreateDepthStencilTexture(VulkanContext* context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling,
-        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, Texture* depth_stencil_texture_out)
+        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, VkImageAspectFlags vk_aspect_flags, Texture* depth_stencil_texture_out)
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
 
-        // The aspect flag indicates what the image should be used for,
-        // it is usually color or stencil | depth.
-        VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-        if (vk_depth_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
-            vk_depth_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
-            vk_depth_format == VK_FORMAT_D16_UNORM_S8_UINT)
-        {
-            vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
-        }
-
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect_flags, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect,
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect_flags,
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
@@ -507,6 +512,7 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
+            GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
             depth_stencil_texture);
         CHECK_VK_ERROR(res);
 
@@ -658,6 +664,7 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
+            GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
             depth_stencil_texture);
         CHECK_VK_ERROR(res);
 
@@ -3097,10 +3104,12 @@ bail:
 
             texture_depth_stencil              = NewTexture(context, stencil_depth_create_params);
             Texture* texture_depth_stencil_ptr = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture_depth_stencil);
-
+    
+            // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_depth_tiling,
                 fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
+                VK_IMAGE_ASPECT_DEPTH_BIT, // JG: This limits us to sampling depth only afaik
                 texture_depth_stencil_ptr);
             CHECK_VK_ERROR(res);
         }
@@ -3225,6 +3234,7 @@ bail:
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_image_tiling,
                 width, height, VK_SAMPLE_COUNT_1_BIT,
+                VK_IMAGE_ASPECT_DEPTH_BIT,
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);
         }
