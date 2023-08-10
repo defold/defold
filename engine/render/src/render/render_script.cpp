@@ -1502,7 +1502,8 @@ namespace dmRender
                 if (texture == 0)
                 {
                     char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type (type=%s).",
+                        AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
                 }
             }
             else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)

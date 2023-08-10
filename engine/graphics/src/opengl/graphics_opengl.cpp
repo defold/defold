@@ -635,7 +635,6 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
-            case CONTEXT_FEATURE_STENCIL_TEXTURE:        return context->m_VersionMajor > 4 && context->m_VersionMinor > 4;
         }
         return false;
     }
@@ -2296,69 +2295,6 @@ static void LogFrameBufferError(GLenum status)
             DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
     }
 
-    static void OpenGLSetDepthStencilRenderBuffer(OpenGLContext* context, OpenGLRenderTarget* rt, bool update_current = false)
-    {
-        /*
-        TextureParams* params = rt->m_BufferTypeFlags & dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &rt->m_DepthBufferParams : &rt->m_StencilBufferParams;
-
-        if(rt->m_DepthStencilBuffer)
-        {
-            glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-#ifdef GL_DEPTH_STENCIL_ATTACHMENT
-            // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
-            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, params->m_Width, params->m_Height);
-            CHECK_GL_ERROR;
-            if(!update_current)
-            {
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR;
-            }
-#else
-            // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
-            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, params->m_Width, params->m_Height);
-            CHECK_GL_ERROR;
-            if(!update_current)
-            {
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR;
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR;
-            }
-#endif
-            glBindRenderbuffer(GL_RENDERBUFFER, 0);
-            return;
-        }
-
-        if(rt->m_DepthBuffer)
-        {
-            glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthBuffer);
-            glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), params->m_Width, params->m_Height);
-            CHECK_GL_ERROR;
-            if(!update_current)
-            {
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthBuffer);
-                CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
-            }
-            glBindRenderbuffer(GL_RENDERBUFFER, 0);
-        }
-
-        if(rt->m_StencilBuffer)
-        {
-            glBindRenderbuffer(GL_RENDERBUFFER, rt->m_StencilBuffer);
-            glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, params->m_Width, params->m_Height);
-            CHECK_GL_ERROR;
-            if(!update_current)
-            {
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_StencilBuffer);
-                CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
-            }
-            glBindRenderbuffer(GL_RENDERBUFFER, 0);
-        }
-        */
-    }
-
 #if __EMSCRIPTEN__
     static bool WebGLValidateFramebufferAttachmentDimensions(OpenGLContext* context, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const RenderTargetCreationParams params)
     {
@@ -2515,7 +2451,8 @@ static void LogFrameBufferError(GLenum status)
                 glBindTexture(GL_TEXTURE_2D, attachment_tex->m_TextureIds[0]);
                 CHECK_GL_ERROR;
 
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8,
+                glTexImage2D(GL_TEXTURE_2D, 0,
+                    DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
                     rt->m_DepthStencilAttachment.m_Params.m_Width,
                     rt->m_DepthStencilAttachment.m_Params.m_Height,
                     0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, 0); // The data type (GL_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
@@ -2575,6 +2512,7 @@ static void LogFrameBufferError(GLenum status)
 
     static HRenderTarget OpenGLNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
+        OpenGLContext* context        = (OpenGLContext*) _context;
         bool any_color_attachment_set = false;
         bool use_depth_attachment     = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         bool use_stencil_attachment   = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
@@ -2588,18 +2526,18 @@ static void LogFrameBufferError(GLenum status)
             BUFFER_TYPE_COLOR3_BIT,
         };
 
+        // NOTE: Regarding this, the OpenGL context we create is to low on all current desktop platforms to use, but it should work for the other adapters.
+        if (stencil_texture)
+        {
+            dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
+        }
+
         if (use_depth_attachment && use_stencil_attachment)
         {
             dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
                 (depth_texture ? "texture" : "buffer"),
                 (stencil_texture ? "texture" : "buffer"));
             stencil_texture = depth_texture;
-        }
-
-        if (use_stencil_attachment && !use_depth_attachment && stencil_texture && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_STENCIL_TEXTURE))
-        {
-            dmLogWarning("A single stencil textures are not supported as framebuffer attachment on this context, defaulting to render buffer");
-            stencil_texture = false;
         }
 
         // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
@@ -2612,7 +2550,6 @@ static void LogFrameBufferError(GLenum status)
         }
     #endif
 
-        OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = new OpenGLRenderTarget();
         rt->m_BufferTypeFlags  = buffer_type_flags;
 
@@ -2635,9 +2572,9 @@ static void LogFrameBufferError(GLenum status)
         {
             if (use_depth_attachment && use_stencil_attachment)
             {
+                // If both depth and stencil attachments are requested, we create a shared texture for both attachments since we cannot mix and match buffers and textures as attachments in OpenGL.
                 if (depth_texture)
                 {
-                    assert(stencil_texture);
                     CreateRenderTargetAttachment(context, rt->m_DepthStencilAttachment, ATTACHMENT_TYPE_TEXTURE, params.m_DepthBufferParams, params.m_DepthBufferCreationParams);
                 }
                 else if (context->m_PackedDepthStencilSupport)
@@ -2656,7 +2593,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else if (use_stencil_attachment)
             {
-                CreateRenderTargetAttachment(context, rt->m_StencilAttachment, stencil_texture ? ATTACHMENT_TYPE_TEXTURE : ATTACHMENT_TYPE_BUFFER, params.m_StencilBufferParams, params.m_StencilBufferCreationParams);
+                CreateRenderTargetAttachment(context, rt->m_StencilAttachment, ATTACHMENT_TYPE_BUFFER, params.m_StencilBufferParams, params.m_StencilBufferCreationParams);
             }
         }
 
@@ -2813,21 +2750,17 @@ static void LogFrameBufferError(GLenum status)
         {
             return GetAttachmentTexture(rt->m_ColorAttachments[GetBufferTypeIndex(buffer_type)]);
         }
-        else if (rt->m_DepthStencilAttachment.m_Type != ATTACHMENT_TYPE_UNUSED)
+        else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
             return rt->m_DepthStencilAttachment.m_Texture;
         }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT && rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
             return GetAttachmentTexture(rt->m_DepthAttachment);
         }
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT && rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
-            return GetAttachmentTexture(rt->m_DepthAttachment);
-        }
-        else
-        {
-            assert(0);
+            return GetAttachmentTexture(rt->m_StencilAttachment);
         }
         return 0;
     }
