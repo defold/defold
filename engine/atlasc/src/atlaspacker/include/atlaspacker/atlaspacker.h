@@ -7,14 +7,13 @@
 
 #include <stdint.h>
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef struct {
     int x, y;
 } apPos;
 
-typedef struct apPosf
-{
+typedef struct apPosf {
     float x, y;
 } apPosf;
 
@@ -51,8 +50,7 @@ typedef struct apPage {
     int             index;
 } apPage;
 
-typedef struct
-{
+typedef struct {
     int page_size;
 } apOptions;
 
@@ -67,8 +65,7 @@ typedef struct {
     struct _apPacker*   packer;
 } apContext;
 
-typedef struct _apPacker
-{
+typedef struct _apPacker {
     const char* packer_type;
     apImage* (*createImage)(struct _apPacker* packer, const char* path, int width, int height, int channels, const uint8_t* data);
     void (*destroyImage)(struct _apPacker* packer, apImage* image);

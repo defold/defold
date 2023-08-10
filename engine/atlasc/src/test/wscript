@@ -1,9 +1,32 @@
 #! /usr/bin/env python
 
+import os
 from waflib.Options import options
 
 def build(bld):
-   bld(features     = 'c cxx cprogram test',
-       source       = 'test_atlasc.cpp',
-       use          = 'DLIB PROFILE_NULL atlasc atlaspacker',
-       target       = 'test_atlasc')
+    bld(features     = 'c cxx cprogram test',
+        source       = 'test_atlasc.cpp',
+        use          = 'DLIB PROFILE_NULL JNI atlasc atlaspacker',
+        target       = 'test_atlasc')
+
+    classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
+
+    atlascompiler = os.path.normpath(os.path.join(bld.path.abspath(), '../../build/src/atlascompiler.jar'))
+    print("MAWE atlascompiler", atlascompiler)
+    classpath.append(atlascompiler)
+    classpath = os.pathsep.join(classpath)
+
+    bld(features='javac seq',
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
+
+    bld.env["JAVACFLAGS"] = '-g'.split()
+
+    bld(features='jar seq test',
+        basedir ='java',
+        destfile ='test_jni.jar',
+        name = 'test_jni',
+        classpath=classpath,
+        java_library_paths=[os.path.dirname(atlascompiler)],
+        mainclass='com.dynamo.bob.pipeline.TestAtlasc')

@@ -63,112 +63,22 @@ public class AtlasCompiler {
     // public static native int AddressOf(Object o);
     // public static native void TestException(String message);
 
+    public static native Atlasc.Options GetDefaultOptions();
+    public static native Atlasc.Atlas   CreateAtlas(Atlasc.Options options, Atlasc.SourceImage[] images);
+    //public static native void           DestroyAtlas(Atlasc.Atlas atlas);
+
+    public static native Atlasc.SourceImage LoadImage(String path);
+
     public static class AtlasException extends Exception {
         public AtlasException(String errorMessage) {
             super(errorMessage);
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////////
-
-
-    static public enum PackingAlgorithm {
-        PA_TILEPACK_AUTO,       // The default (tile)
-        PA_TILEPACK_TILE,
-        PA_TILEPACK_CONVEXHULL,
-        PA_BINPACK_SKYLINE_BL,
-    };
-
-    static public class Vec2i {
-        int x, y;
-
-        public Vec2i() {}
-        public Vec2i(Vec2i other)
-        {
-            this.x = other.x;
-            this.y = other.y;
-        }
-    };
-
-    static public class Vec2f {
-        float x, y;
-
-        public Vec2f() {}
-        public Vec2f(Vec2f other)
-        {
-            this.x = other.x;
-            this.y = other.y;
-        }
-    };
-
-    static public class Rect {
-        Vec2i pos;
-        Vec2i size;
-
-        public Rect() {}
-        public Rect(Rect other)
-        {
-            this.pos = other.pos;
-            this.size = other.size;
-        }
-    };
-
-    // Input format
-    static public class SourceImage
-    {
-        String  path; // The source path
-        byte[]  data; // The texels
-        Vec2i   size; // The dimensions in texels
-        int     numChannels;
-    };
-
-    // Output format
-    static public class PackedImage {
-        Vec2i pos;
-        Vec2i size;
-
-        public PackedImage() {}
-        public PackedImage(PackedImage other)
-        {
-            this.pos = other.pos;
-            this.size = other.size;
-        }
-    };
-
-    // Output format
-    static public class AtlasPage {
-        int                 index;
-        List<PackedImage>   images;
-    };
-
-    static public class Atlas {
-        List<AtlasPage>     pages;
-    };
-
-    static public class Options {
-        PackingAlgorithm    algorithm;  // default: PA_TILEPACK_AUTO
-        int                 pageSize;   // The max size in texels. default: 0 means all images are stored in the same atlas
-
-        // general packer options
-        boolean             packerNoRotate;
-
-        // tile packer options
-        int                 tilePackerTileSize;   // The size in texels. Default 16
-        int                 tilePackerPadding;    // Internal padding for each image. Default 1
-        int                 tIlePackerAlphaThreshold;       // Values below or equal to this threshold are considered transparent. (range 0-255)
-
-        // bin packer options (currently none)
-    };
-
-    // public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, DataResolver data_resolver)
-    // {
-    //     return AtlasCompiler.LoadFromBufferInternal(path, bytes, data_resolver);
-    // }
-
     // ////////////////////////////////////////////////////////////////////////////////
 
     private static void Usage() {
-        System.out.printf("Usage: AtlasCompiler.class <model_file>\n");
+        System.out.printf("Usage: AtlasCompiler.class <options ...>\n");
         System.out.printf("\n");
     }
 
@@ -178,20 +88,20 @@ public class AtlasCompiler {
         }
     }
 
-    public static void DebugPrintVec2i(Vec2i v, int indent) {
-        PrintIndent(indent);
-        System.out.printf("v: %d, %d\n", v.x, v.y);
-    }
+    // public static void DebugPrintVec2i(Vec2i v, int indent) {
+    //     PrintIndent(indent);
+    //     System.out.printf("v: %d, %d\n", v.x, v.y);
+    // }
 
-    public static void DebugPrintVec2f(Vec2f v, int indent) {
-        PrintIndent(indent);
-        System.out.printf("v: %f, %f\n", v.x, v.y);
-    }
+    // public static void DebugPrintVec2f(Vec2f v, int indent) {
+    //     PrintIndent(indent);
+    //     System.out.printf("v: %f, %f\n", v.x, v.y);
+    // }
 
-    public static void DebugPrintRect(Rect r, int indent) {
-        PrintIndent(indent);
-        System.out.printf("rect: x/y: %f, %f,  w/h: %f, %f\n", r.pos.x, r.pos.y, r.size.x, r.size.y);
-    }
+    // public static void DebugPrintRect(Rect r, int indent) {
+    //     PrintIndent(indent);
+    //     System.out.printf("rect: x/y: %f, %f,  w/h: %f, %f\n", r.pos.x, r.pos.y, r.size.x, r.size.y);
+    // }
 
     // private static void DebugPrintTree(Node node, int indent) {
     //     DebugPrintNode(node, indent);
@@ -255,8 +165,14 @@ public class AtlasCompiler {
         //     }
         // }
 
-        // String path = args[0];       // name.glb/.gltf
-        // long timeStart = System.currentTimeMillis();
+        File path = new File(args[0]); // folder
+
+        if (!path.isDirectory()) {
+            System.err.printf("'%s'is not a directory.\n", path);
+            System.exit(1);
+        }
+
+        long timeStart = System.currentTimeMillis();
 
         // FileDataResolver buffer_resolver = new FileDataResolver();
         // Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);

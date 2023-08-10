@@ -33,6 +33,9 @@ def configure(conf):
     # conf.env['STLIB_BASIS_ENCODER'] = 'basis_encoder'
     # conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
 
+    conf.env['STLIB_JNI'] = 'jni'
+    conf.env['STLIB_JNI_NOASAN'] = 'jni_noasan'
+
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="atlasc"')
 
 def build(bld):

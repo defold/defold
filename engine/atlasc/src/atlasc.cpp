@@ -12,8 +12,6 @@ extern "C" {
 namespace dmAtlasc
 {
 
-static char g_ErrorString[1024] = {};
-
 Options::Options()
 {
     memset(this, 0, sizeof(*this));
@@ -36,10 +34,10 @@ Options::Options()
 
 static int CompareImages(const SourceImage* a, const SourceImage* b)
 {
-    int a_w = a->m_Size.x;
-    int a_h = a->m_Size.y;
-    int b_w = b->m_Size.x;
-    int b_h = b->m_Size.y;
+    int a_w = a->m_Size.width;
+    int a_h = a->m_Size.height;
+    int b_w = b->m_Size.width;
+    int b_h = b->m_Size.height;
     int area_a = a_w * a_h;
     int area_b = b_w * b_h;
 
@@ -100,9 +98,9 @@ static int CreateHullImage(apPacker* packer, SourceImage* image, apImage* apimag
 // TODO: Move this code into the tilepacker itself
 
     int dilate = 0;
-    hull_image = apCreateHullImage(image->m_Data, (uint32_t)image->m_Size.x, (uint32_t)image->m_Size.y, (uint32_t)image->m_NumChannels, dilate);
+    hull_image = apCreateHullImage(image->m_Data, (uint32_t)image->m_Size.width, (uint32_t)image->m_Size.height, (uint32_t)image->m_NumChannels, dilate);
 
-    vertices = apConvexHullFromImage(num_planes, hull_image, image->m_Size.x, image->m_Size.y, &num_vertices);
+    vertices = apConvexHullFromImage(num_planes, hull_image, image->m_Size.width, image->m_Size.height, &num_vertices);
     if (!vertices)
     {
         printf("Failed to generate hull for %s\n", image->m_Path);
@@ -130,8 +128,97 @@ static int CreateHullImage(apPacker* packer, SourceImage* image, apImage* apimag
     return 1;
 }
 
-Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uint32_t num_source_images)
+static inline Vec2i APPos(const apPos& v)
 {
+    Vec2i out = {v.x, v.y};
+    return out;
+}
+
+static inline Vec2f APPosf(const apPosf& v)
+{
+    Vec2f out = {v.x, v.y};
+    return out;
+}
+
+static inline Sizei APSize(const apSize& sz)
+{
+    Sizei out = {sz.width, sz.height};
+    return out;
+}
+
+static inline Rect APRect(const apRect& rect)
+{
+    Rect out;
+    out.m_Pos = APPos(rect.pos);
+    out.m_Size = APSize(rect.size);
+    return out;
+}
+
+static void PrintError(void*, Result result, const char* msg)
+{
+    printf("Error: %d %s\n", result, msg);
+}
+
+static PackedImage* APToAtlasImage(apImage* ap_image)
+{
+    PackedImage* image = new PackedImage;
+    image->m_Placement = APRect(ap_image->placement);
+    image->m_Rotation = ap_image->rotation;
+    image->m_Path = strdup(ap_image->path);
+
+    int num_vertices = ap_image->num_vertices;
+    image->m_Vertices.SetCapacity(num_vertices);
+    image->m_Vertices.SetSize(num_vertices);
+    for (int i = 0; i < num_vertices; ++i)
+    {
+        image->m_Vertices[i] = APPosf(ap_image->vertices[i]);
+    }
+    return image;
+}
+
+static AtlasPage* APToAtlasPage(int index, apPage* ap_page)
+{
+    AtlasPage* page = new AtlasPage;
+    page->m_Index = index;
+    page->m_Dimensions = APSize(ap_page->dimensions);
+
+    page->m_Images.SetCapacity(32);
+    apImage* ap_image = apPageGetFirstImage(ap_page);
+    while (ap_image)
+    {
+        PackedImage* image = APToAtlasImage(ap_image);
+
+        if (page->m_Images.Full())
+            page->m_Images.OffsetCapacity(32);
+        page->m_Images.Push(image);
+
+        ap_image = ap_image->next;
+    }
+    return page;
+}
+
+static Atlas* APToAtlas(apContext* ctx)
+{
+    Atlas* atlas = new Atlas;
+
+    int num_pages = apGetNumPages(ctx);
+    atlas->m_Pages.SetCapacity(num_pages);
+    for (int i = 0; i < num_pages; ++i)
+    {
+        atlas->m_Pages.Push(APToAtlasPage(i, apGetPage(ctx, i)));
+    }
+
+    return atlas;
+}
+
+Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uint32_t num_source_images, FOnError error_cbk, void* error_cbk_ctx)
+{
+    if (!error_cbk)
+    {
+        error_cbk = PrintError;
+        error_cbk_ctx = 0;
+    }
+
     SortImages(source_images, num_source_images);
 
     apPacker* packer = 0;
@@ -142,6 +229,7 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
 
     if (packer == 0)
     {
+        error_cbk(error_cbk_ctx, RESULT_INVAL, "Failed to create atlas packer.");
         return 0;
     }
 
@@ -154,9 +242,7 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
     for (uint32_t i = 0; i < num_source_images; ++i)
     {
         SourceImage* image = &source_images[i];
-
-        printf("Adding image: %s, %d x %d  \t\tarea: %d\n", image->m_Path, image->m_Size.x, image->m_Size.y, image->m_Size.x * image->m_Size.y);
-        apImage* apimage = apAddImage(ctx, image->m_Path, image->m_Size.x, image->m_Size.y, image->m_NumChannels, image->m_Data);
+        apImage* apimage = apAddImage(ctx, image->m_Path, image->m_Size.width, image->m_Size.height, image->m_NumChannels, image->m_Data);
         if (!apimage)
         {
             result = 0;
@@ -182,6 +268,7 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
         apPackImages(ctx);
 
         // Create the atlas info
+        atlas = APToAtlas(ctx);
     }
 
     apDestroy(ctx);
@@ -193,10 +280,6 @@ void DestroyAtlas(Atlas* atlas)
 
 }
 
-const char* GetLastError()
-{
-    return g_ErrorString;
-}
 
 static void DebugPrintIndent(int indent)
 {
@@ -207,7 +290,7 @@ static void DebugPrintIndent(int indent)
 static void DebugPrintPackedImage(PackedImage* packed_image, int indent)
 {
     DebugPrintIndent(indent);
-    printf("image: %d, %d, %d, %d\n", packed_image->m_Pos.x, packed_image->m_Pos.y, packed_image->m_Size.x, packed_image->m_Size.y);
+    printf("image: %d, %d, %d, %d\n", packed_image->m_Placement.m_Pos.x, packed_image->m_Placement.m_Pos.y, packed_image->m_Placement.m_Size.width, packed_image->m_Placement.m_Size.height);
 }
 
 static void DebugPrintPage(AtlasPage* page, int indent)

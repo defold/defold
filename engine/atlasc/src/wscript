@@ -2,8 +2,31 @@
 import os
 from waflib.Options import options
 
+import gen_java
+
 def configure(conf):
-    pass
+    conf.load('java')
+    conf.load('waf_dynamo')
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    includes = [os.getcwd(),
+                os.path.join(dynamo_home, 'sdk', 'include')]
+
+    def make_path(path):
+        cwd = os.getcwd()
+        script_dir = conf.path.abspath()
+        path = os.path.normpath(os.path.join(script_dir, path))
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return os.path.relpath(path, cwd)
+
+    gen_java.generate(header_path   = make_path('./atlasc.h'),
+                     namespace      = 'dmAtlasc',
+                     package_name   = 'com.dynamo.bob.pipeline',
+                     includes       = includes,
+                     java_outdir    = make_path('./java'),
+                     jni_outdir     = make_path('./jni'))
+
 
 def build(bld):
     # We only need this library in the editor and bob
@@ -26,19 +49,29 @@ def build(bld):
     # if 'macos' in bld.env['PLATFORM']:
     #     java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
 
-    atlasc_sources = bld.path.ant_glob("atlasc*.cpp")
+    atlasc_sources = bld.path.ant_glob("atlasc.cpp") + bld.path.ant_glob("jni/**/*.cpp")
 
     # The static library for the tests
-    bld.stlib(features = 'cxx',
-               source = atlasc_sources,
+    bld.stlib(features  = 'cxx',
+               source   = atlasc_sources,
                includes = ['.', './atlaspacker/include'],
+               use      = 'JDK JNI',
                target   = 'atlasc')
 
+    # The dynamic library for the shared library
+    bld.stlib(features  = 'cxx skip_asan',
+               source   = atlasc_sources,
+               includes = ['.', './atlaspacker/include'],
+               use      = 'JDK JNI',
+               target   = 'atlasc_noasan')
+
+    atlasc_shared_sources = bld.path.ant_glob("atlasc*.cpp")
+
     bld.shlib(features     = 'cxx cshlib skip_asan',
-                source       = atlasc_sources,
-                includes     = ['.', './atlaspacker/include'],
+                source       = atlasc_shared_sources,
+                includes     = ['.', './jni', './atlaspacker/include'],
                 target       = 'atlasc_shared',
-                use          = 'DLIB_NOASAN PROFILE_NULL_NOASAN JDK atlaspacker')
+                use          = 'DLIB_NOASAN PROFILE_NULL_NOASAN JNI_NOASAN JDK atlaspacker atlasc_noasan')
 
     # ******************************************************************************************
     # JAVA: atlascompiler.jar
@@ -63,7 +96,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g'.split()
 
     bld(features='jar seq',
         basedir='java',

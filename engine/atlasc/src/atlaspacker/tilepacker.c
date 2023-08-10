@@ -1046,6 +1046,11 @@ void apTilePackerSetDefaultOptions(apTilePackerOptions* options)
 
 apPacker* apTilePackerCreate(apTilePackerOptions* options)
 {
+    if (options->tile_size == 0)
+    {
+        printf("Tile size must not be 0!\n"); // TODO: Log system
+        return 0;
+    }
     apTilePacker* packer = (apTilePacker*)malloc(sizeof(apTilePacker));
     memset(packer, 0, sizeof(apTilePacker));
     packer->super.packer_type = "apTilePacker";

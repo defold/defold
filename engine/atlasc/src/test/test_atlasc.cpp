@@ -33,7 +33,7 @@ static void DestroyImage(dmAtlasc::SourceImage* image)
 static int LoadImage(const char* path, dmAtlasc::SourceImage* image)
 {
     memset(image, 0, sizeof(dmAtlasc::SourceImage));
-    image->m_Data = stbi_load(path, &image->m_Size.x, &image->m_Size.y, &image->m_NumChannels, 0);
+    image->m_Data = stbi_load(path, &image->m_Size.width, &image->m_Size.height, &image->m_NumChannels, 0);
     if (!image->m_Data)
     {
         DestroyImage(image);
@@ -118,7 +118,7 @@ TEST_P(AtlascCompileTest, Pack)
     dmAtlasc::Options options;
     options.m_Algorithm = (dmAtlasc::PackingAlgorithm)info.m_PackingAlgorithm;
     options.m_PageSize = info.m_PageSize;
-    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, m_Images.Begin(), m_Images.Size());
+    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, m_Images.Begin(), m_Images.Size(), 0, 0);
 
     dmAtlasc::DestroyAtlas(atlas);
 
@@ -141,7 +141,7 @@ static int TestStandAlone(const char* dirpath)
     dmAtlasc::Options options;
     options.m_Algorithm = dmAtlasc::PA_TILEPACK_AUTO;
     options.m_PageSize = 1024;
-    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, images.Begin(), images.Size());
+    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, images.Begin(), images.Size(), 0, 0);
     if (!atlas)
     {
         printf("Failed to create atlas from path %s\n", dirpath);

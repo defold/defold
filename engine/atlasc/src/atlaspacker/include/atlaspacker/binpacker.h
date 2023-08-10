@@ -6,7 +6,7 @@
 
 #include <atlaspacker/atlaspacker.h>
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef enum
 {
@@ -20,7 +20,7 @@ typedef struct
     int             no_rotate;
 } apBinPackerOptions;
 
-#pragma options align=reset
+#pragma pack(pop)
 
 void      apBinPackerSetDefaultOptions(apBinPackerOptions* options);
 apPacker* apBinPackerCreate(apBinPackerOptions* options);

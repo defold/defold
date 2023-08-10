@@ -42,6 +42,11 @@ namespace dmAtlasc
         int x, y;
     };
 
+    struct Sizei
+    {
+        int width, height;
+    };
+
     struct Vec2f
     {
         float x, y;
@@ -49,29 +54,33 @@ namespace dmAtlasc
     struct Rect
     {
         Vec2i m_Pos;
-        Vec2i m_Size;
+        Sizei m_Size;
     };
 
     // Input format
     struct SourceImage
     {
-        const uint8_t*  m_Data; // The texels
         const char*     m_Path; // The source path
-        Vec2i           m_Size;
+        const uint8_t*  m_Data; // The texels
+        uint32_t        m_DataCount;
+        Sizei           m_Size;
         int             m_NumChannels;
     };
 
     // Output format
     struct PackedImage
     {
-        Vec2i m_Pos;
-        Vec2i m_Size;
+        dmArray<Vec2f>  m_Vertices;  // If empty, no hull was generated
+        Rect            m_Placement; // The covered area in the texture
+        const char*     m_Path;
+        int             m_Rotation;  // Degrees CCW: 0, 90, 180, 270
     };
 
     // Output format
     struct AtlasPage
     {
-        int m_Index;
+        Sizei   m_Dimensions;
+        int     m_Index;
 
         dmArray<PackedImage*> m_Images;
     };
@@ -102,11 +111,17 @@ namespace dmAtlasc
         Options();
     };
 
-    Atlas*  CreateAtlas(const Options& options, SourceImage* source_images, uint32_t num_source_images);
+    enum Result
+    {
+        RESULT_OK       = 0,
+        RESULT_WARNING  = 1,
+        RESULT_INVAL    = -1,
+    };
+
+    typedef void (*FOnError)(void* ctx, Result result, const char* error_string);
+
+    Atlas*  CreateAtlas(const Options& options, SourceImage* source_images, uint32_t num_source_images, FOnError error_cbk, void* error_cbk_ctx);
     void    DestroyAtlas(Atlas* atlas);
-
-    const char* GetLastError();
-
 }
 
 #endif // DM_ATLASC_H

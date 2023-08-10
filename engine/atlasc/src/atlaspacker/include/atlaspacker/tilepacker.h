@@ -6,7 +6,7 @@
 
 #include <atlaspacker/atlaspacker.h>
 
-#pragma pack(1)
+#pragma pack(push, 1)
 
 typedef struct
 {
@@ -16,7 +16,7 @@ typedef struct
     int     alpha_threshold;    // values below or equal to this threshold are considered transparent. (range 0-255)
 } apTilePackerOptions;
 
-#pragma options align=reset
+#pragma pack(pop)
 
 void      apTilePackerSetDefaultOptions(apTilePackerOptions* options);
 apPacker* apTilePackerCreate(apTilePackerOptions* options);
