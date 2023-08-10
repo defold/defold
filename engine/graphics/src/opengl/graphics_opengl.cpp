@@ -2451,17 +2451,22 @@ static void LogFrameBufferError(GLenum status)
                 glBindTexture(GL_TEXTURE_2D, attachment_tex->m_TextureIds[0]);
                 CHECK_GL_ERROR;
 
+                 // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
                 glTexImage2D(GL_TEXTURE_2D, 0,
                     DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
                     rt->m_DepthStencilAttachment.m_Params.m_Width,
                     rt->m_DepthStencilAttachment.m_Params.m_Height,
-                    0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, 0); // The data type (GL_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
+                    0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
                 CHECK_GL_ERROR;
 
                 glBindTexture(GL_TEXTURE_2D, 0);
-
+            #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
                 AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+            #else
+                GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+            #endif
             }
             else
             {
