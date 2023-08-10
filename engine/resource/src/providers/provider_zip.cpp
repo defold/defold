@@ -134,7 +134,8 @@ static void CreateEntryMap(ZipProviderContext* archive)
         info->m_ManifestEntry = entry;
         EntryInfo manifest_info;
         manifest_info.m_ManifestEntry = entry;
-        manifest_info.m_Size = info->m_Size;
+        // If we have file in manifest, get file size from there
+        manifest_info.m_Size = entry->m_Size;
         manifest_info.m_EntryIndex = info->m_EntryIndex;
         entry_map->Put(entry->m_UrlHash, manifest_info);
         DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
