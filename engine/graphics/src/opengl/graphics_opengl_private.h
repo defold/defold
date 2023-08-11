@@ -108,8 +108,6 @@ namespace dmGraphics
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
-        uint32_t                m_VersionMajor                     : 4;
-        uint32_t                m_VersionMinor                     : 4;
         uint32_t                m_AnisotropySupport                : 1;
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;

@@ -305,7 +305,6 @@ namespace dmGraphics
     {
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
-        CONTEXT_FEATURE_STENCIL_TEXTURE        = 2,
     };
 
     // Parameters structure for NewContext

@@ -963,14 +963,8 @@ static void LogFrameBufferError(GLenum status)
         int width, height;
         glfwGetWindowSize(&width, &height);
 
-        int gl_version_major;
-        int gl_version_minor;
-        glfwGetGLVersion(&gl_version_major, &gl_version_minor, 0);
-
         context->m_WindowWidth    = (uint32_t) width;
         context->m_WindowHeight   = (uint32_t) height;
-        context->m_VersionMajor   = (uint32_t) gl_version_major;
-        context->m_VersionMinor   = (uint32_t) gl_version_minor;
         context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
@@ -3195,11 +3189,6 @@ static void LogFrameBufferError(GLenum status)
             gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
         #endif
             break;
-        case TEXTURE_FORMAT_STENCIL:
-            gl_type            = GL_UNSIGNED_BYTE;
-            gl_format          = DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL;
-            gl_internal_format = DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8;
-            break;
 
         default:
             assert(0);
@@ -3215,6 +3204,9 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
         DM_PROFILE(__FUNCTION__);
+
+        // Stencil textures are not supported
+        assert(params.m_Format != TEXTURE_FORMAT_STENCIL);
 
         // Responsibility is on caller to not send in too big textures.
         assert(params.m_Width <= g_Context->m_MaxTextureSize);
@@ -3286,7 +3278,6 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_LUMINANCE:
             case TEXTURE_FORMAT_LUMINANCE_ALPHA:
             case TEXTURE_FORMAT_DEPTH:
-            case TEXTURE_FORMAT_STENCIL:
             case TEXTURE_FORMAT_RGB:
             case TEXTURE_FORMAT_RGBA:
             case TEXTURE_FORMAT_RGB_16BPP:

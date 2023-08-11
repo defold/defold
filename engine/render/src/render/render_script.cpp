@@ -1106,16 +1106,9 @@ namespace dmRender
                     {
                         params.m_DepthTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
                     }
-                    else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT && flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT)
                     {
-                        if (dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STENCIL_TEXTURE))
-                        {
-                            params.m_StencilTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
-                        }
-                        else
-                        {
-                            dmLogWarning("Unable to create render target with a stencil texture for this platform, defaulting to render buffer.");
-                        }
+                        dmLogWarning("Creating a render target with a stencil texture attachment is currently not supported, defaulting to render buffer.");
                     }
                 }
                 else
