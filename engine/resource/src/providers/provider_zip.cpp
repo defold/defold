@@ -80,7 +80,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
     dmHashTable64<EntryInfo> temp_archive_map;
     temp_archive_map.SetCapacity(dmMath::Max(1U, (archive_entry_count * 2) / 3), archive_entry_count);
 
-    // Itereate archive and collect all the info about files
+    // Iterate over archive once and collect all the info about files
     for (uint32_t i = 0; i < archive_entry_count; ++i)
     {
         dmZip::Result zr = dmZip::OpenEntry(zip, i);
