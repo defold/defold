@@ -90,12 +90,6 @@ JNIEXPORT jobject JNICALL Java_Atlasc_CreateAtlas(JNIEnv* env, jclass cls, jobje
     return jatlas;
 }
 
-static void DestroyImage(dmAtlasc::SourceImage* image)
-{
-    free((void*)image->m_Path);
-    free((void*)image->m_Data);
-}
-
 static void DebugPrintImage(const uint8_t* data, int width, int height, int channels)
 {
     char chars[4] = {' ', '.', '*', '#'};
@@ -123,7 +117,6 @@ static int LoadImage(const char* path, dmAtlasc::SourceImage* image)
     image->m_Data = stbi_load(path, &image->m_Size.width, &image->m_Size.height, &image->m_NumChannels, 0);
     if (!image->m_Data)
     {
-        DestroyImage(image);
         printf("Failed to load %s\n", path);
         return 0;
     }
@@ -145,7 +138,6 @@ static jobject DoLoadImage(JNIEnv* env, dmAtlasc::jni::TypeInfos* type_infos, js
     }
 
     jobject jni_image = dmAtlasc::jni::C2J_CreateSourceImage(env, type_infos, &image);
-    DestroyImage(&image);
     return jni_image;
 }
 

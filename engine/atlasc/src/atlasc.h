@@ -39,16 +39,22 @@ namespace dmAtlasc
 
     struct Vec2i
     {
+        Vec2i() : x(0), y(0) {}
+        Vec2i(int _x, int _y) : x(_x), y(_y) {}
         int x, y;
     };
 
     struct Sizei
     {
+        Sizei() : width(0), height(0) {}
+        Sizei(int _width, int _height) : width(_width), height(_height) {}
         int width, height;
     };
 
     struct Vec2f
     {
+        Vec2f() : x(0.0f), y(0.0f) {}
+        Vec2f(float _x, float _y) : x(_x), y(_y) {}
         float x, y;
     };
     struct Rect
@@ -60,6 +66,9 @@ namespace dmAtlasc
     // Input format
     struct SourceImage
     {
+        SourceImage();
+        ~SourceImage();
+
         const char*     m_Path; // The source path
         const uint8_t*  m_Data; // The texels
         uint32_t        m_DataCount;
@@ -70,6 +79,9 @@ namespace dmAtlasc
     // Output format
     struct PackedImage
     {
+        PackedImage();
+        ~PackedImage();
+
         dmArray<Vec2f>  m_Vertices;  // If empty, no hull was generated
         Rect            m_Placement; // The covered area in the texture
         int             m_Rotation;  // Degrees CCW: 0, 90, 180, 270
@@ -86,6 +98,8 @@ namespace dmAtlasc
     // Output format
     struct AtlasPage
     {
+        AtlasPage();
+        ~AtlasPage();
         Sizei   m_Dimensions;
         int     m_NumChannels;
         int     m_Index;
@@ -95,14 +109,17 @@ namespace dmAtlasc
 
     struct Atlas
     {
-        dmArray<AtlasPage*> m_Pages;
+        Atlas();
+        ~Atlas();
 
-        // uint32_t    m_NumIndices;
-        // uint32_t*   m_Indices;
+        dmArray<AtlasPage*> m_Pages;
     };
 
     struct RenderedPage
     {
+        RenderedPage();
+        ~RenderedPage();
+
         uint8_t* m_Data;
         uint32_t m_DataCount;
         Sizei    m_Dimensions;

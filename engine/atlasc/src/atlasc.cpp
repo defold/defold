@@ -16,6 +16,71 @@ extern "C" {
 namespace dmAtlasc
 {
 
+SourceImage::SourceImage()
+{
+    memset(this, 0, sizeof(*this));
+}
+
+SourceImage::~SourceImage()
+{
+    delete[] m_Data;
+    free((void*)m_Path);
+}
+
+PackedImage::PackedImage()
+: m_Rotation(0)
+, m_Width(0)
+, m_Height(0)
+, m_NumChannels(0)
+, m_Path(0)
+, m_Data(0)
+, m_DataCount(0)
+{
+}
+
+PackedImage::~PackedImage()
+{
+    delete[] m_Data;
+    free((void*)m_Path);
+}
+
+AtlasPage::AtlasPage()
+: m_NumChannels(0)
+, m_Index(0)
+{
+}
+
+AtlasPage::~AtlasPage()
+{
+    for (uint32_t i = 0; i < m_Images.Size(); ++i)
+    {
+        delete m_Images[i];
+    }
+    m_Images.SetSize(0);
+}
+
+Atlas::Atlas()
+{
+}
+
+Atlas::~Atlas()
+{
+    for (uint32_t i = 0; i < m_Pages.Size(); ++i)
+    {
+        delete m_Pages[i];
+    }
+    m_Pages.SetSize(0);
+}
+
+RenderedPage::RenderedPage()
+{
+    memset(this, 0, sizeof(*this));
+}
+RenderedPage::~RenderedPage()
+{
+    delete[] m_Data;
+}
+
 Options::Options()
 {
     memset(this, 0, sizeof(*this));
@@ -342,11 +407,10 @@ void RenderPage(const AtlasPage* ap_page, RenderedPage* output)
 
 int SavePage(const char* path, const AtlasPage* page)
 {
-    RenderedPage rendered = {0};
+    RenderedPage rendered;
     RenderPage(page, &rendered);
 
     int result = stbi_write_tga(path, rendered.m_Dimensions.width, rendered.m_Dimensions.height, rendered.m_NumChannels, rendered.m_Data);
-    free(rendered.m_Data);
     return result;
 }
 
