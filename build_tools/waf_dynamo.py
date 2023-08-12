@@ -1356,13 +1356,16 @@ def run_tests(ctx, valgrind = False, configfile = None):
             # java -cp <classpath> <main-class>
             mainclass = getattr(t, 'mainclass', '')
             classpath = Utils.to_list(getattr(t, 'classpath', []))
+            java_library_paths = Utils.to_list(getattr(t, 'java_library_paths', []))
             jar_path = task.outputs[0].abspath()
             jar_dir = os.path.dirname(jar_path)
+            java_library_paths.append(jar_dir)
             classpath.append(jar_path)
             debug_flags = ''
             #debug_flags = '-Xcheck:jni'
             #debug_flags = '-Xcheck:jni -Xlog:library=info -verbose:class'
-            launch_pattern = f'java {debug_flags} -Djava.library.path={jar_dir} -Djni.library.path={jar_dir} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
+            launch_pattern = f'java {debug_flags} -Djava.library.path={os.pathsep.join(java_library_paths)} -Djni.library.path={os.pathsep.join(java_library_paths)} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
+            print("launch_pattern:", launch_pattern)
 
         if 'TEST_LAUNCH_PATTERN' in t.env:
             launch_pattern = t.env.TEST_LAUNCH_PATTERN
@@ -1841,6 +1844,9 @@ def detect(conf):
             conf.env['INCLUDES_JDK'] = [os.path.join(os.environ['JAVA_HOME'], 'include'), os.path.join(os.environ['JAVA_HOME'], 'include', host)]
             conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
             conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
+
+            conf.env['LIB_JNI'] = ['jni']
+            conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
 
 
 def configure(conf):

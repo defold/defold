@@ -95,6 +95,7 @@ apPage* apAllocPage(apContext* ctx)
     apPage* page = (apPage*)malloc(sizeof(apPage));
     memset(page, 0, sizeof(apPage));
     page->index = ctx->num_pages++;
+    page->num_channels = ctx->num_channels;
 
     if (ctx->pages == 0)
         ctx->pages = page;
@@ -393,4 +394,58 @@ uint64_t apGetTime()
     gettimeofday(&tv, 0);
     return (uint64_t)(tv.tv_sec) * 1000000U + (uint64_t)(tv.tv_usec);
 #endif
+}
+
+
+uint8_t* apRenderPage(apPage* page, int* out_width, int* out_height, int* out_num_channels)
+{
+    int width = page->dimensions.width;
+    int height = page->dimensions.height;
+    int num_channels = page->num_channels;
+    int size = width * height * num_channels;
+    uint8_t* output = (uint8_t*)malloc(size);
+    memset(output, 0, size);
+
+// DEBUG BACKGROUND RENDERING
+    // int tile_size = 16;
+    // for (int y = 0; y < height; ++y)
+    // {
+    //     for (int x = 0; x < width; ++x)
+    //     {
+    //         int tx = x / tile_size;
+    //         int ty = y / tile_size;
+    //         int odd = ((tx&1) && !(ty&1)) | (!(tx&1) && (ty&1));
+
+    //         // uint8_t color_odd[4] = {255,255,255,128};
+    //         // uint8_t color_even[4] = {0,0,0,128};
+    //         uint8_t color_odd[4] = {32,32,32,255};
+    //         uint8_t color_even[4] = {16,16,16,255};
+    //         // uint8_t color_odd[4] = {64,96,64,255};
+    //         // uint8_t color_even[4] = {32,64,32,255};
+
+    //         uint8_t* color = color_even;
+
+    //         if (odd)
+    //             color = color_odd;
+
+    //         for (int i = 0; i < channels; ++i)
+    //             output[y * (width*channels) + (x*channels) + i ] = color[i];
+    //     }
+    // }
+
+
+    apImage* image = apPageGetFirstImage(page);
+    while(image)
+    {
+        apCopyRGBA(output, width, height, num_channels,
+                image->data, image->width, image->height, image->channels,
+                image->placement.pos.x, image->placement.pos.y, image->rotation);
+
+        image = image->next;
+    }
+
+    *out_width = width;
+    *out_height = height;
+    *out_num_channels = num_channels;
+    return output;
 }

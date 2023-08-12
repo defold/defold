@@ -9,6 +9,10 @@ extern "C" {
     #include <atlaspacker/convexhull.h>
     #include <atlaspacker/tilepacker.h>
 }
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_STATIC
+#include <stb/stb_image_write.h>
 namespace dmAtlasc
 {
 
@@ -164,7 +168,13 @@ static PackedImage* APToAtlasImage(apImage* ap_image)
     PackedImage* image = new PackedImage;
     image->m_Placement = APRect(ap_image->placement);
     image->m_Rotation = ap_image->rotation;
+    image->m_Width = ap_image->width;
+    image->m_Height = ap_image->height;
+    image->m_NumChannels = ap_image->channels;
     image->m_Path = strdup(ap_image->path);
+
+    image->m_Data = ap_image->data;
+    image->m_DataCount = image->m_Width * image->m_Height * image->m_NumChannels;
 
     int num_vertices = ap_image->num_vertices;
     image->m_Vertices.SetCapacity(num_vertices);
@@ -176,12 +186,12 @@ static PackedImage* APToAtlasImage(apImage* ap_image)
     return image;
 }
 
-static AtlasPage* APToAtlasPage(int index, apPage* ap_page)
+static AtlasPage* APToAtlasPage(int index, apPage* ap_page, int num_channels)
 {
     AtlasPage* page = new AtlasPage;
     page->m_Index = index;
     page->m_Dimensions = APSize(ap_page->dimensions);
-
+    page->m_NumChannels = num_channels;
     page->m_Images.SetCapacity(32);
     apImage* ap_image = apPageGetFirstImage(ap_page);
     while (ap_image)
@@ -205,7 +215,7 @@ static Atlas* APToAtlas(apContext* ctx)
     atlas->m_Pages.SetCapacity(num_pages);
     for (int i = 0; i < num_pages; ++i)
     {
-        atlas->m_Pages.Push(APToAtlasPage(i, apGetPage(ctx, i)));
+        atlas->m_Pages.Push(APToAtlasPage(i, apGetPage(ctx, i), ctx->num_channels));
     }
 
     return atlas;
@@ -278,6 +288,66 @@ Atlas* CreateAtlas(const Options& atlas_options, SourceImage* source_images, uin
 void DestroyAtlas(Atlas* atlas)
 {
 
+}
+
+void RenderPage(const AtlasPage* ap_page, RenderedPage* output)
+{
+    output->m_Dimensions = ap_page->m_Dimensions;
+    output->m_NumChannels = ap_page->m_NumChannels;
+    output->m_DataCount = ap_page->m_Dimensions.width * ap_page->m_Dimensions.height * ap_page->m_NumChannels;
+
+    output->m_Data = (uint8_t*)malloc(output->m_DataCount);
+
+// DEBUG BACKGROUND RENDERING
+    // int tile_size = 16;
+    // for (int y = 0; y < height; ++y)
+    // {
+    //     for (int x = 0; x < width; ++x)
+    //     {
+    //         int tx = x / tile_size;
+    //         int ty = y / tile_size;
+    //         int odd = ((tx&1) && !(ty&1)) | (!(tx&1) && (ty&1));
+
+    //         // uint8_t color_odd[4] = {255,255,255,128};
+    //         // uint8_t color_even[4] = {0,0,0,128};
+    //         uint8_t color_odd[4] = {32,32,32,255};
+    //         uint8_t color_even[4] = {16,16,16,255};
+    //         // uint8_t color_odd[4] = {64,96,64,255};
+    //         // uint8_t color_even[4] = {32,64,32,255};
+
+    //         uint8_t* color = color_even;
+
+    //         if (odd)
+    //             color = color_odd;
+
+    //         for (int i = 0; i < channels; ++i)
+    //             output[y * (width*channels) + (x*channels) + i ] = color[i];
+    //     }
+    // }
+
+    int width = output->m_Dimensions.width;
+    int height = output->m_Dimensions.height;
+    int num_channels = output->m_NumChannels;
+
+    dmArray<PackedImage*> m_Images;
+    for (uint32_t i = 0; i < ap_page->m_Images.Size(); ++i)
+    {
+        PackedImage* image = ap_page->m_Images[i];
+
+        apCopyRGBA(output->m_Data, width, height, num_channels,
+                   image->m_Data, image->m_Width, image->m_Height, image->m_NumChannels,
+                   image->m_Placement.m_Pos.x, image->m_Placement.m_Pos.y, image->m_Rotation);
+    }
+}
+
+int SavePage(const char* path, const AtlasPage* page)
+{
+    RenderedPage rendered = {0};
+    RenderPage(page, &rendered);
+
+    int result = stbi_write_tga(path, rendered.m_Dimensions.width, rendered.m_Dimensions.height, rendered.m_NumChannels, rendered.m_Data);
+    free(rendered.m_Data);
+    return result;
 }
 
 

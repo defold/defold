@@ -83,28 +83,13 @@ public class TestAtlasc
         System.out.println("*****************************************************");
     }
 
-    private Atlasc.SourceImage[] loadImages(File folder) {
-        if (!folder.exists()) {
-            System.out.printf("Folder does not exist: %s\n", folder);
-            return null;
-        }
-
-        List<Atlasc.SourceImage> images = new ArrayList<>();
-        for (File file : folder.listFiles())
-        {
-            Atlasc.SourceImage image = AtlasCompiler.LoadImage(file.getAbsolutePath());
-            images.add(image);
-        }
-        return images.toArray(new Atlasc.SourceImage[0]);
-    }
-
     // TODO: public void test_TilePackWithNoData() {
 
     @Test
     public void test_TilePack() {
         Atlasc.Options options = AtlasCompiler.GetDefaultOptions();
         options.algorithm = Atlasc.PackingAlgorithm.PA_TILEPACK_TILE;
-        Atlasc.SourceImage[] images = loadImages(new File("./src/test/data/atlas01"));
+        Atlasc.SourceImage[] images = AtlasCompiler.loadImages(new File("./src/test/data/atlas01"));
         Atlasc.Atlas atlas = AtlasCompiler.CreateAtlas(options, images);
         assertFalse(atlas == null);
 

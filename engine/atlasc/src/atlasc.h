@@ -72,14 +72,22 @@ namespace dmAtlasc
     {
         dmArray<Vec2f>  m_Vertices;  // If empty, no hull was generated
         Rect            m_Placement; // The covered area in the texture
-        const char*     m_Path;
         int             m_Rotation;  // Degrees CCW: 0, 90, 180, 270
+
+        int             m_Width;
+        int             m_Height;
+        int             m_NumChannels;
+
+        const char*     m_Path;
+        const uint8_t*  m_Data; // The texels
+        uint32_t        m_DataCount;
     };
 
     // Output format
     struct AtlasPage
     {
         Sizei   m_Dimensions;
+        int     m_NumChannels;
         int     m_Index;
 
         dmArray<PackedImage*> m_Images;
@@ -93,6 +101,14 @@ namespace dmAtlasc
         // uint32_t*   m_Indices;
     };
 
+    struct RenderedPage
+    {
+        uint8_t* m_Data;
+        uint32_t m_DataCount;
+        Sizei    m_Dimensions;
+        int      m_NumChannels;
+    };
+
     struct Options
     {
         PackingAlgorithm    m_Algorithm;  // default: PA_TILEPACK_AUTO
@@ -102,9 +118,9 @@ namespace dmAtlasc
         bool    m_PackerNoRotate;
 
         // tile packer options
-        int     m_TilePackerTileSize;   // The size in texels. Default 16
-        int     m_TilePackerPadding;    // Internal padding for each image. Default 1
-        int     m_TIlePackerAlphaThreshold;       // Values below or equal to this threshold are considered transparent. (range 0-255)
+        int     m_TilePackerTileSize;       // The size in texels. Default 16
+        int     m_TilePackerPadding;        // Internal padding for each image. Default 1
+        int     m_TIlePackerAlphaThreshold; // Values below or equal to this threshold are considered transparent. (range 0-255)
 
         // bin packer options (currently none)
 
@@ -122,6 +138,9 @@ namespace dmAtlasc
 
     Atlas*  CreateAtlas(const Options& options, SourceImage* source_images, uint32_t num_source_images, FOnError error_cbk, void* error_cbk_ctx);
     void    DestroyAtlas(Atlas* atlas);
+
+    void    RenderPage(const AtlasPage* ap_page, RenderedPage* output);
+    int     SavePage(const char* path, const AtlasPage* ap_page);
 }
 
 #endif // DM_ATLASC_H

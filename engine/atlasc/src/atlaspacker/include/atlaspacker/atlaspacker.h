@@ -47,6 +47,7 @@ typedef struct apPage {
     struct apImage* first_image;
     struct apImage* last_image;
     apSize          dimensions;
+    int             num_channels; // Max of the number of channels of each image
     int             index;
 } apPage;
 
@@ -100,6 +101,9 @@ void        apCopyRGBA(uint8_t* dest, int dest_width, int dest_height, int dest_
 // Caller owns the returned memory
 uint8_t*    apCreateHullImage(const uint8_t* image, uint32_t width, uint32_t height, uint32_t num_channels, int dilate);
 
+// Places all images in one texture, according to the placement and rotation after asuccessful creation of the atlas
+// Caller owns the allocated memory
+uint8_t*    apRenderPage(apPage* page, int* width, int* height, int* num_channels);
 
 /////////////////////////////////////////////////////////
 // Internal

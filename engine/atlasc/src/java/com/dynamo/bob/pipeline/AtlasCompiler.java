@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.ArrayList;
 
 public class AtlasCompiler {
 
@@ -67,12 +68,33 @@ public class AtlasCompiler {
     public static native Atlasc.Atlas   CreateAtlas(Atlasc.Options options, Atlasc.SourceImage[] images);
     //public static native void           DestroyAtlas(Atlasc.Atlas atlas);
 
-    public static native Atlasc.SourceImage LoadImage(String path);
+    public static native Atlasc.SourceImage     LoadImage(String path);
+    public static native Atlasc.RenderedPage    RenderPage(Atlasc.AtlasPage page);
+    public static native int                    SavePage(String path, Atlasc.AtlasPage page);
 
     public static class AtlasException extends Exception {
         public AtlasException(String errorMessage) {
             super(errorMessage);
         }
+    }
+
+    // ////////////////////////////////////////////////////////////////////////////////
+
+    static public Atlasc.SourceImage[] loadImages(File folder) {
+        if (!folder.exists()) {
+            System.out.printf("Folder does not exist: %s\n", folder);
+            return null;
+        }
+
+        List<Atlasc.SourceImage> images = new ArrayList<>();
+        for (File file : folder.listFiles())
+        {
+            if (!file.isFile())
+                continue;
+            Atlasc.SourceImage image = AtlasCompiler.LoadImage(file.getAbsolutePath());
+            images.add(image);
+        }
+        return images.toArray(new Atlasc.SourceImage[0]);
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -173,6 +195,32 @@ public class AtlasCompiler {
         }
 
         long timeStart = System.currentTimeMillis();
+
+        Atlasc.Options options = AtlasCompiler.GetDefaultOptions();
+        options.algorithm = Atlasc.PackingAlgorithm.PA_TILEPACK_TILE;
+        Atlasc.SourceImage[] images = AtlasCompiler.loadImages(path);
+        if (images.length == 0)
+        {
+            System.out.printf("No images found in folder %s\n", path);
+            System.exit(1);
+        }
+        Atlasc.Atlas atlas = AtlasCompiler.CreateAtlas(options, images);
+
+        int page_counter = 0;
+        for (Atlasc.AtlasPage page : atlas.pages)
+        {
+            String outName = String.format("%s_page_%d.png", path.getName(), page_counter);
+            File outputFile = new File(path.getParent(), outName);
+            if (AtlasCompiler.SavePage(outputFile.getAbsolutePath(), page) == 0)
+            {
+                System.out.printf("Failed to write %s\n", outputFile);
+                break;
+            }
+
+            System.out.printf("Wrote %s\n", outputFile);
+
+            page_counter += 1;
+        }
 
         // FileDataResolver buffer_resolver = new FileDataResolver();
         // Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);
