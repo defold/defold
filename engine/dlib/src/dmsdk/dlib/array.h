@@ -386,6 +386,7 @@ dmArray<T>::dmArray()
 template <typename T>
 dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
 {
+    memset(this, 0, sizeof(*this));
     Set(user_array, size, capacity, true);
 }
 
