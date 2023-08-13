@@ -695,6 +695,10 @@ public class Project {
                 TimeProfiler.init(reportFiles, true);
             }
             loadProjectFile();
+            String title = projectProperties.getStringValue("project", "title");
+            if (title != null && title.isEmpty()) {
+                throw new Exception("`project.title` in `game.project` must be non-empty.");
+            }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
@@ -1022,12 +1026,11 @@ public class Project {
             // Located in the same place as the log file in the unpacked successful build
             File logFile = new File(buildDir, "log.txt");
             String serverURL = this.option("build-server", "https://build.defold.com");
-            boolean asyncBuild = this.hasOption("use-async-build-server");
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
                 extender.setHeaders(buildServerHeaders);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
+                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
 
                 cleanEngine(platform, buildDir);
 

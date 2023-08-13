@@ -556,7 +556,6 @@ namespace dmGameSystem
     void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics)
     {
         LabelResource* resource = component->m_Resource;
-        dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
         dmRender::HFontMap font_map = GetFontMap(component, resource);
         dmRender::GetTextMetrics(font_map, component->m_Text, component->m_Size.getX(),
                                     component->m_LineBreak, component->m_Leading, component->m_Tracking, &metrics);

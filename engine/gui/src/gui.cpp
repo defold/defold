@@ -347,7 +347,7 @@ namespace dmGui
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_Materials.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
+        scene->m_MaterialResources.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
         scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefx);
@@ -613,7 +613,7 @@ namespace dmGui
             t->m_Buffer = 0;
         }
 
-        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024 / 1024));
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024.0 / 1024.0));
 
         t->m_Buffer = malloc(buffer_size);
         if (flip) {
@@ -745,16 +745,24 @@ namespace dmGui
         return *font;
     }
 
-    Result AddMaterial(HScene scene, const char* material_name, void* material)
+    Result AddMaterial(HScene scene, dmhash_t material_name_hash, void* material)
     {
-        if (scene->m_Materials.Full())
+        if (scene->m_MaterialResources.Full())
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-
-        uint64_t name_hash = dmHashString64(material_name);
-        scene->m_Materials.Put(name_hash, (dmRender::HMaterial) material);
+        scene->m_MaterialResources.Put(material_name_hash, material);
         return RESULT_OK;
+    }
+
+    void* GetMaterial(HScene scene, dmhash_t material_hash)
+    {
+        void** material = scene->m_MaterialResources.Get(material_hash);
+        if (!material)
+        {
+            return 0;
+        }
+        return *material;
     }
 
     void AssignMaterials(HScene scene)
@@ -762,7 +770,8 @@ namespace dmGui
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
-            nodes[i].m_Node.m_Material = (void*) scene->m_Materials.Get(nodes[i].m_Node.m_MaterialNameHash);
+            void** material_res = scene->m_MaterialResources.Get(nodes[i].m_Node.m_MaterialNameHash);
+            nodes[i].m_Node.m_Material = material_res ? *material_res : 0;
         }
     }
 
@@ -1057,7 +1066,7 @@ namespace dmGui
         if (texture->m_Deleted) {
             // handle might be null if the texture is created/destroyed in the same frame
             if (texture->m_Handle) {
-                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
                 params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
             }
@@ -1067,14 +1076,14 @@ namespace dmGui
             scene->m_DeletedDynamicTextures.Push(*key);
         } else {
             if (!texture->m_Handle && texture->m_Buffer) {
-                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 params->m_NewCount++;
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
             } else if (texture->m_Handle && texture->m_Buffer) {
-                uint32_t buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024 / 1024;
+                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 free(texture->m_Buffer);
@@ -1115,7 +1124,7 @@ namespace dmGui
                 free(texture.m_Buffer);
             }
             if (texture.m_Handle) {
-                float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024 / 1024;
+                float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
                 delete_texture(scene, texture.m_Handle, scene->m_Context);
             }
@@ -2954,6 +2963,12 @@ namespace dmGui
         return n->m_Node.m_Material;
     }
 
+    dmhash_t GetNodeMaterialId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_MaterialNameHash;
+    }
+
     void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2973,21 +2988,30 @@ namespace dmGui
         return n->m_Node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET ? n->m_Node.m_FlipbookAnimHash : 0x0;
     }
 
-    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
+    Result SetNodeMaterial(HScene scene, HNode node, dmhash_t material_id)
     {
-        dmhash_t material_id_hash = dmHashString64(material_id);
-
         InternalNode* n = GetNode(scene, node);
 
-        dmRender::HMaterial* material = scene->m_Materials.Get(material_id_hash);
-        if (material == 0)
+        uintptr_t material_ptr = 0;
+
+        if (material_id)
         {
-            return RESULT_RESOURCE_NOT_FOUND;
+            void** material = scene->m_MaterialResources.Get(material_id);
+            if (material == 0)
+            {
+                return RESULT_RESOURCE_NOT_FOUND;
+            }
+            material_ptr = (uintptr_t) *material;
         }
 
-        n->m_Node.m_MaterialNameHash = material_id_hash;
-        n->m_Node.m_Material         = (void*) *material;
+        n->m_Node.m_MaterialNameHash = material_id;
+        n->m_Node.m_Material         = (void*) material_ptr;
         return RESULT_OK;
+    }
+
+    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
+    {
+        return SetNodeMaterial(scene, node, dmHashString64(material_id));
     }
 
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)

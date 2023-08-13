@@ -10,37 +10,36 @@ def configure(conf):
     pass
 
 def build(bld):
-    uselib = ['TESTMAIN', 'RESOURCE', 'DLIB', 'PROFILE_NULL', 'DDF', 'THREAD', 'LUA', 'SOCKET']
+    uselib = ['TESTMAIN', 'DLIB', 'SOCKET', 'DDF', 'THREAD', 'EXTENSION', 'PROFILE_NULL', 'RESOURCE', 'SCRIPT', 'LUA']
+    exported_symbols = ['LiveUpdateExt', 'ResourceProviderFile']
 
-    for impl in ('', 'null'):
-        local_lib = 'liveupdate'
-        suffix = ''
-        features = []
-        if impl == 'null':
-            local_lib += '_' + impl
-            suffix += '_' + impl
-            features = ['skip_test']
+    for thread_version in ['multi', 'single']:
+        for impl in ('', 'null'):
+            local_lib = 'liveupdate'
+            suffix = '_%s' % thread_version
+            features = []
+            defines = []
 
-        bld.program(features = 'cxx test'.split() + features,
-                    includes = '../../../src',
-                    use      = uselib + [local_lib],
-                    web_libs = ['library_sys.js'],
-                    target   = 'test_liveupdate' + suffix,
-                    source   = 'test_liveupdate.cpp')
+            if impl == 'null':
+                local_lib += '_%s' % impl
+                suffix += '_%s' % impl
+                features = ['skip_test']
+                defines = ['DM_LU_NULL_IMPLEMENTATION'] # if we use null implementation, then we can't test internal function
 
-        bld.program(features = 'cxx test'.split() + features,
-                    includes = '../../../src',
-                    use      = uselib + [local_lib],
-                    web_libs = ['library_sys.js'],
-                    target   = 'test_liveupdate_async' + suffix,
-                    source   = '../liveupdate_async.cpp test_liveupdate_async.cpp')
+            if thread_version == 'multi':
+                defines.append('DM_HAVE_THREAD')
+            else:
+                defines.append('DM_USE_SINGLE_THREAD')
 
-        bld.program(features = 'cxx cprogram test'.split() + features,
-                    includes = '../../../src',
-                    use      = uselib + [local_lib],
-                    web_libs = ['library_sys.js'],
-                    target   = 'test_liveupdate_zip_archive' + suffix,
-                    source   = '../liveupdate.cpp ../liveupdate_private.cpp ../liveupdate_async.cpp ../liveupdate_archive.cpp ../liveupdate_zip_archive.cpp test_liveupdate_zip_archive.cpp')
+            bld.program(features = 'cxx test'.split() + features,
+                        includes = '../../../src',
+                        use      = uselib + [local_lib],
+                        defines  = defines,
+                        exported_symbols = exported_symbols,
+                        web_libs = ['library_sys.js'],
+                        target   = 'test_liveupdate_job' + suffix,
+                        source   = 'test_liveupdate_job.cpp')
+
 
 def shutdown(ctx):
     pass

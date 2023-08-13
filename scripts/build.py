@@ -25,6 +25,7 @@ import run
 import s3
 import sdk
 import release_to_github
+import release_to_steam
 import BuildUtility
 import http_cache
 from datetime import datetime
@@ -1655,7 +1656,6 @@ class Configuration(object):
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
-            # e.g. editor-dev releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         if not releases:
@@ -1681,6 +1681,10 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+        
+        # Release to steam for stable only
+        # if tag_name and (self.channel == 'editor-alpha'):
+        #     self.release_to_steam()
 
     # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
     # on a branch with the correct sha1 (e.g. beta or editor-dev)
@@ -1712,6 +1716,16 @@ class Configuration(object):
         release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
 
         release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+
+
+    # Use with ./scripts/build.py release_to_steam --version=1.4.8
+    def release_to_steam(self):
+        editor_channel = "editor-alpha"
+        engine_channel = "stable"
+        tag_name = self.compose_tag_name(self.version, engine_channel)
+        archive_path = self.get_archive_path(editor_channel)
+        release = s3.get_single_release(archive_path, tag_name)
+        release_to_steam.release(self, tag_name, release)
 
 #
 # END: RELEASE

@@ -21,9 +21,9 @@
 #include <gamesys/mesh_ddf.h>
 #include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
-#include <liveupdate/liveupdate.h>
 #include <render/font_renderer.h>
 #include <resource/resource.h>
+#include <resource/resource_util.h>
 #include <gameobject/gameobject.h>
 
 #include "script_resource.h"
@@ -33,7 +33,6 @@
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
-#include "script_resource_liveupdate.h"
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
@@ -70,6 +69,15 @@ namespace dmGameSystem
  * go.property("my_material", resource.material("/material.material"))
  * function init(self)
  *   go.set("#sprite", "material", self.my_material)
+ * end
+ * ```
+ *
+ * Load a material resource and update a named material with the resource:
+ *
+ * ```lua
+ * go.property("my_material", resource.material("/material.material"))
+ * function init(self)
+ *   go.set("#gui", "materials", self.my_material, {key = "my_material"})
  * end
  * ```
  */
@@ -2236,7 +2244,7 @@ static int SetSound(lua_State* L) {
  * end
  * ```
  *
- * * @examples
+ * @examples
  * Create a buffer resource from existing resource
  *
  * ```lua
@@ -2370,7 +2378,7 @@ static int CreateBuffer(lua_State* L)
  *
  *     local res_path = go.get("#mesh", "vertices")
  *     local buf = resource.get_buffer(res_path)
- *     local stream_positions = buffer.get_stream(self.buffer, "position")
+ *     local stream_positions = buffer.get_stream(buf, "position")
  *
  *     for i=1,#stream_positions do
  *         print(i, stream_positions[i])
@@ -2401,12 +2409,23 @@ static int GetBuffer(lua_State* L)
 }
 
 /*# set resource buffer
- * sets the buffer of a resource
+ * Sets the buffer of a resource. By default, setting the resource buffer will either copy the data from the incoming buffer object
+ * to the buffer stored in the destination resource, or make a new buffer object if the sizes between the source buffer and the destination buffer
+ * stored in the resource differs. In some cases, e.g performance reasons, it might be beneficial to just set the buffer object on the resource without copying or cloning.
+ * To achieve this, set the `transfer_ownership` flag to true in the argument table. Transferring ownership from a lua buffer to a resource with this function
+ * works exactly the same as [ref:resource.create_buffer]: the destination resource will take ownership of the buffer held by the lua reference, i.e the buffer will not automatically be removed
+ * when the lua reference to the buffer is garbage collected.
+ * 
+ * Note: When setting a buffer with `transfer_ownership = true`, the currently bound buffer in the resource will be destroyed.
  *
  * @name resource.set_buffer
  *
  * @param path [type:hash|string] The path to the resource
  * @param buffer [type:buffer] The resource buffer
+ * @param table [type:table] A table containing info about how to set the buffer. Supported entries:
+ *
+ * * `transfer_ownership`
+ * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default false)
  *
  * @examples
  * How to set the data from a buffer
@@ -2449,48 +2468,88 @@ static int SetBuffer(lua_State* L)
     int top = lua_gettop(L);
     dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
-    dmBuffer::HBuffer src_buffer = dmGameSystem::UnpackLuaBuffer(luabuf);
+    bool transfer_ownership      = false;
 
+    if (lua_istable(L, 3))
+    {
+        lua_pushvalue(L, 3);
+        transfer_ownership = CheckFieldValue<bool>(L, -1, "transfer_ownership", false);
+        lua_pop(L, 1); // args table
+    }
+
+    dmBuffer::HBuffer src_buffer                  = dmGameSystem::UnpackLuaBuffer(luabuf);
     void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
-    // Make sure the destination buffer has enough size (otherwise, resize it).
-    // TODO: Check if incoming buffer size is smaller than current size -> don't allocate new dmbuffer,
-    //       but copy smaller data and change "size".
-    uint32_t dst_count = 0;
-    dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
-    if (br != dmBuffer::RESULT_OK)
+    if (transfer_ownership)
     {
-        return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
-    }
-
-    uint32_t src_count = 0;
-    br = dmBuffer::GetCount(src_buffer, &src_count);
-    if (br != dmBuffer::RESULT_OK)
-    {
-        return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-    }
-
-    if (dst_count != src_count)
-    {
-        dmBuffer::HBuffer dst_buffer;
-        br = dmBuffer::Clone(src_buffer, &dst_buffer);
-        if (br != dmBuffer::RESULT_OK)
+        if (src_buffer != dst_buffer)
         {
-            return luaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
+            uint32_t src_count = 0;
+            dmBuffer::Result br = dmBuffer::GetCount(src_buffer, &src_count);
+            if (br != dmBuffer::RESULT_OK)
+            {
+                return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+            }
+
+            dmBuffer::Destroy(buffer_resource->m_Buffer);
+            buffer_resource->m_Buffer       = src_buffer;
+            buffer_resource->m_ElementCount = src_count;
+            buffer_resource->m_Stride       = dmBuffer::GetStructSize(src_buffer);
+
+            if (luabuf->m_Owner == dmScript::OWNER_RES)
+            {
+                // We are transferring the ownership of the resource in the lua buffer
+                // to the destination resource, so we decref the source resource.
+                // We don't need to incref the destination resource in this case,
+                // because we are simply updating the content and not the resoure itself
+                dmResource::Release(g_ResourceModule.m_Factory, luabuf->m_BufferRes);
+            }
         }
 
-        dmBuffer::Destroy(buffer_resource->m_Buffer);
-        buffer_resource->m_Buffer       = dst_buffer;
-        buffer_resource->m_ElementCount = src_count;
+        luabuf->m_Owner     = dmScript::OWNER_RES;
+        luabuf->m_BufferRes = resource;
     }
     else
     {
-        br = dmBuffer::Copy(dst_buffer, src_buffer);
+        // Make sure the destination buffer has enough size (otherwise, resize it).
+        // TODO: Check if incoming buffer size is smaller than current size -> don't allocate new dmbuffer,
+        //       but copy smaller data and change "size".
+        uint32_t dst_count = 0;
+        dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
         if (br != dmBuffer::RESULT_OK)
         {
-            return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+            return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
+        }
+
+        uint32_t src_count = 0;
+        br = dmBuffer::GetCount(src_buffer, &src_count);
+        if (br != dmBuffer::RESULT_OK)
+        {
+            return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        }
+
+        if (dst_count != src_count)
+        {
+            dmBuffer::HBuffer dst_buffer;
+            br = dmBuffer::Clone(src_buffer, &dst_buffer);
+            if (br != dmBuffer::RESULT_OK)
+            {
+                return luaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
+            }
+
+            dmBuffer::Destroy(buffer_resource->m_Buffer);
+            buffer_resource->m_Buffer       = dst_buffer;
+            buffer_resource->m_ElementCount = src_count;
+        }
+        else
+        {
+            br = dmBuffer::Copy(dst_buffer, src_buffer);
+            if (br != dmBuffer::RESULT_OK)
+            {
+                return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+            }
         }
     }
 
@@ -2589,19 +2648,6 @@ static int GetTextMetrics(lua_State* L)
     return 1;
 }
 
-#define DEPRECATE_LU_FUNCTION(LUA_NAME, CPP_NAME) \
-    static int Deprecated_ ## CPP_NAME(lua_State* L) \
-    { \
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "resource", LUA_NAME, "liveupdate", LUA_NAME); \
-        return dmLiveUpdate:: CPP_NAME (L); \
-    }
-
-DEPRECATE_LU_FUNCTION("get_current_manifest", Resource_GetCurrentManifest);
-DEPRECATE_LU_FUNCTION("is_using_liveupdate_data", Resource_IsUsingLiveUpdateData);
-DEPRECATE_LU_FUNCTION("store_resource", Resource_StoreResource);
-DEPRECATE_LU_FUNCTION("store_manifest", Resource_StoreManifest);
-DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
-
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
@@ -2618,14 +2664,6 @@ static const luaL_reg Module_methods[] =
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
     {"get_text_metrics", GetTextMetrics},
-
-    // LiveUpdate functionality in resource namespace
-    {"get_current_manifest", Deprecated_Resource_GetCurrentManifest},
-    {"is_using_liveupdate_data", Deprecated_Resource_IsUsingLiveUpdateData},
-    {"store_resource", Deprecated_Resource_StoreResource},
-    {"store_manifest", Deprecated_Resource_StoreManifest},
-    {"store_archive", Deprecated_Resource_StoreArchive},
-
     {0, 0}
 };
 
@@ -2862,21 +2900,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
 
 #undef SETCOMPRESSIONTYPE
-
-#define SETCONSTANT(name, val) \
-        lua_pushnumber(L, (lua_Number) val); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(LIVEUPDATE_OK, dmLiveUpdate::RESULT_OK);
-    SETCONSTANT(LIVEUPDATE_INVALID_RESOURCE, dmLiveUpdate::RESULT_INVALID_RESOURCE);
-    SETCONSTANT(LIVEUPDATE_VERSION_MISMATCH, dmLiveUpdate::RESULT_VERSION_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_FORMAT_ERROR, dmLiveUpdate::RESULT_FORMAT_ERROR);
-
-#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

@@ -117,6 +117,7 @@ namespace dmGameSystem
         uint32_t                    m_MaxGuiComponents;
         uint32_t                    m_MaxParticleFXCount;
         uint32_t                    m_MaxParticleCount;
+        uint32_t                    m_MaxAnimationCount;
     };
 
     static void GuiResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
@@ -200,6 +201,7 @@ namespace dmGameSystem
         gui_world->m_MaxParticleFXCount = gui_context->m_MaxParticleFXCount;
         gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
         gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
+        gui_world->m_MaxAnimationCount = gui_context->m_MaxAnimationCount;
 
         gui_world->m_ScriptWorld = dmScript::NewScriptWorld(gui_context->m_ScriptContext);
 
@@ -543,8 +545,8 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < scene_resource->m_Materials.Size(); ++i)
             {
                 const char* name = scene_desc->m_Materials[i].m_Name;
-                dmRender::HMaterial material = scene_resource->m_Materials[i]->m_Material;
-                dmGui::Result r = dmGui::AddMaterial(scene, name, (void*) material);
+                // Note: We add a material *resource* here and not a HMaterial!
+                dmGui::Result r = dmGui::AddMaterial(scene, dmHashString64(name), (void*) scene_resource->m_Materials[i]);
 
                 if (r != dmGui::RESULT_OK) {
                     dmLogError("Unable to add material '%s' to GUI scene (%d)", name, r);
@@ -729,11 +731,11 @@ namespace dmGameSystem
         // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
         assert(scene_desc->m_MaxNodes <= 8192);
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
-        scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxMaterials = 16;
+        scene_params.m_MaxAnimations = gui_world->m_MaxAnimationCount;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
@@ -933,18 +935,24 @@ namespace dmGameSystem
         return (dmGraphics::HTexture) result;
     }
 
+    static inline dmRender::HMaterial GetNodeMaterial(void* material_res)
+    {
+        assert(material_res);
+        return ((MaterialResource*) material_res)->m_Material;
+    }
+
     static inline dmRender::HMaterial GetNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node)
     {
-        void* node_material = dmGui::GetNodeMaterial(scene, node);
-        return node_material ? (dmRender::HMaterial) node_material : gui_context->m_Material;
+        void* node_material_res = dmGui::GetNodeMaterial(scene, node);
+        return node_material_res ? GetNodeMaterial(node_material_res) : gui_context->m_Material;
     }
 
     static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFontMap font_map)
     {
-        void* node_material = dmGui::GetNodeMaterial(scene, node);
-        if (node_material)
+        void* node_material_res = dmGui::GetNodeMaterial(scene, node);
+        if (node_material_res)
         {
-            return (dmRender::HMaterial) node_material;
+            return GetNodeMaterial(node_material_res);
         }
         else if (font_map)
         {
@@ -2403,18 +2411,33 @@ namespace dmGameSystem
     static dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
-        if (set_property == PROP_MATERIAL) {
+        if (set_property == PROP_MATERIAL)
+        {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(gui_component, gui_component->m_Resource), out_value);
         }
-        else if (set_property == PROP_FONTS) {
-            if (!params.m_Options.m_HasKey) {
+        else if (set_property == PROP_MATERIALS)
+        {
+            if (!params.m_Options.m_HasKey)
+            {
+                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+            }
+
+            out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+        }
+        else if (set_property == PROP_FONTS)
+        {
+            if (!params.m_Options.m_HasKey)
+            {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, params.m_Options.m_Key), out_value);
         }
-        else if (set_property == PROP_TEXTURES) {
-            if (!params.m_Options.m_HasKey) {
+        else if (set_property == PROP_TEXTURES)
+        {
+            if (!params.m_Options.m_HasKey)
+            {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
@@ -2426,11 +2449,14 @@ namespace dmGameSystem
     static dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
-        if (set_property == PROP_MATERIAL) {
+        if (set_property == PROP_MATERIAL)
+        {
             return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
         }
-        else if (set_property == PROP_FONTS) {
-            if (!params.m_Options.m_HasKey) {
+        else if (set_property == PROP_FONTS)
+        {
+            if (!params.m_Options.m_HasKey)
+            {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
@@ -2439,7 +2465,8 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*) font, params.m_Value.m_Hash);
-                if (r != dmGui::RESULT_OK) {
+                if (r != dmGui::RESULT_OK)
+                {
                     dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
                     dmResource::Release(factory, font);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
@@ -2451,8 +2478,10 @@ namespace dmGameSystem
             }
             return res;
         }
-        else if (set_property == PROP_TEXTURES) {
-            if (!params.m_Options.m_HasKey) {
+        else if (set_property == PROP_TEXTURES)
+        {
+            if (!params.m_Options.m_HasKey)
+            {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
@@ -2462,14 +2491,48 @@ namespace dmGameSystem
             {
                 dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
                 dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
-                if (r != dmGui::RESULT_OK) {
+                if (r != dmGui::RESULT_OK)
+                {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
-                if(gui_component->m_ResourcePropertyPointers.Full()) {
+                if(gui_component->m_ResourcePropertyPointers.Full())
+                {
                     gui_component->m_ResourcePropertyPointers.OffsetCapacity(1);
                 }
                 gui_component->m_ResourcePropertyPointers.Push(texture_source);
+            }
+            return res;
+        }
+        else if (set_property == PROP_MATERIALS)
+        {
+            if (!params.m_Options.m_HasKey)
+            {
+                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+            }
+            dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+            MaterialResource* material_res = 0;
+
+            dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, MATERIAL_EXT_HASH, (void**) &material_res);
+
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+            {
+                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, params.m_Options.m_Key, material_res);
+
+                if (r != dmGui::RESULT_OK)
+                {
+                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key), r);
+                    return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
+                }
+
+                // Update node material pointers
+                dmGui::AssignMaterials(gui_component->m_Scene);
+
+                if(gui_component->m_ResourcePropertyPointers.Full())
+                {
+                    gui_component->m_ResourcePropertyPointers.OffsetCapacity(1);
+                }
+                gui_component->m_ResourcePropertyPointers.Push(material_res);
             }
             return res;
         }
@@ -2715,6 +2778,7 @@ namespace dmGameSystem
         gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
+        gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
 
         int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
         gui_context->m_Worlds.SetCapacity(max_gui_count);

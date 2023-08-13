@@ -60,7 +60,6 @@ def configure(conf):
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_HID'] = 'hid'
     conf.env['STLIB_HID_NULL'] = 'hid_null'
-    conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
     conf.env['STLIB_GRAPHICS_GAMESYS_TEST'] = ['graphics_null', 'graphics_transcoder_basisu', 'basis_transcoder']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')

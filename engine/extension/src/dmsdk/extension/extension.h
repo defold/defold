@@ -15,9 +15,9 @@
 #ifndef DMSDK_EXTENSION
 #define DMSDK_EXTENSION
 
-#include <string.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
+#include <dmsdk/resource/resource.h>
 
 extern "C"
 {
@@ -85,14 +85,16 @@ namespace dmExtension
      *
      * @struct
      * @name dmExtension::Params
-     * @member m_ConfigFile [type:dmConfigFile::HConfig]
-     * @member m_L [type:lua_State*]
+     * @member m_ConfigFile [type: dmConfigFile::HConfig] the config file
+     * @member m_ResourceFactory [type: dmResource::HFactory] the resource factory
+     * @member m_L [type: lua_State*] the lua state
      *
      */
     struct Params
     {
         Params();
         dmConfigFile::HConfig   m_ConfigFile;
+        dmResource::HFactory    m_ResourceFactory;
         lua_State*              m_L;
     };
 

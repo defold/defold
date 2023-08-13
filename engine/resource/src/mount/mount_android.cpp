@@ -193,6 +193,9 @@ namespace dmResource
                 UnmapFile(index_map, index_length);
             else
                 UnmapAsset(index_asset);
+
+            if (res == dmResourceArchive::RESULT_VERSION_MISMATCH)
+                return RESULT_VERSION_MISMATCH;
             return RESULT_IO_ERROR;
         }
 

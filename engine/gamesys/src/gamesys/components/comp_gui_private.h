@@ -133,6 +133,7 @@ namespace dmGameSystem
         uint32_t                            m_MaxParticleFXCount;
         uint32_t                            m_MaxParticleCount;
         uint32_t                            m_RenderedParticlesSize;
+        uint32_t                            m_MaxAnimationCount;
         float                               m_DT;
         dmScript::ScriptWorld*              m_ScriptWorld;
         CompGuiContext*                     m_CompGuiContext;

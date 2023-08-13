@@ -103,7 +103,7 @@ message PauseSound
     optional bool pause     = 1 [default=true];
 }
 
-message SoundDone
+message SoundEvent
 {
     optional int32 play_id = 1 [default = 0];
 }

@@ -182,28 +182,10 @@ void _glfwInputKey( int key, int action )
 
 void _glfwInputChar( int character, int action )
 {
-    int keyrepeat = 0;
-
     // Valid Unicode (ISO 10646) character?
     if( !( (character >= 32 && character <= 126) || character >= 160 ) )
     {
         return;
-    }
-
-    // Is this a key repeat?
-    if( action == GLFW_PRESS && _glfwInput.LastChar == character )
-    {
-        keyrepeat = 1;
-    }
-
-    // Store this character as last character (or clear it, if released)
-    if( action == GLFW_PRESS )
-    {
-        _glfwInput.LastChar = character;
-    }
-    else
-    {
-        _glfwInput.LastChar = 0;
     }
 
     if( action != GLFW_PRESS )
@@ -224,7 +206,7 @@ void _glfwInputChar( int character, int action )
         return;
     }
 
-    if( _glfwWin.charCallback && (_glfwInput.KeyRepeat || !keyrepeat) )
+    if( _glfwWin.charCallback )
     {
         _glfwWin.charCallback( character, action );
     }
