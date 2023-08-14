@@ -24,11 +24,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-static void DestroyImage(dmAtlasc::SourceImage* image)
-{
-    free((void*)image->m_Path);
-    free((void*)image->m_Data);
-}
 
 static int LoadImage(const char* path, dmAtlasc::SourceImage* image)
 {
@@ -36,13 +31,14 @@ static int LoadImage(const char* path, dmAtlasc::SourceImage* image)
     image->m_Data = stbi_load(path, &image->m_Size.width, &image->m_Size.height, &image->m_NumChannels, 0);
     if (!image->m_Data)
     {
-        DestroyImage(image);
         printf("Failed to load %s\n", path);
         return 0;
     }
     image->m_Path = strdup(path);
     return 1;
 }
+
+
 
 static void TreeIterCallback(void* ctx, const char* path, bool isdir)
 {
@@ -57,14 +53,20 @@ static void TreeIterCallback(void* ctx, const char* path, bool isdir)
     if (!is_image)
         return;
 
-    dmArray<dmAtlasc::SourceImage>* images = (dmArray<dmAtlasc::SourceImage>*)ctx;
-    dmAtlasc::SourceImage image;
-    int result = LoadImage(path, &image);
+    dmArray<dmAtlasc::SourceImage*>* images = (dmArray<dmAtlasc::SourceImage*>*)ctx;
+    dmAtlasc::SourceImage* image = new dmAtlasc::SourceImage;
+    int result = LoadImage(path, image);
     if (result)
     {
         if (images->Full())
+        {
             images->OffsetCapacity(16);
+        }
         images->Push(image);
+    }
+    else
+    {
+        delete image;
     }
 }
 
@@ -87,6 +89,25 @@ static CompileInfo compile_info[] =
     {"src/test/data/atlas01", dmAtlasc::PA_TILEPACK_CONVEXHULL, 0, 512, 256},
 };
 
+void DeleteImages(dmArray<dmAtlasc::SourceImage*>& images)
+{
+    for (uint32_t i = 0; i < images.Size(); ++i)
+    {
+        delete images[i];
+    }
+}
+
+void CopyImages(const dmArray<dmAtlasc::SourceImage*>& src, dmArray<dmAtlasc::SourceImage>& dst) // to pass into CreateAtlas
+{
+    dst.SetCapacity(src.Capacity());
+    dst.SetSize(src.Size());
+    for (uint32_t i = 0; i < src.Size(); ++i)
+    {
+        dst[i] = *src[i];
+    }
+}
+
+
 class AtlascCompileTest : public jc_test_params_class<CompileInfo>
 {
 protected:
@@ -102,11 +123,11 @@ protected:
     {
         for (uint32_t i = 0; i < m_Images.Size(); ++i)
         {
-            DestroyImage(&m_Images[i]);
+            delete m_Images[i];
         }
     }
 
-    dmArray<dmAtlasc::SourceImage> m_Images;
+    dmArray<dmAtlasc::SourceImage*> m_Images;
     int m_Width;
     int m_Height;
 };
@@ -118,7 +139,10 @@ TEST_P(AtlascCompileTest, Pack)
     dmAtlasc::Options options;
     options.m_Algorithm = (dmAtlasc::PackingAlgorithm)info.m_PackingAlgorithm;
     options.m_PageSize = info.m_PageSize;
-    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, m_Images.Begin(), m_Images.Size(), 0, 0);
+
+    dmArray<dmAtlasc::SourceImage> images;
+    CopyImages(m_Images, images);
+    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, images.Begin(), images.Size(), 0, 0);
 
     dmAtlasc::DestroyAtlas(atlas);
 
@@ -129,7 +153,7 @@ INSTANTIATE_TEST_CASE_P(AtlascCompileTest, AtlascCompileTest, jc_test_values_in(
 
 static int TestStandAlone(const char* dirpath)
 {
-    dmArray<dmAtlasc::SourceImage> images;
+    dmArray<dmAtlasc::SourceImage*> images;
     dmSys::IterateTree(dirpath, true, true, &images, TreeIterCallback);
 
     if (images.Empty())
@@ -141,7 +165,11 @@ static int TestStandAlone(const char* dirpath)
     dmAtlasc::Options options;
     options.m_Algorithm = dmAtlasc::PA_TILEPACK_AUTO;
     options.m_PageSize = 1024;
-    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, images.Begin(), images.Size(), 0, 0);
+
+    dmArray<dmAtlasc::SourceImage> image_copies;
+    CopyImages(images, image_copies);
+
+    dmAtlasc::Atlas* atlas = dmAtlasc::CreateAtlas(options, image_copies.Begin(), image_copies.Size(), 0, 0);
     if (!atlas)
     {
         printf("Failed to create atlas from path %s\n", dirpath);
@@ -151,6 +179,7 @@ static int TestStandAlone(const char* dirpath)
     DebugPrintAtlas(atlas);
 
     dmAtlasc::DestroyAtlas(atlas);
+    DeleteImages(images);
 
     return 0;
 }

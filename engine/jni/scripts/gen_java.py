@@ -579,7 +579,7 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
                     jni_type = c_type_to_jni_type_specifiers.get(c_type);
                     l(f'        GET_FLD_TYPESTR({jni_field_name}, "[{jni_type}");')
                     continue
-                elif is_struct_type(field_type):
+                elif is_struct_type(c_type):
                     jni_type = c_type
 
                 elif util.is_string_ptr(field_type):
