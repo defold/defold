@@ -68,6 +68,7 @@ public class TimeProfiler {
     private static class ProfilingMark {
         public String shortName;
         public String fullName;
+        public String color;
         public long timestamp;
     }
 
@@ -141,6 +142,8 @@ public class TimeProfiler {
                 generator.writeString(mark.shortName);
                 generator.writeFieldName("fullName");
                 generator.writeString(mark.fullName);
+                generator.writeFieldName("color");
+                generator.writeString(mark.color);
                 generator.writeFieldName("timestamp");
                 generator.writeNumber(mark.timestamp - buildTime);
                 generator.writeEndObject();
@@ -311,7 +314,7 @@ public class TimeProfiler {
         unsafeStop();
     }
 
-    public static void addMark(String shortName, String fullName) {
+    public static void addMark(String shortName, String fullName, String color) {
         if (rootScope == null) {
             return;
         }
@@ -319,11 +322,16 @@ public class TimeProfiler {
         mark.timestamp = time();
         mark.shortName = shortName;
         mark.fullName = fullName;
+        mark.color = color;
         marks.add(mark);
     }
 
     public static void addMark(String shortName) {
-        addMark(shortName, shortName);
+        addMark(shortName, shortName, "#EADDCA");
+    }
+
+    public static void addMark(String shortName, String fullName) {
+        addMark(shortName, shortName, "#EADDCA");
     }
 
     private static void unsafeAddData(String fieldName, String data) {
