@@ -131,8 +131,8 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib texc atlasc modelc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
-HOST_LIBS = "testmain dlib texc atlasc modelc".split()
+ENGINE_LIBS = "testmain dlib ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+HOST_LIBS = "testmain dlib jni texc atlasc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -1681,7 +1681,7 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
-        
+
         # Release to steam for stable only
         # if tag_name and (self.channel == 'editor-alpha'):
         #     self.release_to_steam()
