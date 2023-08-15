@@ -27,8 +27,8 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
-            [editor.graphics :as graphics]
             [editor.graph-util :as gu]
+            [editor.graphics :as graphics]
             [editor.handler :as handler]
             [editor.material :as material]
             [editor.math :as math]
@@ -45,16 +45,15 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
-            Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
-            Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
+  (:import [com.dynamo.particle.proto Particle$BlendMode Particle$EmissionSpace Particle$Emitter Particle$EmitterKey Particle$EmitterType Particle$ParticleFX Particle$ParticleKey Particle$ParticleOrientation Particle$PlayMode Particle$SizeMode]
            [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [editor.properties CurveSpread Curve]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.nio ByteBuffer ByteOrder IntBuffer]
-           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]))
+           [editor.gl.vertex2 VertexBuffer]
+           [editor.properties Curve CurveSpread]
+           [editor.types AABB]
+           [java.nio ByteBuffer ByteOrder]
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -183,11 +182,14 @@
   {:emitter-type-2dcone 6
    :emitter-type-circle 6 #_(* 2 circle-steps)})
 
-(defn- ->vb [vs vcount color]
-  (let [vb (->color-vtx vcount)]
+(defn- ->vbuf
+  ^VertexBuffer [vs vcount color]
+  (let [^VertexBuffer vbuf (->color-vtx vcount)
+        ^ByteBuffer buf (.buf vbuf)]
     (doseq [v vs]
-      (conj! vb (into v color)))
-    (persistent! vb)))
+      (vtx/buf-push-floats! buf v)
+      (vtx/buf-push-floats! buf color))
+    (vtx/flip! vbuf)))
 
 (defn- orthonormalize [^Matrix4d m]
   (let [m' (Matrix4d. m)
@@ -196,7 +198,7 @@
     (.setRotationScale m' r)
     m'))
 
-(defn render-lines [^GL2 gl render-args renderables rcount]
+(defn render-lines [^GL2 gl render-args renderables _rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
         scale-f (camera/scale-factor camera viewport)
@@ -216,9 +218,9 @@
             render-args (if (= pass/selection (:pass render-args))
                           (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
-            #_#_vertex-binding (vtx/use-with ::lines (->vb vs vcount color) shader)]
-        #_(gl/with-gl-bindings gl render-args [shader vertex-binding]
-          #_(gl/gl-draw-arrays gl GL/GL_LINES 0 vcount)))))) ;; TODO custom-vertex-format: need to use vtx2 now
+            vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry
 
