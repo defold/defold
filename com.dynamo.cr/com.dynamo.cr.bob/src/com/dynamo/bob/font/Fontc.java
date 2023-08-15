@@ -1091,7 +1091,7 @@ public class Fontc {
             }
 
             String glyphBankOutputPath   = outfile.replace("fontc", "glyph_bankc");
-            String glyphBankRelativePath = glyphBankOutputPath.replace(projectRootDir, "");
+            String glyphBankRelativePath = glyphBankOutputPath.replace(projectRootDir, "").replace("\\", "/");
 
             System.out.println("----------");
             System.out.println(glyphBankOutputPath);

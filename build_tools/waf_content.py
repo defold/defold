@@ -48,7 +48,7 @@ sys.meta_path.insert(0, DefoldImporter())
 @feature('*')
 @before('apply_core')
 def apply_content_root(self):
-    waflib.Utils.def_attrs(self, content_root = '.')
+    waflib.Utils.def_attrs(self, content_root = '.', project_root = '')
     self.content_root = self.path.find_dir(self.content_root).abspath()
 
 proto_module_sigs = {}

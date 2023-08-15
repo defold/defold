@@ -378,12 +378,8 @@ public class ArchiveBuilder {
                         printUsageAndTerminate("file does not exist: " + glyphBankFile.getAbsolutePath());
                     }
 
-                    System.out.println("ArchiveBuilder: " + glyphBankFile.getAbsolutePath());
-
                     inputs.add(glyphBankFile);
                 }
-
-                System.out.println("ArchiveBuilder: " + currentInput.getAbsolutePath());
 
                 inputs.add(currentInput);
             }
