@@ -44,6 +44,7 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <xinput.h>
+#include <imm.h>
 #include "../../include/GL/glfw.h"
 #include "../../include/GL/glfw_native.h"
 
@@ -256,6 +257,12 @@ typedef MMRESULT (WINAPI * JOYGETPOSEX_T) (UINT,LPJOYINFOEX);
 typedef DWORD (WINAPI * TIMEGETTIME_T) (void);
 #endif // _GLFW_NO_DLOAD_WINMM
 
+// imm32.dll function pointer typedefs
+#ifndef _GLFW_NO_DLOAD_IMM32
+typedef HIMC (WINAPI * IMMGETCONTEXT_T) (HWND);
+typedef BOOL (WINAPI * IMMRELEASECONTEXT_T) (HWND, HIMC);
+typedef BOOL (WINAPI * IMMGETCOMPOSITIONSTRING_T) (HIMC, DWORD, LPVOID, DWORD);
+#endif // _GLFW_NO_DLOAD_IMM32
 
 // gdi32.dll shortcuts
 #ifndef _GLFW_NO_DLOAD_GDI32
@@ -285,6 +292,16 @@ typedef DWORD (WINAPI * TIMEGETTIME_T) (void);
 #define _glfw_timeGetTime   timeGetTime
 #endif // _GLFW_NO_DLOAD_WINMM
 
+// Imm32.dll shortcuts
+#ifndef _GLFW_NO_DLOAD_IMM32
+#define _glfw_ImmGetContext             _glfwLibrary.Libs.ImmGetContext
+#define _glfw_ImmReleaseContext         _glfwLibrary.Libs.ImmReleaseContext
+#define _glfw_ImmGetCompositionString   _glfwLibrary.Libs.ImmGetCompositionStringW
+#else
+#define _glfw_ImmGetContext             ImmGetContext
+#define _glfw_ImmReleaseContext         ImmReleaseContext
+#define _glfw_ImmGetCompositionString   ImmGetCompositionStringW
+#endif // _GLFW_NO_DLOAD_IMM32
 
 //========================================================================
 // GLFW platform specific types
@@ -485,6 +502,15 @@ GLFWGLOBAL struct {
       JOYGETPOSEX_T         joyGetPosEx;
       TIMEGETTIME_T         timeGetTime;
 #endif // _GLFW_NO_DLOAD_WINMM
+
+      // imm32.dll
+#ifndef _GLFW_NO_DLOAD_IMM32
+      HINSTANCE                 imm32;
+      IMMGETCONTEXT_T           ImmGetContext;
+      IMMRELEASECONTEXT_T       ImmReleaseContext;
+      IMMGETCOMPOSITIONSTRING_T ImmGetCompositionStringW;
+#endif // _GLFW_NO_DLOAD_IMM32
+
   } Libs;
 #endif
 

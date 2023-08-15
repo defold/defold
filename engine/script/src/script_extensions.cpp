@@ -71,6 +71,7 @@ namespace dmScript
             {
                 dmExtension::Params p;
                 p.m_ConfigFile = GetConfigFile(context);
+                p.m_ResourceFactory = GetResourceFactory(context);
                 p.m_L = L;
                 dmExtension::Result r = ed->Initialize(&p);
                 if (r == dmExtension::RESULT_OK) {
@@ -114,6 +115,7 @@ namespace dmScript
             {
                 dmExtension::Params p;
                 p.m_ConfigFile = GetConfigFile(context);
+                p.m_ResourceFactory = GetResourceFactory(context);
                 p.m_L = L;
                 if (extension_data->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
                     dmExtension::Result r = ed->Update(&p);
@@ -144,6 +146,7 @@ namespace dmScript
             {
                 dmExtension::Params p;
                 p.m_ConfigFile = GetConfigFile(context);
+                p.m_ResourceFactory = GetResourceFactory(context);
                 p.m_L = L;
                 if (extension_data->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
                     dmExtension::Result r = ed->Finalize(&p);

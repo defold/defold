@@ -1273,12 +1273,17 @@
                          (g/delete-node current-scene)
                          [])
                        (if (and new-value (:resource new-value))
-                         (when-some [{connect-tx-data :tx-data scene-node :node-id} (project/connect-resource-node evaluation-context project (:resource new-value) self [])]
+                         (when-some [{connect-tx-data :tx-data
+                                      scene-node :node-id
+                                      created-in-tx :created-in-tx} (project/connect-resource-node evaluation-context project (:resource new-value) self [])]
                            (concat
                              connect-tx-data
                              (let [properties-by-node-id (comp (or (:overrides new-value) {})
-                                                               (into {} (map (fn [[k v]] [v k]))
-                                                                     (g/node-value scene-node :node-ids evaluation-context)))]
+                                                               (into {}
+                                                                     (map (fn [[k v]] [v k]))
+                                                                     (if created-in-tx
+                                                                       {}
+                                                                       (g/node-value scene-node :node-ids evaluation-context))))]
                                ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
                                (g/override scene-node {:traverse-fn (g/make-override-traverse-fn
                                                                       (fn [basis ^Arc arc]

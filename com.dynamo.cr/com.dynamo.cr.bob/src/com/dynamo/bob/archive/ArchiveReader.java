@@ -28,7 +28,7 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 
 public class ArchiveReader {
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int HASH_BUFFER_BYTESIZE = 64; // 512 bits
 
     private ArrayList<ArchiveEntry> entries = null;
@@ -52,16 +52,16 @@ public class ArchiveReader {
     }
 
     public void read() throws IOException {
-    	this.archiveIndexFile = new RandomAccessFile(this.archiveIndexFilepath, "r");
+        this.archiveIndexFile = new RandomAccessFile(this.archiveIndexFilepath, "r");
         this.archiveDataFile = new RandomAccessFile(this.archiveDataFilepath, "r");
-        
+
         this.archiveIndexFile.seek(0);
         this.archiveDataFile.seek(0);
-        
+
         if (this.manifestFilepath != null) {
-	        InputStream manifestInputStream = new FileInputStream(this.manifestFilepath);
-	        this.manifestFile = ManifestFile.parseFrom(manifestInputStream);
-	        manifestInputStream.close();
+            InputStream manifestInputStream = new FileInputStream(this.manifestFilepath);
+            this.manifestFile = ManifestFile.parseFrom(manifestInputStream);
+            manifestInputStream.close();
         }
 
         // Version
@@ -72,19 +72,19 @@ public class ArchiveReader {
             throw new IOException("Unsupported archive index version: " + indexVersion);
         }
     }
-    
+
     private boolean matchHash(byte[] a, byte[] b, int hlen) {
-    	if (a.length < hlen || b.length < hlen) {
-    		return false;
-    	}
-    	
-    	for (int i = 0; i < hlen; ++i) {
-    		if (a[i] != b[i]) {
-    			return false;
-    		}
-    	}
-    	
-    	return true;
+        if (a.length < hlen || b.length < hlen) {
+            return false;
+        }
+
+        for (int i = 0; i < hlen; ++i) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void readArchiveData() throws IOException {
@@ -116,12 +116,12 @@ public class ArchiveReader {
 
             if (this.manifestFile != null) {
                 for (ResourceEntry resource : manifestData.getResourcesList()) {
-	            	if (matchHash(e.getHash(), resource.getHash().getData().toByteArray(), this.hashLength)) {
-	            		e.setFilename(resource.getUrl());
-	            		e.setRelativeFilename(resource.getUrl());
+                    if (matchHash(e.getHash(), resource.getHash().getData().toByteArray(), this.hashLength)) {
+                        e.setFilename(resource.getUrl());
+                        e.setRelativeFilename(resource.getUrl());
                         break;
-	            	}
-	            }
+                    }
+                }
             }
             
             entries.add(e);

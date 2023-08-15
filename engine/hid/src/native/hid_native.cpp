@@ -227,6 +227,7 @@ namespace dmHID
 
             delete user_data;
             g_HidContext->m_NativeContextUserData = 0;
+            g_HidContext = 0;
         }
     }
 

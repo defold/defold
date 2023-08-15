@@ -150,6 +150,32 @@ static int _glfwInitLibraries( void )
     }
 #endif // _GLFW_NO_DLOAD_WINMM
 
+    // imm32.dll (for input method support)
+#ifndef _GLFW_NO_DLOAD_IMM32
+    _glfwLibrary.Libs.imm32 = LoadLibrary( L"imm32.dll" );
+    if( _glfwLibrary.Libs.imm32 != NULL )
+    {
+        _glfwLibrary.Libs.ImmGetContext = (IMMGETCONTEXT_T)
+            GetProcAddress( _glfwLibrary.Libs.imm32, "ImmGetContext" );
+        _glfwLibrary.Libs.ImmReleaseContext      = (IMMRELEASECONTEXT_T)
+            GetProcAddress( _glfwLibrary.Libs.imm32, "ImmReleaseContext" );
+        _glfwLibrary.Libs.ImmGetCompositionStringW    = (IMMGETCOMPOSITIONSTRING_T)
+            GetProcAddress( _glfwLibrary.Libs.imm32, "ImmGetCompositionStringW" );
+        if( _glfwLibrary.Libs.ImmGetContext             == NULL ||
+            _glfwLibrary.Libs.ImmReleaseContext         == NULL ||
+            _glfwLibrary.Libs.ImmGetCompositionStringW  == NULL )
+        {
+            FreeLibrary( _glfwLibrary.Libs.imm32 );
+            _glfwLibrary.Libs.imm32 = NULL;
+            return GL_FALSE;
+        }
+    }
+    else
+    {
+        return GL_FALSE;
+    }
+#endif // _GLFW_NO_DLOAD_IMM32
+
     return GL_TRUE;
 }
 
@@ -186,6 +212,15 @@ static void _glfwFreeLibraries( void )
         _glfwLibrary.Libs.winmm = NULL;
     }
 #endif // _GLFW_NO_DLOAD_WINMM
+
+    // imm32.dll
+#ifndef _GLFW_NO_DLOAD_IMM32
+    if( _glfwLibrary.Libs.imm32 != NULL )
+    {
+        FreeLibrary( _glfwLibrary.Libs.imm32 );
+        _glfwLibrary.Libs.imm32 = NULL;
+    }
+#endif // _GLFW_NO_DLOAD_IMM32
 }
 
 

@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '. ../proto',
-                         source = bld.path.ant_glob('*.cpp'),
+                         source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob('providers/*.cpp'),
                          protoc_includes = '../proto',
                          proto_gen_py = True,
                          target = 'resource')
@@ -38,6 +38,11 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_manifest.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_mounts.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_util.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_verify.h')
+    bld.install_files('${PREFIX}/include/resource/providers', 'providers/provider.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
 

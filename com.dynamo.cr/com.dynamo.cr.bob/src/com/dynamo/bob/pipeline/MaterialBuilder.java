@@ -36,9 +36,19 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
-import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.graphics.proto.Graphics.VertexAttribute;
+import com.dynamo.render.proto.Material.MaterialDesc;
+
+// For tests
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.Reader;
+import java.io.OutputStream;
+import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
@@ -246,6 +256,13 @@ public class MaterialBuilder extends Builder<Void>  {
         return task.build();
     }
 
+    private static void buildVertexAttributes(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
+        for (int i=0; i < materialBuilder.getAttributesCount(); i++) {
+            VertexAttribute materialAttribute = materialBuilder.getAttributes(i);
+            materialBuilder.setAttributes(i, GraphicsUtil.buildVertexAttribute(materialAttribute, materialAttribute));
+        }
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         IResource res                        = task.input(0);
@@ -265,6 +282,8 @@ public class MaterialBuilder extends Builder<Void>  {
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
 
+        buildVertexAttributes(materialBuilder);
+
         for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
             MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
 
@@ -280,5 +299,31 @@ public class MaterialBuilder extends Builder<Void>  {
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
+    }
+
+    public static void main(String[] args) throws IOException, CompileExceptionError {
+
+        System.setProperty("java.awt.headless", "true");
+
+        Reader reader       = new BufferedReader(new FileReader(args[0]));
+        OutputStream output = new BufferedOutputStream(new FileOutputStream(args[1]));
+
+        try {
+            MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+            TextFormat.merge(reader, materialBuilder);
+
+            // TODO: We should probably add the other things that materialbuilder does, but for now this is the minimal
+            //       amount of work to get the tests working.
+            materialBuilder.setVertexProgram(BuilderUtil.replaceExt(materialBuilder.getVertexProgram(), ".vp", ".vpc"));
+            materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(materialBuilder.getFragmentProgram(), ".fp", ".fpc"));
+
+            buildVertexAttributes(materialBuilder);
+
+            MaterialDesc materialDesc = materialBuilder.build();
+            materialDesc.writeTo(output);
+        } finally {
+            reader.close();
+            output.close();
+        }
     }
 }

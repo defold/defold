@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,12 +42,16 @@ import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
+
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
@@ -60,6 +64,7 @@ public class ArchiveBuilder {
     private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
+    private boolean forceCompression = false; // for building unit tests to create test content
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding) {
         this.root = new File(root).getAbsolutePath();
@@ -112,7 +117,18 @@ public class ArchiveBuilder {
         return Arrays.copyOfRange(compressedContent, 0, compressedSize);
     }
 
+    public void setForceCompression(boolean forceCompression) {
+        this.forceCompression = forceCompression;
+    }
+
+    public boolean getForceCompression() {
+        return forceCompression;
+    }
+
     public boolean shouldUseCompressedResourceData(byte[] original, byte[] compressed) {
+        if (this.getForceCompression())
+            return compressed.length < original.length;
+
         double ratio = (double) compressed.length / (double) original.length;
         return ratio <= 0.95;
     }
@@ -166,6 +182,11 @@ public class ArchiveBuilder {
                 }
                 result = true;
             }
+
+            if (excludedResources.contains(filepath))
+            {
+                return true;
+            }
         }
 
         return result;
@@ -188,22 +209,30 @@ public class ArchiveBuilder {
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
+
             byte[] buffer = this.loadResourceData(entry.getFilename());
+
+            int resourceEntryFlags = 0;
+
+            // Encrypt data first, so we can decrypt in place at runtime
+            // this allows us to minimize allocations/copying
+            if (entry.isEncrypted()) {
+                buffer = this.encryptResourceData(buffer);
+                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            }
+
             if (entry.isCompressed()) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
+                    // Note, when forced, the compressed size may be larger than the original size (For unit tests)
                     buffer = compressed;
                     entry.setCompressedSize(compressed.length);
+                    entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
+                    resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
                 } else {
                     entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
-            }
-
-            // Encrypt data
-            if (entry.isEncrypted()) {
-                buffer = this.encryptResourceData(buffer);
             }
 
             // Add entry to manifest
@@ -219,8 +248,8 @@ public class ArchiveBuilder {
             } catch (NoSuchAlgorithmException exception) {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
-            // Store association between hexdigest and original filename in a
-            // lookup table
+
+            // Store association between hexdigest and original filename in a lookup table
             entry.setHexDigest(hexDigest);
 
             // Write resource to resource pack or data archive
@@ -228,13 +257,15 @@ public class ArchiveBuilder {
                 this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
                 excludedEntries.add(entry);
-                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.EXCLUDED.getNumber());
+                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
             } else {
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
-                manifestBuilder.addResourceEntry(normalisedPath, buffer, ResourceEntryFlag.BUNDLED.getNumber());
+                resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
             }
+
+            manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
         }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash
@@ -306,6 +337,7 @@ public class ArchiveBuilder {
         System.exit(1);
     }
 
+    // The main function is used to create builtins archive for the runtime connect app, and also test content
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, CompileExceptionError {
         // Validate input
         if (args.length < 3) {
@@ -319,6 +351,7 @@ public class ArchiveBuilder {
         File filepathPublicKey      = new File(args[1] + ".public");
         File filepathPrivateKey     = new File(args[1] + ".private");
         File filepathManifestHash   = new File(args[1] + ".manifest_hash");
+        File filepathZipArchive     = new File(args[1] + ".zip");
 
         if (!dirpathRoot.isDirectory()) {
             printUsageAndTerminate("root does not exist: " + dirpathRoot.getAbsolutePath());
@@ -363,15 +396,24 @@ public class ArchiveBuilder {
 
         ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
+        List<String> excludedResources = new ArrayList<String>();
+
         int archivedEntries = 0;
-        int excludedEntries = 0;
+        String dirpathRootString = dirpathRoot.toString();
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
+        archiveBuilder.setForceCompression(doCompress);
         for (File currentInput : inputs) {
             String absolutePath = currentInput.getAbsolutePath();
-            boolean encrypt = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
+            boolean encrypt = ( absolutePath.endsWith("luac") ||
+                                absolutePath.endsWith("scriptc") ||
+                                absolutePath.endsWith("gui_scriptc") ||
+                                absolutePath.endsWith("render_scriptc"));
             if (currentInput.getName().startsWith("liveupdate.")){
-                excludedEntries++;
                 archiveBuilder.add(absolutePath, doCompress, encrypt, true);
+
+                String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
+                relativePath = FilenameUtils.separatorsToUnix(relativePath);
+                excludedResources.add(relativePath);
             } else {
                 archivedEntries++;
                 archiveBuilder.add(absolutePath, doCompress, encrypt, false);
@@ -379,7 +421,7 @@ public class ArchiveBuilder {
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), absolutePath);
             rootNode.addChild(currentNode);
         }
-        System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
+        System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
         manifestBuilder.setRoot(rootNode);
 
@@ -394,7 +436,6 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            List<String> excludedResources = new ArrayList<String>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
@@ -411,6 +452,25 @@ public class ArchiveBuilder {
                 manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
                 manifestHashOutoutStream.close();
             }
+
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+
+            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            String rootDir = resourcePackDirectory.toAbsolutePath().toString();
+            publisher.setFilename(filepathZipArchive.getName());
+            for (File fhandle : (new File(rootDir)).listFiles()) {
+                if (fhandle.isFile()) {
+                    publisher.AddEntry(fhandle, new ArchiveEntry(rootDir, fhandle.getAbsolutePath()));
+                }
+            }
+
+            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+            File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
+            FileUtils.copyFile(filepathManifest, luManifestFile);
+            publisher.AddEntry(luManifestFile, new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()));
+            publisher.Publish();
+
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {

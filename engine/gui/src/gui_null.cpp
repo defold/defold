@@ -325,7 +325,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result FinalScene(HScene scene)
+    Result FinalScene(HScene scene, DeleteTexture delete_texture)
     {
         return RESULT_OK;
     }

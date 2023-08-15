@@ -155,7 +155,7 @@ message NodeDesc
     optional bool enabled                   = 45 [default = true];
     optional bool visible                   = 46 [default = true];
 
-    optional string material                = 47 [(resource)=true];
+    optional string material                = 47;
 
 }
 

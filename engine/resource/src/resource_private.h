@@ -12,14 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_PRIVATE_H
-#define RESOURCE_PRIVATE_H
+#ifndef DM_RESOURCE_PRIVATE_H
+#define DM_RESOURCE_PRIVATE_H
 
 #include <ddf/ddf.h>
 #include "resource_archive.h"
 #include "resource.h"
 
 // Internal API that preloader needs to use.
+
+// 1 - higher level mount info
+// 3 - more debug info per file
+
+//#define DM_RESOURCE_DBG_LOG_LEVEL 1
+
+#if defined(DM_RESOURCE_DBG_LOG_LEVEL)
+    #include <stdio.h> // for debug log
+    #define DM_RESOURCE_DBG_LOG(__LEVEL__, ...) if ((__LEVEL__) <= DM_RESOURCE_DBG_LOG_LEVEL) { printf(__VA_ARGS__); fflush(stdout); }
+#else
+    #define DM_RESOURCE_DBG_LOG(__LEVEL__, ...)
+#endif
+
 
 namespace dmResource
 {
@@ -59,14 +72,15 @@ namespace dmResource
     uint32_t GetRefCount(HFactory factory, void* resource);
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
-    /**
-     * The manifest has a signature embedded. This signature is created when bundling by hashing the manifest content
-     * and encrypting the hash with the private part of a public-private key pair. To verify a manifest this procedure
-     * is performed in reverse; first decrypting the signature using the public key (bundled with the engine) to
-     * retreive the content hash then hashing the actual manifest content and comparing the two.
-     * This method handles the signature decryption part.
-     */
-    Result DecryptSignatureHash(const Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
+    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
+    // be provided for unloading and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
+    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
+    Result UnmountManifest(void *& map, uint32_t size);
+    // Files mapped with this function should be unmapped with UnmapFile(...)
+    Result MapFile(const char* filename, void*& map, uint32_t& size);
+    Result UnmapFile(void*& map, uint32_t size);
 
     /**
      * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
@@ -75,12 +89,7 @@ namespace dmResource
      * If they don't match the bundle has changed, and we need to remove any liveupdate.manifest from the filesystem
      * and load the bundled manifest instead.
      */
-    Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
-
-    /**
-     * Exposed for unit tests
-     */
-     Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, uint32_t hash_len, dmResourceArchive::HArchiveIndexContainer archive_index);
+    //Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
     struct PreloadRequest;
     struct PreloadHintInfo

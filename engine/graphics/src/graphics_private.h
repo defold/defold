@@ -20,10 +20,9 @@
 
 namespace dmGraphics
 {
-    uint32_t      GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t      GetGraphicsTypeDataSize(Type type);
-
-    const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
+    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t        GetGraphicsTypeDataSize(Type type);
+    const char*     GetGraphicsTypeLiteral(Type type);
 
     struct VertexStream
     {
@@ -40,6 +39,7 @@ namespace dmGraphics
         uint8_t      m_StreamCount;
     };
 
+    void          InstallAdapterVendor();
     PipelineState GetDefaultPipelineState();
     Type          GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
     void          SetForceFragmentReloadFail(bool should_fail);
