@@ -864,7 +864,7 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Initialize(dmExtension::Params* params)
     {
-        dmResource::HFactory factory = params->m_ResourceFactory;
+        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
 
         if (params->m_L) // TODO: until unit tests have been updated with a Lua context
             ScriptInit(params->m_L, factory);
