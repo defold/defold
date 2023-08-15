@@ -49,6 +49,7 @@ DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_F32(rmtp_GuiDynamicTexturesSizeMb, 0, NoFlags, "size of dynamic tex in Mb", &rmtp_Gui);
 
 namespace dmGui
 {
@@ -346,7 +347,7 @@ namespace dmGui
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_Materials.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
+        scene->m_MaterialResources.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
         scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefx);
@@ -577,7 +578,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
+    Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
 
@@ -611,6 +612,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             free(t->m_Buffer);
             t->m_Buffer = 0;
         }
+
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024.0 / 1024.0));
 
         t->m_Buffer = malloc(buffer_size);
         if (flip) {
@@ -742,16 +745,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return *font;
     }
 
-    Result AddMaterial(HScene scene, const char* material_name, void* material)
+    Result AddMaterial(HScene scene, dmhash_t material_name_hash, void* material)
     {
-        if (scene->m_Materials.Full())
+        if (scene->m_MaterialResources.Full())
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-
-        uint64_t name_hash = dmHashString64(material_name);
-        scene->m_Materials.Put(name_hash, (dmRender::HMaterial) material);
+        scene->m_MaterialResources.Put(material_name_hash, material);
         return RESULT_OK;
+    }
+
+    void* GetMaterial(HScene scene, dmhash_t material_hash)
+    {
+        void** material = scene->m_MaterialResources.Get(material_hash);
+        if (!material)
+        {
+            return 0;
+        }
+        return *material;
     }
 
     void AssignMaterials(HScene scene)
@@ -759,7 +770,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
-            nodes[i].m_Node.m_Material = (void*) scene->m_Materials.Get(nodes[i].m_Node.m_MaterialNameHash);
+            void** material_res = scene->m_MaterialResources.Get(nodes[i].m_Node.m_MaterialNameHash);
+            nodes[i].m_Node.m_Material = material_res ? *material_res : 0;
         }
     }
 
@@ -1052,8 +1064,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         void* const context = params->m_Context;
 
         if (texture->m_Deleted) {
+            // handle might be null if the texture is created/destroyed in the same frame
             if (texture->m_Handle) {
-                // handle might be null if the texture is created/destroyed in the same frame
+                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
                 params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
             }
             if (scene->m_DeletedDynamicTextures.Full()) {
@@ -1062,11 +1076,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_DeletedDynamicTextures.Push(*key);
         } else {
             if (!texture->m_Handle && texture->m_Buffer) {
+                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 params->m_NewCount++;
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
             } else if (texture->m_Handle && texture->m_Buffer) {
+                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
                 params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
                 free(texture->m_Buffer);
                 texture->m_Buffer = 0;
@@ -1094,6 +1112,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 }
             }
         }
+    }
+
+    static void DeleteDynamicTextures(HScene scene, DeleteTexture delete_texture)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            if (texture.m_Buffer) {
+                free(texture.m_Buffer);
+            }
+            if (texture.m_Handle) {
+                float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024.0 / 1024.0;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+                delete_texture(scene, texture.m_Handle, scene->m_Context);
+            }
+        }
+        scene->m_DynamicTextures.Clear();
     }
 
     static void DeferredDeleteDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
@@ -1805,17 +1841,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     lua_newtable(L);
 
                     if (ia->m_IsGamepad) {
-                        lua_pushliteral(L, "gamepad");
                         lua_pushnumber(L, ia->m_GamepadIndex);
-                        lua_settable(L, -3);
+                        lua_setfield(L, -2, "gamepad");
 
-                        lua_pushliteral(L, "userid");
                         lua_pushinteger(L, ia->m_UserID);
+                        lua_setfield(L, -2, "userid");
 
-                        lua_pushliteral(L, "gamepad_unknown");
                         lua_pushboolean(L, ia->m_GamepadUnknown);
-
-                        lua_settable(L, -3);
+                        lua_setfield(L, -2, "gamepad_unknown");
                     }
 
                     if (ia->m_GamepadConnected)
@@ -2079,7 +2112,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return RunScript(scene, SCRIPT_FUNCTION_INIT, LUA_NOREF, 0x0);
     }
 
-    Result FinalScene(HScene scene)
+    Result FinalScene(HScene scene, DeleteTexture delete_texture)
     {
         Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, LUA_NOREF, 0x0);
 
@@ -2108,6 +2141,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         scene->m_AliveParticlefxs.SetSize(0);
 
+        DeleteDynamicTextures(scene, delete_texture);
         ClearLayouts(scene);
         return result;
     }
@@ -2929,6 +2963,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_Material;
     }
 
+    dmhash_t GetNodeMaterialId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_MaterialNameHash;
+    }
+
     void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2948,21 +2988,30 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET ? n->m_Node.m_FlipbookAnimHash : 0x0;
     }
 
-    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
+    Result SetNodeMaterial(HScene scene, HNode node, dmhash_t material_id)
     {
-        dmhash_t material_id_hash = dmHashString64(material_id);
-
         InternalNode* n = GetNode(scene, node);
 
-        dmRender::HMaterial* material = scene->m_Materials.Get(material_id_hash);
-        if (material == 0)
+        uintptr_t material_ptr = 0;
+
+        if (material_id)
         {
-            return RESULT_RESOURCE_NOT_FOUND;
+            void** material = scene->m_MaterialResources.Get(material_id);
+            if (material == 0)
+            {
+                return RESULT_RESOURCE_NOT_FOUND;
+            }
+            material_ptr = (uintptr_t) *material;
         }
 
-        n->m_Node.m_MaterialNameHash = material_id_hash;
-        n->m_Node.m_Material         = (void*) *material;
+        n->m_Node.m_MaterialNameHash = material_id;
+        n->m_Node.m_Material         = (void*) material_ptr;
         return RESULT_OK;
+    }
+
+    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
+    {
+        return SetNodeMaterial(scene, node, dmHashString64(material_id));
     }
 
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)

@@ -1,0 +1,70 @@
+tile_set: "/builtins/graphics/particle_blob.tilesource"
+default_animation: "anim"
+material: "/materials/test_attributes.material"
+blend_mode: BLEND_MODE_ALPHA
+attributes {
+  name: "color"
+  double_values {
+    v: 0.8
+    v: 0.2
+    v: 0.2
+    v: 0.5
+  }
+}
+attributes {
+  name: "normal"
+  double_values {
+    v: 0.0
+    v: 0.707
+    v: 0.707
+  }
+}
+attributes {
+  name: "byte"
+  long_values {
+    v: -128
+    v: 127
+  }
+}
+attributes {
+  name: "ubyte"
+  long_values {
+    v: 0
+    v: 255
+  }
+}
+attributes {
+  name: "short"
+  long_values {
+    v: -32768
+    v: 32767
+  }
+}
+attributes {
+  name: "ushort"
+  long_values {
+    v: 0
+    v: 65535
+  }
+}
+attributes {
+  name: "int"
+  long_values {
+    v: -2147483648
+    v: 2147483647
+  }
+}
+attributes {
+  name: "uint"
+  long_values {
+    v: 0
+    v: 4294967295
+  }
+}
+attributes {
+  name: "float"
+  double_values {
+    v: -3.4028234663852886E38
+    v: 3.4028234663852886E38
+  }
+}

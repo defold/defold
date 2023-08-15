@@ -17,6 +17,7 @@
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
+#include <dmsdk/resource/resource.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -60,6 +61,7 @@ void dmExtensionAppParams_Init(dmExtensionAppParams* params);
 typedef struct dmExtensionParams
 {
     dmConfigFileHConfig     m_ConfigFile;
+    dmResourceHFactory      m_ResourceFactory;
     lua_State*              m_L;
 } dmExtensionParams;
 
@@ -166,17 +168,13 @@ namespace dmExtension
      *
      * @struct
      * @name dmExtension::Params
-     * @member m_ConfigFile [type:dmConfigFile::HConfig]
-     * @member m_L [type:lua_State*]
+     * @member m_ConfigFile [type: dmConfigFile::HConfig] the config file
+     * @member m_ResourceFactory [type: dmResource::HFactory] the resource factory
+     * @member m_L [type: lua_State*] the lua state
      *
      */
     typedef dmExtensionParams Params;
-    // struct Params
-    // {
-    //     Params();
-    //     dmConfigFile::HConfig   m_ConfigFile;
-    //     lua_State*              m_L;
-    // };
+
 
     /*# event id enumeration
      *

@@ -29,8 +29,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
-import java.awt.image.BufferedImage;
+import java.lang.SecurityException;
+import java.awt.Desktop;
 import java.io.File;
+import java.lang.UnsupportedOperationException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -117,20 +119,16 @@ public class Start extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
-            /*
-              Note
-              Don't remove
+            if (Desktop.getDesktop().isSupported(Desktop.Action.APP_ABOUT)) {
+                Desktop.getDesktop().setAboutHandler(null);
+            }
+        } catch (final UnsupportedOperationException e) {
+            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
+        } catch (final SecurityException e) {
+            logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
+        }
 
-              Background
-              Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
-              The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
-              a threadpool.
-              Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
-              clojure.java.io/resource..
-            */
-
-            new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
-
+        try {
             // Clean up old packages as they consume a lot of hard drive space.
             // NOTE! This is a temp hack to give some hard drive space back to users.
             // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.

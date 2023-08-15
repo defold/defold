@@ -15,32 +15,38 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
+#include <stdint.h>
 #include <dmsdk/resource/resource.h>
-#include <ddf/ddf.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/mutex.h>
-#include <resource/liveupdate_ddf.h>
-#include "resource_archive.h"
+
+namespace dmResourceArchive
+{
+    typedef struct ArchiveIndexContainer* HArchiveIndexContainer;
+}
+
+namespace dmResourceMounts
+{
+    typedef struct ResourceMountsContext* HContext;
+}
+
+namespace dmResourceProvider
+{
+    typedef struct Archive* HArchive;
+}
 
 namespace dmResource
 {
     // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
     const uint32_t RESOURCE_PATH_MAX = 1024;
 
-    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
-
-    const static uint32_t MANIFEST_VERSION = 0x04;
-
-    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
-
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
     extern const char* MAX_RESOURCES_KEY;
 
-    extern const char* BUNDLE_MANIFEST_FILENAME;
     extern const char* BUNDLE_INDEX_FILENAME;
     extern const char* BUNDLE_DATA_FILENAME;
 
@@ -63,18 +69,6 @@ namespace dmResource
      * Enable Live update
      */
     #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
-
-    struct Manifest
-    {
-        Manifest()
-        {
-            memset(this, 0, sizeof(Manifest));
-        }
-
-        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
-        dmLiveUpdateDDF::ManifestFile*              m_DDF;
-        dmLiveUpdateDDF::ManifestData*              m_DDFData;
-    };
 
     typedef uintptr_t ResourceType;
 
@@ -318,43 +312,6 @@ namespace dmResource
      */
     void DeletePreloader(HPreloader preloader);
 
-    Manifest* GetManifest(HFactory factory);
-
-    /**
-     * Set a new manifest to the factory
-     */
-    void SetManifest(HFactory factory, Manifest* manifest);
-
-    /**
-     * Delete the manifest and all its resources
-     */
-    void DeleteManifest(Manifest* manifest);
-
-
-// Uses LiveUpdateDDF
-    Result ManifestLoadMessage(const uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
-
-// Called from liveupdate after storing a manifest
-    /**
-     * Verify that all resources the manifest expects to be bundled actually are bundled.
-     */
-    Result VerifyResourcesBundled(dmResourceArchive::HArchiveIndexContainer base_archive, const Manifest* manifest);
-
-    /**
-     * Loads the public RSA key from the bundle.
-     * Uses the public key to decrypt the manifest signature to get the content hash.
-     * Compares the decrypted content hash to the expected content hash.
-     * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
-     * Inspect asn1 key content; http://lapo.it/asn1js/#
-     */
-    Result VerifyManifestHash(const char* app_path, const Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
-
-    /**
-     * Determines if the resource could be unique
-     * @param name Resource name
-    */
-    bool IsPathTagged(const char* name);
-
     /**
      * Returns the mutex held when loading asynchronous
      * @param factory Factory handle
@@ -362,45 +319,55 @@ namespace dmResource
     */
     dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory);
 
+
+    /**
+     * @name
+     * @param factory [type: dmResource::HFactory] The factory handle
+     * @return mounts_ctx [type: dmResourceMounts::HContext] the mounts context
+     */
+    dmResourceMounts::HContext GetMountsContext(const dmResource::HFactory factory);
+
+    struct SGetDependenciesParams
+    {
+        dmhash_t m_UrlHash; // The requested url
+        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
+        bool m_Recursive;   // Traverse down for each resource that has dependencies
+    };
+
+    struct SGetDependenciesResult
+    {
+        dmhash_t m_UrlHash;
+        uint8_t* m_HashDigest;
+        uint32_t m_HashDigestLength;
+        bool     m_Missing;
+    };
+
+    /**
+     * Returns the dependencies for a resource
+     * @name GetDependencies
+     * @note Only reports dependencies from mounts that have a .dmanifest available
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param url_hash [type: dmhash_t] url hash
+     * @return result [type: dmResource::Result] The mounts context
+    */
+    typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
+    dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);
+
+    /**
+     * Returns the path to the public key, or null if it was not found
+     **/
+    const char* GetPublicKeyPath(HFactory factory);
+
+    /**
+     * Returns the base archive mount. It is always of type "archive", or it will return 0.
+     **/
+    dmResourceProvider::HArchive GetBaseArchive(HFactory factory);
+
     /**
      * Releases the builtins manifest
      * Use when it's no longer needed, e.g. the user project loaded properly
      */
-    void ReleaseBuiltinsManifest(HFactory factory);
-
-    /**
-     * Returns the length in bytes of the supplied hash algorithm
-     */
-    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
-
-    /**
-     * Converts the supplied byte buffer to hexadecimal string representation
-     * @param byte_buf The byte buffer
-     * @param byte_buf_len The byte buffer length
-     * @param out_buf The output string buffer
-     * @param out_len The output buffer length
-     */
-    void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len);
-
-    /**
-     * Byte-wise comparison of two hash buffers
-     * @param digest The hash digest to compare
-     * @param len The hash digest length
-     * @param buf The expected hash digest
-     * @param buflen The expected hash digest length
-     * @return RESULT_OK if the hashes are equal in length and content
-     */
-    Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
-
-    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
-    // be provided for unloading and may contain information about memory mapping etc.
-    Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
-    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
-    Result UnmountManifest(void *& map, uint32_t size);
-    // Files mapped with this function should be unmapped with UnmapFile(...)
-    Result MapFile(const char* filename, void*& map, uint32_t& size);
-    Result UnmapFile(void*& map, uint32_t size);
+    void ReleaseBuiltinsArchive(HFactory factory);
 
     /**
      * Struct returned from the resource iterator api
@@ -424,24 +391,10 @@ namespace dmResource
      */
     void IterateResources(HFactory factory, FResourceIterator callback, void* user_ctx);
 
-    /**
+    /*#
      */
     const char* ResultToString(Result result);
 
-
-    /*# Get the support path for the project, with the hashed project name at the end
-     */
-    Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
-
-    /**
-     * Gets the actual resource path e.g. "/my/icon.texturec".
-     * @param relative_dir the relative dir of the resource
-     * @param buf the result of the operation
-     * @return the length of the buffer
-     */
-    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
-
-    void RegisterArchiveLoader();
 }
 
 #endif // RESOURCE_H

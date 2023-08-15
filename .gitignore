@@ -57,3 +57,5 @@ editor/.lsp/sqlite.db
 #build_external
 /packages/bullet-2.77/
 /packages/lib/
+/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.interp
+/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens

@@ -40,7 +40,6 @@ def build(bld):
         'scripts/script_sprite.cpp',
         'scripts/script_tilemap.cpp',
         'scripts/script_window.cpp',
-        'scripts/script_resource_liveupdate.h',
         'components/comp_sound.cpp',
         'components/comp_collection_proxy.cpp'] + proto_files)
 

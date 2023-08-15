@@ -108,12 +108,13 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.X86Win32});
             data.add(new Platform[]{Platform.X86_64Win32});
             data.add(new Platform[]{Platform.X86_64MacOS});
+            data.add(new Platform[]{Platform.Arm64MacOS});
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
             data.add(new Platform[]{Platform.JsWeb});
 
             // Can only do this on OSX machines currently
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
                 data.add(new Platform[]{Platform.Arm64Ios});
                 data.add(new Platform[]{Platform.X86_64Ios});
             }
@@ -126,6 +127,7 @@ public class BundlerTest {
         switch (platform)
         {
             case X86_64MacOS:
+            case Arm64MacOS:
             case Arm64Ios:
             case X86_64Ios:
                     folderName = projectName + ".app";
@@ -201,14 +203,18 @@ public class BundlerTest {
                 assertTrue(Files.isReadable(classesDexPath));
             }
             break;
-            case JsWeb:
+            case WasmWeb:
             {
-                File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-                checkFileExist(outputDirFile, asmjsFile);
                 File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
                 checkFileExist(outputDirFile, wasmjsFile);
                 File wasmFile = new File(outputDirFile, exeName + ".wasm");
                 checkFileExist(outputDirFile, wasmFile);
+            }
+            break;
+            case JsWeb:
+            {
+                File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
+                assertTrue(asmjsFile.exists());
             }
             break;
             case Arm64Ios:
@@ -234,6 +240,7 @@ public class BundlerTest {
             }
             break;
             case X86_64MacOS:
+            case Arm64MacOS:
                 List<String> names = Arrays.asList(
                     String.format("Contents/MacOS/%s", exeName),
                     "Contents/Info.plist"
@@ -571,11 +578,21 @@ public class BundlerTest {
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
                 break;
-            case JsWeb:
+            case WasmWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
+                expectedFiles.add("archive/game.arcd0");
+                expectedFiles.add("archive/game.arci0");
+                expectedFiles.add("archive/game.dmanifest0");
+                expectedFiles.add("archive/game.projectc0");
+                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/archive_files.json");
+                break;
+            case JsWeb:
+                expectedFiles.add("dmloader.js");
+                expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_asmjs.js");
                 expectedFiles.add("archive/game.arcd0");
                 expectedFiles.add("archive/game.arci0");
@@ -633,6 +650,7 @@ public class BundlerTest {
                 expectedFiles.add("Payload/unnamed.app/Icon@2x.png");
                 break;
             case X86_64MacOS:
+            case Arm64MacOS:
                 expectedFiles.add("Contents/MacOS/unnamed");
                 expectedFiles.add("Contents/Info.plist");
                 expectedFiles.add("Contents/Resources/game.arcd");
@@ -655,6 +673,17 @@ public class BundlerTest {
         }
 
         return expectedFiles;
+    }
+
+    private void dumpExpectedAndActualFiles(Set<String> expectedFiles, Set<String> actualFiles) {
+        if (expectedFiles.size() != actualFiles.size()) {
+            for (String file : actualFiles) {
+                System.out.println("Actual file:" + file);
+            }
+            for (String file : expectedFiles) {
+                System.out.println("Expected file:" + file);
+            }
+        }
     }
 
     @Test
@@ -740,48 +769,29 @@ public class BundlerTest {
         // first test - no bundle resources
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
-        HashSet<String> actualFiles = new HashSet<String>();
-        List<String> files = getBundleFiles();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        HashSet<String> actualFiles = new HashSet<String>(getBundleFiles());
         HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
 
 
         // second test - /sub1
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
-        files = getBundleFiles();
-        actualFiles = new HashSet<String>();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        actualFiles = new HashSet<String>(getBundleFiles());
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
 
 
         // third test - /sub1 and /sub2
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
-        files = getBundleFiles();
-        actualFiles = new HashSet<String>();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        actualFiles = new HashSet<String>(getBundleFiles());
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
@@ -790,10 +800,8 @@ public class BundlerTest {
         if (isAndroid) expectedFiles.add("res/raw/s2_raw.txt");
         if (isAndroid) expectedFiles.add("assets/s2-asset.txt");
         if (isAndroid) expectedFiles.add("lib/" + ((platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a") + "/s2-lib.so");
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
     }
 }

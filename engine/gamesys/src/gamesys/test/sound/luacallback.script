@@ -12,18 +12,17 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-local function sound_done(self, message_id, message, sender)
-    if message_id == hash("sound_done") then
+local function sound_evt_callback(self, message_id, message, sender)
+    if message_id == hash("sound_stopped") then
         self.sound_done = 1
         print("sound done!", self.count)
     end
 end
 
-
 function init(self)
     self.sound_done = 0
     self.count = 0
-    sound.play("#sound", nil, sound_done)
+    sound.play("#sound", nil, sound_evt_callback)
 end
 
 function final(self)

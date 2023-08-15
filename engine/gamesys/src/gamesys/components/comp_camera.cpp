@@ -192,50 +192,64 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-        CameraWorld* w = (CameraWorld*)params.m_World;
-        CameraComponent* camera = 0x0;
-        if (w->m_FocusStack.Size() > 0)
+        CameraWorld* camera_world = (CameraWorld*) params.m_World;
+        DM_PROPERTY_ADD_U32(rmtp_Camera, camera_world->m_Cameras.Size());
+
+        uint32_t stack_size = camera_world->m_FocusStack.Size();
+
+        if (stack_size > 0)
         {
-            camera = w->m_FocusStack[w->m_FocusStack.Size() - 1];
-        }
-        DM_PROPERTY_ADD_U32(rmtp_Camera, w->m_Cameras.Size());
-        if (camera != 0x0 && camera->m_AddedToUpdate)
-        {
-            dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
-            CompCameraUpdateViewProjection(camera, render_context);
+            dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
+            dmhash_t message_id                     = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
+            bool any_active_camera                  = false;
 
-            // Send the matrices to the render script
-
-            dmhash_t message_id = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
-
-            dmGameSystemDDF::SetViewProjection set_view_projection;
-            set_view_projection.m_View = camera->m_View;
-            set_view_projection.m_Projection = camera->m_Projection;
-
-            dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
-            if (go_result != dmGameObject::RESULT_OK)
+            for (int i = 0; i < stack_size; ++i)
             {
-                dmLogError("Could not send set_view_projection because of incomplete component.");
-                return dmGameObject::UPDATE_RESULT_OK;
+                CameraComponent* camera = camera_world->m_FocusStack[stack_size - 1 - i];
+                if (camera->m_AddedToUpdate)
+                {
+                    CompCameraUpdateViewProjection(camera, render_context);
+
+                    dmGameSystemDDF::SetViewProjection set_view_projection;
+                    set_view_projection.m_View       = camera->m_View;
+                    set_view_projection.m_Projection = camera->m_Projection;
+
+                    dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
+                    if (go_result != dmGameObject::RESULT_OK)
+                    {
+                        dmLogError("Could not send set_view_projection because of incomplete component.");
+                        return dmGameObject::UPDATE_RESULT_OK;
+                    }
+
+                    dmMessage::URL receiver;
+                    dmMessage::ResetURL(&receiver);
+                    dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
+                    if (result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("The socket '%s' could not be found.", dmRender::RENDER_SOCKET_NAME);
+                        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                    }
+
+                    dmMessage::URL sender;
+                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(camera->m_Instance));
+                    sender.m_Path = dmGameObject::GetIdentifier(camera->m_Instance);
+                    dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &sender.m_Fragment);
+
+                    dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection), 0);
+
+                    // Note: We only set the view/projection on the first active camera in the focus stack
+                    if (!any_active_camera)
+                    {
+                        // JG: What does this TODO mean here?
+                        // TODO: Remove this once render scripts are implemented everywhere
+                        dmRender::SetProjectionMatrix(render_context, camera->m_Projection);
+                        dmRender::SetViewMatrix(render_context, camera->m_View);
+                        any_active_camera = true;
+                    }
+                }
             }
-
-            dmMessage::URL receiver;
-            dmMessage::ResetURL(&receiver);
-            dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
-            if (result != dmMessage::RESULT_OK)
-            {
-                dmLogError("The socket '%s' could not be found.", dmRender::RENDER_SOCKET_NAME);
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-
-            dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection), 0);
-
-            // JG: What does this TODO mean here?
-            // Set matrices immediately
-            // TODO: Remove this once render scripts are implemented everywhere
-            dmRender::SetProjectionMatrix(render_context, camera->m_Projection);
-            dmRender::SetViewMatrix(render_context, camera->m_View);
         }
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

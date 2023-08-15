@@ -207,6 +207,9 @@ namespace dmGameSystem
                 (dmVMath::Vector4*) vertex_constant[i].m_Value.m_Data, vertex_constant[i].m_Value.m_Count);
         }
 
+        // Set vertex attributes
+        dmRender::SetMaterialProgramAttributes(material, ddf->m_Attributes.m_Data, ddf->m_Attributes.m_Count);
+
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
 
         uint32_t sampler_unit = 0;

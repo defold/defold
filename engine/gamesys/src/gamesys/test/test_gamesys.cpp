@@ -3698,6 +3698,92 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
     dmGameSystem::DestroyRenderConstants(constants);
 }
 
+TEST_F(MaterialTest, CustomVertexAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttribute* attributes;
+    uint32_t attribute_count;
+
+    // Attributes specified in the shader:
+    //      attribute vec4 position;
+    //      attribute vec3 normal;
+    //      attribute vec2 texcoord0;
+
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(3, attribute_count);
+    ASSERT_EQ(dmHashString64("position"),  attributes[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("normal"),    attributes[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("texcoord0"), attributes[2].m_NameHash);
+
+    ASSERT_EQ(2, attributes[0].m_ElementCount); // Position has been overridden!
+    ASSERT_EQ(3, attributes[1].m_ElementCount);
+    ASSERT_EQ(2, attributes[2].m_ElementCount);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, attributes[0].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,     attributes[1].m_SemanticType); // No normal semantic type (yet)
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, attributes[2].m_SemanticType);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_BYTE,  attributes[1].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_SHORT, attributes[2].m_DataType);
+
+    const uint8_t* value_ptr;
+    uint32_t num_values;
+    const float EPSILON = 0.0001;
+
+    // Test position values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 0, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(2 * sizeof(float), num_values);
+
+        // Note: The attribute specifies more values in the attribute, but in the engine we clamp the values to the element count
+        float position_expected[] = { 1.0f, 2.0f };
+        for (int i = 0; i < 2; ++i)
+        {
+            float* f_ptr = (float*) value_ptr;
+            ASSERT_NEAR(position_expected[i], f_ptr[i], EPSILON);
+        }
+    }
+
+    // Test normal values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(3, num_values);
+
+        int8_t normal_expected[] = { 64, 32, 16 };
+        for (int i = 0; i < 3; ++i)
+        {
+            ASSERT_EQ(normal_expected[i], value_ptr[i]);
+        }
+    }
+
+    // Test texcoord values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(2 * sizeof(int16_t), num_values);
+
+        int16_t texcoord0_expected[] = { -16000, 16000 };
+        for (int i = 0; i < 2; ++i)
+        {
+            int16_t* short_values = (int16_t*) value_ptr;
+            ASSERT_EQ(texcoord0_expected[i], short_values[i]);
+        }
+    }
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 
 int main(int argc, char **argv)
 {
