@@ -551,10 +551,7 @@
     0x1))
 
 (defn- build-glyph-bank [resource _dep-resources user-data]
-  (let [{:keys [font type font-resource-map pb-msg]} user-data
-        font-resource-resolver (make-font-resource-resolver font font-resource-map)
-        ;; JG: Why can't we use the already built font-map here?
-        font-map (make-font-map nil font type pb-msg font-resource-resolver)]
+  (let [{:keys [font-map]} user-data]
     (g/precluding-errors
       [font-map]
       (let [compressed-font-map (font-gen/compress font-map)]
@@ -562,35 +559,21 @@
          :content (protobuf/map->bytes Font$GlyphBank compressed-font-map)}))))
 
 (defn- make-glyph-bank-build-target [node-id glyph-bank-build-resource user-data]
-  (let [sanitised-font-desc (:pb-msg user-data)]
-    ;; TODO: These shouldn't be included in the resource hash, but they are needed to generate the
-    ;;       font-map, and I don't know how to overcome that.
-    #_(dissoc (:pb-msg user-data)
-            :material
-            :shadow-x
-            :shadow-y
-            :alpha
-            :outline-alpha
-            :shadow-alpha)
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource glyph-bank-build-resource
-       :build-fn build-glyph-bank
-       :user-data (assoc user-data :pb-msg sanitised-font-desc)})))
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource glyph-bank-build-resource
+     :build-fn build-glyph-bank
+     :user-data user-data}))
 
-;; TODO: investigate why the resource path has a different hash eventhough the content is identical between two glyph banks
-(g/defnk produce-build-targets [_node-id resource font type font-resource-map font-resource-hashes pb-msg material dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font-map pb-msg material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
       (let [workspace (resource/workspace resource)
-            glyph-bank-user-data {:font font
-                                  :type type
-                                  :pb-msg pb-msg
-                                  :font-resource-map font-resource-map
-                                  :font-resource-hashes font-resource-hashes}
+            glyph-bank-pb-fields (keys (protobuf/field-info Font$GlyphBank))
+            glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
             glyph-bank-resource-type (workspace/get-resource-type workspace "glyph_bank")
             glyph-bank-resource (resource/make-memory-resource workspace glyph-bank-resource-type glyph-bank-user-data)
             glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
