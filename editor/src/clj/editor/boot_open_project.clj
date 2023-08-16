@@ -178,7 +178,7 @@
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
