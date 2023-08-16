@@ -49,7 +49,7 @@ def build(bld):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos', 'arm64-macos'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
     graphics_lib = 'GRAPHICS_NULL'
