@@ -188,7 +188,7 @@ def build(bld):
         obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup', 'Psapi.lib'])
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos', 'arm64-macos'):
         additional_libs += ['UNWIND']
 
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
