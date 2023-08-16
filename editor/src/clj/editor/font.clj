@@ -579,7 +579,6 @@
             glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
             glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
             dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)]
-        (println glyph-bank-build-target)
         [(pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
                                               Font$FontMap
                                               {:material (str (:material pb-msg) "c")
