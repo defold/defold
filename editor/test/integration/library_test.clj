@@ -153,7 +153,7 @@
 (defn- fetch-validate-install-libraries! [workspace library-uris render-fn]
   (when (workspace/dependencies-reachable? library-uris)
     (->> (workspace/fetch-and-validate-libraries workspace library-uris render-fn)
-         (workspace/install-validated-libraries! workspace library-uris))
+         (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace)))
 
 (deftest fetch-libraries
