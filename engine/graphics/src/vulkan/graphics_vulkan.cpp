@@ -690,9 +690,6 @@ namespace dmGraphics
                     case RESOURCE_TYPE_TEXTURE:
                         DestroyTexture(vk_device, &resource.m_Texture);
                         break;
-                    case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
-                        DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
-                        break;
                     case RESOURCE_TYPE_PROGRAM:
                         DestroyProgram(vk_device, &resource.m_Program);
                         break;
@@ -1334,9 +1331,6 @@ bail:
                 resource_to_destroy.m_Texture = ((Texture*) resource)->m_Handle;
                 DestroyResourceDeferred(resource_list, &((Texture*) resource)->m_DeviceBuffer);
                 break;
-            case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
-                resource_to_destroy.m_DescriptorAllocator = ((DescriptorAllocator*) resource)->m_Handle;
-                break;
             case RESOURCE_TYPE_DEVICE_BUFFER:
                 resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
                 break;
@@ -1968,12 +1962,6 @@ bail:
         return VK_SUCCESS;
     }
 
-    static VkResult ResizeDescriptorAllocator(VulkanContext* context, DescriptorAllocator* allocator, uint32_t newDescriptorCount)
-    {
-        DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], allocator);
-        return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator);
-    }
-
     static VkResult ResizeScratchBuffer(VulkanContext* context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
     {
         // Put old buffer on the delete queue so we don't mess the descriptors already in-use
@@ -1992,23 +1980,12 @@ bail:
         Program* program_ptr        = context->m_CurrentProgram;
         VkDevice vk_device          = context->m_LogicalDevice.m_Device;
 
-        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
-        const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
-        const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
-
         // Ensure there is room in the descriptor allocator to support this draw call
-        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) > scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
-        bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned + program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
-
-        const uint8_t descriptor_increase = 32;
-        if (!scratchBuffer->m_DescriptorAllocator->CanAllocate(num_descriptors))
-        {
-            VkResult res = ResizeDescriptorAllocator(context, scratchBuffer->m_DescriptorAllocator, scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase);
-            CHECK_VK_ERROR(res);
-        }
-
+        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
+        const bool resize_scratch_buffer   = (program_ptr->m_VertexModule->m_UniformDataSizeAligned + program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
         if (resize_scratch_buffer)
         {
+            const uint8_t descriptor_increase = 32;
             const uint32_t bytes_increase = 256 * descriptor_increase;
             VkResult res = ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
             CHECK_VK_ERROR(res);
@@ -3584,7 +3561,7 @@ bail:
 
         for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
         {
-            DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
+            DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i]);
         }
 
         for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)

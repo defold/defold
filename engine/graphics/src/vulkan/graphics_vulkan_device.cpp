@@ -3,16 +3,17 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/math.h>
+#include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -74,41 +75,95 @@ namespace dmGraphics
         return num_attributes;
     }
 
-    bool DescriptorAllocator::CanAllocate(uint32_t num_descriptors)
+    static VkResult AllocateDescriptorPool(DescriptorAllocator* allocator, VkDevice vk_device)
     {
-        return (m_DescriptorMax - m_DescriptorCount) > num_descriptors;
+        VkDescriptorPool pool_handle = VK_NULL_HANDLE;
+        VkResult res = CreateDescriptorPool(vk_device, allocator->m_DescriptorsPerPool, &pool_handle);
+
+        DescriptorPool new_pool    = {};
+        new_pool.m_DescriptorPool  = pool_handle;
+        new_pool.m_DescriptorCount = 0;
+
+        allocator->m_DescriptorPools.OffsetCapacity(1);
+        allocator->m_DescriptorPools.Push(new_pool);
+
+        return res;
+    }
+
+    static void AllocateDescriptorSets(DescriptorAllocator* allocator)
+    {
+        if (allocator->m_DescriptorSets == 0)
+        {
+            allocator->m_DescriptorSets = (VkDescriptorSet*) malloc(sizeof(VkDescriptorSet) * allocator->m_DescriptorSetMax);
+        }
+        else
+        {
+            allocator->m_DescriptorSets = (VkDescriptorSet*) realloc(allocator->m_DescriptorSets, sizeof(VkDescriptorSet) * allocator->m_DescriptorSetMax);
+        }
+    }
+
+    static VkResult Prepare(DescriptorAllocator* allocator, VkDevice vk_device, uint32_t num_descriptors, uint32_t num_sets)
+    {
+        VkResult res = VK_SUCCESS;
+
+        DescriptorPool& pool = allocator->m_DescriptorPools[allocator->m_DescriptorPoolIndex];
+
+        if ((allocator->m_DescriptorsPerPool - pool.m_DescriptorCount) < num_descriptors)
+        {
+            allocator->m_DescriptorPoolIndex++;
+            if (allocator->m_DescriptorPoolIndex >= allocator->m_DescriptorPools.Size())
+            {
+                res = AllocateDescriptorPool(allocator, vk_device);
+            }
+        }
+
+        if ((allocator->m_DescriptorSetMax - allocator->m_DescriptorSetIndex) < num_sets)
+        {
+            allocator->m_DescriptorSetMax += allocator->m_DescriptorsPerPool;
+            AllocateDescriptorSets(allocator);
+        }
+
+    #ifdef _DEBUG
+        if (allocator->m_DescriptorsPerPool * allocator->m_DescriptorPools.Size() > 16768)
+        {
+            dmLogOnceWarning("Vulkan: There are more than 16768 descriptors (%d) in flight, this might be a performance issue.", m_DescriptorPools.Size());
+        }
+    #endif
+        return res;
     }
 
     VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out)
     {
-        assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
-        *vk_descriptor_set_out  = &m_Handle.m_DescriptorSets[m_DescriptorIndex];
-        m_DescriptorIndex      += setCount;
-        m_DescriptorCount      += descriptor_count;
+        Prepare(this, vk_device, descriptor_count, setCount);
+
+        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorSetIndex];
+        m_DescriptorSetIndex   += setCount;
+
+        DescriptorPool& pool    = m_DescriptorPools[m_DescriptorPoolIndex];
+        pool.m_DescriptorCount += descriptor_count;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
-        vk_descriptor_set_alloc.descriptorPool     = m_Handle.m_DescriptorPool;
+        vk_descriptor_set_alloc.descriptorPool     = pool.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
 
         return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
     }
 
-    void DescriptorAllocator::Release(VkDevice vk_device)
+    void DescriptorAllocator::Reset(VkDevice vk_device)
     {
-        if (m_DescriptorIndex > 0)
+        if (m_DescriptorSetIndex > 0)
         {
-            vkFreeDescriptorSets(vk_device, m_Handle.m_DescriptorPool, m_DescriptorIndex, m_Handle.m_DescriptorSets);
-            m_DescriptorIndex = 0;
-            m_DescriptorCount = 0;
+            for (int i = 0; i < m_DescriptorPools.Size(); ++i)
+            {
+                vkResetDescriptorPool(vk_device, m_DescriptorPools[i].m_DescriptorPool, 0);
+                m_DescriptorPools[i].m_DescriptorCount = 0;
+            }
+            m_DescriptorSetIndex  = 0;
+            m_DescriptorPoolIndex = 0;
         }
-    }
-
-    const VulkanResourceType DescriptorAllocator::GetType()
-    {
-        return RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR;
     }
 
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
@@ -404,16 +459,22 @@ namespace dmGraphics
         return res;
     }
 
-    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    VkResult CreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)
     {
         assert(vk_descriptor_pool_out && *vk_descriptor_pool_out == VK_NULL_HANDLE);
+
+        VkDescriptorPoolSize vk_pool_size[] = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, max_descriptors},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors}
+        };
+
         VkDescriptorPoolCreateInfo vk_pool_create_info;
         memset(&vk_pool_create_info, 0, sizeof(vk_pool_create_info));
 
         vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        vk_pool_create_info.poolSizeCount = numPoolSizes;
-        vk_pool_create_info.pPoolSizes    = vk_pool_sizes;
-        vk_pool_create_info.maxSets       = maxDescriptors;
+        vk_pool_create_info.poolSizeCount = DM_ARRAY_SIZE(vk_pool_size);
+        vk_pool_create_info.pPoolSizes    = vk_pool_size;
+        vk_pool_create_info.maxSets       = max_descriptors;
         vk_pool_create_info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
         return vkCreateDescriptorPool(vk_device, &vk_pool_create_info, 0, vk_descriptor_pool_out);
@@ -538,16 +599,10 @@ bail:
 
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        VkDescriptorPoolSize vk_pool_size[] = {
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
-        };
-
-        descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
-        descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
-        descriptorAllocator->m_DescriptorMax           = descriptor_count;
-
-        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_Handle.m_DescriptorPool);
+        descriptorAllocator->m_DescriptorSetMax   = descriptor_count;
+        descriptorAllocator->m_DescriptorsPerPool = descriptor_count;
+        AllocateDescriptorSets(descriptorAllocator);
+        return AllocateDescriptorPool(descriptorAllocator, vk_device);
     }
 
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -1087,7 +1142,7 @@ bail:
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
     {
         assert(scratchBuffer);
-        scratchBuffer->m_DescriptorAllocator->Release(vk_device);
+        scratchBuffer->m_DescriptorAllocator->Reset(vk_device);
         scratchBuffer->m_MappedDataCursor = 0;
     }
 
@@ -1127,19 +1182,15 @@ bail:
         memset((void*)device, 0, sizeof(*device));
     }
 
-    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle)
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
-        assert(handle);
-        if (handle->m_DescriptorSets)
-        {
-            delete[] handle->m_DescriptorSets;
-            handle->m_DescriptorSets = 0x0;
-        }
+        assert(allocator);
+        delete[] allocator->m_DescriptorSets;
+        allocator->m_DescriptorSets = 0x0;
 
-        if (handle->m_DescriptorPool != VK_NULL_HANDLE)
+        for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
         {
-            vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
-            handle->m_DescriptorPool = VK_NULL_HANDLE;
+            vkDestroyDescriptorPool(vk_device, allocator->m_DescriptorPools[i].m_DescriptorPool, 0);
         }
     }
 
