@@ -157,7 +157,7 @@ namespace dmResourceProviderArchive
 
     static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal archive)
     {
-        delete (GameArchiveFile*)archive;
+        DeleteArchive((GameArchiveFile*)archive);
         return dmResourceProvider::RESULT_OK;
     }
 
