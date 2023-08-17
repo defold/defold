@@ -74,11 +74,17 @@ namespace dmGraphics
         return num_attributes;
     }
 
-    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
+    bool DescriptorAllocator::CanAllocate(uint32_t num_descriptors)
+    {
+        return (m_DescriptorMax - m_DescriptorCount) > num_descriptors;
+    }
+
+    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out)
     {
         assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
         *vk_descriptor_set_out  = &m_Handle.m_DescriptorSets[m_DescriptorIndex];
         m_DescriptorIndex      += setCount;
+        m_DescriptorCount      += descriptor_count;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -96,6 +102,7 @@ namespace dmGraphics
         {
             vkFreeDescriptorSets(vk_device, m_Handle.m_DescriptorPool, m_DescriptorIndex, m_Handle.m_DescriptorSets);
             m_DescriptorIndex = 0;
+            m_DescriptorCount = 0;
         }
     }
 
@@ -531,8 +538,6 @@ bail:
 
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        assert(descriptor_count < 0x8000); // Should match the bit count in graphics_vulkan_private.h
-
         VkDescriptorPoolSize vk_pool_size[] = {
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
@@ -541,8 +546,6 @@ bail:
         descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
         descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
         descriptorAllocator->m_DescriptorMax           = descriptor_count;
-        descriptorAllocator->m_DescriptorIndex         = 0;
-        descriptorAllocator->m_Destroyed               = 0;
 
         return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_Handle.m_DescriptorPool);
     }

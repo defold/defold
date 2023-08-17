@@ -1751,7 +1751,6 @@ bail:
         Program* program_ptr        = (Program*) program;
         ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        context->m_MainVertexDeclaration = {0};
         VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration, vertex_buffer);
 
         // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
@@ -1759,8 +1758,10 @@ bail:
         //     the MVK driver will complain that we haven't defined all bindings in the shader.
         //     This means that we might get side-effects since we are basically binding the first data buffer
         //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
+        context->m_MainVertexDeclaration               = {0};
         context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_InputCount;
         context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration.m_Hash        = vertex_declaration->m_Hash;
 
         for (uint32_t i = 0; i < vertex_shader->m_InputCount; i++)
         {
@@ -1938,14 +1939,17 @@ bail:
         Program* program_ptr, ScratchBuffer* scratch_buffer,
         uint32_t* dynamic_offsets, const uint32_t alignment)
     {
+        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
+        const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
+        const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
+
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, num_descriptors, &vk_descriptor_set_list);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
-        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
         VkDescriptorSet vs_set = vk_descriptor_set_list[Program::MODULE_TYPE_VERTEX];
         VkDescriptorSet fs_set = vk_descriptor_set_list[Program::MODULE_TYPE_FRAGMENT];
 
@@ -1988,14 +1992,16 @@ bail:
         Program* program_ptr        = context->m_CurrentProgram;
         VkDevice vk_device          = context->m_LogicalDevice.m_Device;
 
+        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
+        const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
+        const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
+
         // Ensure there is room in the descriptor allocator to support this draw call
-        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) >
-            scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
-        bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned +
-            program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
+        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) > scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
+        bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned + program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
 
         const uint8_t descriptor_increase = 32;
-        if (resize_desc_allocator)
+        if (!scratchBuffer->m_DescriptorAllocator->CanAllocate(num_descriptors))
         {
             VkResult res = ResizeDescriptorAllocator(context, scratchBuffer->m_DescriptorAllocator, scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase);
             CHECK_VK_ERROR(res);
@@ -2009,8 +2015,6 @@ bail:
         }
 
         // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
-        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
-
         if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
         {
             if (context->m_DynamicOffsetBuffer == 0x0)
@@ -2027,8 +2031,7 @@ bail:
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        VkResult res = CommitUniforms(vk_command_buffer, vk_device,
-            program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        VkResult res = CommitUniforms(vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);

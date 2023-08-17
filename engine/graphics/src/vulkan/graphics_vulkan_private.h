@@ -108,6 +108,7 @@ namespace dmGraphics
         DescriptorAllocator()
         : m_DescriptorMax(0)
         , m_DescriptorIndex(0)
+        , m_DescriptorCount(0)
         , m_Destroyed(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
@@ -120,14 +121,14 @@ namespace dmGraphics
         };
 
         VulkanHandle     m_Handle;
-        // 15 bits supports max 32768 draw calls
-        uint32_t         m_DescriptorMax   : 15;
-        uint32_t         m_DescriptorIndex : 15;
-        uint32_t         m_Destroyed       : 1;
-        uint32_t                           : 1; // unused
+        uint32_t         m_DescriptorMax;
+        uint32_t         m_DescriptorIndex;
+        uint32_t         m_DescriptorCount;
+        uint32_t         m_Destroyed : 1;
 
-        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
+        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out);
         void     Release(VkDevice vk_device);
+        bool     CanAllocate(uint32_t num_descriptors);
         const    VulkanResourceType GetType();
     };
 
