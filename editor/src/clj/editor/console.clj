@@ -152,10 +152,11 @@
   (fx/make-ext-with-props fx.button/props))
 
 (defn filter-console-list-cell-view [[i [text selected] :as in]]
-  (if in
+  (if-not in
+    {}
     {:style-class "console-filter-popup-list-cell"
      ;; somehow this line makes the check-box's label to limit its width, so it
-     ;; does no produce horizontal scrollbar, but instead truncates the text
+     ;; does not produce a horizontal scrollbar, but instead truncates the text
      ;; with ellipsis.
      :pref-width 100
      :graphic {:fx/type fx.h-box/lifecycle
@@ -175,8 +176,7 @@
                            :style-class "console-filter-popup-list-cell-remove-button"
                            :graphic {:fx/type fx.region/lifecycle
                                      :style-class "cross"}
-                           :on-action {:event-type :delete :index i}}]}}
-    {}))
+                           :on-action {:event-type :delete :index i}}]}}))
 
 (defn- filter-console-view [^Node filter-console-button {:keys [open filters text]}]
   (let [active-filters-count (count (filterv second filters))
