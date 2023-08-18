@@ -20,10 +20,10 @@
 
 namespace dmGameSystem
 {
-	struct GlyphBankResource
-	{
-		dmRenderDDF::GlyphBank* m_DDF;
-	};
+    struct GlyphBankResource
+    {
+        dmRenderDDF::GlyphBank* m_DDF;
+    };
 
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams& params);
 

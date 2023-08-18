@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -71,7 +71,6 @@ import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.util.StringUtil;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
@@ -169,8 +168,7 @@ public class Fontc {
                        .clearShadowY()
                        .clearAlpha();
 
-        byte[] fontDescBytes = fontDescbuilder.build().toByteArray();
-        return MurmurHash.hash64(fontDescBytes, fontDescBytes.length);
+        return fontDescbuilder.build().hashCode();
     }
 
     // These values are the same as font_renderer.cpp
@@ -216,16 +214,8 @@ public class Fontc {
         return glyphs;
     }
 
-    public void setGlyphs(ArrayList<Glyph> glyphs_in) {
-        glyphs = glyphs_in;
-    }
-
     public GlyphBank getGlyphBank() {
         return glyphBankBuilder.build();
-    }
-
-    public InputFontFormat getInputFormat() {
-        return inputFormat;
     }
 
     private boolean isBitmapFont(FontDesc fd) {
@@ -411,7 +401,7 @@ public class Fontc {
         return buffer;
     }
 
-    public int getPadding() {
+    private int getPadding() {
         if (isBitmapFont(this.fontDesc)) {
             return 0;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
@@ -480,9 +470,6 @@ public class Fontc {
             glyphBankBuilder.setSdfOutline(outline_edge);
             glyphBankBuilder.setSdfShadow(shadow_edge);
         }
-        // glyphBankBuilder.setAlpha(this.fontDesc.getAlpha());
-        // glyphBankBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
-        // glyphBankBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
 
         // Load external image resource for BMFont files
         BufferedImage imageBMFont = null;
@@ -523,8 +510,6 @@ public class Fontc {
                 channelCount = 1;
             }
         }
-
-        // int fontMapLayerMask = getFontMapLayerMask();
 
         // We keep track of offset into the glyph data bank,
         // this is saved for each glyph to know where their bitmap data is stored.
@@ -1092,12 +1077,6 @@ public class Fontc {
 
             String glyphBankOutputPath   = outfile.replace("fontc", "glyph_bankc");
             String glyphBankRelativePath = glyphBankOutputPath.replace(projectRootDir, "").replace("\\", "/");
-
-            System.out.println("----------");
-            System.out.println(projectRootDir);
-            System.out.println(glyphBankOutputPath);
-            System.out.println(glyphBankRelativePath);
-            System.out.println("----------");
 
             FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
             fontc.getGlyphBank().writeTo(glyphBankOutputStream);
