@@ -112,14 +112,8 @@
 
 (defn- make-byte-buffer [size]
   (Buffers/newDirectByteBuffer ^int size))
-
-(defn- make-raw-vbufs [emitters]
-  (into []
-        (comp
-          (map :max-particle-count)
-          (map (partial vertex-buffer-size))
-          (map make-byte-buffer))
-        emitters))
+(defn- make-raw-vbuf [emitter vertex-size]
+  (make-byte-buffer (* vertex-size (:max-particle-count emitter))))
 
 (defn make-sim [max-emitter-count max-particle-count prototype-msg instance-transforms]
   (let [context (create-context max-emitter-count max-particle-count)
@@ -128,7 +122,8 @@
     {:context context
      :prototype prototype
      :instances instances
-     :raw-vbufs (make-raw-vbufs (:emitters prototype-msg))
+     :emitters (:emitters prototype-msg)
+     :raw-vbufs []
      :elapsed-time 0}))
 
 (defn destroy-sim [sim]
@@ -202,20 +197,23 @@
     (set! (. infos numInfos) (int num-attribute-infos))
     infos))
 
-(defn gen-emitter-vertex-data [sim emitter-index color vertex-description attribute-infos vertex-attribute-bytes]
-  (let [context (:context sim)
-        raw-vbuf ^ByteBuffer ((:raw-vbufs sim) emitter-index)
-        dt (:last-dt sim)
-        out-size (IntByReference. 0)
-        [r g b a] color
-        instances (:instances sim)
-        attribute-infos (make-attribute-infos context vertex-description attribute-infos vertex-attribute-bytes)]
-    (assert (= 1 (count instances)))
-    (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
-    (.limit raw-vbuf (.getValue out-size))
-    sim))
+(defn get-emitter-vertex-data [sim emitter-index vertex-description]
+  (when (:emitters sim)
+    (or (get (:raw-vbufs sim) emitter-index)
+        (make-raw-vbuf ((:emitters sim) emitter-index) (:size vertex-description)))))
 
-(defn get-emitter-vertex-data [sim emitter-index] ((:raw-vbufs sim) emitter-index))
+(defn gen-emitter-vertex-data [sim emitter-index color vertex-description attribute-infos vertex-attribute-bytes]
+  (when-let [raw-vbuf ^ByteBuffer (get-emitter-vertex-data sim emitter-index vertex-description)]
+    (let [context (:context sim)
+          dt (:last-dt sim)
+          out-size (IntByReference. 0)
+          [r g b a] color
+          instances (:instances sim)
+          attribute-infos (make-attribute-infos context vertex-description attribute-infos vertex-attribute-bytes)]
+      (assert (= 1 (count instances)))
+      (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index attribute-infos (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size)
+      (.limit raw-vbuf (.getValue out-size))
+      raw-vbuf)))
 
 (defn render-emitter [sim emitter-index]
   (let [context (:context sim)
@@ -249,4 +247,4 @@
     (doseq [instance (:instances sim)]
       (ParticleLibrary/Particle_ReloadInstance context instance true))
     (ParticleLibrary/Particle_SetContextMaxParticleCount context ^int max-particle-count))
-  (assoc sim :raw-vbufs (make-raw-vbufs (:emitters prototype-msg))))
+  (assoc sim :raw-vbufs []))
