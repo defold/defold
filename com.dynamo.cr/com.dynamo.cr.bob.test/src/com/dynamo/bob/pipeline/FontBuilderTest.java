@@ -20,9 +20,23 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.List;
+
 import com.dynamo.render.proto.Font.FontMap;
 
+import com.google.protobuf.Message;
+
 public class FontBuilderTest extends AbstractProtoBuilderTest {
+
+    static FontMap getFontMap(List<Message> buildResults) {
+        for (Message m : buildResults) {
+            if (m instanceof FontMap) {
+                return (FontMap) m;
+            }
+        }
+
+        return null;
+    }
 
     @Before
     public void setup() {
@@ -44,7 +58,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
 
-        FontMap fontMap = (FontMap)build("/test.font", src.toString()).get(0);
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals(fontMap.getMaterial(), "/test.materialc");
     }
 
@@ -55,7 +69,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("font: \"/bmfont.fnt\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
-        FontMap fontMap = (FontMap)build("/test.font", src.toString()).get(0);
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
         assertEquals(fontMap.getMaterial(), "/test.materialc");
 
@@ -71,7 +85,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("font: \"/bmfont.fnt\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
-        FontMap fontMap = (FontMap)build("/subdir/test.font", src.toString()).get(0);
+        FontMap fontMap = getFontMap(build("/subdir/test.font", src.toString()));
 
         assertEquals(fontMap.getMaterial(), "/test.materialc");
 
