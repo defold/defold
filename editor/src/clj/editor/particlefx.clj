@@ -398,11 +398,15 @@
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
+(defn- vset [v i value]
+  (let [c (count v)
+        v (if (<= c i) (into v (repeat (- i c) nil)) v)]
+    (assoc v i value)))
 
 (defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
     (let [user-data (:user-data renderable)
-          {:keys [emitter-sim-data emitter-index color]} user-data
+          {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
           shader (:shader emitter-sim-data)
           shader-bound-attributes (graphics/get-shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
           vertex-description (graphics/make-vertex-description shader-bound-attributes)
@@ -411,10 +415,10 @@
       (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
                                 (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
         (let [pfx-sim @pfx-sim-atom
-              raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color vertex-description shader-bound-attributes vertex-attribute-bytes)
+              raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
               context (:context pfx-sim)
               vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
-              all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
+              all-raw-vbufs (vset (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
           (swap! pfx-sim-atom assoc :raw-vbufs all-raw-vbufs)
           (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
             (let [gpu-texture (:gpu-texture emitter-sim-data)
@@ -526,12 +530,13 @@
                            [+bx +bx (case type :emitter-type-circle 0.0 +bx)])))))
 
 (g/defnk produce-emitter-scene
-  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos vertex-attribute-bytes]
+  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos max-particle-count vertex-attribute-bytes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
                    :emitter-index emitter-index
                    :material-attribute-infos material-attribute-infos
+                   :max-particle-count max-particle-count
                    :vertex-attribute-bytes vertex-attribute-bytes
                    :color [1.0 1.0 1.0 1.0]
                    :geom-data-world (apply (:geom-data-world emitter-type)
