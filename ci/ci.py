@@ -128,6 +128,9 @@ def setup_steam_config(args):
 
 def setup_gcloud(args):
     # https://cloud.google.com/sdk/docs/install#installation_instructions
+    print("Installing Google Cloud CLI")
+
+    call("sudo apt list --installed")
     packages = [
         "apt-transport-https",
         "ca-certificates",
