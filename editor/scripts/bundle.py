@@ -177,9 +177,23 @@ def mac_certificate(codesigning_identity):
     else:
         return None
 
-def sign_files(platform, options, dir):
+def sign_file(platform, options, file):
     if options.skip_codesign:
         return
+    if 'win32' in platform:
+        jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
+        keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
+        run.command([
+            'java', '-jar', jsign,
+            '--storetype', 'GOOGLECLOUD',
+            '--storepass' "$(gcloud auth print-access-token)"
+            '--keystore', keystore,
+            '--alias', options.gcloud_keyname,
+            '--certfile', options.gcloud_certfile,
+            '--tsmode', 'RFC3161',
+            '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
+            file])
+
     if 'macos' in platform:
         codesigning_identity = options.codesigning_identity
         certificate = mac_certificate(codesigning_identity)
@@ -194,7 +208,7 @@ def sign_files(platform, options, dir):
             '--options', 'runtime',
             '--entitlements', './scripts/entitlements.plist',
             '-s', certificate,
-            dir])
+            file])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
@@ -466,13 +480,13 @@ def sign(options):
             jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-                sign_files('macos', options, exe)
+                sign_file('macos', options, exe)
             for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-                sign_files('macos', options, lib)
-            sign_files('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-            sign_files('macos', options, os.path.join(sign_dir, "Defold.app"))
+                sign_file('macos', options, lib)
+            sign_file('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+            sign_file('macos', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
-            sign_files('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
+            sign_file('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
 
         # create editor bundle with signed files
         os.remove(bundle_file)
