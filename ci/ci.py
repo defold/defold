@@ -130,24 +130,23 @@ def setup_gcloud(args):
     # https://cloud.google.com/sdk/docs/install#installation_instructions
     print("Installing Google Cloud CLI")
 
-    call("sudo apt list --installed")
-    packages = [
-        "apt-transport-https",
-        "ca-certificates",
-        "gnupg"
-    ]
-    aptfast(" ".join(packages))
+    # packages = [
+    #     "apt-transport-https",
+    #     "ca-certificates",
+    #     "gnupg"
+    # ]
+    # aptfast(" ".join(packages))
 
-    # Add the gcloud CLI distribution URI as a package source
-    call("echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list")
+    # # Add the gcloud CLI distribution URI as a package source
+    # call("echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list")
 
-    # Import the Google Cloud public key.
-    # call("curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg")
-    call("curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg")
+    # # Import the Google Cloud public key.
+    # # call("curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg")
+    # call("curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg")
 
-    # Update and install the gcloud CLI
-    call("sudo apt-get update", failonerror=False)
-    aptfast("google-cloud-cli")
+    # # Update and install the gcloud CLI
+    # call("sudo apt-get update", failonerror=False)
+    # aptfast("google-cloud-cli")
 
 def install(args):
     # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
