@@ -317,7 +317,13 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
 
     opts.append('--platform=%s' % platform)
 
-    if gcloud_keyfile:
+    # windows EV Code Signing with key in Google Cloud KMS
+    if gcloud_keyfile and gcloud_certfile:
+        opts.append("--gcloud-location=europe-west3")
+        opts.append("--gcloud-keyname=ev-windows-key")
+        opts.append("--gcloud-keyringname=ev-key-ring")
+        opts.append("--gcloud-projectid=defold-editor")
+
         gcloud_keyfile = os.path.abspath(gcloud_keyfile)
         if not os.path.exists(gcloud_keyfile):
             print("Google Cloud key file not found:", gcloud_keyfile)
@@ -325,18 +331,12 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
         print("Using Google Cloud key file", gcloud_keyfile)
         opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
 
-    if gcloud_certfile:
         gcloud_certfile = os.path.abspath(gcloud_certfile)
         if not os.path.exists(gcloud_certfile):
             print("Google Cloud certificate chain not found:", gcloud_certfile)
             sys.exit(1)
         print("Using Google Cloud certificate chain", gcloud_certfile)
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
-
-    opts.gcloud_location = "europe-west3"
-    opts.gcloud_keyname = "ev-windows-key"
-    opts.gcloud_keyringname = "ev-key-ring"
-    opts.gcloud_projectid = "defold-editor"
 
     cmd = ' '.join(args + opts)
     call(cmd)
