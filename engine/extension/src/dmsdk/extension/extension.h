@@ -35,16 +35,16 @@ extern "C" {
 // C API
 typedef enum dmExtensionResult
 {
-    RESULT_OK = 0,
-    RESULT_INIT_ERROR = -1,
+    DM_EXTENSION_RESULT_OK = 0,
+    DM_EXTENSION_RESULT_INIT_ERROR = -1,
 } dmExtensionResult;
 
 typedef enum dmExtensionEventID
 {
-    EVENT_ID_ACTIVATEAPP,
-    EVENT_ID_DEACTIVATEAPP,
-    EVENT_ID_ICONIFYAPP,
-    EVENT_ID_DEICONIFYAPP,
+    DM_EXTENSION_EVENT_ID_ACTIVATEAPP,
+    DM_EXTENSION_EVENT_ID_DEACTIVATEAPP,
+    DM_EXTENSION_EVENT_ID_ICONIFYAPP,
+    DM_EXTENSION_EVENT_ID_DEICONIFYAPP,
 } dmExtensionEventID;
 
 typedef enum dmExtensionCallbackType
@@ -128,8 +128,6 @@ namespace dmExtension
      * @path engine/dlib/src/dmsdk/extension/extension.h
      */
 
-    #define DM_ENUM_COPY(_ENUM, _NAME)  _NAME = _ENUM :: _NAME
-
     /*# result enumeration
      *
      * Result enumeration.
@@ -143,8 +141,8 @@ namespace dmExtension
     //typedef dmExtensionResult Result;
     enum Result
     {
-        DM_ENUM_COPY(dmExtensionResult, RESULT_OK),
-        DM_ENUM_COPY(dmExtensionResult, RESULT_INIT_ERROR),
+        RESULT_OK           = DM_EXTENSION_RESULT_OK,
+        RESULT_INIT_ERROR   = DM_EXTENSION_RESULT_INIT_ERROR,
     };
 
     /*# application level callback data
@@ -195,12 +193,11 @@ namespace dmExtension
      * @member dmExtension::EVENT_ID_DEICONIFYAPP
      *
      */
-    enum EventID
-    {
-        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_ACTIVATEAPP),
-        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_DEACTIVATEAPP),
-        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_ICONIFYAPP),
-        DM_ENUM_COPY(dmExtensionEventID, EVENT_ID_DEICONIFYAPP),
+    enum EventID {
+        EVENT_ID_ACTIVATEAPP    = DM_EXTENSION_EVENT_ID_ACTIVATEAPP,
+        EVENT_ID_DEACTIVATEAPP  = DM_EXTENSION_EVENT_ID_DEACTIVATEAPP,
+        EVENT_ID_ICONIFYAPP     = DM_EXTENSION_EVENT_ID_ICONIFYAPP,
+        EVENT_ID_DEICONIFYAPP   = DM_EXTENSION_EVENT_ID_DEICONIFYAPP
     };
 
     /*# extra callback enumeration
@@ -437,8 +434,6 @@ namespace dmExtension
      * @param delegate an id<UIApplicationDelegate>
      */
     void UnregisteriOSUIApplicationDelegate(void* delegate);
-
-    #undef DM_ENUM_COPY
 }
 
 #endif // __cplusplus

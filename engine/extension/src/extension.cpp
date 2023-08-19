@@ -57,6 +57,11 @@ void dmExtensionRegister(struct dmExtensionDesc* desc,
 
     DM_STATIC_ASSERT(offsetof(dmExtensionEvent, m_Event) == offsetof(dmExtension::Event, m_Event), Misaligned_Structs);
 
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_ACTIVATEAPP == (int)DM_EXTENSION_EVENT_ID_ACTIVATEAPP, Enum_Mismatch);
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_DEACTIVATEAPP == (int)DM_EXTENSION_EVENT_ID_DEACTIVATEAPP, Enum_Mismatch);
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_ICONIFYAPP == (int)DM_EXTENSION_EVENT_ID_ICONIFYAPP, Enum_Mismatch);
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_DEICONIFYAPP == (int)DM_EXTENSION_EVENT_ID_DEICONIFYAPP, Enum_Mismatch);
+
     dmExtension::Register(
             (dmExtension::Desc*)desc,
             desc_size,
