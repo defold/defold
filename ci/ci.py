@@ -580,7 +580,7 @@ def main(argv):
             if args.gcloud_service_key:
                 gcloud_certfile = os.path.join("ci", "gcloud_certfile.pem")
                 gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
-                string_to_file(args.gcloud_service_key, gcloud_keyfile)
+                b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
             sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
