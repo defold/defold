@@ -181,12 +181,23 @@ def sign_file(platform, options, file):
     if options.skip_codesign:
         return
     if 'win32' in platform:
+        run.command([
+            'gcloud',
+            'auth',
+            'activate-service-account',
+            '--key-file', options.gcloud_keyfile])
+
+        storepass = run.command([
+            'gcloud',
+            'auth',
+            'print-access-token'])
+
         jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
         keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
         run.command([
             'java', '-jar', jsign,
             '--storetype', 'GOOGLECLOUD',
-            '--storepass', "\"$(gcloud auth print-access-token)\"",
+            '--storepass', storepass,
             '--keystore', keystore,
             '--alias', options.gcloud_keyname,
             '--certfile', options.gcloud_certfile,
