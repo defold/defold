@@ -125,29 +125,6 @@ def setup_steam_config(args):
     b64decode_to_file(args.steam_config_b64, steam_config_file)
     print("Wrote config to", steam_config_file)
 
-
-def setup_gcloud(args):
-    # https://cloud.google.com/sdk/docs/install#installation_instructions
-    print("Installing Google Cloud CLI")
-
-    # packages = [
-    #     "apt-transport-https",
-    #     "ca-certificates",
-    #     "gnupg"
-    # ]
-    # aptfast(" ".join(packages))
-
-    # # Add the gcloud CLI distribution URI as a package source
-    # call("echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list")
-
-    # # Import the Google Cloud public key.
-    # # call("curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg")
-    # call("curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg")
-
-    # # Update and install the gcloud CLI
-    # call("sudo apt-get update", failonerror=False)
-    # aptfast("google-cloud-cli")
-
 def install(args):
     # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
     system = platform.system()
@@ -190,8 +167,6 @@ def install(args):
             "xvfb"
         ]
         aptfast(" ".join(packages))
-
-        setup_gcloud(args)
 
         if args.steam_config_b64:
             # for steamcmd
