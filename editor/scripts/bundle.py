@@ -185,7 +185,7 @@ def sign_file(platform, options, file):
             'gcloud',
             'auth',
             'activate-service-account',
-            '--key-file', options.gcloud_keyfile])
+            '--key-file', options.gcloud_keyfile], silent = True)
 
         storepass = run.command([
             'gcloud',
@@ -203,7 +203,7 @@ def sign_file(platform, options, file):
             '--certfile', options.gcloud_certfile,
             '--tsmode', 'RFC3161',
             '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-            file])
+            file], silent = True)
 
     if 'macos' in platform:
         codesigning_identity = options.codesigning_identity
