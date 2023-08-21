@@ -482,7 +482,7 @@ static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, co
 
         for (uint32_t d = 0; d < dependencies.Size(); ++d)
         {
-            dmhash_t dep_hash = dependencies[i];
+            dmhash_t dep_hash = dependencies[d];
             bool* visited = ctx->m_Visited.Get(dep_hash);
             if (visited)
                 continue;

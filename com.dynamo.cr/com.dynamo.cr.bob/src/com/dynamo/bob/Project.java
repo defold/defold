@@ -1026,12 +1026,11 @@ public class Project {
             // Located in the same place as the log file in the unpacked successful build
             File logFile = new File(buildDir, "log.txt");
             String serverURL = this.option("build-server", "https://build.defold.com");
-            boolean asyncBuild = this.hasOption("use-async-build-server");
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
                 extender.setHeaders(buildServerHeaders);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
+                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
 
                 cleanEngine(platform, buildDir);
 
@@ -1211,7 +1210,7 @@ public class Project {
         Callable<Void> callable = new Callable<>() {
             public Void call() throws Exception {
                 logInfo("Build Remote Engine...");
-                TimeProfiler.start("Build Remote Engine");
+                TimeProfiler.addMark("StartBuildRemoteEngine", "Build Remote Engine");
                 final String variant = option("variant", Bob.VARIANT_RELEASE);
                 final Boolean withSymbols = hasOption("with-symbols");
 
@@ -1219,8 +1218,10 @@ public class Project {
                 appmanifestOptions.put("baseVariant", variant);
                 appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                TimeProfiler.addData("withSymbols", withSymbols);
-                TimeProfiler.addData("variant", variant);
+                // temporary removed because TimeProfiler works only with a single thread
+                // see https://github.com/pyatyispyatil/flame-chart-js
+                // TimeProfiler.addData("withSymbols", withSymbols);
+                // TimeProfiler.addData("variant", variant);
 
                 if (hasOption("build-artifacts")) {
                     String s = option("build-artifacts", "");
@@ -1242,7 +1243,7 @@ public class Project {
 
                 long tend = System.currentTimeMillis();
                 logger.info("Engine build took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.stop();
+                TimeProfiler.addMark("FinishedBuildRemoteEngine", "Build Remote Engine Finished");
 
                 return (Void)null;
             }

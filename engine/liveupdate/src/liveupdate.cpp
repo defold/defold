@@ -368,6 +368,16 @@ namespace dmLiveUpdate
         return archive;
     }
 
+    static bool IsLiveupdateDisabled()
+    {
+        if (!g_LiveUpdate.m_JobThread)
+        {
+            dmLogError("Liveupdate function can't be called. Liveupdate disabled");
+            return true;
+        }
+        return false;
+    }
+
     // Legacy function
     static dmResource::Result LegacyStoreManifestToMutableArchive(dmResource::Manifest* manifest)
     {
@@ -391,7 +401,7 @@ namespace dmLiveUpdate
             dmLogWarning("Failed to set manifest to mounted archive uri: %s:%s/%s\n", uri.m_Scheme, uri.m_Location, uri.m_Path);
             return dmResource::RESULT_INVALID_DATA;
         }
-
+        dmResourceProvider::GetManifest(g_LiveUpdate.m_LiveupdateArchive, &g_LiveUpdate.m_LiveupdateArchiveManifest);
         return dmResource::RESULT_OK;
     }
 
@@ -478,6 +488,11 @@ namespace dmLiveUpdate
         {
             dmLogError("Resource has invalid header: '%s'", expected_digest);
             return RESULT_INVALID_RESOURCE;
+        }
+
+        if(IsLiveupdateDisabled())
+        {
+            return RESULT_INVAL;
         }
 
         ResourceInfo* info = new ResourceInfo;
@@ -567,6 +582,11 @@ namespace dmLiveUpdate
     Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data)
     {
         if (!manifest_data || manifest_len == 0)
+        {
+            return RESULT_INVAL;
+        }
+
+        if(IsLiveupdateDisabled())
         {
             return RESULT_INVAL;
         }
@@ -674,6 +694,11 @@ namespace dmLiveUpdate
             return RESULT_INVALID_RESOURCE;
         }
 
+        if(IsLiveupdateDisabled())
+        {
+            return RESULT_INVAL;
+        }
+
         StoreArchiveInfo* info = new StoreArchiveInfo;
         info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
         info->m_Priority = priority;
@@ -755,6 +780,11 @@ namespace dmLiveUpdate
 
     Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* callback_data)
     {
+        if(IsLiveupdateDisabled())
+        {
+            return RESULT_INVAL;
+        }
+
         AddMountInfo* info = new AddMountInfo;
         info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
         info->m_Priority = priority;
@@ -853,7 +883,7 @@ namespace dmLiveUpdate
         dmResourceProvider::Result p_result = dmResourceProvider::GetManifest(g_LiveUpdate.m_ResourceBaseArchive, &manifest);
         if (dmResourceProvider::RESULT_OK != p_result)
         {
-            dmLogError("Could not get base archive manifest project id");
+            dmLogError("Could not get base archive manifest project id. Liveupdate disabled");
             return dmExtension::RESULT_OK;
         }
 

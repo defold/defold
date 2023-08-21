@@ -441,6 +441,7 @@ public class TestHttpServer extends AbstractHandler
 
                 try {
                     Files.move(Paths.get(tempname), Paths.get(filename), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                    System.out.println("File '" + filename + "' created");
                 }
                 catch(IOException e) {
                     System.out.println("ERROR: Failed to move " + tempname + " to " + filename);
