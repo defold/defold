@@ -578,18 +578,19 @@
             glyph-bank-resource (resource/make-memory-resource workspace glyph-bank-resource-type glyph-bank-user-data)
             glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
             glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
-            dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)]
-        [(pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
-                                              Font$FontMap
-                                              {:material (str (:material pb-msg) "c")
-                                               :glyph-bank (resource/proj-path glyph-bank-build-resource)
-                                               :shadow-x (:shadow-x pb-msg)
-                                               :shadow-y (:shadow-y pb-msg)
-                                               :alpha (:alpha pb-msg)
-                                               :outline-alpha (:outline-alpha pb-msg)
-                                               :shadow-alpha (:shadow-alpha pb-msg)
-                                               :layer-mask (font-desc->layer-mask pb-msg)}
-                                              nil)])))
+            dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
+            protobuf-build-target (pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
+                                                                       Font$FontMap
+                                                                       {:material (str (:material pb-msg) "c")
+                                                                        :glyph-bank (resource/proj-path glyph-bank-build-resource)
+                                                                        :shadow-x (:shadow-x pb-msg)
+                                                                        :shadow-y (:shadow-y pb-msg)
+                                                                        :alpha (:alpha pb-msg)
+                                                                        :outline-alpha (:outline-alpha pb-msg)
+                                                                        :shadow-alpha (:shadow-alpha pb-msg)
+                                                                        :layer-mask (font-desc->layer-mask pb-msg)}
+                                                                       nil)]
+        [(assoc protobuf-build-target :node-id _node-id)])))
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)
