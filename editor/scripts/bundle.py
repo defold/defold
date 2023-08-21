@@ -186,7 +186,7 @@ def sign_file(platform, options, file):
         run.command([
             'java', '-jar', jsign,
             '--storetype', 'GOOGLECLOUD',
-            '--storepass' " \"$(gcloud auth print-access-token)\" "
+            '--storepass', "\"$(gcloud auth print-access-token)\"",
             '--keystore', keystore,
             '--alias', options.gcloud_keyname,
             '--certfile', options.gcloud_certfile,
