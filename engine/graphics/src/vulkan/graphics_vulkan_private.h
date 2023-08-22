@@ -387,6 +387,7 @@ namespace dmGraphics
         Texture                         m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
+        VertexDeclaration               m_MainVertexDeclaration;
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer;

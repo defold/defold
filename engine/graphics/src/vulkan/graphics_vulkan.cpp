@@ -1748,29 +1748,43 @@ bail:
 
     static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        VulkanContext* context = (VulkanContext*) _context;
+        VulkanContext* context              = (VulkanContext*) _context;
         context->m_CurrentVertexBuffer      = (DeviceBuffer*) vertex_buffer;
         context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
     }
 
-    static void VulkanEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
     {
-        Program* program_ptr = (Program*) program;
-        VulkanEnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+        VulkanContext* context      = (VulkanContext*) _context;
+        Program* program_ptr        = (Program*) program;
+        ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        for (uint32_t i=0; i < vertex_declaration->m_StreamCount; i++)
+        context->m_MainVertexDeclaration = {0};
+        VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration, vertex_buffer);
+
+        // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
+        //     Basically we create fake bindings if a stream isn't defined in the vertex declaration, because otherwise
+        //     the MVK driver will complain that we haven't defined all bindings in the shader.
+        //     This means that we might get side-effects since we are basically binding the first data buffer
+        //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
+        context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_InputCount;
+        context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
+
+        for (uint32_t i = 0; i < vertex_shader->m_InputCount; i++)
         {
-            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
+            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration.m_Streams[i];
 
-            stream.m_Location = 0xffff;
+            stream.m_NameHash = input.m_NameHash;
+            stream.m_Location = input.m_Binding;
+            stream.m_Format   = VK_FORMAT_R8_UNORM;
 
-            ShaderModule* vertex_shader = program_ptr->m_VertexModule;
-
-            for (uint32_t j=0; j < vertex_shader->m_InputCount; j++)
+            for (int j = 0; j < vertex_declaration->m_StreamCount; ++j)
             {
-                if (vertex_shader->m_Inputs[j].m_NameHash == stream.m_NameHash)
+                if (vertex_declaration->m_Streams[j].m_NameHash == input.m_NameHash)
                 {
-                    stream.m_Location = vertex_shader->m_Inputs[j].m_Binding;
+                    stream.m_Offset = vertex_declaration->m_Streams[j].m_Offset;
+                    stream.m_Format = vertex_declaration->m_Streams[j].m_Format;
                     break;
                 }
             }
