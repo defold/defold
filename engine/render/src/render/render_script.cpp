@@ -596,8 +596,7 @@ namespace dmRender
               buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT  ||
               buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT))
         {
-            luaL_error(L, "Unknown buffer type supplied (%d).", (int) buffer_type);
-            return (dmGraphics::BufferType) -1;
+            return (dmGraphics::BufferType) luaL_error(L, "Unknown buffer type supplied (%d).", (int) buffer_type);
         }
 
         return buffer_type;
@@ -1144,7 +1143,7 @@ namespace dmRender
 
         if (render_target == 0)
         {
-            luaL_error(L, "Unable to create render target.");
+            return luaL_error(L, "Unable to create render target.");
         }
 
         lua_pushnumber(L, render_target);

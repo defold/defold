@@ -2405,7 +2405,7 @@ static void LogFrameBufferError(GLenum status)
         attachment.m_Attached = true;
     }
 
-    static void ApplyRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt, bool update_current = false)
+    static void ApplyRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt, bool update_current)
     {
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
@@ -2596,7 +2596,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        ApplyRenderTargetAttachments(context, rt);
+        ApplyRenderTargetAttachments(context, rt, false);
 
         // Disable color buffer
         if (!any_color_attachment_set)
