@@ -18,7 +18,7 @@
 
         &:hover {
             -fx-text-fill: -df-text-selected;
-            .image-view {
+            & > .image-view {
                 @include effect-bright-grey();
             }
             .label {
@@ -30,7 +30,7 @@
             -fx-border-color: -df-defold-orange;
             -fx-text-fill: -df-text-selected;
             -fx-background-color: -df-background-lighter;
-            .image-view {
+            & > .image-view {
                 @include effect-bright-grey();
             }
             .label {
@@ -38,7 +38,7 @@
             }
         }
 
-        .image-view {
+        & > .image-view {
             @include effect-icon-grey();
         }
 
