@@ -433,20 +433,62 @@
         (io/copy in f))
       (.getAbsolutePath f))))
 
+(def ^:private ext->style-class-suffix
+  {;; Script files
+   "fp" "script"
+   "gui_script" "script"
+   "lua" "script"
+   "render_script" "script"
+   "script" "script"
+   "vp" "script"
+   "glsl" "script"
+
+   ;; Design files
+   "atlas" "design"
+   "collection" "design"
+   "collisionobject" "design"
+   "cubemap" "design"
+   "dae" "design"
+   "font" "design"
+   "go" "design"
+   "gui" "design"
+   "label" "design"
+   "model" "design"
+   "particlefx" "design"
+   "spinemodel" "design"
+   "spinescene" "design"
+   "sprite" "design"
+   "tilemap" "design"
+   "tilesource" "design"
+
+   ;; Property container files
+   "animationset" "property"
+   "camera" "property"
+   "collectionfactory" "property"
+   "collectionproxy" "property"
+   "display_profiles" "property"
+   "factory" "property"
+   "gamepads" "property"
+   "input_binding" "property"
+   "material" "property"
+   "project" "property"
+   "render" "property"
+   "sound" "property"
+   "texture_profiles" "property"})
+
 (defn style-classes [resource]
-  (into #{"resource"}
-        (keep not-empty)
-        [(when (or (not (editable? resource))
-                   (read-only? resource))
-           "resource-read-only")
-         (case (source-type resource)
-           :file (some->> resource ext not-empty (str "resource-ext-"))
-           :folder "resource-folder"
-           nil)]))
+  (let [resource-kind-class (case (source-type resource)
+                              :file (some->> resource
+                                             ext
+                                             ext->style-class-suffix
+                                             (str "resource-ext-"))
+                              :folder "resource-folder"
+                              nil)]
+    (cond-> #{"resource"} resource-kind-class (conj resource-kind-class))))
 
 (defn ext-style-classes [resource-ext]
   (assert (or (nil? resource-ext) (string? resource-ext)))
-  (if-some [ext (not-empty resource-ext)]
+  (if-some [ext (ext->style-class-suffix resource-ext)]
     #{"resource" (str "resource-ext-" ext)}
     #{"resource"}))
 
