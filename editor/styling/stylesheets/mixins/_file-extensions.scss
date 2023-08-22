@@ -37,7 +37,7 @@
         @include extension-template($element, -df-folder, -df-folder-active)
     }
 
-    &.resource-ext {
+    &.resource-kind {
         &-script {
             @include extension-template($element, -df-script-file, -df-script-file-active);
         }

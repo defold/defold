@@ -295,7 +295,7 @@ $spacing-largest: 40px;
         @include icon-extension-template(-df-folder, -df-folder-active)
     }
 
-    &.resource-ext {
+    &.resource-kind {
         &-script {
             @include icon-extension-template(-df-script-file, -df-script-file-active);
         }

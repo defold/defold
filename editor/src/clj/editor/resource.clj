@@ -22,7 +22,8 @@
             [schema.core :as s]
             [util.coll :refer [pair]]
             [util.digest :as digest])
-  (:import [java.io File FilterInputStream IOException InputStream]
+  (:import [clojure.lang PersistentHashMap]
+           [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -433,63 +434,36 @@
         (io/copy in f))
       (.getAbsolutePath f))))
 
-(def ^:private ext->style-class-suffix
-  {;; Script files
-   "fp" "script"
-   "gui_script" "script"
-   "lua" "script"
-   "render_script" "script"
-   "script" "script"
-   "vp" "script"
-   "glsl" "script"
-
-   ;; Design files
-   "atlas" "design"
-   "collection" "design"
-   "collisionobject" "design"
-   "cubemap" "design"
-   "dae" "design"
-   "font" "design"
-   "go" "design"
-   "gui" "design"
-   "label" "design"
-   "model" "design"
-   "particlefx" "design"
-   "spinemodel" "design"
-   "spinescene" "design"
-   "sprite" "design"
-   "tilemap" "design"
-   "tilesource" "design"
-
-   ;; Property container files
-   "animationset" "property"
-   "camera" "property"
-   "collectionfactory" "property"
-   "collectionproxy" "property"
-   "display_profiles" "property"
-   "factory" "property"
-   "gamepads" "property"
-   "input_binding" "property"
-   "material" "property"
-   "project" "property"
-   "render" "property"
-   "sound" "property"
-   "texture_profiles" "property"})
+(def ^:private ext->style-class
+  (let [config {"script" ["fp" "gui_script" "lua" "render_script" "script" "vp"
+                          "glsl"]
+                "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
+                          "font" "go" "gui" "label" "model" "particlefx"
+                          "spinemodel" "spinescene" "sprite" "tilemap"
+                          "tilesource"]
+                "property" ["animationset" "camera" "collectionfactory"
+                            "collectionproxy" "display_profiles" "factory"
+                            "gamepads" "input_binding" "material" "project"
+                            "render" "sound" "texture_profiles"]}]
+   (->> (for [[kind extensions] config
+              :let [style-class (str "resource-kind-" kind)]
+              ext extensions
+              el [ext style-class]]
+          el)
+        seq
+        PersistentHashMap/createWithCheck)))
 
 (defn style-classes [resource]
   (let [resource-kind-class (case (source-type resource)
-                              :file (some->> resource
-                                             ext
-                                             ext->style-class-suffix
-                                             (str "resource-ext-"))
+                              :file (some->> resource ext ext->style-class)
                               :folder "resource-folder"
                               nil)]
     (cond-> #{"resource"} resource-kind-class (conj resource-kind-class))))
 
 (defn ext-style-classes [resource-ext]
   (assert (or (nil? resource-ext) (string? resource-ext)))
-  (if-some [ext (ext->style-class-suffix resource-ext)]
-    #{"resource" (str "resource-ext-" ext)}
+  (if-some [style-class (ext->style-class resource-ext)]
+    #{"resource" style-class}
     #{"resource"}))
 
 (defn filter-resources [resources query]
