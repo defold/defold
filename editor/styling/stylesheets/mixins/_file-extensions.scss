@@ -1,27 +1,28 @@
 @mixin extension-template($element, $color, $active-color){
-    .image-view {
-        @include colorize-image-view($color);
-    }
-    @if($element == "menu") {
-        &:focused {
-            .image-view {
+    // tab, tree, menu
+    @if $element == "menu" {
+        & > .graphic-container > .image-view {
+            @include colorize-image-view($color);
+        }
+        &:focused > .graphic-container > .image-view {
+            @include colorize-image-view($active-color);
+        }
+    } @else if $element == "tab" {
+        & > .tab-container > .tab-label > .image-view {
+            @include colorize-image-view($color);
+        }
+        &:selected, &:hover {
+            & > .tab-container > .tab-label > .image-view {
                 @include colorize-image-view($active-color);
             }
         }
     } @else {
+        & > .image-view {
+            @include colorize-image-view($color);
+        }
         &:selected, &:hover {
-            @if($element == "tab") {
-                .tab-container {
-                    .tab-label {
-                        .image-view {
-                            @include colorize-image-view($active-color);
-                        }
-                    }
-                }
-            } @else {
-                .image-view {
-                    @include colorize-image-view($active-color);
-                }
+            & > .image-view {
+                @include colorize-image-view($active-color);
             }
         }
     }
