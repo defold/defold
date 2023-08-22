@@ -1213,11 +1213,6 @@
   {:control control
    :menu-id menu-id})
 
-(defn- wrap-menu-image [node]
-  (doto (Pane.)
-    (children! [node])
-    (add-style! "menu-image-wrapper")))
-
 (defn- make-submenu [id label icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu. label)]
@@ -1225,7 +1220,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
-        (.setGraphic menu (wrap-menu-image (icons/get-image-view icon 16))))
+        (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
         (assert (set? style-classes))
         (doto (.getStyleClass menu)
@@ -1261,7 +1256,7 @@
     (when (and (some? key-combo) (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
-      (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
+      (.setGraphic menu-item (icons/get-image-view icon 16)))
     (when style-classes
       (assert (set? style-classes))
       (doto (.getStyleClass menu-item)
