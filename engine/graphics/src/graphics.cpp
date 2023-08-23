@@ -44,42 +44,23 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool GetAdapterFromString(const char* adapter_type_str, AdapterType* adapter_type_out)
+    static bool SelectAdapterByName(const char* adapter_name)
     {
-        if (adapter_type_str)
+        if (adapter_name != 0)
         {
-            if (dmStrCaseCmp(adapter_type_str, "null") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_NULL;
-                return true;
-            }
-            else if (dmStrCaseCmp(adapter_type_str, "opengl") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_OPENGL;
-                return true;
-            }
-            else if (dmStrCaseCmp(adapter_type_str, "vulkan") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_VULKAN;
-                return true;
-            }
-        }
-        return false;
-    }
+            GraphicsAdapter* next = g_adapter_list;
 
-    static bool SelectAdapterByType(AdapterType adapter_type)
-    {
-        GraphicsAdapter* next     = g_adapter_list;
-
-        while(next)
-        {
-            if (next->m_AdapterType == adapter_type && next->m_IsSupportedCb())
+            while(next)
             {
-                g_functions = next->m_RegisterCb();
-                g_adapter   = next;
-                return true;
+                assert(next->m_AdapterName != 0);
+                if (dmStrCaseCmp(next->m_AdapterName, adapter_name) == 0 && next->m_IsSupportedCb())
+                {
+                    g_functions = next->m_RegisterCb();
+                    g_adapter   = next;
+                    return true;
+                }
+                next = next->m_Next;
             }
-            next = next->m_Next;
         }
 
         return false;
@@ -111,18 +92,6 @@ namespace dmGraphics
     }
 
     #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
-
-    static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
-    {
-        switch(adapter_type)
-        {
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
-            default: break;
-        }
-        return "<unknown dmGraphics::AdapterType>";
-    }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
     {
@@ -780,13 +749,7 @@ namespace dmGraphics
             return true;
         }
 
-        AdapterType adapter_type;
-        bool result = GetAdapterFromString(adapter_name_str, &adapter_type);
-
-        if (result)
-        {
-            result = SelectAdapterByType(adapter_type);
-        }
+        bool result = SelectAdapterByName(adapter_name_str);
 
         if (!result)
         {
@@ -800,17 +763,12 @@ namespace dmGraphics
 
         if (result)
         {
-            dmLogInfo("Initialised graphics device '%s'", GetGraphicsAdapterTypeLiteral(g_adapter->m_AdapterType));
+            dmLogInfo("Initialised graphics device '%s'", g_adapter->m_AdapterName);
             return true;
         }
 
         dmLogError("Could not initialize graphics. No graphics adapter was found.");
         return false;
-    }
-
-    AdapterType GetAdapterType()
-    {
-        return g_adapter->m_AdapterType;
     }
 
     void Finalize()
@@ -1121,9 +1079,9 @@ namespace dmGraphics
     {
         g_functions.m_SetPolygonOffset(context, factor, units);
     }
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
     }
     void DeleteRenderTarget(HRenderTarget render_target)
     {

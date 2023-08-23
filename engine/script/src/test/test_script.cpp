@@ -46,7 +46,6 @@ bool RunString(lua_State* L, const char* script)
 }
 
 static ScriptTest* s_LogListenerContext = 0;
-static int s_PlatformInitialized = 0;
 
 static void LogCallback(LogSeverity severity, const char* domain, const char* formatted_string)
 {

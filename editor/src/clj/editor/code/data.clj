@@ -2197,6 +2197,34 @@
                                         (map (partial breakpoint lines) added-rows))))]
         {:regions regions'}))))
 
+(defn- edit-breakpoint [lines regions row]
+  {:edited-breakpoint (or (some (fn [region]
+                                  (when (and (breakpoint-region? region)
+                                             (= row (breakpoint-row region)))
+                                    region))
+                                regions)
+                          (breakpoint lines row))})
+
+(defn edit-breakpoint-from-single-cursor-range [lines cursor-ranges regions]
+  (when (= 1 (count cursor-ranges))
+    (let [row (.row ^Cursor (.to ^CursorRange (first cursor-ranges)))]
+      (edit-breakpoint lines regions row))))
+
+(defn ensure-breakpoint [lines regions breakpoint-region]
+  {:pre [(breakpoint-region? breakpoint-region)]}
+  (let [row (breakpoint-row breakpoint-region)
+        filtered-regions (filterv (fn [region]
+                                    (not (and (breakpoint-region? region)
+                                              (= row (breakpoint-row region)))))
+                                  regions)
+        clean-breakpoint-region (-> breakpoint-region
+                                    (assoc
+                                      :from (->Cursor row (text-start lines row))
+                                      :to (->Cursor row (count (lines row))))
+                                    (cond-> (string/blank? (:condition breakpoint-region))
+                                            (dissoc :condition)))]
+    {:regions (vec (sort (conj filtered-regions clean-breakpoint-region)))}))
+
 (defn- scroll-y-once [direction ^LayoutInfo layout source-line-count]
   (let [line-height (line-height (.glyph layout))
         ^double scroll-delta (case direction :up (- ^double line-height) :down line-height)
@@ -2230,16 +2258,23 @@
                                   :from-doc-x (x->doc-x layout x)
                                   :from-doc-y (y->doc-y layout y))}))
 
+(defn- in-gutter? [^LayoutInfo layout x]
+  (and (< ^double x (.x ^Rect (.canvas layout)))
+       (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout))))))
+
+(defn- y->existing-row [layout lines y]
+  (let [clicked-row (y->row layout y)]
+    (when (< clicked-row (count lines))
+      clicked-row)))
+
 (defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key?]
   (case button
     :primary
     (cond
       ;; Click in the gutter to toggle breakpoints.
-      (and (< ^double x (.x ^Rect (.canvas layout)))
-           (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout)))))
-      (let [clicked-row (y->row layout y)]
-        (when (< clicked-row (count lines))
-          (toggle-breakpoint lines regions #{clicked-row})))
+      (in-gutter? layout x)
+      (when-let [clicked-row (y->existing-row layout lines y)]
+        (toggle-breakpoint lines regions #{clicked-row}))
 
       ;; Prepare to drag the horizontal scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-x layout) (rect-contains? x y)))
@@ -2310,7 +2345,10 @@
       (begin-box-selection lines layout button click-count x y))
 
     :secondary
-    nil
+    (cond
+      (in-gutter? layout x)
+      (when-let [clicked-row (y->existing-row layout lines y)]
+        (edit-breakpoint lines regions clicked-row)))
     :back
     nil
     :forward
@@ -2728,6 +2766,7 @@
     (find-next lines cursor-ranges layout needle-lines case-sensitive? whole-word? wrap?)))
 
 (defn replace-all [lines regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]
+  {:pre [(not= [""] needle-lines)]}
   (-> (splice lines regions
               (loop [from-cursor document-start-cursor
                      splices (transient [])]

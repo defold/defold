@@ -842,7 +842,6 @@ namespace dmGameSystem
      *
      * ```lua
      * function init(self)
-     *     self.manifest = resource.get_current_manifest()
      * end
      *
      * local function callback(self, id, response)

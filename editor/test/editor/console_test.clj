@@ -151,3 +151,26 @@
                       identity
                       10
                       "DEBUG: foo/bar.json:1"))))))
+
+(deftest filter-behavior-test
+  (let [compile-entry-predicate @#'console/compile-entry-predicate]
+    (are [filter-set input-lines expected-filtered-lines]
+         (= expected-filtered-lines
+            (into []
+                  (comp
+                    (map (fn [line] [nil line])) ;; line->entry
+                    (filter (compile-entry-predicate filter-set))
+                    (map second)) ;; entry->line
+                  input-lines))
+      ;; inclusion
+      #{"DEBUG"} ["line with DEBUG" "INFO line"] ["line with DEBUG"]
+      ;; inclusion combination
+      #{"DEBUG" "INFO"} ["line with DEBUG" "INFO line"] ["line with DEBUG" "INFO line"]
+      ;; exclusion
+      #{"!DEBUG"} ["line with DEBUG" "INFO line"] ["INFO line"]
+      #{"!INFO"} ["line with DEBUG" "INFO line"] ["line with DEBUG"]
+      #{"!line"} ["line with DEBUG" "INFO line"] []
+      ;; exclusion combination
+      #{"!a" "!b"} ["abc" "ac" "bc" "c"] ["c"]
+      ;; exclusion+inclusion combination
+      #{"DEBUG" "INFO" "!with"} ["line with DEBUG" "INFO line"] ["INFO line"])))

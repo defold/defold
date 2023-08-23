@@ -385,7 +385,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
 
-    # for tools
+    # for tools + tests
     bld.install_files('${PREFIX}/include/dlib/', 'dlib/testutil.h')
     bld.install_files('${PREFIX}/ext/include/basis/encoder', bld.path.ant_glob('basis/encoder/*.h'))
     bld.install_files('${PREFIX}/ext/include/basis/transcoder', bld.path.ant_glob('basis/transcoder/*.h'))

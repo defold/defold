@@ -72,14 +72,6 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
-    enum AdapterType
-    {
-        ADAPTER_TYPE_NULL,
-        ADAPTER_TYPE_OPENGL,
-        ADAPTER_TYPE_VULKAN,
-        ADAPTER_TYPE_PS4
-    };
-
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,
@@ -255,6 +247,18 @@ namespace dmGraphics
         uint16_t m_Depth; // For array texture, this is slice count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
+    };
+
+    struct RenderTargetCreationParams
+    {
+        TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureCreationParams m_DepthBufferCreationParams;
+        TextureCreationParams m_StencilBufferCreationParams;
+        TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams         m_DepthBufferParams;
+        TextureParams         m_StencilBufferParams;
+        uint8_t               m_DepthTexture   : 1;
+        uint8_t               m_StencilTexture : 1;
     };
 
     // Parameters structure for OpenWindow
@@ -591,16 +595,16 @@ namespace dmGraphics
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
-    void DeleteRenderTarget(HRenderTarget render_target);
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
-    uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    const char* GetBufferTypeLiteral(BufferType buffer_type);
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
+    void          DeleteRenderTarget(HRenderTarget render_target);
+    void          SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    HTexture      GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
+    void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+    void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
+    uint32_t      GetBufferTypeIndex(BufferType buffer_type);
+    const char*   GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
-    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
+    bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
@@ -668,6 +672,14 @@ namespace dmGraphics
     static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
     {
         return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
+
+    static inline bool IsColorBufferType(BufferType buffer_type)
+    {
+        return buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR3_BIT;
     }
 
     /**

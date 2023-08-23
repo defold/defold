@@ -20,9 +20,9 @@
 
 namespace dmGraphics
 {
-    uint32_t      GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t      GetGraphicsTypeDataSize(Type type);
-    const char*   GetGraphicsTypeLiteral(Type type);
+    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t        GetGraphicsTypeDataSize(Type type);
+    const char*     GetGraphicsTypeLiteral(Type type);
 
     struct VertexStream
     {
@@ -39,6 +39,7 @@ namespace dmGraphics
         uint8_t      m_StreamCount;
     };
 
+    void          InstallAdapterVendor();
     PipelineState GetDefaultPipelineState();
     Type          GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
     void          SetForceFragmentReloadFail(bool should_fail);
@@ -48,6 +49,12 @@ namespace dmGraphics
     bool          IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
     void          RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*   TextureFormatToString(TextureFormat format);
+
+    static inline void ClearTextureParamsData(TextureParams& params)
+    {
+        params.m_Data     = 0x0;
+        params.m_DataSize = 0;
+    }
 
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)

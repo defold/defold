@@ -42,6 +42,7 @@
 (g/deftype IndentType (s/enum :tabs :two-spaces :four-spaces))
 (g/deftype InvalidatedRows [Long])
 (g/deftype Lines [String])
+(g/deftype Region TRegion)
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
 

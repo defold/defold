@@ -363,7 +363,14 @@ def script_file(self, node):
 
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
-        exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim','ComponentTypeScript', 'ComponentTypeAnim']
+        exported_symbols = ['ResourceTypeGameObject',
+                            'ResourceTypeCollection',
+                            'ResourceTypeScript',
+                            'ResourceTypeLua',
+                            'ResourceTypeAnim',
+                            'ResourceProviderFile',
+                            'ComponentTypeScript',
+                            'ComponentTypeAnim']
         test_task_gen = bld.program(features = 'cxx cprogram test',
                                     includes = '../../../src . .. ../../../proto',
                                     source = ['test_main.cpp'] + bld.path.ant_glob('%s/*' % (dir), incl=exts),

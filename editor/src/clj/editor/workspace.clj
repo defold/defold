@@ -33,6 +33,8 @@ ordinary paths."
             [editor.url :as url]
             [editor.util :as util]
             [internal.cache :as c]
+            [internal.util :as iutil]
+            [schema.core :as s]
             [service.log :as log]
             [util.coll :refer [pair]]
             [util.digest :as digest])
@@ -423,24 +425,53 @@ ordinary paths."
     (with-open [f (io/reader resource)]
       (slurp f))))
 
-(defn set-project-dependencies! [workspace library-uris]
-  (g/set-property! workspace :dependencies library-uris)
-  library-uris)
+(defn- update-dependency-notifications! [workspace lib-states]
+  (let [{:keys [error missing]} (->> lib-states
+                                     (eduction
+                                       (keep (fn [{:keys [status file uri]}]
+                                               (cond
+                                                 (= status :error) (pair :error uri)
+                                                 (nil? file) (pair :missing uri)))))
+                                     (iutil/group-into {} [] key val))
+        notifications (notifications workspace)]
+    (if (pos? (count missing))
+      (notifications/show!
+        notifications
+        {:id ::dependencies-missing
+         :type :warning
+         :text (format "The following dependencies are missing:\n%s\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries."
+                       (string/join "\n" (map dialogs/indent-with-bullet missing)))
+         :actions [{:text "Fetch Libraries"
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :fetch-libraries
+                                  nil)}]})
+      (notifications/close! notifications ::dependencies-missing))
+    (if (pos? (count error))
+      (notifications/show!
+        notifications
+        {:id ::dependencies-error
+         :type :error
+         :text (format "Couldn't install following dependencies:\n%s"
+                       (string/join "\n" (map dialogs/indent-with-bullet error)))
+         :actions [{:text "Open game.project"
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :open
+                                  {:resources [(find-resource workspace "/game.project")]})}]})
+      (notifications/close! notifications ::dependencies-error))))
+
+(defn set-project-dependencies! [workspace lib-states]
+  (g/set-property! workspace :dependencies lib-states)
+  (update-dependency-notifications! workspace lib-states)
+  lib-states)
 
 (defn dependencies [workspace]
-  (g/node-value workspace :dependencies))
+  (g/node-value workspace :dependency-uris))
 
 (defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
     (every? url/reachable? hosts)))
-
-(defn missing-dependencies [workspace]
-  (let [project-directory (project-path workspace)
-        dependencies (g/node-value workspace :dependencies)]
-    (into #{}
-          (comp (remove :file)
-                (map :uri))
-          (library/current-library-state project-directory dependencies))))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
@@ -735,9 +766,9 @@ ordinary paths."
        (library/fetch-library-updates library/default-http-resolver render-fn)
        (library/validate-updated-libraries)))
 
-(defn install-validated-libraries! [workspace library-uris lib-states]
-  (set-project-dependencies! workspace library-uris)
-  (library/install-validated-libraries! (project-path workspace) lib-states))
+(defn install-validated-libraries! [workspace lib-states]
+  (let [new-lib-states (library/install-validated-libraries! (project-path workspace) lib-states)]
+    (set-project-dependencies! workspace new-lib-states)))
 
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
@@ -751,11 +782,14 @@ ordinary paths."
              (into [resource-listener-entry]
                    resource-listener-entries)))))
 
-(g/deftype UriVec [URI])
+(g/deftype Dependencies
+  [{:uri URI
+    (s/optional-key :file) File
+    s/Keyword s/Any}])
 
 (g/defnode Workspace
   (property root g/Str)
-  (property dependencies UriVec)
+  (property dependencies Dependencies)
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
@@ -770,6 +804,7 @@ ordinary paths."
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
 
+  (output dependency-uris g/Any (g/fnk [dependencies] (mapv :uri dependencies)))
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))

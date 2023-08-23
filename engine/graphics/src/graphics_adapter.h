@@ -27,13 +27,13 @@ namespace dmGraphics
 
     struct GraphicsAdapter
     {
-        GraphicsAdapter(AdapterType adapter_type)
-        : m_AdapterType(adapter_type) {}
+        GraphicsAdapter(const char* adapter_name)
+        : m_AdapterName(adapter_name) {}
 
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
-        AdapterType                        m_AdapterType;
+        const char*                        m_AdapterName;
         int8_t                             m_Priority;
     };
 
@@ -135,7 +135,7 @@ namespace dmGraphics
     typedef void (*SetCullFaceFn)(HContext context, FaceType face_type);
     typedef void (*SetFaceWindingFn)(HContext context, FaceWinding face_winding);
     typedef void (*SetPolygonOffsetFn)(HContext context, float factor, float units);
-    typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
+    typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
     typedef void (*DeleteRenderTargetFn)(HRenderTarget render_target);
     typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     typedef HTexture (*GetRenderTargetTextureFn)(HRenderTarget render_target, BufferType buffer_type);

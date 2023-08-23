@@ -17,7 +17,7 @@ def build(bld):
 
     obj = bld.program(features = 'cxx test',
                       includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET LUA SCRIPT hid_null',
+                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET hid_null',
                       target   = 'test_hid',
                       source   = 'test_hid.cpp')
 
@@ -43,7 +43,7 @@ def build(bld):
 
     bld.program(features = 'cxx test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL PLATFORM SOCKET HID LUA SCRIPT hid'.split() + graphics_lib,
+        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL PLATFORM SOCKET hid'.split() + graphics_lib,
         web_libs = web_libs,
         exported_symbols = exported_symbols,
         target = 'test_app_hid',
