@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.disk
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.changes-view :as changes-view]
             [editor.defold-project :as project]
             [editor.disk-availability :as disk-availability]
@@ -27,7 +28,11 @@
             [editor.resource-node :as resource-node]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace]
+            [internal.util :as util]
+            [util.coll :refer [pair]]
+            [util.digest :as digest]
+            [util.text-util :as text-util]))
 
 (set! *warn-on-reflection* true)
 
@@ -119,25 +124,79 @@
 (def ^:private save-job-atom (atom nil))
 (def ^:private save-data-status-map-entry (comp resource-watch/file-resource-status-map-entry :resource))
 
-(defn make-post-save-actions [written-save-datas]
-  (let [written-file-resource-status-map-entries
-        (mapv save-data-status-map-entry written-save-datas)
-
-        written-disk-sha256s-by-node-id
-        (into {}
-              (map (juxt :node-id resource-node/save-data-sha256))
-              written-save-datas)]
-
-    {:written-disk-sha256s-by-node-id written-disk-sha256s-by-node-id
-     :written-file-resource-status-map-entries written-file-resource-status-map-entries
-     :written-save-datas written-save-datas}))
+(defn make-post-save-actions [written-save-datas written-disk-sha256s]
+  {:pre [(vector? written-save-datas)
+         (vector? written-disk-sha256s)
+         (= (count written-save-datas) (count written-disk-sha256s))]}
+  (zipmap
+    [:written-file-resource-status-map-entries
+     :written-source-values-by-node-id
+     :written-disk-sha256s-by-node-id]
+    (util/into-multiple
+      [[] {} {}]
+      [(map save-data-status-map-entry)
+       (map (fn [{:keys [node-id resource save-value]}]
+              (let [resource-type (resource/resource-type resource)
+                    value (resource-node/save-value->source-value save-value resource-type)]
+                (pair node-id value))))
+       (map-indexed (fn [index {:keys [node-id]}]
+                      (let [disk-sha256 (written-disk-sha256s index)]
+                        (pair node-id disk-sha256))))]
+      written-save-datas)))
 
 (defn process-post-save-actions! [workspace post-save-actions]
   (g/transact
     (concat
       (g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
       (workspace/merge-disk-sha256s workspace (:written-disk-sha256s-by-node-id post-save-actions))))
-  (project/update-saved-source-values! (:written-save-datas post-save-actions)))
+  (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions)))
+
+(defn- write-message-fn [save-data]
+  (when-let [resource (:resource save-data)]
+    (str "Writing " (resource/resource->proj-path resource))))
+
+(defn write-save-data-to-disk!
+  [save-datas {:keys [render-progress!]
+               :or {render-progress! progress/null-render-progress!}
+               :as _opts}]
+  "Write the supplied sequence of save-datas to disk. Returns post-save-actions
+  that must later be supplied to the process-post-save-actions! function, called
+  from the main thread."
+  (render-progress! (progress/make "Writing files..."))
+  (if (g/error? save-datas)
+    (throw (Exception. (g/error-message save-datas)))
+    (let [written-save-datas
+          (filterv (fn [{:keys [resource]}]
+                     (and (resource/editable? resource)
+                          (not (resource/read-only? resource))))
+                   save-datas)
+
+          written-disk-sha256s
+          (progress/progress-mapv
+            (fn [save-data _progress]
+              (let [resource (:resource save-data)
+                    content (resource-node/save-data-content save-data)
+
+                    ;; If the file is non-binary, convert line endings to the
+                    ;; type used by the existing file.
+                    ;; TODO: Could we achieve this using a FilterOutputStream and avoid allocating new strings?
+                    ^String written-content
+                    (if (and (resource/textual? resource)
+                             (resource/exists? resource)
+                             (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+                      (text-util/lf->crlf content)
+                      content)
+
+                    digest-output-stream
+                    (-> resource
+                        (io/output-stream)
+                        (digest/make-digest-output-stream "SHA-256"))]
+                (spit digest-output-stream written-content) ; This will flush and close the stream.
+                (digest/completed-stream->hex digest-output-stream)))
+            written-save-datas
+            render-progress!
+            write-message-fn)]
+      (make-post-save-actions written-save-datas written-disk-sha256s))))
 
 (defn- start-save-job! [render-reload-progress! render-save-progress! project changes-view]
   (let [workspace (project/workspace project)
@@ -156,8 +215,8 @@
         (if-not (blocking-reload! render-reload-progress! workspace [] nil)
           (complete! false) ; Errors were already reported by blocking-reload!
           (let [evaluation-context (g/make-evaluation-context)
-                save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
-            (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
+                save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)
+                post-save-actions (write-save-data-to-disk! save-data {:render-progress! render-save-progress!})]
             (if (and (some #(= "/.defignore" (resource/proj-path (:resource %))) save-data)
                      (not (blocking-reload! render-reload-progress! workspace [] nil)))
               (complete! false)
@@ -166,17 +225,16 @@
                 (let [touched-resources (into #{} (map :resource) save-data)]
                   (workspace/reload-plugins! workspace touched-resources)
                   (lsp/touch-resources! (lsp/get-node-lsp project) touched-resources))
-                (let [post-save-actions (make-post-save-actions save-data)]
-                  (render-save-progress! progress/done)
-                  (ui/run-later
-                    (try
-                      (project/update-system-cache-save-data! evaluation-context)
-                      (process-post-save-actions! workspace post-save-actions)
-                      (when (some? changes-view)
-                        (changes-view/refresh! changes-view render-reload-progress!))
-                      (complete! true)
-                      (catch Throwable error
-                        (fail! error)))))))))
+                (render-save-progress! progress/done)
+                (ui/run-later
+                  (try
+                    (project/update-system-cache-save-data! evaluation-context)
+                    (process-post-save-actions! workspace post-save-actions)
+                    (when (some? changes-view)
+                      (changes-view/refresh! changes-view render-reload-progress!))
+                    (complete! true)
+                    (catch Throwable error
+                      (fail! error))))))))
         (catch Throwable error
           (fail! error))))
     success-promise))

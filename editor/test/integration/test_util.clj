@@ -1064,8 +1064,7 @@
      (set-setting settings-resource-node-id setting-path value evaluation-context))))
 
 (defn save-project! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (let [workspace (project/workspace project)
-          post-save-actions (disk/make-post-save-actions save-data)]
-      (disk/process-post-save-actions! workspace post-save-actions))))
+  (let [workspace (project/workspace project)
+        save-data (project/dirty-save-data project)
+        post-save-actions (disk/write-save-data-to-disk! save-data nil)]
+    (disk/process-post-save-actions! workspace post-save-actions)))

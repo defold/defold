@@ -42,7 +42,6 @@
             [service.log :as log]
             [util.coll :refer [pair]]
             [util.debug-util :as du]
-            [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
@@ -301,53 +300,45 @@
                            (read-node-load-info node-id resource resource-metrics))))
           node-ids)))
 
+(defn- disk-sha256s-by-node-id [node-load-infos]
+  (into {}
+        (keep (fn [{:keys [resource] :as node-load-info}]
+                (when (and (resource/file-resource? resource)
+                           (not (:stateless? (resource/resource-type resource))))
+                  (let [{:keys [disk-sha256 node-id]} node-load-info]
+                    (pair node-id disk-sha256)))))
+        node-load-infos))
+
 (defn- store-loaded-disk-sha256-hashes! [node-load-infos workspace]
-  (let [disk-sha256s-by-node-id
-        (into {}
-              (keep (fn [{:keys [resource] :as node-load-info}]
-                      (when (and (resource/file-resource? resource)
-                                 (not (:stateless? (resource/resource-type resource))))
-                        (let [{:keys [disk-sha256 node-id]} node-load-info]
-                          (pair node-id disk-sha256)))))
-              node-load-infos)]
+  (let [disk-sha256s-by-node-id (disk-sha256s-by-node-id node-load-infos)]
     (g/transact
       (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))))
 
-(defn- store-loaded-source-values! [node-load-infos]
-  (let [source-values-by-node-id
-        (into {}
-              (keep (fn [{:keys [resource] :as node-load-info}]
-                      ;; The source-value output will never be evaluated for
-                      ;; non-editable or stateless resources, so there is no
-                      ;; need to store their entries.
-                      (when (and (resource/file-resource? resource)
-                                 (resource/editable? resource))
-                        (let [resource-type (resource/resource-type resource)]
-                          (when-not (:stateless? resource-type)
-                            ;; Note: Here, source-value is whatever was returned
-                            ;; by the read-fn, so it's technically a save-value.
-                            (let [{:keys [node-id read-error source-value]} node-load-info
-                                  value (or read-error (resource-node/save-value->source-value source-value resource-type))]
-                              (pair node-id value)))))))
-              node-load-infos)]
-    (resource-node/merge-source-values! source-values-by-node-id)))
+(defn- source-values-by-node-id [node-load-infos]
+  (into {}
+        (keep (fn [{:keys [resource] :as node-load-info}]
+                ;; The source-value output will never be evaluated for
+                ;; non-editable or stateless resources, so there is no
+                ;; need to store their entries.
+                (when (and (resource/file-resource? resource)
+                           (resource/editable? resource))
+                  (let [resource-type (resource/resource-type resource)]
+                    (when-not (:stateless? resource-type)
+                      ;; Note: Here, source-value is whatever was returned
+                      ;; by the read-fn, so it's technically a save-value.
+                      (let [{:keys [node-id read-error source-value]} node-load-info
+                            value (or read-error (resource-node/save-value->source-value source-value resource-type))]
+                        (pair node-id value)))))))
+        node-load-infos))
 
-(defn update-saved-source-values! [save-datas]
-  (let [source-values-by-node-id
-        (into {}
-              (map (fn [{:keys [node-id resource save-value]}]
-                     (let [resource-type (resource/resource-type resource)
-                           value (resource-node/save-value->source-value save-value resource-type)]
-                       (pair node-id value))))
-              save-datas)]
+(defn- store-loaded-source-values! [node-load-infos]
+  (let [source-values-by-node-id (source-values-by-node-id node-load-infos)]
     (resource-node/merge-source-values! source-values-by-node-id)))
 
 (defn- load-nodes-into-graph! [node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics]
   (let [tx-data (load-tx-data node-load-infos project progress-loading! progress-processing! resource-metrics)
         tx-opts (du/when-metrics {:metrics transaction-metrics})]
     (g/transact tx-opts tx-data)))
-
-(declare workspace)
 
 (defn- make-progress-fns [task-allocations loaded-node-count render-progress!]
   (let [total-task-size (transduce (map first) + task-allocations)]
@@ -364,6 +355,8 @@
                                                  loaded-node-index)))))))
               (pair 0 [])
               task-allocations))))
+
+(declare workspace)
 
 (defn- load-nodes! [project node-ids render-progress! old-resource-node-dependencies resource-metrics transaction-metrics]
   (let [workspace (workspace project)
@@ -495,36 +488,6 @@
       (dirty-save-data project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
       (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
         (dirty-save-data project (assoc evaluation-context :tracer progress-tracer))))))
-
-(defn textual-resource-type? [resource-type]
-  ;; Unregistered resources that are connected to the project
-  ;; save-data input are assumed to produce text data.
-  (or (nil? resource-type)
-      (resource/textual-resource-type? resource-type)))
-
-(defn write-save-data-to-disk! [save-data {:keys [render-progress!]
-                                           :or {render-progress! progress/null-render-progress!}
-                                           :as _opts}]
-  (render-progress! (progress/make "Writing files..."))
-  (if (g/error? save-data)
-    (throw (Exception. ^String (g/error-message save-data)))
-    (do
-      (progress/progress-mapv
-        (fn [save-data _progress]
-          (let [resource (:resource save-data)
-                content (resource-node/save-data-content save-data)]
-            (when (and (resource/editable? resource)
-                       (not (resource/read-only? resource)))
-              ;; If the file is non-binary, convert line endings to the
-              ;; type used by the existing file.
-              (if (and (textual-resource-type? (resource/resource-type resource))
-                       (resource/exists? resource)
-                       (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
-                (spit resource (text-util/lf->crlf content))
-                (spit resource content)))))
-        save-data
-        render-progress!
-        (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]

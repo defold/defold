@@ -391,7 +391,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (< 100 lf))
           (is (> 100 crlf))
-          (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
+          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))
 
     (testing "autocrlf true"
@@ -404,7 +404,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (> 100 lf))
           (is (< 100 crlf))
-          (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
+          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
 
 (defn- workspace-file
@@ -526,8 +526,8 @@
           ;; Here, we keep track of (and prevent) disk writes, so we can exclude
           ;; these endpoints from what we expect to be in the cache after the
           ;; save operation concludes.
-          (with-redefs [project/write-save-data-to-disk!
-                        (fn mock-write-save-data-to-disk! [save-data _opts]
+          (with-redefs [disk/write-save-data-to-disk!
+                        (fn mock-write-save-data-to-disk! [save-datas _opts]
                           (swap! invalidated-save-data-endpoints-atom
                                  (fn [invalidated-save-data-endpoints]
                                    (into invalidated-save-data-endpoints
@@ -536,7 +536,9 @@
                                                          resource-node (test-util/resource-node project resource)]
                                                      (map (partial gt/endpoint resource-node)
                                                           retained-labels))))
-                                         save-data))))]
+                                         save-datas)))
+                          (let [save-data-sha256s (mapv resource-node/save-data-sha256 save-datas)]
+                            (disk/make-post-save-actions save-datas save-data-sha256s)))]
             (test-util/run-event-loop!
               (fn [exit-event-loop!]
                 (g/clear-system-cache!)

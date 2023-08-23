@@ -83,8 +83,10 @@
   (DigestInputStream. wrapped-stream (MessageDigest/getInstance algorithm)))
 
 (defn make-digest-output-stream
-  ^DigestOutputStream [^String algorithm]
-  (DigestOutputStream. sink-output-stream (MessageDigest/getInstance algorithm)))
+  (^DigestOutputStream [^String algorithm]
+   (DigestOutputStream. sink-output-stream (MessageDigest/getInstance algorithm)))
+  (^DigestOutputStream [^OutputStream wrapped-stream ^String algorithm]
+   (DigestOutputStream. wrapped-stream (MessageDigest/getInstance algorithm))))
 
 (defn message-digest->hex
   ^String [^MessageDigest message-digest]

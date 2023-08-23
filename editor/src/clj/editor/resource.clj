@@ -491,6 +491,13 @@
    :post [(boolean? %)]}
   (:textual? resource-type))
 
+(defn textual? [resource]
+  "Returns whether the resource is considered textual based on its type."
+  ;; Placeholder resources have a nil resource-type, and are assumed textual.
+  (if-let [resource-type (resource-type resource)]
+    (textual-resource-type? resource-type)
+    true))
+
 (def ^:private known-ext->language
   ;; See known language identifiers:
   ;; https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers

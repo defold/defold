@@ -155,7 +155,7 @@
                  (into #{}
                        (comp (keep #(some-> (g/node-value % :save-data) :resource))
                              (remove resource/internal?)
-                             (filter #(project/textual-resource-type? (resource/resource-type %)))
+                             (filter resource/textual?)
                              (keep resource/proj-path))
                        (g/node-value project :nodes)))))
 

@@ -45,13 +45,15 @@
 (declare save-data-content)
 
 (defn save-data-sha256 [save-data]
-  ;; Careful! This might throw if resource has been removed
-  ;; outside the editor.
-  ;; Note: resource-update/keep-existing-node? assumes this will return a
-  ;; sha256 hex hash string from the bytes written to disk.
-  (if-some [content (save-data-content save-data)]
-    (digest/string->sha256-hex content)
-    (resource/resource->sha256-hex (:resource save-data))))
+  (if (g/error-value? save-data)
+    save-data
+    (if-some [content (save-data-content save-data)]
+      ;; TODO(save-value): Can we digest the save-value without converting it to a string?
+      (digest/string->sha256-hex content)
+      (let [resource (:resource save-data)
+            node-id (:node-id save-data)]
+        (resource-io/with-error-translation resource node-id :sha256
+          (resource/resource->sha256-hex resource))))))
 
 (defn save-value->source-value [save-value resource-type]
   (if (or (nil? save-value)
@@ -99,16 +101,8 @@
     (g/user-data-merge! user-data-values-by-key-by-node-id)
     (g/invalidate-outputs! invalidated-endpoints)))
 
-(g/defnk produce-sha256 [_node-id resource save-value]
-  ;; TODO(save-value)(merge): Use save-data-sha256 here and update it to return an ErrorValue instead of throwing.
-  (if (nil? save-value)
-    (resource-io/with-error-translation resource _node-id :sha256
-      (resource/resource->sha256-hex resource))
-    (let [resource-type (resource/resource-type resource)
-          write-fn (:write-fn resource-type)
-          content (write-fn save-value)]
-      ;; TODO(save-value): Can we digest the save-value without converting it to a string?
-      (digest/string->sha256-hex content))))
+(g/defnk produce-sha256 [save-data]
+  (save-data-sha256 save-data))
 
 (g/defnode ResourceNode
   (inherits core/Scope)

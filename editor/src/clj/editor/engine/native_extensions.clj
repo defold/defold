@@ -195,7 +195,7 @@
 
 (defn- resource-node-content-stream
   ^InputStream [resource-node evaluation-context]
-  ;; TODO(save-value): Handle ErrorValue here.
+  ;; TODO: Should we handle ErrorValues from :save-data here? Currently falls back to on-disk state.
   (if-some [content (some-> (g/node-value resource-node :save-data evaluation-context)
                             (resource-node/save-data-content))]
     (IOUtils/toInputStream ^String content "UTF-8")
