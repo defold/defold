@@ -51,9 +51,12 @@
       ;; TODO(save-value): Can we digest the save-value without converting it to a string?
       (digest/string->sha256-hex content)
       (let [resource (:resource save-data)
-            node-id (:node-id save-data)]
-        (resource-io/with-error-translation resource node-id :sha256
-          (resource/resource->sha256-hex resource))))))
+            node-id (:node-id save-data)
+            workspace (resource/workspace resource)
+            node-id->disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id)]
+        (or (node-id->disk-sha256 node-id)
+            (resource-io/with-error-translation resource node-id :sha256
+              (resource/resource->sha256-hex resource)))))))
 
 (defn save-value->source-value [save-value resource-type]
   (if (or (nil? save-value)

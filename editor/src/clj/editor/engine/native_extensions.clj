@@ -305,17 +305,18 @@
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
- (let [project-settings (g/node-value project :settings evaluation-context)]
-   (into {}
-         (keep (fn [[[section key] target]]
-                 (when-let [resource (get project-settings [section key])]
-                   (let [resource-node (project/get-resource-node project resource evaluation-context)]
-                     (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
-                       [target resource-node]
-                       (throw (engine-build-errors/missing-resource-error "Missing Native Extension Resource"
-                                                                          (resource/proj-path resource)
-                                                                          (project/get-resource-node project "/game.project" evaluation-context)))))))
-               [[["native_extension" "app_manifest"] "_app/app.manifest"]]))))
+  (let [project-settings (g/node-value project :settings evaluation-context)]
+    (into {}
+          (keep (fn [[[section key] target]]
+                  (when-let [proj-path (get project-settings [section key])]
+                    (let [resource-node (project/get-resource-node project proj-path evaluation-context)]
+                      (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
+                        [target resource-node]
+                        (throw (engine-build-errors/missing-resource-error
+                                 "Missing Native Extension Resource"
+                                 proj-path
+                                 (project/get-resource-node project "/game.project" evaluation-context))))))))
+          [[["native_extension" "app_manifest"] "_app/app.manifest"]])))
 
 (defn- get-ne-platform [platform]
   (case platform
