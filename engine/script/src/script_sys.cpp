@@ -43,6 +43,8 @@ namespace dmScript
 
 const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
 
+static int g_DebuggerLightweightHook = 0;
+
 union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for js-web
@@ -159,7 +161,7 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not write to the file %s.", filename);
         }
 
-        if (dmSys::RenameFile(filename, tmp_filename) != dmSys::RESULT_OK)
+        if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)
         {
             return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
@@ -239,6 +241,39 @@ union SaveLoadBuffer
         }
         PushTable(L, buffer, nread);
         Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
+    }
+
+    /*# create a path to the host device for unit testing
+     * Create a path to the host device for unit testing
+     * Useful for saving logs etc during development
+     *
+     * @note Only enabled in debug builds. In release builds returns the string unchanged
+     * @name sys.get_host_path
+     * @param filename [type:string] file to read from
+     * @return host_path [type:string] the path prefixed with the proper host mount
+     * @examples
+     *
+     * Save data on the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * sys.save(host_path, mytable)
+     * ```
+     *
+     * Load data from the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * local table = sys.load(host_path)
+     * ```
+     */
+    static int Sys_GetHostPath(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        char host_path[DMPATH_MAX_PATH];
+        dmSys::GetHostFileName(host_path, sizeof(host_path), path);
+        lua_pushstring(L, host_path);
         return 1;
     }
 
@@ -1297,10 +1332,54 @@ union SaveLoadBuffer
         return 1;
     }
 
+    //undocummented function for debugger
+
+    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
+    {
+        int top = lua_gettop(L);
+        lua_getinfo(L, "S", ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+        lua_pushstring(L, ar->source);
+        lua_pushnumber(L, ar->lastlinedefined);
+        if (lua_pushthread(L))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L); //main thread is not a coroutine
+        }
+        //[-1] - thread or nil
+        //[-2] - lastlinedefined (number)
+        //[-3] - source (string)
+        //[-4] - callback
+        lua_call(L, 3, 0);
+        assert(top == lua_gettop(L));
+    }
+
+    static int Sys_SetDebuggerLightweightHook(lua_State* L)
+    {
+        int index = 1;
+        lua_State* L1 = L;
+        if (lua_isthread(L, 1)) {
+            L1 = lua_tothread(L, 1);
+            index++;
+        }
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        if (g_DebuggerLightweightHook)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
+            g_DebuggerLightweightHook = 0;
+        }
+        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        
+        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
+        return 0;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
+        {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfigString}, // deprecated
         {"get_config_string", Sys_GetConfigString},
@@ -1322,6 +1401,9 @@ union SaveLoadBuffer
         {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {"serialize", Sys_Serialize},
         {"deserialize", Sys_Deserialize},
+
+        // undocummented functions for debugger
+        {"set_debugger_lightweight_hook", Sys_SetDebuggerLightweightHook},
         {0, 0}
     };
 

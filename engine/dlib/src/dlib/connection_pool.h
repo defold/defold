@@ -35,6 +35,7 @@ namespace dmConnectionPool
         uint32_t m_Free;
         uint32_t m_Connected;
         uint32_t m_InUse;
+        uint32_t m_InUseAndValid; // In use and has a valid socket
     };
 
     /**

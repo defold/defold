@@ -67,7 +67,6 @@ static void DestroyMesh(Mesh* mesh)
     delete[] mesh->m_Bones;
     delete[] mesh->m_TexCoord0;
     delete[] mesh->m_TexCoord1;
-    free((void*)mesh->m_Material);
     free((void*)mesh->m_Name);
 }
 
@@ -86,6 +85,7 @@ static void DestroyNode(Node* node)
 
 static void DestroyBone(Bone* bone)
 {
+    delete bone->m_Children;
     free((void*)bone->m_Name);
 }
 
@@ -95,6 +95,7 @@ static void DestroySkin(Skin* skin)
     for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
         DestroyBone(&skin->m_Bones[i]);
     delete[] skin->m_Bones;
+    delete[] skin->m_BoneRemap;
 }
 
 static void DestroyNodeAnimation(NodeAnimation* node_animation)
@@ -110,6 +111,11 @@ static void DestroyAnimation(Animation* animation)
     for (uint32_t i = 0; i < animation->m_NodeAnimationsCount; ++i)
         DestroyNodeAnimation(&animation->m_NodeAnimations[i]);
     delete[] animation->m_NodeAnimations;
+}
+
+static void DestroyMaterial(Material* material)
+{
+    free((void*)material->m_Name);
 }
 
 bool Validate(Scene* scene)
@@ -165,6 +171,10 @@ void DestroyScene(Scene* scene)
     scene->m_AnimationsCount = 0;
     delete[] scene->m_Animations;
 
+    for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
+        DestroyMaterial(&scene->m_Materials[i]);
+    scene->m_MaterialsCount = 0;
+    delete[] scene->m_Materials;
 
     scene->m_BuffersCount = 0;
     delete[] scene->m_Buffers;

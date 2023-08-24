@@ -4,6 +4,7 @@ $spacing-default: 24px;
 $spacing-larger: 32px;
 $spacing-largest: 40px;
 
+@use "sass:string";
 @mixin font-size-default { -fx-font-size: 110%; }
 @mixin font-size-header { -fx-font-size: 170%; }
 @mixin font-default { -fx-font-family: $default-font; }
@@ -259,7 +260,7 @@ $spacing-largest: 40px;
   > .increment-button > .increment-arrow,
   > .decrement-button,
   > .decrement-button > .decrement-arrow {
-    -fx-shape: null;
+    -fx-shape: string.unquote("null");
     -fx-padding: 0;
   }
 }
@@ -294,28 +295,14 @@ $spacing-largest: 40px;
         @include icon-extension-template(-df-folder, -df-folder-active)
     }
 
-    &.resource-ext- {
-        /* Script files */
-        &fp, &gui_script, &lua,
-        &render_script, &script, &vp {
+    &.resource-kind {
+        &-script {
             @include icon-extension-template(-df-script-file, -df-script-file-active);
         }
-
-        /* Design files */
-        &atlas, &collection, &collisionobject,
-        &cubemap, &dae, &font, &go,
-        &gui, &label, &model, &particlefx,
-        &spinemodel, &spinescene, &sprite,
-        &tilemap, &tilesource {
+        &-design {
             @include icon-extension-template(-df-design-file, -df-design-file-active);
         }
-
-        /* Property container files */
-        &animationset,
-        &camera, &collectionfactory, &collectionproxy,
-        &display_profiles, &factory,
-        &gamepads, &input_binding, &material, &project,
-        &render, &sound, &texture_profiles {
+        &-property {
             @include icon-extension-template(-df-property-file, -df-property-file-active);
         }
     }

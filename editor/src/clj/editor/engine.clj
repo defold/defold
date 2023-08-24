@@ -235,16 +235,6 @@
   (let [unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
     (io/file unpack-dir (dmengine-filename (current-platform)))))
 
-(defn copy-engine-executable! ^File [^File target-dmengine platform {:keys [^File dmengine ^File engine-archive] :as engine-descriptor}]
-  (assert (or dmengine engine-archive))
-  (cond
-    (some? dmengine)
-    (fs/copy-file! dmengine target-dmengine)
-
-    (some? engine-archive)
-    (unpack-dmengine! engine-archive (dmengine-filename platform) target-dmengine))
-  target-dmengine)
-
 (defn install-engine! ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
   (assert (or dmengine engine-archive))
   (cond
@@ -277,19 +267,18 @@
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
-             "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))}
-        removeenv ["MESA_GL_VERSION_OVERRIDE" "MESA_LOADER_DRIVER_OVERRIDE"]
-        opts {:directory project-directory
-              :redirect-error-stream? true
-              :env env
-              :removeenv removeenv}]
+             "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))
+             "MESA_GL_VERSION_OVERRIDE" nil
+             "MESA_LOADER_DRIVER_OVERRIDE" nil}
+        opts {:dir project-directory
+              :err :stdout
+              :env env}]
     ;; Closing "is" seems to cause any dmengine output to stdout/err
     ;; to generate SIGPIPE and close/crash. Also we need to read
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-    (let [p (process/start! command args opts)
-          is (.getInputStream p)]
+    (let [p (apply process/start! opts command args)]
       {:process p
        :name (.getName engine)
-       :log-stream is})))
+       :log-stream (process/out p)})))

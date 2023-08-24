@@ -387,6 +387,10 @@ public class ModelUtilTest {
          */
         Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
 
+        long boneId0 = skeletonBuilder.getBones(0).getId(); // Bottom
+        long boneId1 = skeletonBuilder.getBones(1).getId(); // Middle
+        long boneId2 = skeletonBuilder.getBones(2).getId(); // Top
+
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         float duration = animSetBuilder.getAnimations(0).getDuration();
         float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
@@ -394,33 +398,31 @@ public class ModelUtilTest {
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            int boneIndex = track.getBoneIndex();
+            long boneId = track.getBoneId();
 
             // There should be no position or scale animation.
             assertAnimationSamePosScale(track);
 
             int rotKeyframeCount = track.getRotationsCount()/4;
 
-            System.out.printf("testTwoBoneAnimation: bone: %d. keyframeCount: %d, %d  #keyframes: %d\n", boneIndex, rotKeyframeCount, rotKeyframeCount/2, track.getRotationsCount()/4);
-
             if (track.getRotationsCount() > 0) {
-                if (boneIndex == 0) {
+                if (boneId == boneId0) {
                     // The root bone isn't animated so it only has one key
                     assertEquals(4, track.getRotationsCount());
                     assertAnimationRotation(track, 0, rotIdentity);
 
-                } else if (boneIndex == 1) {
+                } else if (boneId == boneId1) {
                     assertAnimationRotation(track, 0, rotIdentity);
                     assertAnimationRotation(track, rotKeyframeCount/2, new Quat4d(0.0, 0.0, -0.706773, 0.707440));
                     assertAnimationRotation(track, rotKeyframeCount-1, new Quat4d(0.0, 0.0, -0.706773, 0.707440));
 
-                } else if (boneIndex == 2) {
+                } else if (boneId == boneId2) {
                     assertAnimationRotation(track, 0, rotIdentity);
                     assertAnimationRotation(track, 28, rotIdentity);
                     assertAnimationRotation(track, rotKeyframeCount-1, new Quat4d(0.684243, -0.000646, -0.000000, 0.729254));
 
                 } else {
-                    fail("Animations on invalid bone index: " + boneIndex);
+                    fail("Animations on invalid bone index: " + boneId);
                 }
             }
         }

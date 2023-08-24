@@ -6,7 +6,7 @@
         > .label {
             -fx-text-fill: -df-text;
         }
-        .image-view {
+        & > .image-view, > .graphic-container > .image-view {
             @include colorize-image-view(-df-text);
         }
 
@@ -17,7 +17,7 @@
                 -fx-opacity: 1.0;
                 -fx-text-fill: -df-text !important;
             }
-            .image-view {
+            > .graphic-container > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text, 20, 1.0, 0, 0) !important;
             }
         }
@@ -27,7 +27,7 @@
             > .label {
                 -fx-text-fill: -df-text-selected;
             }
-            .image-view {
+            & > .image-view, > .graphic-container > .image-view {
                 @include effect-lighten-blue();
             }
         }

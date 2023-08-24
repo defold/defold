@@ -13,29 +13,20 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gl.vertex2
-  (:require
-   [clojure.string :as str]
-   [editor.gl :as gl]
-   [editor.gl.protocols :refer [GlBind]]
-   [editor.gl.shader :as shader]
-   [editor.scene-cache :as scene-cache]
-   [internal.util :as util])
-  (:import
-   [com.jogamp.common.nio Buffers]
-   [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
-   [com.jogamp.opengl GL GL2]))
+  (:require [clojure.string :as str]
+            [editor.buffers :as buffers]
+            [editor.gl :as gl]
+            [editor.gl.protocols :refer [GlBind]]
+            [editor.gl.shader :as shader]
+            [editor.protobuf :as protobuf]
+            [editor.scene-cache :as scene-cache])
+  (:import [clojure.lang Counted]
+           [com.jogamp.common.nio Buffers]
+           [com.jogamp.opengl GL GL2]
+           [java.nio Buffer ByteBuffer IntBuffer]))
 
 (set! *warn-on-reflection* true)
-
-(def type-sizes
-  {:ubyte  Buffers/SIZEOF_BYTE
-   :byte   Buffers/SIZEOF_BYTE
-   :ushort Buffers/SIZEOF_SHORT
-   :short  Buffers/SIZEOF_SHORT
-   :uint   Buffers/SIZEOF_INT
-   :int    Buffers/SIZEOF_INT
-   :float  Buffers/SIZEOF_FLOAT
-   :double Buffers/SIZEOF_DOUBLE})
+(set! *unchecked-math* :warn-on-boxed)
 
 (def gl-types
   {:ubyte   GL/GL_UNSIGNED_BYTE
@@ -73,6 +64,22 @@
     :value-type-int16 :short
     :value-type-int32 :int))
 
+(defn attribute-name->key [^String name]
+  (protobuf/field-name->key name))
+
+(defn attribute-key->semantic-type [attribute-key]
+  (case attribute-key
+    :position :semantic-type-position
+    :normal :semantic-type-normal
+    :tangent :semantic-type-tangent
+    :binormal :semantic-type-binormal
+    :color :semantic-type-color
+    (:texcoord :texcoord0) :semantic-type-texcoord
+    :page-index :semantic-type-page-index
+    :blend-indices :semantic-type-blend-indices
+    :blend-weights :semantic-type-blend-weights
+    :semantic-type-none))
+
 ;; VertexBuffer object
 
 (defprotocol IVertexBuffer
@@ -82,56 +89,85 @@
   (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^:unsynchronized-mutable ^long version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
-  (flipped? [this] (= 0 (.position buf)))
+  (flipped? [_this] (= 0 (.position buf)))
   (clear! [this] (.clear buf) this)
-  (position! [this position] (.position buf (int (* position buf-items-per-vertex))) this)
-  (version [this] version)
+  (position! [this position] (.position buf (int (* (int position) buf-items-per-vertex))) this)
+  (version [_this] version)
 
-  clojure.lang.Counted
-  (count [this] (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
-                  (/ item-count buf-items-per-vertex))))
-
-(defn buffer-item-byte-size
-  ^long [^Buffer buffer]
-  (condp instance? buffer
-    ByteBuffer 1
-    DoubleBuffer 8
-    FloatBuffer 4
-    IntBuffer 4
-    LongBuffer 8
-    ShortBuffer 2))
+  Counted
+  (count [_this]
+    (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
+      (/ item-count buf-items-per-vertex))))
 
 (defn- buffer-items-per-vertex
   ^long [^Buffer buffer vertex-description]
   (let [^long vertex-byte-size (:size vertex-description)
-        buffer-item-byte-size (buffer-item-byte-size buffer)]
+        buffer-item-byte-size (buffers/item-byte-size buffer)]
     (/ vertex-byte-size buffer-item-byte-size)))
 
 (defn- buffer-size-in-bytes
   ^long [^Buffer buffer]
-  (* (buffer-item-byte-size buffer) (.limit buffer)))
+  (* (buffers/item-byte-size buffer) (.limit buffer)))
 
 (defn wrap-vertex-buffer
   [vertex-description usage ^Buffer buffer]
   (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
     (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
+(defn wrap-buf
+  ^ByteBuffer [^bytes byte-array]
+  (buffers/little-endian (buffers/wrap-byte-array byte-array)))
+
+(defn make-buf
+  ^ByteBuffer [byte-capacity]
+  (buffers/little-endian (buffers/new-byte-buffer byte-capacity)))
+
 (defn make-vertex-buffer
   [vertex-description usage ^long capacity]
   (let [nbytes (* capacity ^long (:size vertex-description))
-        buf (doto (ByteBuffer/allocateDirect nbytes)
-              (.order ByteOrder/LITTLE_ENDIAN))]
+        buf (make-buf nbytes)]
     (wrap-vertex-buffer vertex-description usage buf)))
 
+;; low-level access
+
+(definline buf-blit! [buffer byte-offset bytes]
+  `(buffers/blit! ~buffer ~byte-offset ~bytes))
+
+(definline buf-put-floats! [buffer byte-offset numbers]
+  `(buffers/put-floats! ~buffer ~byte-offset ~numbers))
+
+(definline buf-put! [buf byte-offset data-type normalize numbers]
+  `(buffers/put! ~buf ~byte-offset ~data-type ~normalize ~numbers))
+
+(defn put!
+  ^VertexBuffer [^VertexBuffer vbuf byte-offset data-type normalize numbers]
+  (buf-put! (.buf vbuf) byte-offset data-type normalize numbers)
+  vbuf)
+
+(definline buf-push-floats! [buffer numbers]
+  `(buffers/push-floats! ~buffer ~numbers))
+
+(definline buf-push! [buf data-type normalize numbers]
+  `(buffers/push! ~buf ~data-type ~normalize ~numbers))
+
+(defn push!
+  ^VertexBuffer [^VertexBuffer vbuf data-type normalize numbers]
+  (buf-push! (.buf vbuf) data-type normalize numbers)
+  vbuf)
 
 ;; vertex description
 
+(defn attribute-size
+  ^long [{:keys [^long components type]}]
+  (* components (buffers/type-size type)))
+
 (defn- attribute-sizes
   [attributes]
-  (map (fn [{:keys [^long components type]}] (* components ^long (type-sizes type))) attributes))
+  (map attribute-size
+       attributes))
 
 (defn- vertex-size
   [attributes]
@@ -148,7 +184,7 @@
 
 (defn- attribute-components
   [attributes]
-  (for [{:keys [name components] :as attribute} attributes
+  (for [{:keys [components] :as attribute} attributes
         n (range components)]
     (-> attribute
         (update :name str (nth ["-x" "-y" "-z" "-w"] n))
@@ -156,7 +192,7 @@
 
 (defn make-put-fn
   [attributes]
-  (let [args (for [{:keys [name type] :as component} (attribute-components attributes)]
+  (let [args (for [{:keys [name] :as component} (attribute-components attributes)]
                (assoc component :arg (symbol name)))]
     `(fn [~(with-meta 'vbuf {:tag `VertexBuffer}) ~@(map :arg args)]
        (doto ~(with-meta '(.buf vbuf) {:tag `ByteBuffer})
@@ -171,14 +207,14 @@
                                               :ushort `Short
                                               :uint   `Integer)})]
                (case type
-                :byte   `(.put       ~arg)
-                :short  `(.putShort  ~arg)
-                :int    `(.putInt    ~arg)
-                :float  `(.putFloat  ~arg)
-                :double `(.putDouble ~arg)
-                :ubyte  `(.put       (.byteValue  (Long. (bit-and ~arg 0xff))))
-                :ushort `(.putShort  (.shortValue (Long. (bit-and ~arg 0xffff))))
-                :uint   `(.putInt    (.intValue   (Long. (bit-and ~arg 0xffffffff))))))))
+                 :byte   `(.put       ~arg)
+                 :short  `(.putShort  ~arg)
+                 :int    `(.putInt    ~arg)
+                 :float  `(.putFloat  ~arg)
+                 :double `(.putDouble ~arg)
+                 :ubyte  `(.put       (.byteValue  (Long/valueOf (bit-and ~arg 0xff))))
+                 :ushort `(.putShort  (.shortValue (Long/valueOf (bit-and ~arg 0xffff))))
+                 :uint   `(.putInt    (.intValue   (Long/valueOf (bit-and ~arg 0xffffffff))))))))
        ~'vbuf)))
 
 (def ^:private type-component-counts
@@ -189,17 +225,22 @@
 
 (defn- parse-attribute-definition
   [form]
-  (let [[type nm & [normalized?]] form
+  (let [[type nm & [normalize]] form
         [prefix suffix]  (str/split (name type) #"\.")
         prefix           (keyword prefix)
         suffix           (keyword (or suffix "float"))
-        num-components   (type-component-counts prefix)]
+        num-components   (type-component-counts prefix)
+        attribute-name   (name nm)
+        attribute-key    (attribute-name->key attribute-name)]
     (assert num-components (str type " is not a valid type name. It must start with vec1, vec2, vec3, or vec4."))
     (assert (get gl-types suffix) (str type " is not a valid type name. It must end with byte, short, int, float, or double. (Defaults to float if no suffix.)"))
-    {:components num-components
+    {:name attribute-name
+     :name-key attribute-key
      :type suffix
-     :name (name nm)
-     :normalized? (true? normalized?)}))
+     :components num-components
+     :normalize (true? normalize)
+     :coordinate-space :coordinate-space-world
+     :semantic-type (attribute-key->semantic-type attribute-key)})) ; TODO: Typically determined by vertex-space setting of material.
 
 (defmacro defvertex
   [name & attribute-definitions]
@@ -224,13 +265,19 @@
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (mapv #(shader/get-attrib-location shader gl (:name %)) attribs))
+  (let [attribute-infos (shader/attribute-infos shader gl)]
+    (mapv (fn [attrib]
+            (let [attribute-name (:name attrib)]
+              (if-some [attribute-info (get attribute-infos attribute-name)]
+                (:index attribute-info)
+                -1)))
+          attribs)))
 
 (defn- vertex-attrib-pointer
   [^GL2 gl attrib loc stride offset]
-  (let [{:keys [name components type normalized?]} attrib]
+  (let [{:keys [components type normalize]} attrib]
     (when (not= -1 loc)
-      (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalized? ^int stride ^long offset))))
+      (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalize ^int stride ^long offset))))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl attribs attrib-locs]
@@ -253,10 +300,6 @@
   (doseq [l locs
           :when (not= l -1)]
     (gl/gl-disable-vertex-attrib-array gl l)))
-
-(defn- find-attribute-index [attribute-name attributes]
-  (util/first-index-where (fn [attribute] (= attribute-name (:name attribute)))
-                          attributes))
 
 (defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
@@ -282,19 +325,19 @@
 
 (defrecord VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader]
   GlBind
-  (bind [_this gl render-args]
+  (bind [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
 
-  (unbind [_this gl render-args]
+  (unbind [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
 (defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
   GlBind
-  (bind [_this gl render-args]
+  (bind [_this gl _render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
     (bind-index-buffer! gl request-id index-buffer))
 
-  (unbind [_this gl render-args]
+  (unbind [_this gl _render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
     (unbind-index-buffer! gl)))
 

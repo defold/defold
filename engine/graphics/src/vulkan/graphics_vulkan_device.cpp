@@ -62,10 +62,11 @@ namespace dmGraphics
                 continue;
             }
 
+            VertexDeclaration::Stream& stream_in           = vertexDeclaration->m_Streams[i];
             vk_vertex_input_descs[num_attributes].binding  = 0;
-            vk_vertex_input_descs[num_attributes].location = vertexDeclaration->m_Streams[i].m_Location;
-            vk_vertex_input_descs[num_attributes].format   = vertexDeclaration->m_Streams[i].m_Format;
-            vk_vertex_input_descs[num_attributes].offset   = vertexDeclaration->m_Streams[i].m_Offset;
+            vk_vertex_input_descs[num_attributes].location = stream_in.m_Location;
+            vk_vertex_input_descs[num_attributes].format   = stream_in.m_Format;
+            vk_vertex_input_descs[num_attributes].offset   = stream_in.m_Offset;
 
             num_attributes++;
         }
@@ -127,6 +128,11 @@ namespace dmGraphics
     const VulkanResourceType Program::GetType()
     {
         return RESOURCE_TYPE_PROGRAM;
+    }
+
+    const VulkanResourceType RenderTarget::GetType()
+    {
+        return RESOURCE_TYPE_RENDER_TARGET;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -897,8 +903,8 @@ bail:
     };
 
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut)
+        PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration,
+        RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -988,7 +994,7 @@ bail:
 
         for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
         {
-            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i]; 
+            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
             blend_attachment.colorWriteMask      = vk_color_write_mask;
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];

@@ -27,8 +27,9 @@ namespace dmFileDescriptor
             case EVENT_READ: return POLLRDNORM;
             case EVENT_WRITE: return POLLWRNORM;
             case EVENT_ERROR: return POLLRDBAND;
-            default: assert(false);
+            default: assert(false); return -1;
         }
+        return -1; // silence warning
     }
     int PollReturnEventToNative(PollEvent event)
     {
@@ -37,8 +38,9 @@ namespace dmFileDescriptor
             case EVENT_READ: return POLLRDNORM;
             case EVENT_WRITE: return POLLWRNORM;
             case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL | POLLRDBAND;
-            default: assert(false);
+            default: assert(false); return -1;
         }
+        return -1; // silence warning
     }
 
     int Wait(Poller* poller, int timeout)

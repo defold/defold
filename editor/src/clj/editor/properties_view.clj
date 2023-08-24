@@ -15,26 +15,29 @@
 (ns editor.properties-view
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.field-expression :as field-expression]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.math :as math]
+            [editor.properties :as properties]
+            [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
-            [editor.jfx :as jfx]
-            [editor.types :as types]
-            [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [editor.math :as math]
-            [editor.field-expression :as field-expression]
-            [editor.resource-dialog :as resource-dialog]
+            [util.coll :refer [pair]]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
-  (:import [javafx.geometry Insets Point2D]
+  (:import [editor.properties Curve CurveSpread]
+           [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout Pane AnchorPane GridPane HBox VBox Priority ColumnConstraints Region]
+           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
-           [javafx.util Duration]
-           [editor.properties CurveSpread Curve]))
+           [javafx.util Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -288,9 +291,14 @@
                         (ui/editable! color-picker (not read-only?)))]
 
     (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
-                                              v        [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]
+                                              v        [(math/round-with-precision (.getRed c) 0.001)
+                                                        (math/round-with-precision (.getGreen c) 0.001)
+                                                        (math/round-with-precision (.getBlue c) 0.001)
+                                                        (math/round-with-precision (.getOpacity c) 0.001)]
                                               values (if (:ignore-alpha? edit-type)
-                                                       (map #(assoc %1 3 %2) (repeat v) (map last (properties/values (property-fn))))
+                                                       (mapv #(assoc %1 3 %2)
+                                                             (repeat v)
+                                                             (map last (properties/values (property-fn))))
                                                        (repeat v))]
                                           (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))
@@ -488,8 +496,27 @@
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
-(defn- create-properties-row [context ^GridPane grid key property row property-fn]
-  (let [^Label label (create-property-label (properties/label property) key (properties/tooltip property))
+(handler/defhandler :show-overrides :property
+  (active? [evaluation-context selection]
+    (when-let [node-id (handler/selection->node-id selection)]
+      (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
+  (run [property selection search-results-view app-view]
+    (app-view/show-override-inspector! app-view search-results-view (handler/selection->node-id selection) [(:key property)])))
+
+(handler/register-menu! ::properties-menu
+  [{:label "Show Overrides"
+    :command :show-overrides}])
+
+(defrecord SelectionProvider [original-node-ids]
+  handler/SelectionProvider
+  (selection [_] original-node-ids)
+  (succeeding-selection [_])
+  (alt-selection [_]))
+
+(defn- create-properties-row [context ^GridPane grid key property row original-node-ids property-fn]
+  (let [^Label label (doto (create-property-label (properties/label property) key (properties/tooltip property))
+                       (ui/context! :property (assoc context :property property) (->SelectionProvider original-node-ids))
+                       (ui/register-context-menu ::properties-menu true))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
@@ -540,13 +567,13 @@
 
     [key update-ui-fn]))
 
-(defn- create-properties [context grid properties property-fn]
+(defn- create-properties [context grid properties original-node-ids property-fn]
   ; TODO - add multi-selection support for properties view
   (doall (map-indexed (fn [row [key property]]
-                        (create-properties-row context grid key property row property-fn))
+                        (create-properties-row context grid key property row original-node-ids property-fn))
                       properties)))
 
-(defn- make-grid [parent context properties property-fn]
+(defn- make-grid [parent context properties original-node-ids property-fn]
   (let [grid (doto (GridPane.)
                (.setHgap grid-hgap)
                (.setVgap grid-vgap))
@@ -557,7 +584,7 @@
 
     (ui/add-child! parent grid)
     (ui/add-style! grid "form")
-    (create-properties context grid properties property-fn)))
+    (create-properties context grid properties original-node-ids property-fn)))
 
 (defn- create-category-label [label]
   (doto (Label. label) (ui/add-style! "property-category")))
@@ -574,8 +601,7 @@
       (let [property-fn   (fn [key]
                             (let [properties (:properties (ui/user-data vbox ::properties))]
                               (get properties key)))
-            display-order (:display-order properties)
-            properties    (:properties properties)
+            {:keys [display-order properties original-node-ids]} properties
             generics      [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
             categories    (mapv (fn [order]
                                   [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
@@ -589,7 +615,7 @@
                                                    (when category
                                                      (let [label (create-category-label category)]
                                                        (ui/add-child! vbox label)))
-                                                   (make-grid vbox context properties property-fn)))]
+                                                   (make-grid vbox context properties original-node-ids property-fn)))]
                                 (recur (rest sections) (into result update-fns)))
                               result))]
         ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
@@ -609,13 +635,17 @@
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
-(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn])
+(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn :clear-fn])
 
 (defn- edit-type->template [edit-type]
   (apply dissoc edit-type ephemeral-edit-type-fields))
 
 (defn- properties->template [properties]
-  (mapv (fn [[k v]] [k (edit-type->template (:edit-type v))]) (:properties properties)))
+  (into {}
+        (map (fn [[prop-kw {:keys [edit-type]}]]
+               (let [template (edit-type->template edit-type)]
+                 (pair prop-kw template))))
+        (:properties properties)))
 
 (defn- update-pane! [parent context properties]
   ; NOTE: We cache the ui based on the ::template and ::properties user-data
@@ -630,20 +660,30 @@
 
 (g/defnode PropertiesView
   (property parent-view Parent)
-  (property workspace g/Any)
-  (property project g/Any)
 
+  (input workspace g/Any)
+  (input project g/Any)
+  (input app-view g/NodeID)
+  (input search-results-view g/NodeID)
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view workspace project selected-node-properties]
-                                   (let [context {:workspace workspace :project project}]
+  (output pane Pane :cached (g/fnk [parent-view workspace project app-view search-results-view selected-node-properties]
+                                   (let [context {:workspace workspace
+                                                  :project project
+                                                  :app-view app-view
+                                                  :search-results-view search-results-view}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
                                      ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
                                      (ui/run-later
                                        (update-pane! parent-view context selected-node-properties))))))
 
-(defn make-properties-view [workspace project app-view view-graph ^Node parent]
-  (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)
-        stage         (.. parent getScene getWindow)]
-    (g/connect! app-view :selected-node-properties view-id :selected-node-properties)
-    view-id))
+(defn make-properties-view [workspace project app-view search-results-view view-graph ^Node parent]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes view-graph [view [PropertiesView :parent-view parent]]
+          (g/connect workspace :_node-id view :workspace)
+          (g/connect project :_node-id view :project)
+          (g/connect app-view :_node-id view :app-view)
+          (g/connect app-view :selected-node-properties view :selected-node-properties)
+          (g/connect search-results-view :_node-id view :search-results-view))))))

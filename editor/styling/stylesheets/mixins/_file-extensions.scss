@@ -1,27 +1,28 @@
 @mixin extension-template($element, $color, $active-color){
-    .image-view {
-        @include colorize-image-view($color);
-    }
-    @if($element == "menu") {
-        &:focused {
-            .image-view {
+    // tab, tree, menu
+    @if $element == "menu" {
+        & > .graphic-container > .image-view {
+            @include colorize-image-view($color);
+        }
+        &:focused > .graphic-container > .image-view {
+            @include colorize-image-view($active-color);
+        }
+    } @else if $element == "tab" {
+        & > .tab-container > .tab-label > .image-view {
+            @include colorize-image-view($color);
+        }
+        &:selected, &:hover {
+            & > .tab-container > .tab-label > .image-view {
                 @include colorize-image-view($active-color);
             }
         }
     } @else {
+        & > .image-view {
+            @include colorize-image-view($color);
+        }
         &:selected, &:hover {
-            @if($element == "tab") {
-                .tab-container {
-                    .tab-label {
-                        .image-view {
-                            @include colorize-image-view($active-color);
-                        }
-                    }
-                }
-            } @else {
-                .image-view {
-                    @include colorize-image-view($active-color);
-                }
+            & > .image-view {
+                @include colorize-image-view($active-color);
             }
         }
     }
@@ -36,28 +37,14 @@
         @include extension-template($element, -df-folder, -df-folder-active)
     }
 
-    &.resource-ext- {
-        /* Script files */
-        &fp, &gui_script, &lua,
-        &render_script, &script, &vp, &glsl {
+    &.resource-kind {
+        &-script {
             @include extension-template($element, -df-script-file, -df-script-file-active);
         }
-
-        /* Design files */
-        &atlas, &collection, &collisionobject,
-        &cubemap, &dae, &font, &go,
-        &gui, &label, &model, &particlefx,
-        &spinemodel, &spinescene, &sprite,
-        &tilemap, &tilesource {
+        &-design {
             @include extension-template($element, -df-design-file, -df-design-file-active);
         }
-
-        /* Property container files */
-        &animationset,
-        &camera, &collectionfactory, &collectionproxy,
-        &display_profiles, &factory,
-        &gamepads, &input_binding, &material, &project,
-        &render, &sound, &texture_profiles {
+        &-property {
             @include extension-template($element, -df-property-file, -df-property-file-active);
         }
     }

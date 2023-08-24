@@ -69,6 +69,11 @@
 </head>
 
 <body>
+	<div id="running-from-file-warning" style="display: none; margin: 3em;">
+		<h1>Running from local file ⚠️</h1>
+		<p>It seems like you have opened this file by double-clicking on it. In order to test your build in a browser <b>you need to load this file from a web server</b>. You can either upload this file and the rest of the files from a Defold HTML5 bundle to a web hosting service OR host them using a local web server on your home network.</p>
+		<p><a href="https://defold.com/manuals/html5/#testing-html5-build" target="_blank">Learn more about running a local web server in the Defold HTML5 manual</a>.</p>
+	</div>
 	<div id="app-container" class="canvas-app-container">
 		<div id="canvas-container" class="canvas-app-canvas-container">
 			<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display.height}}"></canvas>
@@ -111,6 +116,10 @@
 		}
 		return scriptDirectory + path;
 	};
+
+	{{^DEFOLD_HAS_WASM_ENGINE}}
+	Module["isWASMSupported"] = false; 
+	{{/DEFOLD_HAS_WASM_ENGINE}}
 
 	var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 	var buttonHeight = 0;
@@ -204,8 +213,15 @@
 	</script>
 
 	<script id='engine-start' type='text/javascript'>
-		EngineLoader.stream_wasm = "{{html5.wasm_streaming}}" === "true";
-		EngineLoader.load("canvas", "{{exe-name}}");
+		var runningFromFileWarning = document.getElementById("running-from-file-warning");
+		if (window.location.href.startsWith("file://")) {
+			runningFromFileWarning.style.display = "block";
+		}
+		else {
+			EngineLoader.stream_wasm = "{{html5.wasm_streaming}}" === "true";
+			EngineLoader.load("canvas", "{{exe-name}}");
+			runningFromFileWarning.parentNode.removeChild(runningFromFileWarning);
+		}
 	</script>
 </body>
 </html>

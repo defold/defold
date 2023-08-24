@@ -24,6 +24,7 @@ ordinary paths."
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
+            [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -32,8 +33,11 @@ ordinary paths."
             [editor.url :as url]
             [editor.util :as util]
             [internal.cache :as c]
+            [internal.util :as iutil]
+            [schema.core :as s]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.digest :as digest])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [com.dynamo.bob Platform]
@@ -67,6 +71,13 @@ ordinary paths."
      (code-preprocessors workspace evaluation-context)))
   ([workspace evaluation-context]
    (g/node-value workspace :code-preprocessors evaluation-context)))
+
+(defn notifications
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (notifications workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (g/node-value workspace :notifications evaluation-context)))
 
 (defn- skip-first-char [path]
   (subs path 1))
@@ -197,8 +208,9 @@ ordinary paths."
   Optional kv-args:
     :node-type          a loaded resource node type; defaults to
                         editor.placeholder-resource/PlaceholderResourceNode
-    :textual?           whether the resource is saved as text and needs proper
-                        lf/crlf handling, default false
+    :textual?           whether the resource is textual, default false. This
+                        flag affects search in files availability for the
+                        resource type and lf/crlf handling on save
     :language           language identifier string used for textual resources
                         that can be opened as code, used for LSP interactions,
                         see https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
@@ -236,8 +248,11 @@ ordinary paths."
                         for a new resource file creation; defaults to
                         \"templates/template.{ext}\"
     :label              label for a resource type when shown in the editor
-    :stateless?         whether the resource can be modified in the editor, by
-                        default true if there is no :load-fn and false otherwise
+    :stateless?         whether or not the node stores any state that needs to
+                        be reloaded if the resource is modified externally. When
+                        true, we can simply invalidate its outputs without
+                        replacing the node in the graph. Defaults to true if
+                        there is no :load-fn.
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
@@ -388,24 +403,53 @@ ordinary paths."
     (with-open [f (io/reader resource)]
       (slurp f))))
 
-(defn set-project-dependencies! [workspace library-uris]
-  (g/set-property! workspace :dependencies library-uris)
-  library-uris)
+(defn- update-dependency-notifications! [workspace lib-states]
+  (let [{:keys [error missing]} (->> lib-states
+                                     (eduction
+                                       (keep (fn [{:keys [status file uri]}]
+                                               (cond
+                                                 (= status :error) (pair :error uri)
+                                                 (nil? file) (pair :missing uri)))))
+                                     (iutil/group-into {} [] key val))
+        notifications (notifications workspace)]
+    (if (pos? (count missing))
+      (notifications/show!
+        notifications
+        {:id ::dependencies-missing
+         :type :warning
+         :text (format "The following dependencies are missing:\n%s\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries."
+                       (string/join "\n" (map dialogs/indent-with-bullet missing)))
+         :actions [{:text "Fetch Libraries"
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :fetch-libraries
+                                  nil)}]})
+      (notifications/close! notifications ::dependencies-missing))
+    (if (pos? (count error))
+      (notifications/show!
+        notifications
+        {:id ::dependencies-error
+         :type :error
+         :text (format "Couldn't install following dependencies:\n%s"
+                       (string/join "\n" (map dialogs/indent-with-bullet error)))
+         :actions [{:text "Open game.project"
+                    :on-action #(ui/execute-command
+                                  (ui/contexts (ui/main-scene))
+                                  :open
+                                  {:resources [(find-resource workspace "/game.project")]})}]})
+      (notifications/close! notifications ::dependencies-error))))
+
+(defn set-project-dependencies! [workspace lib-states]
+  (g/set-property! workspace :dependencies lib-states)
+  (update-dependency-notifications! workspace lib-states)
+  lib-states)
 
 (defn dependencies [workspace]
-  (g/node-value workspace :dependencies))
+  (g/node-value workspace :dependency-uris))
 
 (defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
     (every? url/reachable? hosts)))
-
-(defn missing-dependencies [workspace]
-  (let [project-directory (project-path workspace)
-        dependencies (g/node-value workspace :dependencies)]
-    (into #{}
-          (comp (remove :file)
-                (map :uri))
-          (library/current-library-state project-directory dependencies))))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
@@ -579,6 +623,35 @@ ordinary paths."
   (load-java-editor-plugins! workspace)
   (load-clojure-editor-plugins! workspace touched-resources))
 
+(defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
+  (when (or old-errors new-errors)
+    (letfn [(errors->collision-resource-path+statuses [errors]
+              (into #{}
+                    (comp
+                      (filter #(= :collision (:type %)))
+                      (mapcat :collisions))
+                    errors))
+            (collision-notification-id [resource-path]
+              [::resource-collision-notification resource-path])]
+      (let [old-collisions (errors->collision-resource-path+statuses old-errors)
+            new-collisions (errors->collision-resource-path+statuses new-errors)
+            removed (set/difference old-collisions new-collisions)
+            added (set/difference new-collisions old-collisions)
+            notifications-node (notifications workspace)]
+        (doseq [[resource-path] removed]
+          (notifications/close! notifications-node (collision-notification-id resource-path)))
+        (doseq [[resource-path {:keys [source] :as status}] (sort-by key added)]
+          (notifications/show!
+            notifications-node
+            {:type :warning
+             :id (collision-notification-id resource-path)
+             :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
+                        (case source
+                          :library (str " in a project dependency: " (:library status))
+                          :builtins " in builtins"
+                          :directory ""
+                          ""))}))))))
+
 (defn resource-sync!
   ([workspace]
    (resource-sync! workspace []))
@@ -602,6 +675,7 @@ ordinary paths."
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
          changes      (resource-watch/diff old-snapshot new-snapshot)]
+     (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
        (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
@@ -670,21 +744,34 @@ ordinary paths."
        (library/fetch-library-updates library/default-http-resolver render-fn)
        (library/validate-updated-libraries)))
 
-(defn install-validated-libraries! [workspace library-uris lib-states]
-  (set-project-dependencies! workspace library-uris)
-  (library/install-validated-libraries! (project-path workspace) lib-states))
+(defn install-validated-libraries! [workspace lib-states]
+  (let [new-lib-states (library/install-validated-libraries! (project-path workspace) lib-states)]
+    (set-project-dependencies! workspace new-lib-states)))
 
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
-(g/deftype UriVec [URI])
+(defn prepend-resource-listener! [workspace progress-span listener]
+  ;; Used from tests that need to interrogate the resource change plan before it
+  ;; is executed.
+  (swap! (g/node-value workspace :resource-listeners)
+         (fn [resource-listener-entries]
+           (let [resource-listener-entry [progress-span listener]]
+             (into [resource-listener-entry]
+                   resource-listener-entries)))))
+
+(g/deftype Dependencies
+  [{:uri URI
+    (s/optional-key :file) File
+    s/Keyword s/Any}])
 
 (g/defnode Workspace
   (property root g/Str)
-  (property dependencies UriVec)
+  (property dependencies Dependencies)
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
+  (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any)
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
@@ -693,7 +780,9 @@ ordinary paths."
   (property editable-proj-path? g/Any)
 
   (input code-preprocessors g/NodeID :cascade-delete)
+  (input notifications g/NodeID :cascade-delete)
 
+  (output dependency-uris g/Any (g/fnk [dependencies] (mapv :uri dependencies)))
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
@@ -796,8 +885,24 @@ ordinary paths."
                         :resource-listeners (atom [])
                         :build-settings build-settings
                         :editable-proj-path? editable-proj-path?]
-             code-preprocessors code.preprocessors/CodePreprocessorsNode]
-            (g/connect code-preprocessors :_node-id workspace :code-preprocessors)))))))
+             code-preprocessors code.preprocessors/CodePreprocessorsNode
+             notifications notifications/NotificationsNode]
+            (concat
+              (g/connect notifications :_node-id workspace :notifications)
+              (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
+
+(defn set-disk-sha256 [workspace node-id disk-sha256]
+  {:pre [(g/node-id? workspace)
+         (g/node-id? node-id)
+         (digest/sha256-hex? disk-sha256)]}
+  (g/update-property workspace :disk-sha256s-by-node-id assoc node-id disk-sha256))
+
+(defn merge-disk-sha256s [workspace disk-sha256s-by-node-id]
+  {:pre [(g/node-id? workspace)
+         (map? disk-sha256s-by-node-id)
+         (every? g/node-id? (keys disk-sha256s-by-node-id))
+         (every? digest/sha256-hex? (vals disk-sha256s-by-node-id))]}
+  (g/update-property workspace :disk-sha256s-by-node-id merge disk-sha256s-by-node-id))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

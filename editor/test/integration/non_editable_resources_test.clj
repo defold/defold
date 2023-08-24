@@ -119,11 +119,6 @@
               value))]
     (util/deep-keep-kv util/with-sorted-keys value-fn output)))
 
-(defn- save-project! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
 (defn- set-non-editable-directories! [project-root-path non-editable-directory-proj-paths]
   (shared-editor-settings/write-config!
     project-root-path
@@ -176,7 +171,7 @@
       (tu/make-atlas-resource-node! project atlas-proj-path))
     (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
           script (doto (tu/make-resource-node! project "/assets/script.script")
-                   (tu/code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
+                   (tu/set-code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
           chair (tu/make-resource-node! project "/assets/chair.go")
           chair-referenced-script (tu/add-referenced-component! chair (resource-node/resource script))
           chair-embedded-sprite (tu/add-embedded-component! chair sprite-resource-type)
@@ -246,7 +241,7 @@
                        :build-targets {:chair (g/node-value chair :build-targets)
                                        :room (g/node-value room :build-targets)
                                        :house (g/node-value house :build-targets)}}]
-                  (save-project! project)
+                  (tu/save-project! project)
                   (set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
@@ -408,7 +403,7 @@
                       {:scene {:chair (g/node-value chair :scene)
                                :room (g/node-value room :scene)
                                :house (g/node-value house :scene)}}]
-                  (save-project! project)
+                  (tu/save-project! project)
                   (set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state

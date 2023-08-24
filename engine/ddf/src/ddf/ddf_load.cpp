@@ -111,6 +111,12 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* f = &desc->m_Fields[i];
+            // We cannot support default values for oneof fields currently as we don't know which one to take
+            if (f->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+            {
+                dmLogWarning("Default values for 'oneof' fields are not supported");
+                continue;
+            }
             DoLoadDefaultField(load_context, f, message);
         }
     }
@@ -169,6 +175,12 @@ namespace dmDDF
                     {
                         return e;
                     }
+
+                    if (field->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+                    {
+                        FieldDescriptor* field_non_const = (FieldDescriptor*) field;
+                        field_non_const->m_OneOfSet = 1;
+                    }
                 }
             }
             else
@@ -181,7 +193,11 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* f = &desc->m_Fields[i];
-            if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
+            if (f->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+            {
+                continue;
+            }
+            else if (f->m_Label == LABEL_REQUIRED && read_fields[i] == 0)
             {
                 // Required but not read
                 dmLogWarning("Missing required field %s.%s", desc->m_Name, f->m_Name);

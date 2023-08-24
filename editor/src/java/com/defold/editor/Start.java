@@ -35,7 +35,6 @@ import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 public class Start extends Application {
 
@@ -53,25 +52,15 @@ public class Start extends Application {
                 Thread.sleep(200);
                 ResourceUnpacker.unpackResources();
 
-                // Init the GLProfile singleton on the UI thread.
-                CountDownLatch latch = new CountDownLatch(1);
-
-                Platform.runLater(() -> {
-                    try {
-                        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-                        Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
-                        Method init = glprofile.getMethod("initSingleton");
-                        init.invoke(null);
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                        logger.error("failed to initialize GLProfile singleton", t);
-                    } finally {
-                        latch.countDown();
-                    }
-                });
-
-                // Wait for the UI thread task to complete before proceeding.
-                latch.await();
+                try {
+                    ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+                    Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
+                    Method init = glprofile.getMethod("initSingleton");
+                    init.invoke(null);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    logger.error("failed to initialize GLProfile singleton", t);
+                }
 
                 // Boot the editor.
                 final EditorApplication app = new EditorApplication(Thread.currentThread().getContextClassLoader());

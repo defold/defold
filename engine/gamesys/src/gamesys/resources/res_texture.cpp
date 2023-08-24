@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +24,7 @@
 
 namespace dmGameSystem
 {
-    static const uint32_t MAX_MIPMAP_COUNT = 14; // 2^14 => 16384
+    static const uint32_t MAX_MIPMAP_COUNT = 15; // 2^14 => 16384 (+1 for base mipmap)
 
     struct ImageDesc
     {
@@ -56,6 +56,14 @@ namespace dmGameSystem
             CASE_TF(R_BC4);
             CASE_TF(RG_BC5);
             CASE_TF(RGBA_BC7);
+            CASE_TF(RGB16F);
+            CASE_TF(RGB32F);
+            CASE_TF(RGBA16F);
+            CASE_TF(RGBA32F);
+            CASE_TF(R16F);
+            CASE_TF(RG16F);
+            CASE_TF(R32F);
+            CASE_TF(RG32F);
             default:
                 assert(0);
                 return (dmGraphics::TextureFormat)-1;
@@ -130,8 +138,6 @@ namespace dmGameSystem
             params.m_SubUpdate = upload_params.m_SubUpdate;
             params.m_MipMap    = specific_mip_requested ? upload_params.m_MipMap : 0;
 
-            assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
-
             if (!texture)
             {
                 dmGraphics::TextureCreationParams creation_params;
@@ -197,6 +203,9 @@ namespace dmGameSystem
                 SetBlankTexture(texture, params);
                 break;
             }
+
+            // This should not be happening if the max width/height check goes through
+            assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
 
             // If we requested to upload a specific mipmap, upload only that level
             // It is expected that we only have offsets for that level in the image desc as well

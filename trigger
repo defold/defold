@@ -1,1 +1,1 @@
-trigger beta
+trigger

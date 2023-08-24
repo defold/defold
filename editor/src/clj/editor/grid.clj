@@ -48,10 +48,10 @@
 (defn render-grid-axis
   [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]
   (doseq [u (range start stop size)]
-      (.put vx uidx ^double u)
-      (.put vx vidx ^double min)
+      (.put vx ^int uidx ^double u)
+      (.put vx ^int vidx ^double min)
       (gl/gl-vertex-3dv gl vx)
-      (.put vx vidx ^double max)
+      (.put vx ^int vidx ^double max)
       (gl/gl-vertex-3dv gl vx)))
 
 (defn render-grid
@@ -65,7 +65,7 @@
         v-min (nth min-values v-axis)
         v-max (nth max-values v-axis)
         vertex ^DoubleBuffer (scene-cache/request-object! ::grid-vertex :grid-vertex {} nil)]
-    (.put vertex fixed-axis 0.0)
+    (.put vertex ^int fixed-axis 0.0)
     (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
     (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
 

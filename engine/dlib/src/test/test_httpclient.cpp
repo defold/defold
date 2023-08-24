@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
+#include "dlib/atomic.h"
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -31,10 +32,14 @@
 #include "dlib/testutil.h"
 
 #define JC_TEST_IMPLEMENTATION
-#define JC_TEST_NO_DEATH_TEST
+#if !defined(JC_TEST_NO_DEATH_TEST)
+    #define JC_TEST_NO_DEATH_TEST
+#endif
 #include <jc_test/jc_test.h>
 
-#include <signal.h>
+#if !defined(DM_NO_SIGNAL_FUNCTION)
+    #include <signal.h>
+#endif
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
@@ -181,7 +186,7 @@ public:
 
         if (port != -1)
         {
-            sprintf(portstr, "%d", port);
+            dmSnPrintf(portstr, sizeof(url) - (portstr - url), "%d", port);
         }
 
 
@@ -426,7 +431,7 @@ TEST_F(dmHttpClientParserTest, TestNoContent)
 
 #ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
-#if defined(__SCE__)
+#if defined(DM_PLATFORM_VENDOR)
     #define NUM_ITERATIONS 25
 #else
     #define NUM_ITERATIONS 100
@@ -439,7 +444,7 @@ TEST_P(dmHttpClientTest, Simple)
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
         dmHttpClient::Result r;
         r = dmHttpClient::Get(m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
@@ -476,6 +481,12 @@ struct HttpStressHelper
     }
 };
 
+#define T_ASSERT_EQ(_A, _B) \
+    if ( (_A) != (_B) ) { \
+        printf("%s:%d: ASSERT: %s != %s: %d != %d", __FILE__, __LINE__, #_A, #_B, (int)(_A), (int)(_B)); \
+    } \
+    assert( (_A) == (_B) );
+
 static void HttpStressThread(void* param)
 {
     char buf[128];
@@ -483,11 +494,11 @@ static void HttpStressThread(void* param)
     HttpStressHelper* h = (HttpStressHelper*) param;
     for (int i = 0; i < NUM_ITERATIONS; ++i) {
         h->m_Content = "";
-        sprintf(buf, "/add/%d/1000", i * c);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i * c);
         dmHttpClient::Result r;
         r = dmHttpClient::Get(h->m_Client, buf);
-        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
+        T_ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        T_ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
     }
 }
 
@@ -498,7 +509,7 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
-#if defined(GITHUB_CI) || defined(__SCE__)
+#if defined(GITHUB_CI) || defined(DM_PLATFORM_VENDOR)
     const int thread_count = 2;    // 32 is the maximum number of items in the connection pool, stay below that
 #else
     const int thread_count = 16;   // 32 is the maximum number of items in the connection pool, stay below that
@@ -531,7 +542,7 @@ TEST_P(dmHttpClientTest, NoKeepAlive)
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
-        sprintf(buf, "/no-keep-alive");
+        dmSnPrintf(buf, sizeof(buf), "/no-keep-alive");
         dmHttpClient::Result r;
         r = dmHttpClient::Get(m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
@@ -547,7 +558,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
     for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
         dmHttpClient::Result r;
         r = dmHttpClient::Get(m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
@@ -581,12 +592,17 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
 
-    #if defined(__SCE__)
-        const int timeout = 1000 * 1000;
+    int sleep_time_ms = 5 * 1000;
+    #if defined(DM_PLATFORM_VENDOR) || defined (DM_SANITIZE_THREAD)
+        const int timeout_us = 5000 * 1000;
+        sleep_time_ms = 50 * 1000;
+    #elif defined(__SCE__)
+        const int timeout_us = 1000 * 1000;
     #else
-        const int timeout = 500 * 1000;
+        const int timeout_us = 500 * 1000;
     #endif
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
+
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout_us); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)
@@ -594,14 +610,15 @@ TEST_P(dmHttpClientTest, ClientTimeout)
         dmHttpClient::Result r;
         m_StatusCode = -1;
         m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
+        dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms); // milliseconds
+        r = dmHttpClient::Get(m_Client, buf);
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
         ASSERT_EQ(-1, m_StatusCode);
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
 
         m_Content = "";
-        sprintf(buf, "/add/%d/1000", i);
+        dmSnPrintf(buf, sizeof(buf), "/add/%d/1000", i);
         r = dmHttpClient::Get(m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
@@ -624,16 +641,29 @@ TEST_P(dmHttpClientTest, ServerClose)
     }
 }
 
-void ShutdownThread(void *args)
+struct ShutdownThreadContext
 {
-    bool* gotit = (bool*) args;
-    while (true)
+    int32_atomic_t m_GotIt;
+};
+
+static void ShutdownThread(void *args)
+{
+    ShutdownThreadContext* ctx = (ShutdownThreadContext*)args;
+    while (!dmAtomicGet32(&ctx->m_GotIt))
     {
         // Now we give the test time to connect and be in-flight
-        dmTime::Sleep(1000 * 500);
+
+        if (dmHttpClient::GetNumPoolConnections() == 0)
+        {
+            dmTime::Sleep(1);
+            continue;
+        }
+
+        // There is a small gap between it it in use and it is connected
+        dmTime::Sleep(100);
+
         if (dmHttpClient::ShutdownConnectionPool() > 0) {
-            // it was in flight and now it should be cancelled and fail.
-            *gotit = true;
+            dmAtomicStore32(&ctx->m_GotIt, 1);
         } else {
             break; // done.
         }
@@ -642,15 +672,24 @@ void ShutdownThread(void *args)
 
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
-    bool gotit = false;
+    char buf[128];
+    ShutdownThreadContext ctx;
+    ctx.m_GotIt = 0;
+
+    int sleep_time_ms = 5 * 1000;
+    #if defined (DM_SANITIZE_THREAD)
+        sleep_time_ms = 5 * 1000;
+    #endif
+
     for (int i=0;i<5;i++) {
         // Create a request that proceeds for a long time and cancel it in-flight with the
         // shutdown thread. If it managed to get the conneciton it will set gotit to true.
-        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");
-        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &ctx, "cts");
+        dmSnPrintf(buf, sizeof(buf), "/sleep/%d", sleep_time_ms);
+        dmHttpClient::Result r = dmHttpClient::Get(m_Client, buf);
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
 
-        // Wait until no are open
+        // Wait until no connections are open
         dmThread::Join(thr);
 
         // Pool shut down; must fail.
@@ -659,11 +698,11 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 
         dmHttpClient::ReopenConnectionPool();
 
-        if (gotit)
+        if (dmAtomicGet32(&ctx.m_GotIt))
             break;
     }
 
-    ASSERT_TRUE(gotit);
+    ASSERT_EQ(1, dmAtomicGet32(&ctx.m_GotIt));
 
     // Reopened so should succeed.
     dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
@@ -680,7 +719,7 @@ TEST_P(dmHttpClientTest, ContentSizes)
     {
         for (uint32_t j = 0; j < sizeof(primes) / sizeof(primes[0]); ++j)
         {
-            sprintf(buf, "/arb/%d", i + primes[j]);
+            dmSnPrintf(buf, sizeof(buf), "/arb/%d", i + primes[j]);
 
             dmHttpClient::Result r;
             m_Content = "";
@@ -700,7 +739,7 @@ TEST_P(dmHttpClientTest, LargeFile)
     char buf[128];
 
     int n = 1024 * 1024 + 59;
-    sprintf(buf, "/arb/%d", n);
+    dmSnPrintf(buf, sizeof(buf), "/arb/%d", n);
     dmHttpClient::Result r;
     m_Content = "";
     r = dmHttpClient::Get(m_Client, buf);
@@ -718,7 +757,7 @@ TEST_P(dmHttpClientTest, TestHeaders)
     char buf[128];
 
     int n = 123;
-    sprintf(buf, "/arb/%d", n);
+    dmSnPrintf(buf, sizeof(buf), "/arb/%d", n);
     dmHttpClient::Result r;
     m_Content = "";
     r = dmHttpClient::Get(m_Client, buf);
@@ -836,7 +875,9 @@ TEST_P(dmHttpClientTest, Cache)
 
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
+#if !defined(DM_NO_SIGNAL_FUNCTION)
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     dmHttpClient::Delete(m_Client);
 
@@ -921,14 +962,14 @@ TEST_P(dmHttpClientTestExternal, PostExternal)
 }
 
 // Until we've figured out how to access the local server on windows from the PS4
-#if !(defined(__SCE__))
+#if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 
 const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
 #endif
 
-#if !(defined(GITHUB_CI) || defined(__SCE__))
+#if !(defined(GITHUB_CI) || defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 // For easier debugging, we can use external sites to monitor their responses
 // NOTE: These buckets might expire. If so, we'll have to disable that server test
 const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
@@ -971,8 +1012,8 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
     }
 }
 
-// Until we've figured out how to access the local server on windows from the PS4
-#if !(defined(__SCE__))
+// Until we've figured out how to access the local server on windows from the device
+#if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
@@ -1179,8 +1220,8 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-// Until we've figured out how to access the local server on windows from the PS4
-#if !(defined(__SCE__))
+// Until we've figured out how to access the local server on windows from the device
+#if !(defined(DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER))
 
 const char* params_http_client_cache[] = {"http://localhost:" NAME_SOCKET};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_values_in(params_http_client_cache));
@@ -1207,7 +1248,7 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
     #if defined(WIN32)
     ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    #elif defined(__linux__) || defined(__SCE__)
+    #elif defined(__linux__) || defined(DM_PLATFORM_VENDOR)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, dmHttpClient::GetLastSocketResult(client));
     #else
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
@@ -1224,6 +1265,8 @@ static void Usage()
 
 int main(int argc, char **argv)
 {
+    jc_test_init(&argc, argv);
+
     if(argc > 1)
     {
         char path[512];
@@ -1252,7 +1295,6 @@ int main(int argc, char **argv)
     dmLogSetLevel(LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
-    jc_test_init(&argc, argv);
 
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();

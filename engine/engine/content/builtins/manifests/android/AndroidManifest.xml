@@ -15,6 +15,7 @@
         {{/has-icons?}}
         android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication"
+        android:enableOnBackInvokedCallback="true"
         android:debuggable="{{android.debuggable}}">
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />

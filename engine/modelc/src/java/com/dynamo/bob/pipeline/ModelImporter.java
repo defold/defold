@@ -4,24 +4,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
-import java.io.FileNotFoundException;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.util.Arrays;
 import java.lang.reflect.Method;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
 
 public class ModelImporter {
 
@@ -73,6 +60,7 @@ public class ModelImporter {
     // The suffix of the path dictates which loader it will use
     public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
+    public static native void TestException(String message);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -149,10 +137,20 @@ public class ModelImporter {
             if (z > max.z) max.z = z;
         }
     }
+    public static class Material {
+        public String           name;
+        public int              index;
+
+        public Material() {
+            name = "";
+            index = 0;
+        }
+    }
 
     public static class Mesh {
         public String      name;
-        public String      material;
+        public Material    material;
+
         public Aabb        aabb;
 
         public float[]     positions; // float3
@@ -243,6 +241,7 @@ public class ModelImporter {
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
+        public Material[]     materials;
         public Buffer[]       buffers;
     }
 
@@ -336,13 +335,20 @@ public class ModelImporter {
         System.out.printf("\n");
     }
 
+    private static void DebugPrintMaterial(Material material, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Material: %s\n", material.name);
+        // PrintIndent(indent+1);
+        // System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
+    }
+
     private static void DebugPrintMesh(Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
         PrintIndent(indent+1);
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
-        System.out.printf("Material: %s\n", mesh.material);
+        System.out.printf("Material: %s\n", mesh.material!=null?mesh.material.name:"null");
         PrintIndent(indent+1);
         System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
@@ -471,6 +477,16 @@ public class ModelImporter {
             return;
         }
 
+        // TODO: Setup a java test suite for the model importer
+        for (int i = 0; i < args.length; ++i)
+        {
+            if (args[i].equalsIgnoreCase("--test-exception"))
+            {
+                ModelImporter.TestException("Testing exception: " + args[i+1]);
+                return; // exit code 0
+            }
+        }
+
         String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
@@ -482,6 +498,9 @@ public class ModelImporter {
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
 
+        if (scene == null)
+            return;
+
         System.out.printf("--------------------------------\n");
 
         for (Buffer buffer : scene.buffers) {
@@ -489,6 +508,15 @@ public class ModelImporter {
         }
 
         System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Material material : scene.materials)
+        {
+            DebugPrintMaterial(material, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
         System.out.printf("Num Nodes: %d\n", scene.nodes.length);
         for (Node node : scene.nodes)
         {

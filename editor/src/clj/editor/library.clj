@@ -122,7 +122,8 @@
       (doseq [[header value] http-headers]
         (.setRequestProperty http-connection header value))
       (when tag
-        (.setRequestProperty http-connection "If-None-Match" tag)))
+        (.setRequestProperty http-connection "If-None-Match" tag))
+      (.setRequestProperty http-connection "Accept" "application/zip"))
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)
@@ -182,8 +183,9 @@
     (doseq [^File lib-file lib-files]
       (fs/delete-file! lib-file {:fail :silently}))))
 
-(defn- install-library! [project-directory {:keys [uri tag ^File new-file]}]
-  (fs/copy-file! new-file (library-file project-directory uri tag)))
+(defn- install-library!
+  ^File [project-directory {:keys [uri tag ^File new-file]}]
+  (second (first (fs/copy-file! new-file (library-file project-directory uri tag)))))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state

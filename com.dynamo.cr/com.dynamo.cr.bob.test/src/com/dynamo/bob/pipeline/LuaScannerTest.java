@@ -144,11 +144,11 @@ public class LuaScannerTest {
         List<Property> properties = getPropertiesFromFile("test_props.lua");
 
         assertEquals(8, properties.size());
-        assertProperty(properties, "prop1", new Double(0), 10);
-        assertProperty(properties, "prop2", new Double(0), 13);
-        assertProperty(properties, "prop3", new Double(0), 14);
-        assertProperty(properties, "prop4", new Double(0), 15);
-        assertProperty(properties, "prop5", new Double(0), 16);
+        assertProperty(properties, "prop1", Double.valueOf(0), 10);
+        assertProperty(properties, "prop2", Double.valueOf(0), 13);
+        assertProperty(properties, "prop3", Double.valueOf(0), 14);
+        assertProperty(properties, "prop4", Double.valueOf(0), 15);
+        assertProperty(properties, "prop5", Double.valueOf(0), 16);
         assertEquals(Status.INVALID_ARGS, properties.get(5).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
@@ -161,11 +161,11 @@ public class LuaScannerTest {
         source = scanner.parse(source);
         List<Property> properties = scanner.getProperties();
         assertEquals(8, properties.size());
-        assertProperty(properties, "prop1", new Double(0), 10);
-        assertProperty(properties, "prop2", new Double(0), 13);
-        assertProperty(properties, "prop3", new Double(0), 14);
-        assertProperty(properties, "prop4", new Double(0), 15);
-        assertProperty(properties, "prop5", new Double(0), 16);
+        assertProperty(properties, "prop1", Double.valueOf(0), 10);
+        assertProperty(properties, "prop2", Double.valueOf(0), 13);
+        assertProperty(properties, "prop3", Double.valueOf(0), 14);
+        assertProperty(properties, "prop4", Double.valueOf(0), 15);
+        assertProperty(properties, "prop5", Double.valueOf(0), 16);
         assertEquals(Status.INVALID_ARGS, properties.get(5).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
@@ -182,10 +182,10 @@ public class LuaScannerTest {
         List<Property> properties = getPropertiesFromFile("test_props_number.lua");
 
         assertEquals(4, properties.size());
-        assertProperty(properties, "prop1", new Double(12), 0);
-        assertProperty(properties, "prop2", new Double(1.0), 1);
-        assertProperty(properties, "prop3", new Double(.1), 2);
-        assertProperty(properties, "prop4", new Double(-1.0E2), 3);
+        assertProperty(properties, "prop1", Double.valueOf(12), 0);
+        assertProperty(properties, "prop2", Double.valueOf(1.0), 1);
+        assertProperty(properties, "prop3", Double.valueOf(.1), 2);
+        assertProperty(properties, "prop4", Double.valueOf(-1.0E2), 3);
     }
 
     @Test
@@ -214,7 +214,7 @@ public class LuaScannerTest {
     public void testPropsVec3() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_vec3.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(4, properties.size());
         assertProperty(properties, "prop1", new Vector3d(), 0);
         assertProperty(properties, "prop2", new Vector3d(1, 2, 3), 1);
         assertProperty(properties, "prop4", new Vector3d(2, 2, 2), 3);
@@ -224,7 +224,7 @@ public class LuaScannerTest {
     public void testPropsVec4() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_vec4.lua");
 
-        assertEquals(3, properties.size());
+        assertEquals(4, properties.size());
         assertProperty(properties, "prop1", new Vector4d(), 0);
         assertProperty(properties, "prop2", new Vector4d(1, 2, 3, 4), 1);
         assertProperty(properties, "prop4", new Vector4d(2, 2, 2, 2), 3);
@@ -234,7 +234,7 @@ public class LuaScannerTest {
     public void testPropsQuat() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_quat.lua");
 
-        assertEquals(2, properties.size());
+        assertEquals(3, properties.size());
         assertProperty(properties, "prop1", new Quat4d(), 0);
         Quat4d q = new Quat4d();
         q.set(1, 2, 3, 4);

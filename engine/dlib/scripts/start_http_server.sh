@@ -5,10 +5,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,14 +23,19 @@ if [ "${OS}" == "Windows_NT" ]; then
 	if [ "${TERM}" == "cygwin" ]; then
 		PATHSEP=":"
 	else
-		PATHSEP="\\;"
+		PATHSEP=";"
 	fi
 fi
 
-CLASSPATH=$SCRIPTDIR/../ext/jetty-all-7.0.2.v20100331.jar${PATHSEP}$SCRIPTDIR/../ext/servlet-api-2.5.jar${PATHSEP}$SCRIPTDIR/../build/src/test/http_server${PATHSEP}.${PATHSEP}$CLASSPATH
+CLASSPATH="."
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/*
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/*
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/logging/*
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../build/src/test/http_server
 
 echo $CLASSPATH
 
-java -cp $CLASSPATH TestHttpServer &
-echo $! > test_http_server.pid
+#DEBUG="-DDEBUG=true -Dorg.eclipse.jetty.LEVEL=DEBUG -Djavax.net.debug=ssl,handshake,data"
 
+java -cp $CLASSPATH ${DEBUG} TestHttpServer &
+echo $! > test_http_server.pid

@@ -93,9 +93,6 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(def with-anchor-pane-props
-  (fx/make-ext-with-props fx.anchor-pane/props))
-
 (def uri-string-converter
   (proxy [StringConverter] []
     (toString
@@ -396,7 +393,7 @@
                     {:text (value->label x)})
      :cell-factory (fn [x]
                      {:text (value->label x)})
-     :items (sort (mapv first options))}))
+     :items (mapv first options)}))
 
 (defn- show-combo-box! [^ComboBox combo-box]
   (.show combo-box))
@@ -1148,6 +1145,7 @@
             :always
             (conj (cond->
                     {:fx/type fx.label/lifecycle
+                     :fx/key [:label path]
                      :grid-pane/row row
                      :grid-pane/column 0
                      :grid-pane/valignment :top
@@ -1163,6 +1161,7 @@
             (and (form/optional-field? field)
                  (not= value ::no-value))
             (conj {:fx/type icon-button
+                   :fx/key [:clear path]
                    :grid-pane/row row
                    :grid-pane/column 1
                    :grid-pane/valignment :top
@@ -1175,6 +1174,7 @@
 
             :always
             (conj {:fx/type fx.v-box/lifecycle
+                   :fx/key [:control path]
                    :style-class (case (:severity error)
                                   :fatal ["cljfx-form-error"]
                                   :warning ["cljfx-form-warning"]
@@ -1410,7 +1410,7 @@
         filter-term (:filter-term ui-state)
         sections-with-visibility (mapv #(set-section-visibility % values filter-term) sections)
         navigation (:navigation form-data true)]
-    {:fx/type with-anchor-pane-props
+    {:fx/type fxui/ext-with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
      :props {:children [(if navigation

@@ -427,7 +427,8 @@
   Options:
   :fail :silently will not throw an exception on failure, and instead return an empty vector.
   :target :keep will not replace the target file if it exists.
-  :target :replace (default) will replace the target file if it exists."
+  :target :replace (default) will replace the target file if it exists.
+  Returns a vector of source+target File pairs if successful"
   ([^File src ^File tgt]
    (copy-file! src tgt {}))
   ([^File src ^File tgt opts]
@@ -504,6 +505,47 @@
    (if (.isDirectory src)
      (copy-directory! src tgt opts)
      (copy-file! src tgt opts))))
+
+(defn existing-path
+  "Return the argument if it exists on disc, nil otherwise
+
+  The argument can be anything that can be coerced to a file, e.g. a String,
+  File, URL etc."
+  [x]
+  (when (.exists (io/file x))
+    x))
+
+(def ^:private re-path-evaluator
+  #"(?x)        # enable comments and whitespace in this regex
+  \$([A-Z_]+)   # first group matches env var syntax
+  |
+  (^\~)         # second group matches home syntax (only allowed at the beginning of the string)
+  |
+  ([^$]+)       # third group is a path, excludes `$` that means env var syntax
+  |
+  (.+)          # error group, i.e. dangling `$`s at the end of the string")
+
+(defn evaluate-path
+  "Evaluate path similarly to how the shells do it, but requiring the env vars
+
+  Returns either an expanded string or nil if some specified env vars are
+  absent from the env
+
+  Expansions:
+    $ENV_VAR    substitutes with the value of the existing env var
+    ~           if at the beginning of the path, substitutes with user's home"
+  [raw-path]
+  (reduce
+    (fn [acc [_ env home path error]]
+      (cond
+        error (reduced nil)
+        env (if-let [var (System/getenv env)]
+              (str acc var)
+              (reduced nil))
+        home (str acc (System/getProperty "user.home"))
+        path (str acc path)))
+    ""
+    (re-seq re-path-evaluator raw-path)))
 
 ;; read
 

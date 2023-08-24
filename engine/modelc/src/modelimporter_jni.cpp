@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include "jni_util.h"
 
 #include <jni.h>
 
@@ -20,7 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
-#define CLASS_SCENE  "com/dynamo/bob/pipeline/ModelImporter$Scene"
+#define CLASS_SCENE     "com/dynamo/bob/pipeline/ModelImporter$Scene"
 
 struct ScopedString
 {
@@ -63,18 +64,18 @@ jclass GetClass(JNIEnv* env, const char* clsname)
     return env->FindClass(buffer);
 }
 
-static jfieldID GetFieldInt(JNIEnv* env, jclass cls, const char* field_name)
-{
-    return env->GetFieldID(cls, field_name, "I");
-}
-static jfieldID GetFieldString(JNIEnv* env, jclass cls, const char* field_name)
-{
-    return env->GetFieldID(cls, field_name, "Ljava/lang/String;");
-}
-static jfieldID GetFieldNode(JNIEnv* env, jclass cls, const char* field_name)
-{
-    return env->GetFieldID(cls, field_name, "Lcom/dynamo/bob/pipeline/ModelImporter$Node;");
-}
+// static jfieldID GetFieldInt(JNIEnv* env, jclass cls, const char* field_name)
+// {
+//     return env->GetFieldID(cls, field_name, "I");
+// }
+// static jfieldID GetFieldString(JNIEnv* env, jclass cls, const char* field_name)
+// {
+//     return env->GetFieldID(cls, field_name, "Ljava/lang/String;");
+// }
+// static jfieldID GetFieldNode(JNIEnv* env, jclass cls, const char* field_name)
+// {
+//     return env->GetFieldID(cls, field_name, "Lcom/dynamo/bob/pipeline/ModelImporter$Node;");
+// }
 
 // ******************************************************************************************************************
 
@@ -86,7 +87,15 @@ struct SceneJNI
     jfieldID    skins;
     jfieldID    rootNodes;
     jfieldID    animations;
+    jfieldID    materials;
     jfieldID    buffers;
+};
+
+struct MaterialJNI
+{
+    jclass      cls;
+    jfieldID    name;
+    jfieldID    index;
 };
 
 struct SkinJNI
@@ -225,6 +234,7 @@ struct TypeInfos
     MEMBER(NodeAnimationJNI);
     MEMBER(AnimationJNI);
     MEMBER(BufferJNI);
+    MEMBER(MaterialJNI);
 
 #undef MEMBER
 };
@@ -281,7 +291,13 @@ static void InitializeJNITypes(JNIEnv* env, TypeInfos* infos)
         GET_FLD_ARRAY(skins, "Skin");
         GET_FLD_ARRAY(rootNodes, "Node");
         GET_FLD_ARRAY(animations, "Animation");
+        GET_FLD_ARRAY(materials, "Material");
         GET_FLD_ARRAY(buffers, "Buffer");
+    }
+    {
+        SETUP_CLASS(MaterialJNI, "Material");
+        GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(index, "I");
     }
     {
         SETUP_CLASS(SkinJNI, "Skin");
@@ -317,7 +333,8 @@ static void InitializeJNITypes(JNIEnv* env, TypeInfos* infos)
     {
         SETUP_CLASS(MeshJNI, "Mesh");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
-        GET_FLD_TYPESTR(material, "Ljava/lang/String;");
+
+        GET_FLD(material, "Material");
         GET_FLD(aabb, "Aabb");
 
         GET_FLD_TYPESTR(positions, "[F");
@@ -369,24 +386,24 @@ static int AddressOf(jobject object)
     return a;
 }
 
-static int GetAddressOfField(JNIEnv* env, jobject object, jfieldID field)
-{
-    jobject field_object = env->GetObjectField(object, field);
-    int id = AddressOf(field_object);
-    env->DeleteLocalRef(field_object);
-    return id;
-}
+// static int GetAddressOfField(JNIEnv* env, jobject object, jfieldID field)
+// {
+//     jobject field_object = env->GetObjectField(object, field);
+//     int id = AddressOf(field_object);
+//     env->DeleteLocalRef(field_object);
+//     return id;
+// }
 
 // ******************************************************************************************************************
 
 
-static void SetFieldString(JNIEnv* env, jclass cls, jobject obj, const char* field_name, const char* value)
-{
-    jfieldID field = GetFieldString(env, cls, field_name);
-    jstring str = env->NewStringUTF(value);
-    env->SetObjectField(obj, field, str);
-    env->DeleteLocalRef(str);
-}
+// static void SetFieldString(JNIEnv* env, jclass cls, jobject obj, const char* field_name, const char* value)
+// {
+//     jfieldID field = GetFieldString(env, cls, field_name);
+//     jstring str = env->NewStringUTF(value);
+//     env->SetObjectField(obj, field, str);
+//     env->DeleteLocalRef(str);
+// }
 
 static void SetFieldInt(JNIEnv* env, jobject obj, jfieldID field, int value)
 {
@@ -434,7 +451,7 @@ static jobject CreateAabb(JNIEnv* env, const TypeInfos* types, const Aabb& value
     return obj;
 }
 
-static jobject CreateTransform(JNIEnv* env, const TypeInfos* types, dmTransform::Transform* transform)
+static jobject CreateTransform(JNIEnv* env, const TypeInfos* types, const dmTransform::Transform* transform)
 {
     jobject obj = env->AllocObject(types->m_TransformJNI.cls);
     SetFieldObject(env, obj, types->m_TransformJNI.translation, CreateVec4(env, types, dmVMath::Vector4(transform->GetTranslation())));
@@ -465,38 +482,64 @@ static jbyteArray CreateByteArray(JNIEnv* env, uint32_t count, const uint8_t* va
 }
 
 // For debugging the set values
-static void GetVec4(JNIEnv* env, const TypeInfos* types, jobject object, float* vec4)
-{
-    vec4[0] = env->GetFloatField(object, types->m_Vec4JNI.x);
-    vec4[1] = env->GetFloatField(object, types->m_Vec4JNI.y);
-    vec4[2] = env->GetFloatField(object, types->m_Vec4JNI.z);
-    vec4[3] = env->GetFloatField(object, types->m_Vec4JNI.w);
-}
+// static void GetVec4(JNIEnv* env, const TypeInfos* types, jobject object, float* vec4)
+// {
+//     vec4[0] = env->GetFloatField(object, types->m_Vec4JNI.x);
+//     vec4[1] = env->GetFloatField(object, types->m_Vec4JNI.y);
+//     vec4[2] = env->GetFloatField(object, types->m_Vec4JNI.z);
+//     vec4[3] = env->GetFloatField(object, types->m_Vec4JNI.w);
+// }
 
-static void GetTransform(JNIEnv* env, const TypeInfos* types, jobject object, jfieldID field, dmTransform::Transform* out)
-{
-    jobject xform = env->GetObjectField(object, field);
-    // TODO: check if it's a transform class!
+// static void GetTransform(JNIEnv* env, const TypeInfos* types, jobject object, jfieldID field, dmTransform::Transform* out)
+// {
+//     jobject xform = env->GetObjectField(object, field);
+//     // TODO: check if it's a transform class!
 
-    jobject xform_pos = env->GetObjectField(xform, types->m_TransformJNI.translation);
-    jobject xform_rot = env->GetObjectField(xform, types->m_TransformJNI.rotation);
-    jobject xform_scl = env->GetObjectField(xform, types->m_TransformJNI.scale);
+//     jobject xform_pos = env->GetObjectField(xform, types->m_TransformJNI.translation);
+//     jobject xform_rot = env->GetObjectField(xform, types->m_TransformJNI.rotation);
+//     jobject xform_scl = env->GetObjectField(xform, types->m_TransformJNI.scale);
 
-    float v[4] = {};
-    GetVec4(env, types, xform_pos, v);
-    out->SetTranslation(dmVMath::Vector3(v[0], v[1], v[2]));
-    GetVec4(env, types, xform_rot, v);
-    out->SetRotation(dmVMath::Quat(v[0], v[1], v[2], v[3]));
-    GetVec4(env, types, xform_scl, v);
-    out->SetScale(dmVMath::Vector3(v[0], v[1], v[2]));
+//     float v[4] = {};
+//     GetVec4(env, types, xform_pos, v);
+//     out->SetTranslation(dmVMath::Vector3(v[0], v[1], v[2]));
+//     GetVec4(env, types, xform_rot, v);
+//     out->SetRotation(dmVMath::Quat(v[0], v[1], v[2], v[3]));
+//     GetVec4(env, types, xform_scl, v);
+//     out->SetScale(dmVMath::Vector3(v[0], v[1], v[2]));
 
-    env->DeleteLocalRef(xform_pos);
-    env->DeleteLocalRef(xform_rot);
-    env->DeleteLocalRef(xform_scl);
-    env->DeleteLocalRef(xform);
-}
+//     env->DeleteLocalRef(xform_pos);
+//     env->DeleteLocalRef(xform_rot);
+//     env->DeleteLocalRef(xform_scl);
+//     env->DeleteLocalRef(xform);
+// }
 
 // **************************************************
+// Material
+
+static jobject CreateMaterial(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Material* material)
+{
+    jobject obj = env->AllocObject(types->m_MaterialJNI.cls);
+    SetFieldInt(env, obj, types->m_MaterialJNI.index, material->m_Index);
+    SetFieldString(env, obj, types->m_MaterialJNI.name, material->m_Name);
+    return obj;
+}
+
+static jobjectArray CreateMaterialsArray(JNIEnv* env, const TypeInfos* types, uint32_t count, const dmModelImporter::Material* materials, dmArray<jobject>& nodes)
+{
+    nodes.SetCapacity(count);
+    nodes.SetSize(count);
+
+    jobjectArray arr = env->NewObjectArray(count, types->m_MaterialJNI.cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const dmModelImporter::Material* material = &materials[i];
+        jobject obj = CreateMaterial(env, types, material);
+        nodes[material->m_Index] = obj;
+        env->SetObjectArrayElement(arr, i, obj);
+    }
+    return arr;
+}
+
 // Buffer
 
 static jobject CreateBuffer(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Buffer* buffer)
@@ -527,7 +570,7 @@ static jobjectArray CreateBuffersArray(JNIEnv* env, const TypeInfos* types, uint
 // **************************************************
 // Nodes
 
-static jobject CreateNode(JNIEnv* env, const TypeInfos* types, dmModelImporter::Node* node)
+static jobject CreateNode(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Node* node)
 {
     jobject obj = env->AllocObject(types->m_NodeJNI.cls);
     SetFieldInt(env, obj, types->m_NodeJNI.index, node->m_Index);
@@ -595,11 +638,13 @@ static void FixupNodeReferences(JNIEnv* env, const TypeInfos* types, const dmMod
 // **************************************************
 // Meshes
 
-static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Mesh* mesh)
+static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmArray<jobject>& materials, const dmModelImporter::Mesh* mesh)
 {
     jobject obj = env->AllocObject(types->m_MeshJNI.cls);
     SetFieldString(env, obj, types->m_MeshJNI.name, mesh->m_Name);
-    SetFieldString(env, obj, types->m_MeshJNI.material, mesh->m_Material);
+    if (mesh->m_Material)
+        SetFieldObject(env, obj, types->m_MeshJNI.material, materials[mesh->m_Material->m_Index]);
+
     SetFieldInt(env, obj, types->m_MeshJNI.vertexCount, mesh->m_VertexCount);
     SetFieldInt(env, obj, types->m_MeshJNI.indexCount, mesh->m_IndexCount);
     SetFieldInt(env, obj, types->m_MeshJNI.texCoords0NumComponents, mesh->m_TexCoord0NumComponents);
@@ -643,31 +688,31 @@ static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmModelImpo
     return obj;
 }
 
-static jobjectArray CreateMeshesArray(JNIEnv* env, const TypeInfos* types, uint32_t count, const dmModelImporter::Mesh* meshes)
+static jobjectArray CreateMeshesArray(JNIEnv* env, const TypeInfos* types, const dmArray<jobject>& materials, uint32_t count, const dmModelImporter::Mesh* meshes)
 {
     jobjectArray arr = env->NewObjectArray(count, types->m_MeshJNI.cls, 0);
     for (uint32_t i = 0; i < count; ++i)
     {
-        jobject o = CreateMesh(env, types, &meshes[i]);
+        jobject o = CreateMesh(env, types, materials, &meshes[i]);
         env->SetObjectArrayElement(arr, i, o);
         env->DeleteLocalRef(o);
     }
     return arr;
 }
 
-static jobject CreateModel(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Model* model)
+static jobject CreateModel(JNIEnv* env, const TypeInfos* types, const dmArray<jobject>& materials, const dmModelImporter::Model* model)
 {
     jobject obj = env->AllocObject(types->m_ModelJNI.cls);
     SetFieldInt(env, obj, types->m_ModelJNI.index, model->m_Index);
     SetFieldString(env, obj, types->m_ModelJNI.name, model->m_Name);
 
-    jobjectArray arr = CreateMeshesArray(env, types, model->m_MeshesCount, model->m_Meshes);
+    jobjectArray arr = CreateMeshesArray(env, types, materials, model->m_MeshesCount, model->m_Meshes);
     env->SetObjectField(obj, types->m_ModelJNI.meshes, arr);
     env->DeleteLocalRef(arr);
     return obj;
 }
 
-static void CreateModels(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Scene* scene, dmArray<jobject>& models)
+static void CreateModels(JNIEnv* env, const TypeInfos* types, const dmModelImporter::Scene* scene, const dmArray<jobject>& materials, dmArray<jobject>& models)
 {
     uint32_t count = scene->m_ModelsCount;
     models.SetCapacity(count);
@@ -676,7 +721,7 @@ static void CreateModels(JNIEnv* env, const TypeInfos* types, const dmModelImpor
     for (uint32_t i = 0; i < count; ++i)
     {
         Model* model = &scene->m_Models[i];
-        models[model->m_Index] = CreateModel(env, types, model);
+        models[model->m_Index] = CreateModel(env, types, materials, model);
     }
 }
 
@@ -844,6 +889,13 @@ static void CreateSkins(JNIEnv* env, const TypeInfos* types, const dmModelImport
     }
 }
 
+static void DeleteLocalRefs(JNIEnv* env, dmArray<jobject>& objects)
+{
+    for (uint32_t i = 0; i < objects.Size(); ++i)
+    {
+        env->DeleteLocalRef(objects[i]);
+    }
+}
 
 static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 {
@@ -855,9 +907,17 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     dmArray<jobject> models;
     dmArray<jobject> skins;
     dmArray<jobject> nodes;
+    dmArray<jobject> materials;
+
     {
         jobjectArray arr = CreateBuffersArray(env, &types, scene->m_BuffersCount, scene->m_Buffers);
         env->SetObjectField(obj, types.m_SceneJNI.buffers, arr);
+        env->DeleteLocalRef(arr);
+    }
+
+    {
+        jobjectArray arr = CreateMaterialsArray(env, &types, scene->m_MaterialsCount, scene->m_Materials, materials);
+        env->SetObjectField(obj, types.m_SceneJNI.materials, arr);
         env->DeleteLocalRef(arr);
     }
 
@@ -865,7 +925,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     CreateNodes(env, &types, scene, nodes);
 
     CreateSkins(env, &types, scene, skins);
-    CreateModels(env, &types, scene, models);
+    CreateModels(env, &types, scene, materials, models);
     CreateBones(env, &types, scene, skins, nodes);
 
     // Set the skin+model to the nodes
@@ -908,29 +968,18 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
         env->DeleteLocalRef(arr);
     }
 
-
-    for (uint32_t i = 0; i < nodes.Size(); ++i)
-    {
-        env->DeleteLocalRef(nodes[i]);
-    }
-    for (uint32_t i = 0; i < skins.Size(); ++i)
-    {
-        env->DeleteLocalRef(skins[i]);
-    }
-    for (uint32_t i = 0; i < models.Size(); ++i)
-    {
-        env->DeleteLocalRef(models[i]);
-    }
+    DeleteLocalRefs(env, nodes);
+    DeleteLocalRefs(env, skins);
+    DeleteLocalRefs(env, models);
+    DeleteLocalRefs(env, materials);
 
     return obj;
 }
 
 } // namespace
 
-JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
-    dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
-
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
 
@@ -945,12 +994,8 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
     jsize file_size = env->GetArrayLength(array);
     jbyte* file_data = env->GetByteArrayElements(array, 0);
 
-    dmLogDebug("LoadFromBufferInternal: %s suffix: %s bytes: %d\n", path, suffix, file_size);
-
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, (uint8_t*)file_data, file_size);
-
-    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
 
     if (!scene)
     {
@@ -1011,6 +1056,20 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
 
     dmModelImporter::DestroyScene(scene);
 
+    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+
+    return jscene;
+}
+
+JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+{
+    dmLogDebug("Java_ModelImporter_LoadFromBufferInternal: env = %p\n", env);
+    dmJNI::SignalContextScope env_scope(env);
+
+    jobject jscene;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        jscene = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
     return jscene;
 }
 
@@ -1019,9 +1078,19 @@ JNIEXPORT jint JNICALL Java_ModelImporter_AddressOf(JNIEnv* env, jclass cls, job
     return dmModelImporter::AddressOf(object);
 }
 
+JNIEXPORT void JNICALL Java_ModelImporter_TestException(JNIEnv* env, jclass cls, jstring j_message)
+{
+    dmJNI::SignalContextScope env_scope(env);
+    ScopedString s_message(env, j_message);
+    const char* message = s_message.m_String;
+    printf("Received message: %s\n", message);
+    dmJNI::TestSignalFromString(message);
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad ->\n");
+    dmJNI::EnableDefaultSignalHandlers(vm);
 
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -1036,9 +1105,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
       return JNI_ERR;
 
     // Register your class' native methods.
+    // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
         {"LoadFromBufferInternal", "(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
         {"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporter_AddressOf)},
+        {"TestException", "(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_ModelImporter_TestException)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     env->DeleteLocalRef(c);
@@ -1047,6 +1118,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad return.\n");
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved)
+{
+    dmLogDebug("JNI_OnUnload ->\n");
 }
 
 namespace dmModelImporter

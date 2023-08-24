@@ -29,6 +29,7 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
+#include <dmsdk/render/render.h>
 
 /**
  * Defold GUI system
@@ -44,9 +45,6 @@
  */
 namespace dmGui
 {
-    typedef struct Context* HContext;
-    typedef struct Script* HScript;
-
     /**
      * Default layout id
      */
@@ -154,12 +152,14 @@ namespace dmGui
         uint32_t m_MaxNodes;
         uint32_t m_MaxAnimations;
         uint32_t m_MaxTextures;
+        uint32_t m_MaxMaterials;
         uint32_t m_MaxFonts;
         uint32_t m_MaxParticlefxs;
         uint32_t m_MaxParticlefx;
         uint32_t m_MaxLayers;
+
         dmParticle::HParticleContext m_ParticlefxContext;
-        void*    m_UserData;
+        void*                       m_UserData;
         CreateCustomNodeCallback    m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
         CloneCustomNodeCallback     m_CloneCustomNodeCallback;
@@ -360,9 +360,11 @@ namespace dmGui
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
+        uint32_t m_UserID;
         dmHID::GamepadPacket m_GamepadPacket;
 
         uint8_t  m_IsGamepad : 1;
+        uint8_t  m_GamepadUnknown : 1;
         uint8_t  m_GamepadDisconnected : 1;
         uint8_t  m_GamepadConnected : 1;
         uint8_t  m_HasGamepadPacket : 1;
@@ -629,6 +631,10 @@ namespace dmGui
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
 
+    Result AddMaterial(HScene scene, const char* material_name, void* material);
+
+    void AssignMaterials(HScene scene);
+
     /**
      * Adds a layer with the specified name to the scene.
      * @param scene Scene to add the layer to
@@ -878,6 +884,9 @@ namespace dmGui
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
+
+    Result SetNodeMaterial(HScene scene, HNode node, const char* material_id);
+    void*  GetNodeMaterial(HScene scene, HNode node);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);

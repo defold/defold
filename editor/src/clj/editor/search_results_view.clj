@@ -13,23 +13,45 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.search-results-view
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.hyperlink :as fx.hyperlink]
+            [cljfx.fx.progress-indicator :as fx.progress-indicator]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.tree-item :as fx.tree-item]
+            [cljfx.fx.tree-table-cell :as fx.tree-table-cell]
+            [cljfx.fx.tree-table-column :as fx.tree-table-column]
+            [cljfx.fx.tree-table-view :as fx.tree-table-view]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.core :as core]
             [editor.defold-project-search :as project-search]
+            [editor.error-reporting :as error-reporting]
+            [editor.field-expression :as field-expression]
+            [editor.fxui :as fxui]
             [editor.icons :as icons]
+            [editor.outline :as outline]
             [editor.prefs :as prefs]
+            [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :refer [flipped-pair]])
   (:import [java.util Collection]
            [javafx.animation AnimationTimer]
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox Label ProgressIndicator SelectionMode TextField TreeItem TreeView]
-           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.control CheckBox Label ProgressIndicator SelectionMode TextField TreeItem TreeTableView TreeView]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent]
+           [javafx.scene.paint Color]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.stage StageStyle]))
 
@@ -307,3 +329,264 @@
                           (update-search-results! search-results-view results-tab-tree-view progress-indicator)
                           (show-search-results-tab-fn))]
     (start-search-in-files! project prefs results-tab-tree-view progress-indicator open-fn show-matches-fn)))
+
+(defn- resource-cell [{:keys [resource qualifier]}]
+  {:graphic {:fx/type fx.h-box/lifecycle
+             :spacing 6
+             :children (cond-> [{:fx/type fxui/label
+                                 :text (resource/resource->proj-path resource)}]
+                               qualifier
+                               (conj {:fx/type fxui/label
+                                      :style {:-fx-text-fill :-df-text-darker}
+                                      :text qualifier}))}})
+
+(defn- property->edit-type-dispatch-value [property]
+  (let [edit-type (-> property :edit-type :type (or (:type property)))]
+    (or (g/value-type-dispatch-value edit-type)
+        edit-type)))
+
+(defmulti property-column-suffix property->edit-type-dispatch-value)
+(defmethod property-column-suffix :default [_] "")
+(defmethod property-column-suffix types/Vec2 [property]
+  (str ": " (string/join " " (:labels property ["X" "Y"]))))
+(defmethod property-column-suffix types/Vec3 [property]
+  (str ": " (string/join " " (:labels property ["X" "Y" "Z"]))))
+(defmethod property-column-suffix types/Vec4 [property]
+  (str ": " (string/join " " (:labels property ["X" "Y" "Z" "W"]))))
+
+(defmulti override-value-cell-view property->edit-type-dispatch-value)
+
+(defn- overridden-style-classes [property]
+  (if (contains? property :original-value)
+    ["overridden"]
+    []))
+
+(defmethod override-value-cell-view :default [{:keys [value] :as property}]
+  {:fx/type fx.h-box/lifecycle
+   :alignment (if (number? value) :top-right :top-left)
+   :children [{:fx/type fxui/label
+               :h-box/hgrow :always
+               :style-class (overridden-style-classes property)
+               :text (string/replace (str value) \newline \space)}]})
+
+(defmethod override-value-cell-view g/Bool [{:keys [value] :as property}]
+  {:fx/type fx.check-box/lifecycle
+   :disable true
+   :style-class (into ["check-box" "override-inspector-check-box"] (overridden-style-classes property))
+   :selected (boolean value)})
+
+(defn- multi-text-field [{:keys [value] :as property}]
+  {:fx/type fx.grid-pane/lifecycle
+   :hgap 5
+   :column-constraints (repeat (count value)
+                               {:fx/type fx.column-constraints/lifecycle
+                                :percent-width (/ 100.0 (max 1 (count value)))})
+   :children (into []
+                   (map-indexed
+                     (fn [i v]
+                       {:fx/type fxui/label
+                        :grid-pane/column i
+                        :grid-pane/halignment :right
+                        :style-class (overridden-style-classes property)
+                        :text (field-expression/format-number v)}))
+                   value)})
+
+(defmethod override-value-cell-view types/Vec2 [property]
+  (multi-text-field property))
+
+(defmethod override-value-cell-view types/Vec3 [property]
+  (multi-text-field property))
+
+(defmethod override-value-cell-view types/Vec4 [property]
+  (multi-text-field property))
+
+(defmethod override-value-cell-view types/Color [{:keys [value] :as property}]
+  (if value
+    (let [[r g b a] value
+          color (Color. r g b a)
+          nr (Math/round (double (* 255 r)))
+          ng (Math/round (double (* 255 g)))
+          nb (Math/round (double (* 255 b)))
+          na (Math/round (double (* 255 a)))]
+      {:fx/type fxui/label
+       :style-class (overridden-style-classes property)
+       :graphic {:fx/type fx.region/lifecycle
+                 :min-width 10
+                 :min-height 10
+                 :background {:fills [{:fill color}]}}
+       :text (if (= 255 na)
+               (format "#%02x%02x%02x" nr ng nb)
+               (format "#%02x%02x%02x%02x" nr ng nb na))})
+    {:fx/type fxui/label}))
+
+(defmethod override-value-cell-view :choicebox [{:keys [edit-type value] :as property}]
+  (let [labels (into {} (:options edit-type))]
+    {:fx/type fxui/label
+     :style-class (overridden-style-classes property)
+     :text (get labels value)}))
+
+(defn open-hyperlink-resource! [open-resource-fn resource _]
+  (open-resource-fn resource {}))
+
+(defmethod override-value-cell-view resource/Resource [{:keys [value open-resource-fn] :as property}]
+  {:fx/type fx.hyperlink/lifecycle
+   :style-class (into ["override-inspector-hyperlink"] (overridden-style-classes property))
+   :on-action (fxui/partial #'open-hyperlink-resource! open-resource-fn value)
+   :text (resource/resource->proj-path value)})
+
+(defn- value-cell [open-resource-fn property]
+  {:graphic (override-value-cell-view (assoc property :value (properties/value property)
+                                                      :open-resource-fn open-resource-fn))})
+
+(defn- property-value [property-keyword tree]
+  (-> tree :properties property-keyword))
+
+(defn- tree-table-view-event-filter [open-resource-fn ^Event e]
+  (when (and (instance? MouseEvent e)
+             (= MouseEvent/MOUSE_PRESSED (.getEventType e)))
+    (let [^MouseEvent e e]
+      (when (even? (.getClickCount e))
+        (.consume e)
+        (let [^TreeTableView tree-view (.getSource e)]
+          (when-let [^TreeItem tree-item (.getSelectedItem (.getSelectionModel tree-view))]
+            (when-let [tree (.getValue tree-item)]
+              (open-resource-fn (:resource tree) {:select-node (:node-id tree)}))))))))
+
+(defn- override-inspector-view [state parent open-resource-fn]
+  (letfn [(->tree-item [tree]
+            {:fx/type fx.tree-item/lifecycle
+             :expanded true
+             :value tree
+             :children (mapv ->tree-item (:children tree))})]
+    {:fx/type fxui/ext-with-anchor-pane-props
+     :desc {:fx/type fxui/ext-value
+            :value parent}
+     :props
+     {:children
+      [{:fx/type fx.anchor-pane/lifecycle
+        :anchor-pane/left 0
+        :anchor-pane/right 0
+        :anchor-pane/top 0
+        :anchor-pane/bottom 0
+        :children
+        [(if (= :search state)
+           {:fx/type fx.progress-indicator/lifecycle
+            :anchor-pane/right 10
+            :anchor-pane/bottom 10
+            :pref-width 28
+            :pref-height 28
+            :mouse-transparent true}
+           {:fx/type fx.tree-table-view/lifecycle
+            :anchor-pane/bottom 0
+            :anchor-pane/top 0
+            :anchor-pane/left 0
+            :anchor-pane/right 0
+            :fixed-cell-size 24
+            :event-filter (fxui/partial #'tree-table-view-event-filter open-resource-fn)
+            :columns (into [{:fx/type fx.tree-table-column/lifecycle
+                             :text "Resource"
+                             :cell-value-factory identity
+                             :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                            :describe #'resource-cell}}]
+                           (map (fn [property-keyword]
+                                  {:fx/type fx.tree-table-column/lifecycle
+                                   :text (str (properties/keyword->name property-keyword)
+                                              (property-column-suffix (property-value property-keyword state)))
+                                   :cell-value-factory (fxui/partial #'property-value property-keyword)
+                                   :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                                  :describe (fxui/partial #'value-cell open-resource-fn)}}))
+                           (:display-order state))
+            :root (->tree-item state)})]}]}}))
+
+(defn- make-override-tree [node-id properties {:keys [basis] :as evaluation-context}]
+  (let [property-pred (if (= :all properties)
+                        any?
+                        (set properties))]
+    (letfn [(make-tree
+              ([node-id]
+               (make-tree node-id false))
+              ([node-id root]
+               (let [property-map (:properties (g/node-value node-id :_properties evaluation-context))
+                     overridden-properties (into #{}
+                                                 (keep (fn [[k property]]
+                                                         (when (and (property-pred k)
+                                                                    (properties/visible? property)
+                                                                    (contains? property :original-value))
+                                                           k)))
+                                                 property-map)
+                     children (into []
+                                    (keep make-tree)
+                                    (g/overrides basis node-id))]
+                 (when (or root
+                           (pos? (count overridden-properties))
+                           (pos? (count children)))
+                   (let [owner-node-id (or (resource-node/owner-resource-node-id basis node-id)
+                                           (throw (ex-info "Can't find the owner resource node for an override node"
+                                                           {:node-id node-id})))
+                         resource (resource-node/resource basis owner-node-id)
+                         outline-ids (when (g/node-instance? basis outline/OutlineNode owner-node-id)
+                                       (->> (g/node-value owner-node-id :node-outline evaluation-context)
+                                            (tree-seq :children :children)
+                                            (into #{} (map :node-id))))
+                         select-node-id (or (when outline-ids
+                                              (loop [node-id node-id]
+                                                (cond
+                                                  (nil? node-id) nil
+                                                  (outline-ids node-id) node-id
+                                                  :else (recur (core/owner-node-id basis node-id)))))
+                                            node-id)
+                         select-node-type (g/node-type* basis select-node-id)
+                         qualifier (cond
+                                     (g/has-output? select-node-type :url)
+                                     (str (g/node-value select-node-id :url evaluation-context))
+
+                                     (g/has-output? select-node-type :id)
+                                     (str (g/node-value select-node-id :id evaluation-context))
+
+                                     :else
+                                     nil)]
+                     {:node-id select-node-id
+                      :qualifier qualifier
+                      :resource resource
+                      :properties property-map
+                      :overridden-properties overridden-properties
+                      :children children})))))]
+      (make-tree node-id true))))
+
+(defn show-override-inspector!
+  "Show override inspector tree table in a Search Results view
+
+  Args:
+    search-results-view    node id of a search result view
+    node-id                root node id whose overrides are inspected
+    properties             either :all or a coll of property keywords to include
+                           in the override inspector output"
+  [search-results-view node-id properties]
+  (let [evaluation-context (g/make-evaluation-context)
+        parent (g/node-value search-results-view :search-results-container evaluation-context)
+        display-order (into {}
+                            (map-indexed flipped-pair)
+                            (:display-order (g/node-value node-id :_properties evaluation-context)))
+        open-resource-fn (partial open-resource! search-results-view)
+        renderer (fx/create-renderer
+                   :error-handler error-reporting/report-exception!
+                   :middleware
+                   (comp
+                     fxui/wrap-dedupe-desc
+                     (fx/wrap-map-desc #'override-inspector-view parent open-resource-fn)))]
+    (renderer :search)
+    (future
+      (try
+        (let [tree (make-override-tree node-id properties evaluation-context)]
+          (renderer
+            (assoc tree
+              :display-order (->> (tree-seq :children :children tree)
+                                  (into #{}
+                                        (comp
+                                          (drop 1)
+                                          (mapcat :overridden-properties)))
+                                  (sort-by display-order)
+                                  vec)))
+          (g/update-cache-from-evaluation-context! evaluation-context))
+        (catch Throwable ex
+          (error-reporting/report-exception! ex))))))

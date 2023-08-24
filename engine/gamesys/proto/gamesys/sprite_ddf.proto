@@ -3,6 +3,7 @@ package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "Sprite";
@@ -31,6 +32,10 @@ message SpriteDesc
     optional dmMath.Vector4 slice9      = 5;
     optional dmMath.Vector4 size        = 6;
     optional SizeMode size_mode         = 7 [default = SIZE_MODE_AUTO];
+    optional float offset               = 8 [default = 0.0];
+    optional float playback_rate        = 9 [default = 1.0];
+
+    repeated dmGraphics.VertexAttribute attributes = 10;
 }
 
 /*# Sprite API documentation
