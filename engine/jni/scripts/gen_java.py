@@ -817,8 +817,6 @@ def gen_from_jni_create_object(decl, namespace, class_name, package_name, header
             field_type = util.extract_dmarray_type(field_type)
             c_type, ptr = util.extract_ptr_type2(field_type)
 
-            print(f"MAWE: dmarray type: {field_name} '{field_type}' '{c_type}' '{ptr}'")
-
             jni_typestr = c_type_to_jni_capname.get(field_type, None)
             jni_type = c_type_to_jni_type.get(field_type, None)
             jni_field_name = to_jni_camel_case(field_name, 'm_')
@@ -1031,6 +1029,11 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
     package_dir = make_package_dir(java_outdir, package_name)
 
     source_path = f'{jni_outdir}/{module_name}.empty.cpp'
+
+    source_dir = os.path.dirname(source_path)
+    if not os.path.exists(source_dir):
+        os.makedirs(source_dir)
+
     with open(source_path, 'wb') as f:
         f.write(f"#include \"{header_path}\"".encode('utf-8'))
 
