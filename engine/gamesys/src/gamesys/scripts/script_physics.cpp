@@ -1262,6 +1262,104 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Physics_SetShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        int shape_ix                         = luaL_checkinteger(L, 2) - 1;
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        if (shape_ix < 0)
+        {
+            return luaL_error(L, "Negative indices not supported (%d)", shape_ix);
+        }
+
+        void* comp       = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        dmGameSystem::ShapeInfo shape_info = {};
+
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushvalue(L, 3);
+
+        {
+            lua_getfield(L, -1, "type");
+            shape_info.m_Type = (dmPhysicsDDF::CollisionShape::Type) luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+
+            if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_SPHERE)
+            {
+                lua_getfield(L, -1, "radius");
+                shape_info.m_Sphere = luaL_checknumber(L, -1);
+                lua_pop(L, 1);
+            }
+            else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
+            {
+                assert(sizeof(shape_info.m_Box) <= sizeof(dmVMath::Vector3));
+                lua_getfield(L, -1, "dimensions");
+                dmVMath::Vector3* box_dimensions = dmScript::CheckVector3(L, -1);
+                memcpy(shape_info.m_Box, &box_dimensions[0], sizeof(shape_info.m_Box));
+                lua_pop(L, 1);
+            }
+            else
+            {
+                return luaL_error(L, "Unsupported shape type %d", (int) shape_info.m_Type);
+            }
+
+            if (!dmGameSystem::SetShape(comp_world, comp, shape_ix, &shape_info))
+            {
+                return luaL_error(L, "Unable to set shape data at index %d", shape_ix);
+            }
+        }
+
+        lua_pop(L, 1); // args table
+
+        return 0;
+    }
+
+    static int Physics_GetShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        int shape_ix                         = luaL_checkinteger(L, 2) - 1;
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        if (shape_ix < 0)
+        {
+            return luaL_error(L, "Negative indices not supported (%d)", shape_ix);
+        }
+
+        void* comp       = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        dmGameSystem::ShapeInfo shape_info = {};
+        if (!dmGameSystem::GetShape(comp_world, comp, shape_ix, &shape_info))
+        {
+            return luaL_error(L, "Unable to get shape data at index %d.", shape_ix);
+        }
+
+        lua_newtable(L);
+
+        lua_pushinteger(L, (int) shape_info.m_Type);
+        lua_setfield(L, -2, "type");
+
+        switch(shape_info.m_Type)
+        {
+            case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                lua_pushnumber(L, shape_info.m_Sphere);
+                lua_setfield(L, -2, "radius");
+                break;
+            case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_Box[0], shape_info.m_Box[1], shape_info.m_Box[2]));
+                lua_setfield(L, -2, "dimensions");
+                break;
+        }
+
+        return 1;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1285,6 +1383,11 @@ namespace dmGameSystem
         {"set_group",		Physics_SetGroup},
         {"get_maskbit",		Physics_GetMaskBit},
         {"set_maskbit",		Physics_SetMaskBit},
+
+        // Shapes
+        {"get_shape", Physics_GetShape},
+        {"set_shape", Physics_SetShape},
+
         {0, 0}
     };
 

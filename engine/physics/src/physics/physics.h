@@ -690,6 +690,8 @@ namespace dmPhysics
      */
     uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size);
 
+    // uint32_t GetCollisionShapeVertexCount2D(HCollisionShape2D _shape);
+
     /**
      * Set 3D collision object user data
      *
@@ -1382,6 +1384,13 @@ namespace dmPhysics
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
 
+    void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius);
+    void GetCollisionShapePolygonVertices2D(HCollisionShape2D _shape, float** vertices, uint32_t* vertex_count);
+
+    void SetCollisionShapeRadius2D(HCollisionShape2D _shape, float radius);
+    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D _shape, float w, float h);
+
+    void SynchronizeObject2D(HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H

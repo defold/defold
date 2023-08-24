@@ -715,7 +715,7 @@ namespace dmPhysics
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
     }
-    
+
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
@@ -1014,6 +1014,49 @@ namespace dmPhysics
             fixture = fixture->GetNext();
         }
         return i;
+    }
+
+    void GetCollisionShapeRadius2D(HCollisionShape2D _shape, float* radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        *radius = shape->m_radius;
+    }
+
+    void SetCollisionShapeRadius2D(HCollisionShape2D _shape, float radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        shape->m_radius = radius;
+    }
+
+    void SynchronizeObject2D(HCollisionObject2D collision_object)
+    {
+        ((b2Body*)collision_object)->SynchronizeFixtures();
+    }
+
+    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D _shape, float w, float h)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            polygon_shape->SetAsBox(w * 0.5f, h * 0.5f);
+        }
+    }
+
+    void GetCollisionShapePolygonVertices2D(HCollisionShape2D _shape, float** vertices, uint32_t* vertex_count)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            *vertex_count                 = polygon_shape->GetVertexCount();
+            *vertices                     = (float*) polygon_shape->m_vertices;
+        }
+        else
+        {
+            *vertices     = 0;
+            *vertex_count = 0;
+        }
     }
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)

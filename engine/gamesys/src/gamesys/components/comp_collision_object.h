@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include <physics/physics.h>
 
+#include <gamesys/physics_ddf.h>
+
 template <typename T> class dmArray;
 
 namespace dmGameSystem
@@ -81,6 +83,19 @@ namespace dmGameSystem
     bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit);
     bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);
 
+    struct ShapeInfo
+    {
+        union
+        {
+            float m_Box[3];
+            float m_Capsule[2];
+            float m_Sphere;
+        };
+        dmPhysicsDDF::CollisionShape::Type m_Type;
+    };
+
+    bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
+    bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

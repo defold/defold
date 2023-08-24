@@ -35,7 +35,6 @@
 
 #include <gamesys/atlas_ddf.h>
 #include <gamesys/texture_set_ddf.h>
-#include <gamesys/physics_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
@@ -1674,6 +1673,115 @@ namespace dmGameSystem
         {
             return dmPhysics::GetGravity2D(world->m_World2D);
         }
+    }
+
+    static void CalculateBoxDimensions2D(float* vertices, uint32_t vertex_count, float* dimension2d)
+    {
+        float min_x = INT32_MAX,
+              min_y = INT32_MAX,
+              max_x = -INT32_MAX,
+              max_y = -INT32_MAX;
+
+        for (int i = 0; i < vertex_count * 2; i += 2)
+        {
+            min_x = dmMath::Min(min_x, vertices[i]);
+            max_x = dmMath::Max(max_x, vertices[i]);
+            min_y = dmMath::Min(min_y, vertices[i+1]);
+            max_y = dmMath::Max(max_y, vertices[i+1]);
+        }
+
+        dimension2d[0] = max_x - min_x;
+        dimension2d[1] = max_y - min_y;
+        dimension2d[2] = 1.0f;
+    }
+
+    bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
+    {
+        CollisionWorld* world         = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*) _component;
+        uint32_t shape_count          = component->m_Resource->m_ShapeCount;
+
+        if (shape_ix >= shape_count)
+        {
+            return false;
+        }
+
+        shape_info->m_Type = component->m_Resource->m_ShapeTypes[shape_ix];
+
+        if (world->m_3D)
+        {
+
+        }
+        else
+        {
+            dmPhysics::HCollisionShape2D* shape_buffer = new dmPhysics::HCollisionShape2D[shape_count];
+            uint32_t res = dmPhysics::GetCollisionShapes2D(component->m_Object2D, shape_buffer, shape_count);
+            assert(res == shape_count);
+
+            dmPhysics::HCollisionShape2D shape2d = shape_buffer[shape_ix];
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                    {
+                        dmPhysics::GetCollisionShapeRadius2D(shape2d, &shape_info->m_Sphere);
+                    } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                    {
+                        float* vertices;
+                        uint32_t vertex_count;
+                        dmPhysics::GetCollisionShapePolygonVertices2D(shape2d, &vertices, &vertex_count);
+                        CalculateBoxDimensions2D(vertices, vertex_count, shape_info->m_Box);
+                    } break;
+                default: assert(0);
+            }
+
+            delete [] shape_buffer;
+        }
+        return true;
+    }
+
+    bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
+    {
+        CollisionWorld* world         = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*) _component;
+        uint32_t shape_count          = component->m_Resource->m_ShapeCount;
+
+        if (shape_ix >= shape_count)
+        {
+            return false;
+        }
+
+        if (world->m_3D)
+        {
+
+        }
+        else
+        {
+            dmPhysics::HCollisionShape2D* shape_buffer = new dmPhysics::HCollisionShape2D[shape_count];
+            uint32_t res = dmPhysics::GetCollisionShapes2D(component->m_Object2D, shape_buffer, shape_count);
+            assert(res == shape_count);
+
+            dmPhysics::HCollisionShape2D shape2d = shape_buffer[shape_ix];
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                    {
+                        dmPhysics::SetCollisionShapeRadius2D(shape2d, shape_info->m_Sphere);
+                        dmPhysics::SynchronizeObject2D(component->m_Object2D);
+                    } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                    {
+                        dmPhysics::SetCollisionShapeBoxDimensions2D(shape2d, shape_info->m_Box[0], shape_info->m_Box[1]);
+                    } break;
+                default: assert(0);
+            }
+
+            delete [] shape_buffer;
+        }
+
+        return true;
     }
 
     dmhash_t CompCollisionObjectGetIdentifier(void* _component)
