@@ -12,7 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, stat, glob, zipfile
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser
 from waflib.Configure import conf
 from waflib import Utils, Build, Options, Task, Logs
 from waflib.TaskGen import extension, feature, after, before, task_gen
@@ -25,23 +25,18 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
-def is_platform_private(platform):
-    return platform in ['arm64-nx64', 'x86_64-ps4']
-
-for platform in ('nx64', 'ps4'):
-    path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_%s.py' % platform)
-    if not os.path.exists(path):
-        continue
+# import the vendor specific build setup
+path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_vendor.py')
+if os.path.exists(path):
     import imp
     sys.dont_write_bytecode = True
-    imp.load_source('waf_dynamo_private', path)
-    print("Imported %s from %s" % ('waf_dynamo_private', path))
-    import waf_dynamo_private
+    imp.load_source('waf_dynamo_vendor', path)
+    print("Imported %s from %s" % ('waf_dynamo_vendor', path))
+    import waf_dynamo_vendor
     sys.dont_write_bytecode = False
-    break
 
-if 'waf_dynamo_private' not in sys.modules:
-    class waf_dynamo_private(object):
+if 'waf_dynamo_vendor' not in sys.modules:
+    class waf_dynamo_vendor(object):
         @classmethod
         def options(cls, opt):
             pass
@@ -57,23 +52,27 @@ if 'waf_dynamo_private' not in sys.modules:
         @classmethod
         def transform_runnable_path(cls, platform, path):
             return path
-    globals()['waf_dynamo_private'] = waf_dynamo_private
+    globals()['waf_dynamo_vendor'] = waf_dynamo_vendor
+
+
+def is_platform_private(platform):
+    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
 
 def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
-        return waf_dynamo_private.supports_feature(platform, feature, data)
+        return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
-    return waf_dynamo_private.supports_feature(platform, feature, data)
+    return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
-    return waf_dynamo_private.setup_tools(ctx, build_util)
+    return waf_dynamo_vendor.setup_tools(ctx, build_util)
 
 def platform_setup_vars(ctx, build_util):
-    return waf_dynamo_private.setup_vars(ctx, build_util)
+    return waf_dynamo_vendor.setup_vars(ctx, build_util)
 
 def transform_runnable_path(platform, path):
-    return waf_dynamo_private.transform_runnable_path(platform, path)
+    return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 # The goal is to put the sdk versions in sdk.py
@@ -583,7 +582,7 @@ def asan_cxxflags(self):
         return
     build_util = create_build_utility(self.env)
     if Options.options.with_asan:
-        if build_util.get_target_os() in ('macos','ios','android'):
+        if build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
             self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -591,11 +590,11 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
-    elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android'):
+    elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
@@ -1258,6 +1257,26 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
+def create_test_server_config(ctx, port=None, ip=None, config_name=None):
+    local_ip = ip
+    if local_ip is None:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+
+    config = configparser.RawConfigParser()
+    config.add_section("server")
+    config.set("server", "ip", local_ip)
+    config.set("server", "socket", port)
+
+    if config_name is None:
+        config_name = tempfile.mktemp(".cfg", "unittest_")
+    configfilepath = os.path.basename(config_name)
+    with open(configfilepath, 'w') as f:
+        config.write(f)
+        print("Wrote test config file: %s" % configfilepath)
+        return configfilepath
+    return None
+
 def run_tests(ctx, valgrind = False, configfile = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
@@ -1279,6 +1298,14 @@ def run_tests(ctx, valgrind = False, configfile = None):
     for t in ctx.get_all_task_gen():
         if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             if getattr(t, 'skip_test', False):
+                continue
+
+            if ctx.targets:
+                if not t.name in ctx.targets:
+                    continue
+
+            if not platform_supports_feature(ctx.env.PLATFORM, t.name, True):
+                print("Skipping %s test for platform %s" % (ctx.env.PLATFORM, t.name))
                 continue
 
             env = dict(os.environ)
@@ -1748,17 +1775,22 @@ def detect(conf):
 
     if platform in ('x86_64-macos','arm64-macos',):
         conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
+        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
     elif platform in ('armv7-android', 'arm64-android'):
         pass
         #conf.env['STLIB_TESTAPP'] += ['android']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
+        conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
 
     if platform in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_DINPUT']   = ['dinput8.lib', 'dxguid.lib']
-        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+        conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
+        conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
+
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_SCRIPT'] = 'script'
 
 def configure(conf):
     detect(conf)

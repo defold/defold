@@ -756,7 +756,7 @@ namespace dmGameSystem
         *s = 0;
         uint32_t version = 0;
         dmBuffer::GetContentVersion(hbuffer, &version);
-        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version);
+        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, handle = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version, (uint32_t) hbuffer);
         dmStrlCat(s, buf, maxlen);
 
         for( uint32_t i = 0; i < num_streams; ++i )

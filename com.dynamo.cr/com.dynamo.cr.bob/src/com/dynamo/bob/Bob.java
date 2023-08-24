@@ -469,7 +469,7 @@ public class Bob {
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
         addOption(options, null, "build-server-header", true, "Additional build server header to set", true);
-        addOption(options, null, "use-async-build-server", false, "Use an async build process for the build server (when using native extensions)", true);
+        addOption(options, null, "use-async-build-server", false, "DEPRECATED! Asynchronous build is now the default.", true);
         addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
@@ -598,6 +598,27 @@ public class Bob {
         // First x in the below expression is
         // for the case when x is 0
         return x != 0 && ((x & (x - 1)) == 0);
+    }
+
+    private static StringBuilder parseMultipleException(MultipleCompileException e, boolean verbose) {
+        StringBuilder errors = new StringBuilder();
+        errors.append("\n");
+        for (MultipleCompileException.Info info : e.issues)
+        {
+            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+        }
+
+        String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
+        errors.append(msg);
+
+        if (verbose) {
+            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        }
+        return errors;
+    }
+
+    public static boolean isCause(Class<? extends Throwable> expected, Throwable exc) {
+       return expected.isInstance(exc) || (exc != null && isCause(expected, exc.getCause()));
     }
 
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
@@ -811,18 +832,14 @@ public class Bob {
         try {
             result = project.build(new ConsoleProgress(), commands);
         } catch(MultipleCompileException e) {
+            errors = parseMultipleException(e, verbose);
             ret = false;
-            errors.append("\n");
-            for (MultipleCompileException.Info info : e.issues)
-            {
-                errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
-            }
-
-            String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
-            errors.append(msg);
-
-            if (verbose) {
-                errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        } catch(CompileExceptionError e) {
+            ret = false;
+            if (isCause(MultipleCompileException.class, e)) {
+                errors = parseMultipleException((MultipleCompileException)e.getCause(), verbose);
+            } else {
+                throw e;
             }
         }
         for (TaskResult taskResult : result) {

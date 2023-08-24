@@ -24,18 +24,18 @@
         -fx-border-width: 0;
         -fx-alignment: center;
 
-        .image-view {
+        & > .image-view {
             -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
 
         &:hover {
-            .image-view {
+            & > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
             }
         }
         &:selected {
             -fx-background-color: -df-background-light;
-            .image-view {
+            & > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
             }
         }
@@ -120,7 +120,7 @@
         -fx-border-width: 0;
         -fx-border-insets: 0;
         -fx-background-color: transparent;
-        .image-view {
+        >.image-view {
             -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
         }
         >.choice-box {

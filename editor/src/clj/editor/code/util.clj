@@ -62,6 +62,12 @@
         (cons item
               (subvec coll index))))
 
+(defn remove-index
+  "Removes an item at the specified position in a vector"
+  [coll ^long index]
+  (into (subvec coll 0 index)
+        (subvec coll (inc index))))
+
 (defn insert-sort
   "Inserts an item into an ordered vector. If the collection is not ordered, the
   result is undefined. The insert index will be determined by comparing items.

@@ -1,6 +1,6 @@
 name: "valid"
 mesh: "/meshset/valid.dae"
-material: "/material/valid.material"
 textures: "/texture/valid_png.png"
 animations: "meshset/valid.dae"
+material: "/material/valid.material"
 default_animation: "valid"

@@ -15,6 +15,8 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+#include <testmain/testmain.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/dstrings.h>
 
@@ -1230,6 +1232,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

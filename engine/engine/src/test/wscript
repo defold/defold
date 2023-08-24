@@ -61,14 +61,15 @@ def build(bld):
     profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
-                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript']
+                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
+                             'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
 
     bld.add_group()
     obj = bld(
         features = 'c cxx cprogram test',
-        use = 'TESTMAIN RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB PLATFORM_APP engine engine_service'.split() + additional_libs + profile_lib,
+        use = 'TESTMAIN APP RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB APP engine engine_service'.split() + additional_libs + profile_lib,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',

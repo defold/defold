@@ -29,6 +29,7 @@
                 <arg value="-I../../engine/gameobject/proto" />
                 <arg value="-I../../engine/script/src" />
                 <arg value="-I../../engine/ddf/src"/>
+                <arg value="-I../../engine/graphics/proto" />
                 <arg value="@{dir}/@{file}"/>
             </exec>
         </sequential>
@@ -58,6 +59,7 @@
             <proto dir="../../engine/ddf/src" file="ddf/ddf_extensions.proto"/>
             <proto dir="../../engine/ddf/src" file="ddf/ddf_math.proto"/>
             <proto dir="../../engine/engine/proto" file="engine/engine_ddf.proto"/>
+            <proto dir="../../engine/graphics/proto" file="graphics/graphics_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject/properties_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject/gameobject_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject/lua_ddf.proto"/>
@@ -75,7 +77,6 @@
             <proto dir="../../engine/gamesys/proto" file="gamesys/mesh_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto" file="gamesys/buffer_ddf.proto"/>
             <proto dir="../../engine/rig/proto" file="rig/rig_ddf.proto"/>
-            <proto dir="../../engine/graphics/proto" file="graphics/graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input/input_ddf.proto"/>
             <proto dir="../../engine/particle/proto" file="particle/particle_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/font_ddf.proto"/>
@@ -336,6 +337,7 @@
               <include name="jaxb-core-2.3.0.jar"/>
               <include name="jaxb-impl-2.3.0.jar"/>
               <include name="antlr-runtime-4.9.1.jar"/>
+              <include name="jmustache-1.8.jar"/>
             </zipgroupfileset>
          </jar>
 

@@ -19,7 +19,8 @@ end
 function update(self, dt)
     -- update sound only once
     if not self.updated then
-        local f = io.open("src/gamesys/test/sound_ext/replacement.wav", "rb")
+        local host_path = sys.get_host_path("src/gamesys/test/sound_ext/replacement.wav")
+        local f = io.open(host_path, "rb")
         local c  = f:read("*all")
         f:close()
 

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -202,6 +202,7 @@ namespace dmRender
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
+    uint32_t                        GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
@@ -213,6 +214,11 @@ namespace dmRender
 
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeShader shader);
     void                            SetComputeProgramConstant(HComputeProgram program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
+
+    dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
+    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
+    void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
+    void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.

@@ -537,7 +537,7 @@ namespace dmScript
     }
 
     /*# create a timer
-     * Adds a timer and returns a unique handle
+     * Adds a timer and returns a unique handle.
      *
      * You may create more timers from inside a timer callback.
      *
@@ -576,7 +576,7 @@ namespace dmScript
      *   self.counter = self.counter + 1
      *   print("Call #", self.counter)
      *   if self.counter == 10 then
-     *     timer.cancel(handle) -- cancel timer after 100 calls
+     *     timer.cancel(handle) -- cancel timer after 10 calls
      *   end
      * end
      *

@@ -14,7 +14,9 @@
 
 #include "script.h"
 #include "script_http.h" // to set the timeout
+#include "test_script.h"
 
+#include <testmain/testmain.h>
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -22,18 +24,12 @@
 #include <dlib/time.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
+#include <dlib/testutil.h>
 #include <dlib/sys.h>
+#include <dlib/testutil.h>
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/src/test/%s"
+static int g_HttpPort = 9001;
+char g_HttpAddress[128] = "localhost";
 
 #define DEFAULT_URL "__default_url"
 
@@ -43,7 +39,7 @@ struct ScriptInstance
     int m_ContextTableReference;
 };
 
-int ResolvePathCallback(lua_State* L)
+static int ResolvePathCallback(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -57,7 +53,7 @@ int ResolvePathCallback(lua_State* L)
     return 1;
 }
 
-int GetURLCallback(lua_State* L)
+static int GetURLCallback(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -70,7 +66,7 @@ int GetURLCallback(lua_State* L)
     return 1;
 }
 
-int GetInstaceContextTableRef(lua_State* L)
+static int GetInstaceContextTableRef(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
@@ -94,7 +90,6 @@ class ScriptHttpTest : public jc_test_base_class
 {
 public:
     int m_HttpResponseCount;
-    uint16_t m_WebServerPort;
     dmScript::HContext m_ScriptContext;
     lua_State* L;
     dmMessage::URL m_DefaultURL;
@@ -105,7 +100,10 @@ protected:
 
     virtual void SetUp()
     {
-        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/test.config");
+
+        dmConfigFile::Result r = dmConfigFile::Load(path, 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
         m_HttpResponseCount = 0;
@@ -133,8 +131,6 @@ protected:
         lua_setmetatable(L, -2);
         dmScript::SetInstance(L);
         assert(top == lua_gettop(L));
-
-        m_WebServerPort = 9001;
         m_NumberOfFails = 0;
     }
 
@@ -156,33 +152,20 @@ protected:
         dmScript::DeleteContext(m_ScriptContext);
         dmConfigFile::Delete(m_ConfigFile);
     }
+
+    void SetHttpAddress(lua_State* L)
+    {
+        char buf[128];
+        dmSnPrintf(buf, sizeof(buf), "IP='%s'\n", g_HttpAddress);
+        dmScriptTest::RunString(L, buf);
+        dmSnPrintf(buf, sizeof(buf), "PORT=%d\n", g_HttpPort);
+        dmScriptTest::RunString(L, buf);
+        dmSnPrintf(buf, sizeof(buf), "ADDRESS='http://%s:%d'\n", g_HttpAddress, g_HttpPort);
+        dmScriptTest::RunString(L, buf);
+    }
 };
 
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1);
-        return false;
-    }
-    return true;
-}
-
-bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1);
-        return false;
-    }
-    return true;
-}
-
-void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
+static void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 {
     ScriptHttpTest* test = (ScriptHttpTest*) user_ptr;
     test->m_HttpResponseCount++;
@@ -206,11 +189,8 @@ TEST_F(ScriptHttpTest, TestPost)
 {
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(RunFile(L, "test_http.luac"));
-
-    char buf[1024];
-    dmSnPrintf(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
-    RunString(L, buf);
+    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.luac"));
+    SetHttpAddress(L);
 
     lua_getglobal(L, "functions");
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
@@ -281,11 +261,8 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(RunFile(L, "test_http_timeout.luac"));
-
-    char buf[1024];
-    dmSnPrintf(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
-    RunString(L, buf);
+    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http_timeout.luac"));
+    SetHttpAddress(L);
 
     lua_getglobal(L, "functions");
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
@@ -339,11 +316,8 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
 
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(RunFile(L, "test_http.luac"));
-
-    char buf[1024];
-    dmSnPrintf(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
-    RunString(L, buf);
+    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.luac"));
+    SetHttpAddress(L);
 
     lua_getglobal(L, "functions");
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
@@ -370,12 +344,50 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static void Destroy()
+{
+    dmSocket::Finalize();
+    dmLog::LogFinalize();
+}
+
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
     dmSocket::Initialize();
     dmDDF::RegisterAllTypes();
+
+    if(argc > 1)
+    {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
+        dmConfigFile::HConfig config;
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        {
+            dmLogError("Could not read config file '%s'", argv[1]);
+            return 1;
+        }
+        dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, 0, 0);
+        if (!dmTestUtil::GetIpFromConfig(config, g_HttpAddress, sizeof(g_HttpAddress))) {
+            dmLogError("Failed to get server ip!");
+        } else {
+            dmLogInfo("Server ip: %s:%d", g_HttpAddress, g_HttpPort);
+        }
+
+        dmConfigFile::Delete(config);
+    }
+    else
+    {
+        dmLogError("No config file specified!");
+        Destroy();
+        return 1;
+    }
+
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
-    dmSocket::Finalize();
+
+    Destroy();
     return ret;
 }

@@ -298,6 +298,9 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
 
     #undef TEST_STREAM
 
+    uint32_t vx_stride = dmGraphics::GetVertexDeclarationStride(vertex_declaration);
+    ASSERT_EQ(2 + 4 * sizeof(float), vx_stride);
+
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
@@ -362,12 +365,13 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(dmGraphics::ShaderDesc::Language language, const char* data, uint32_t count)
 {
     dmGraphics::ShaderDesc::Shader ddf;
     memset(&ddf,0,sizeof(ddf));
     ddf.m_Source.m_Data  = (uint8_t*)data;
     ddf.m_Source.m_Count = count;
+    ddf.m_Language = language;
     return ddf;
 }
 
@@ -403,8 +407,8 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, (uint32_t) strlen(vertex_data));
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, (uint32_t) strlen(fragment_data));
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, vertex_data, (uint32_t) strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, fragment_data, (uint32_t) strlen(fragment_data));
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
@@ -431,6 +435,31 @@ TEST_F(dmGraphicsTest, TestProgram)
     ASSERT_STREQ("tint", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
 
+    uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
+    ASSERT_EQ(2, attribute_count);
+    {
+        dmhash_t         name_hash;
+        dmGraphics::Type type;
+        uint32_t         element_count;
+        uint32_t         num_values;
+        int32_t          location;
+        dmGraphics::GetAttribute(program, 0, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("position"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(0, location);
+
+        dmGraphics::GetAttribute(program, 1, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("texcoord0"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC2, type);
+        ASSERT_EQ(2, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(1, location);
+    }
+
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetConstantV4(m_Context, &constant, 1, 0);
@@ -441,15 +470,84 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
     char* program_data = new char[1024];
     *program_data = 0;
-    vs_shader = MakeDDFShader(program_data, 1024);
+    vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, program_data, 1024);
     dmGraphics::ReloadVertexProgram(vp, &vs_shader);
     delete [] program_data;
     program_data = new char[1024];
     *program_data = 0;
-    fs_shader = MakeDDFShader(program_data, 1024);
+    fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, program_data, 1024);
     dmGraphics::ReloadFragmentProgram(fp, &fs_shader);
     delete [] program_data;
     dmGraphics::DisableProgram(m_Context);
+    dmGraphics::DeleteProgram(m_Context, program);
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+}
+
+TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
+{
+    const char* vertex_data = ""
+        "in mediump vec4 position;\n"
+        "in mediump vec2 texcoord0;\n"
+        "in lowp vec4 color;\n"
+
+        "uniform highp mat4 view_proj;\n"
+
+        "out mediump vec2 var_texcoord0;\n"
+        "out lowp vec4 var_color;\n"
+        "void main()\n"
+        "{\n"
+        "    var_texcoord0 = texcoord0;\n"
+        "    var_color = vec4(color.rgb * color.a, color.a);\n"
+        "    gl_Position = view_proj * vec4(position.xyz, 1.0);\n"
+        "}\n";
+
+    const char* fragment_data = ""
+        "void main()\n"
+        "{\n"
+        "    gl_FragColor = vec4(1.0);\n"
+        "}\n";
+
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vertex_data, (uint32_t) strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
+    dmGraphics::HProgram program    = dmGraphics::NewProgram(m_Context, vp, fp);
+
+    uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
+    ASSERT_EQ(3, attribute_count);
+    {
+        dmhash_t         name_hash;
+        dmGraphics::Type type;
+        uint32_t         element_count;
+        uint32_t         num_values;
+        int32_t          location;
+        dmGraphics::GetAttribute(program, 0, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("position"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(0, location);
+
+        dmGraphics::GetAttribute(program, 1, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("texcoord0"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC2, type);
+        ASSERT_EQ(2, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(1, location);
+
+        dmGraphics::GetAttribute(program, 2, &name_hash, &type, &element_count, &num_values, &location);
+
+        ASSERT_EQ(dmHashString64("color"), name_hash);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+        ASSERT_EQ(4, element_count);
+        ASSERT_EQ(1, num_values);
+        ASSERT_EQ(2, location);
+    }
+
     dmGraphics::DeleteProgram(m_Context, program);
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
@@ -557,26 +655,39 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     dmGraphics::DeleteTexture(texture);
 }
 
+static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParams(uint32_t w, uint32_t h)
+{
+    dmGraphics::RenderTargetCreationParams p = {};
+
+    #define SET_PARAM_DIM(p, cp) \
+        p.m_Width  = w; \
+        p.m_Height = h; \
+        cp.m_Width  = w; \
+        cp.m_Height = h;
+
+    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        SET_PARAM_DIM(p.m_ColorBufferParams[i], p.m_ColorBufferCreationParams[i]);
+    }
+    SET_PARAM_DIM(p.m_DepthBufferParams, p.m_DepthBufferCreationParams);
+    SET_PARAM_DIM(p.m_StencilBufferParams, p.m_StencilBufferCreationParams);
+    #undef SET_PARAM_DIM
+    return p;
+}
+
 TEST_F(dmGraphicsTest, TestRenderTarget)
 {
-    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
-    {
-        creation_params[i].m_Width = WIDTH;
-        creation_params[i].m_Height = HEIGHT;
-        params[i].m_Width = WIDTH;
-        params[i].m_Height = HEIGHT;
-    }
+    dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, HEIGHT);
 
-    // 4 color buffers + depth + stencil buffers == 6
+    // 4 color buffers + depth + stencil buffers == 8
     assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format  = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_DepthBufferParams.m_Format    = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params.m_StencilBufferParams.m_Format  = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
@@ -613,14 +724,14 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(target);
 
     // Test multiple color attachments
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
+    params.m_ColorBufferParams[1].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_ColorBufferParams[2].m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
 
     flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT |
             dmGraphics::BUFFER_TYPE_COLOR1_BIT |
             dmGraphics::BUFFER_TYPE_COLOR2_BIT;
 
-    target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 1, 1, 1, 1, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR1_BIT, 2, 2, 2, 2, 1.0f, 1);
@@ -657,22 +768,14 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
 {
-    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
-    {
-        creation_params[i].m_Width = WIDTH;
-        creation_params[i].m_Height = HEIGHT;
-        params[i].m_Width = WIDTH;
-        params[i].m_Height = HEIGHT;
-    }
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+    dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, HEIGHT);
+
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_DepthBufferParams.m_Format    = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params.m_StencilBufferParams.m_Format  = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
@@ -698,6 +801,55 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     memset(data, 1, data_size);
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
+
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::DeleteRenderTarget(target);
+}
+
+TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
+{
+    dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, HEIGHT);
+    params.m_DepthBufferParams.m_Format    = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params.m_StencilBufferParams.m_Format  = dmGraphics::TEXTURE_FORMAT_STENCIL;
+    params.m_DepthTexture                  = 1;
+    params.m_StencilTexture                = 1;
+
+    uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
+
+    float depth_value = 0.5f;
+    uint32_t stencil_value = 127;
+
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, depth_value, stencil_value);
+
+    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, depth_texture));
+    {
+        float* texture_data = 0x0;
+        dmGraphics::HandleResult res = dmGraphics::GetTextureHandle(depth_texture, (void**) &texture_data);
+        ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
+        ASSERT_NE((float*)0x0, texture_data);
+
+        const float EPSILON = 0.000001f;
+        for (int i = 0; i < WIDTH * HEIGHT; ++i)
+        {
+            ASSERT_NEAR(depth_value, texture_data[i], EPSILON);
+        }
+    }
+
+    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, stencil_texture));
+    {
+        uint32_t* texture_data = 0x0;
+        dmGraphics::HandleResult res = dmGraphics::GetTextureHandle(stencil_texture, (void**)&texture_data);
+        ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
+        ASSERT_NE((uint32_t*)0x0, texture_data);
+        for (int i = 0; i < WIDTH * HEIGHT; ++i)
+        {
+            ASSERT_EQ(stencil_value, texture_data[i]);
+        }
+    }
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
@@ -892,26 +1044,18 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
     // Test render targets
     {
-        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-        dmGraphics::TextureParams         params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
-        {
-            creation_params[i].m_Width  = texture_width;
-            creation_params[i].m_Height = texture_height;
-            params[i].m_Width           = texture_width;
-            params[i].m_Height          = texture_height;
-        }
+        dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(texture_width, texture_height);
 
-        params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format  = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-        params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
-        params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+        params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+        params.m_DepthBufferParams.m_Format    = dmGraphics::TEXTURE_FORMAT_DEPTH;
+        params.m_StencilBufferParams.m_Format  = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
         uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT |
                          dmGraphics::BUFFER_TYPE_COLOR1_BIT |
                          dmGraphics::BUFFER_TYPE_DEPTH_BIT  |
                          dmGraphics::BUFFER_TYPE_STENCIL_BIT;
 
-        dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+        dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
 
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, target));
 

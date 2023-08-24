@@ -111,6 +111,11 @@ DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
 
 namespace dmEngine
 {
+#if !(defined(DM_PLATFORM_VENDOR))
+    bool PlatformInitialize() { return true; }
+    void PlatformFinalize() {}
+#endif
+
     using namespace dmVMath;
 
 #define SYSTEM_SOCKET_NAME "@system"
@@ -170,6 +175,7 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
+        params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
         event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
@@ -188,6 +194,7 @@ namespace dmEngine
 
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
+        params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
         event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
@@ -280,8 +287,6 @@ namespace dmEngine
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
         dmHttpClient::ShutdownConnectionPool();
-
-        dmLiveUpdate::Finalize();
 
         // Reregister the types before the rest of the contexts are deleted
         if (engine->m_Factory) {
@@ -605,7 +610,7 @@ namespace dmEngine
                 }
                 if (dmSys::ResourceExists(tmp))
                 {
-                    dmStrlCpy(project_file_uri, "dmanif:", sizeof(project_file_uri));
+                    dmStrlCpy(project_file_uri, "archive:", sizeof(project_file_uri));
                     dmStrlCat(project_file_uri, tmp, sizeof(project_file_uri));
                 }
             }
@@ -775,7 +780,7 @@ namespace dmEngine
             char application_support_path[DMPATH_MAX_PATH];
             char application_support_log_path[DMPATH_MAX_PATH];
             const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
-            if (dmSys::GetApplicationSavePath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
+            if (dmSys::GetApplicationSupportPath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(application_support_path, LOG_FILE_NAME, application_support_log_path, sizeof(application_support_log_path));
                 log_paths[count] = application_support_log_path;
@@ -881,9 +886,6 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
 
-        dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
-        dmResourceArchive::RegisterDefaultArchiveLoader();
-
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -897,8 +899,6 @@ namespace dmEngine
         if (liveupdate_enable)
         {
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
-
-            dmLiveUpdate::RegisterArchiveLoaders();
         }
 
 #if defined(DM_RELEASE)
@@ -1273,8 +1273,6 @@ namespace dmEngine
                 goto bail;
         }
 
-        dmLiveUpdate::Initialize(engine->m_Factory);
-
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -1291,10 +1289,10 @@ namespace dmEngine
             const char* mountstr = has_host_mount ? "host:/" : "";
             char path[512];
             dmSnPrintf(path, sizeof(path), "%sbuild/default/content/reload", mountstr);
-            struct stat file_stat;
-            if (stat(path, &file_stat) == 0)
+            dmSys::StatInfo file_stat;
+            if (dmSys::RESULT_OK == dmSys::Stat(path, &file_stat))
             {
-                engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+                engine->m_LastReloadMTime = file_stat.m_ModifiedTime;
             }
         }
 
@@ -1408,11 +1406,14 @@ bail:
         }
 
         input_action.m_IsGamepad = action->m_IsGamepad;
+        input_action.m_GamepadUnknown = action->m_GamepadUnknown;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
         input_action.m_GamepadPacket = action->m_GamepadPacket;
         input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
+
+        input_action.m_UserID = action->m_UserID;
 
         input_buffer->Push(input_action);
     }
@@ -1487,8 +1488,6 @@ bail:
 
             {
                 DM_PROFILE("Sim");
-
-                dmLiveUpdate::Update();
 
                 {
                     DM_PROFILE("Resource");
@@ -1581,6 +1580,7 @@ bail:
                     // if any extension wants to render on under of the game.
                     dmExtension::Params ext_params;
                     ext_params.m_ConfigFile = engine->m_Config;
+                    ext_params.m_ResourceFactory = engine->m_Factory;
                     if (engine->m_SharedScriptContext) {
                         ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
                     } else {
@@ -1655,6 +1655,7 @@ bail:
             {
                 dmExtension::Params ext_params;
                 ext_params.m_ConfigFile = engine->m_Config;
+                ext_params.m_ResourceFactory = engine->m_Factory;
                 if (engine->m_SharedScriptContext) {
                     ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
                 } else {
@@ -1735,7 +1736,6 @@ bail:
 
     void Step(HEngine engine)
     {
-        DM_PROFILE("Step");
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
@@ -1747,6 +1747,7 @@ bail:
 
         for (uint32_t i = 0; i < num_steps; ++i)
         {
+            DM_PROFILE("Step");
             // We currently cannot separate the update from the render,
             // since some of the update is done in the render updates (e.g. sprite transforms)
             StepFrame(engine, step_dt);
@@ -1948,7 +1949,7 @@ bail:
             int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
             if (unload)
             {
-                dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+                dmResource::ReleaseBuiltinsArchive(engine->m_Factory);
             }
         }
 
@@ -2006,6 +2007,8 @@ bail:
 
 void dmEngineInitialize()
 {
+    dmEngine::PlatformInitialize();
+
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
 #if DM_RELEASE
@@ -2039,6 +2042,8 @@ void dmEngineFinalize()
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
+
+    dmEngine::PlatformFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])

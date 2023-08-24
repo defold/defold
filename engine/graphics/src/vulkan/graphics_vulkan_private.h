@@ -166,10 +166,13 @@ namespace dmGraphics
     struct RenderTarget
     {
     	RenderTarget(const uint32_t rtId);
-        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        Texture*       m_TextureDepthStencil;
+
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
+        TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams  m_DepthStencilTextureParams;
+
+        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture       m_TextureDepthStencil;
         VkRenderPass   m_RenderPass;
         VkFramebuffer  m_Framebuffer;
         VkExtent2D     m_Extent;
@@ -388,6 +391,7 @@ namespace dmGraphics
         Texture                         m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
+        VertexDeclaration               m_MainVertexDeclaration;
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer;

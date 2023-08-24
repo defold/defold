@@ -25,6 +25,7 @@ import run
 import s3
 import sdk
 import release_to_github
+import release_to_steam
 import BuildUtility
 import http_cache
 from datetime import datetime
@@ -43,21 +44,12 @@ BASE_PLATFORMS = [  'x86_64-linux',
 
 sys.dont_write_bytecode = True
 try:
-    import build_nx64
-    sys.modules['build_private'] = build_nx64
+    import build_vendor
+    sys.modules['build_private'] = build_vendor
 except ModuleNotFoundError:
     pass
 except Exception as e:
-    print("Failed to import build_nx64.py:")
-    raise e
-
-try:
-    import build_ps4
-    sys.modules['build_private'] = build_ps4
-except ModuleNotFoundError:
-    pass
-except Exception as e:
-    print("Failed to import build_ps4.py:")
+    print("Failed to import build_vendor.py:")
     raise e
 
 sys.dont_write_bytecode = False
@@ -101,7 +93,7 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.1 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
@@ -164,7 +156,7 @@ def format_exes(name, platform):
     elif platform in ['arm64-nx64']:
         prefix = ''
         suffix = ['.nss', '.nso']
-    elif platform in ['x86_64-ps4']:
+    elif platform in ['x86_64-ps4', 'x86_64-ps5']:
         prefix = ''
         suffix = ['.elf']
     else:
@@ -326,6 +318,9 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
+        if 'macos' in self.host and 'arm64' == platform.machine():
+            if 'x86_64-macos' == self.target_platform:
+                return 'arch -x86_64 python'
         return 'python'
 
     def _create_common_dirs(self):
@@ -821,8 +816,8 @@ class Configuration(object):
                 paths = _findjslibs(jsdir)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            if platform in ['x86_64-ps4']:
-                memory_init = os.path.join(self.dynamo_home, 'ext/lib/x86_64-ps4/memory_init.o')
+            if platform in ['x86_64-ps4', 'x86_64-ps5']:
+                memory_init = os.path.join(self.dynamo_home, 'ext/lib/%s/memory_init.o' % platform)
                 self._add_files_to_zip(zip, [memory_init], self.dynamo_home, topfolder)
 
             # .proto files
@@ -1257,13 +1252,17 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = get_target_platforms()
-
-        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-        # it last, in order to preserve unix line endings in the files
-        if 'x86_64-linux' in platforms:
-            platforms.remove('x86_64-linux')
-            platforms.append('x86_64-linux')
+        platforms = None
+        # when we build the sdk in a private repo we only include the private platforms
+        if build_private.is_repo_private():
+            platforms = build_private.get_target_platforms()
+        else:
+            platforms = get_target_platforms()
+            # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+            # it last, in order to preserve unix line endings in the files
+            if 'x86_64-linux' in platforms:
+                platforms.remove('x86_64-linux')
+                platforms.append('x86_64-linux')
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
@@ -1657,7 +1656,6 @@ class Configuration(object):
             pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
             releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
         else:
-            # e.g. editor-dev releases
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         if not releases:
@@ -1683,6 +1681,10 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+        
+        # Release to steam for stable only
+        # if tag_name and (self.channel == 'editor-alpha'):
+        #     self.release_to_steam()
 
     # E.g. use with ./scripts/build.py release_to_github --github-token=$CITOKEN --channel=editor-alpha
     # on a branch with the correct sha1 (e.g. beta or editor-dev)
@@ -1714,6 +1716,16 @@ class Configuration(object):
         release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
 
         release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
+
+
+    # Use with ./scripts/build.py release_to_steam --version=1.4.8
+    def release_to_steam(self):
+        editor_channel = "editor-alpha"
+        engine_channel = "stable"
+        tag_name = self.compose_tag_name(self.version, engine_channel)
+        archive_path = self.get_archive_path(editor_channel)
+        release = s3.get_single_release(archive_path, tag_name)
+        release_to_steam.release(self, tag_name, release)
 
 #
 # END: RELEASE
@@ -1834,7 +1846,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk-11.0.15+10'
+        jdk = 'jdk-17.0.5+8'
         host = get_host_platform()
         if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')

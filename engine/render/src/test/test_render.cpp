@@ -15,9 +15,9 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dmsdk/dlib/intersection.h>
 
+#include <testmain/testmain.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
@@ -113,32 +113,6 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     dmRender::DeleteFontMap(bitmap_font_map);
-}
-
-TEST_F(dmRenderTest, TestContextNewDelete)
-{
-
-}
-
-TEST_F(dmRenderTest, TestRenderTarget)
-{
-    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-
-    creation_params[0].m_Width = WIDTH;
-    creation_params[0].m_Height = HEIGHT;
-    creation_params[1].m_Width = WIDTH;
-    creation_params[1].m_Height = HEIGHT;
-
-    params[0].m_Width = WIDTH;
-    params[0].m_Height = HEIGHT;
-    params[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    params[1].m_Width = WIDTH;
-    params[1].m_Height = HEIGHT;
-    params[1].m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, flags, creation_params, params);
-    dmGraphics::DeleteRenderTarget(target);
 }
 
 TEST_F(dmRenderTest, TestGraphicsContext)
@@ -1378,6 +1352,7 @@ TEST(Render, BatchIterator)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

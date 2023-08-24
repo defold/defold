@@ -581,8 +581,11 @@
   (into []
         (comp (filter data/breakpoint-region?)
               (map (fn [region]
-                     {:resource resource
-                      :row (data/breakpoint-row region)})))
+                     (let [condition (:condition region)]
+                       (cond-> {:resource resource
+                                :row (data/breakpoint-row region)}
+                               condition
+                               (assoc :condition condition))))))
         regions))
 
 (g/defnode ScriptNode

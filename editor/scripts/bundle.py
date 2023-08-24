@@ -56,7 +56,7 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '11.0.15+10'
+java_version = '17.0.5+8'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-macos': 'macos-x64',
@@ -180,35 +180,7 @@ def mac_certificate(codesigning_identity):
 def sign_files(platform, options, dir):
     if options.skip_codesign:
         return
-    if 'win32' in platform:
-        certificate = options.windows_cert
-        certificate_pass_path = options.windows_cert_pass
-        if certificate == None:
-            print("No codesigning certificate specified")
-            sys.exit(1)
-
-        if not os.path.exists(certificate):
-            print("Certificate file does not exist:", certificate)
-            sys.exit(1)
-
-        certificate_pass = 'invalid'
-        with open(certificate_pass_path, 'rb') as f:
-            certificate_pass = f.read()
-
-        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
-        if not os.path.exists(signtool):
-            print("signtool.exe file does not exist:", signtool)
-            sys.exit(1)
-        run.command([
-            signtool,
-            'sign',
-            '/fd', 'sha256',
-            '/a',
-            '/f', certificate,
-            '/p', certificate_pass,
-            '/tr', 'http://timestamp.digicert.com',
-            dir])
-    elif 'macos' in platform:
+    if 'macos' in platform:
         codesigning_identity = options.codesigning_identity
         certificate = mac_certificate(codesigning_identity)
         if certificate == None:
@@ -242,7 +214,7 @@ def full_jdk_url(jdk_platform):
     version = urllib.parse.quote(java_version)
     platform = urllib.parse.quote(jdk_platform)
     extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
-    return '%s/microsoft-jdk-%s-%s.%s' % (CDN_PACKAGES_URL, version, platform, extension)
+    return '%s/OpenJDK17U-jdk_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
 
 def full_build_jdk_url():
     return full_jdk_url(python_platform_to_java[sys.platform])

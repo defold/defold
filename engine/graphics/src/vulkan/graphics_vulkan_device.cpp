@@ -63,10 +63,11 @@ namespace dmGraphics
                 continue;
             }
 
+            VertexDeclaration::Stream& stream_in           = vertexDeclaration->m_Streams[i];
             vk_vertex_input_descs[num_attributes].binding  = 0;
-            vk_vertex_input_descs[num_attributes].location = vertexDeclaration->m_Streams[i].m_Location;
-            vk_vertex_input_descs[num_attributes].format   = vertexDeclaration->m_Streams[i].m_Format;
-            vk_vertex_input_descs[num_attributes].offset   = vertexDeclaration->m_Streams[i].m_Offset;
+            vk_vertex_input_descs[num_attributes].location = stream_in.m_Location;
+            vk_vertex_input_descs[num_attributes].format   = stream_in.m_Format;
+            vk_vertex_input_descs[num_attributes].offset   = stream_in.m_Offset;
 
             num_attributes++;
         }

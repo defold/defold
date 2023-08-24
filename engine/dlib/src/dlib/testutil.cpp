@@ -14,6 +14,10 @@
 
 #include "testutil.h"
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
+#include <dlib/memory.h>
+#include <dlib/path.h>
+#include <stdarg.h>
 
 #if !defined(DM_HOSTFS)
     #define DM_HOSTFS ""
@@ -53,9 +57,82 @@ const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t ipl
 
 const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
 {
-    dmStrlCpy(dst, DM_HOSTFS, dst_len);
-    dmStrlCat(dst, path, dst_len);
+    int len = dmStrlCpy(dst, DM_HOSTFS, dst_len);
+    if (len > 0 && dst[len-1] != '/')
+        len = dmStrlCat(dst+len, "/", dst_len-len);
+    dmStrlCat(dst+len, path, dst_len-len);
+
+    dmPath::Normalize(dst, dst, dst_len);
     return dst;
+}
+
+const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, ...)
+{
+    int len = dmStrlCpy(dst, DM_HOSTFS, dst_len);
+    if (len > 0 && dst[len-1] != '/')
+        len += dmStrlCat(dst+len, "/", dst_len-len);
+
+    va_list argp;
+    va_start(argp, path_format);
+
+#if defined(_WIN32)
+    int result = _vsnprintf_s(dst+len, dst_len-len, _TRUNCATE, path_format, argp);
+#else
+    int result = vsnprintf(dst+len, dst_len-len, path_format, argp);
+#endif
+    (void)result;
+    va_end(argp);
+
+    dmPath::Normalize(dst, dst, dst_len);
+    return dst;
+}
+
+uint8_t* ReadFile(const char* path, uint32_t* file_size)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f)
+    {
+        dmLogError("Failed to load file %s", path);
+        return 0;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0)
+    {
+        fclose(f);
+        dmLogError("Failed to seek to end of file %s", path);
+        return 0;
+    }
+
+    size_t size = (size_t)ftell(f);
+    if (fseek(f, 0, SEEK_SET) != 0)
+    {
+        fclose(f);
+        dmLogError("Failed to seek to start of file %s", path);
+        return 0;
+    }
+
+    uint8_t* buffer;
+    dmMemory::AlignedMalloc((void**)&buffer, 16, size);
+
+    size_t nread = fread(buffer, 1, size, f);
+    fclose(f);
+
+    if (nread != size)
+    {
+        dmMemory::AlignedFree((void*)buffer);
+        dmLogError("Failed to read %u bytes from file %s", (uint32_t)size, path);
+        return 0;
+    }
+
+    *file_size = size;
+    return buffer;
+}
+
+uint8_t* ReadHostFile(const char* path, uint32_t* file_size)
+{
+    char path_buffer1[256];
+    const char* file_path = dmTestUtil::MakeHostPath(path_buffer1, sizeof(path_buffer1), path);
+    return dmTestUtil::ReadFile(file_path, file_size);
 }
 
 

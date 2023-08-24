@@ -54,19 +54,21 @@
 
 (def ^:private TBreakpoint
   {:resource s/Any
-   :row Long})
+   :row Long
+   (s/optional-key :condition) String})
 
 (g/deftype Breakpoints [TBreakpoint])
 
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-registered-resource-node [load-fn project node-id resource]
+(defn- load-registered-resource-node [resource-type project node-id resource]
   (concat
-    (load-fn project node-id resource)
+    (when-some [load-fn (:load-fn resource-type)]
+      (load-fn project node-id resource))
     (when (and (resource/file-resource? resource)
                (resource/editable? resource)
-               (:auto-connect-save-data? (resource/resource-type resource)))
+               (:auto-connect-save-data? resource-type))
       (g/connect node-id :save-data project :save-data))))
 
 (defn load-node [project node-id node-type resource]
@@ -75,18 +77,17 @@
   ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [resource-type (some-> resource resource/resource-type)
-          loaded? (and *load-cache* (contains? @*load-cache* node-id))
-          load-fn (:load-fn resource-type)]
-      (when-not loaded?
+          already-loaded (and *load-cache* (contains? @*load-cache* node-id))]
+      (when-not already-loaded
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
           (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (if (nil? load-fn)
+            (if (nil? resource-type)
               (placeholder-resource/load-node project node-id resource)
-              (load-registered-resource-node load-fn project node-id resource))
+              (load-registered-resource-node resource-type project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
@@ -640,8 +641,11 @@
                                            (remap-selection old->new (constantly [])))]
                 (perform-sub-selection project all-sub-selections))))))
 
-      ;; invalidating outputs is the only change that does not reset the undo history
-      (when (some seq (vals (dissoc plan :invalidate-outputs)))
+      ;; Invalidating outputs is the only change that does not reset the undo
+      ;; history. This is a quick way to find out if we have any significant
+      ;; changes, but we must take care to also exclude non-change information
+      ;; such as the list of :kept resources from this check.
+      (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
         (g/reset-undo! (graph project)))
 
       (du/when-metrics
@@ -653,8 +657,17 @@
                  :transaction-metrics @transaction-metrics})))))
 
 (defn- handle-resource-changes [project changes render-progress!]
-  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
-        resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
+  (let [[old-nodes-by-path old-node->old-disk-sha256]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [workspace (workspace project evaluation-context)
+                old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
+                old-node->old-disk-sha256 (g/node-value workspace :disk-sha256s-by-node-id evaluation-context)]
+            [old-nodes-by-path old-node->old-disk-sha256]))
+
+        resource-change-plan
+        (du/metrics-time "Generate resource change plan"
+          (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes))]
+
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
@@ -804,9 +817,13 @@
   "Creates transaction steps for creating `connections` between the
   corresponding node for `path-or-resource` and `consumer-node`. If
   there is no corresponding node for `path-or-resource`, transactions
-  for creating and loading the node will be included. Returns map with
-  transactions in :tx-data and node-id corresponding to
-  `path-or-resource` in :node-id"
+  for creating and loading the node will be included. Returns a map with
+  following keys:
+    :tx-data          transactions steps
+    :node-id          node id corresponding to `path-or-resource`
+    :created-in-tx    boolean indicating if this node will be created after
+                      applying this transaction and does not exist yet in the
+                      system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
   ;; TODO: This is typically run from a property setter, where currently the
   ;; evaluation-context does not contain a cache. This makes resource lookups
@@ -816,11 +833,13 @@
   ;; This has been reported as DEFEDIT-1411.
   (g/with-auto-evaluation-context default-evaluation-context
     (when-some [resource (resolve-path-or-resource project path-or-resource default-evaluation-context)]
-      (let [[node-id creation-tx-data] (if-some [existing-resource-node-id (get-resource-node project resource default-evaluation-context)]
+      (let [existing-resource-node-id (get-resource-node project resource default-evaluation-context)
+            [node-id creation-tx-data] (if existing-resource-node-id
                                          [existing-resource-node-id nil]
                                          (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
             node-type (resource-node-type resource)]
         {:node-id node-id
+         :created-in-tx (not existing-resource-node-id)
          :tx-data (concat
                     creation-tx-data
                     (when (or creation-tx-data *load-cache*)
@@ -930,8 +949,8 @@
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
     (if (workspace/dependencies-reachable? dependencies)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
-           (workspace/install-validated-libraries! workspace-id dependencies))
-      (workspace/set-project-dependencies! workspace-id dependencies))
+           (workspace/install-validated-libraries! workspace-id))
+      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))

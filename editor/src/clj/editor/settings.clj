@@ -53,19 +53,26 @@
 (defn- set-raw-setting [settings {:keys [path] :as meta-setting} value]
   (settings-core/set-setting settings path (settings-core/render-raw-setting-value meta-setting value)))
 
-(defn- set-form-op [{:keys [node-id resource-setting-nodes meta-settings]} path value]
+(defn set-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path value]
   (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
     (if-let [resource-setting-node-id (resource-setting-nodes path)]
-      (do
-        (g/set-property! resource-setting-node-id :value value)
-        (g/update-property! node-id :raw-settings set-raw-setting meta-setting (resource/resource->proj-path value)))
-      (g/update-property! node-id :raw-settings set-raw-setting meta-setting value))))
+      (concat
+        (g/set-property resource-setting-node-id :value value)
+        (g/update-property node-id :raw-settings set-raw-setting meta-setting (resource/resource->proj-path value)))
+      (g/update-property node-id :raw-settings set-raw-setting meta-setting value))))
 
-(defn- clear-form-op [{:keys [node-id resource-setting-nodes meta-settings]} path]
-  (when-let [resource-setting-node-id (resource-setting-nodes path)]
-    (let [default-resource (settings-core/get-default-setting meta-settings path)]
-      (g/set-property! resource-setting-node-id :value default-resource)))
-  (g/update-property! node-id :raw-settings settings-core/clear-setting path))
+(defn- set-form-op [user-data path value]
+  (g/transact (set-tx-data user-data path value)))
+
+(defn clear-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path]
+  (concat
+    (when-some [resource-setting-node-id (resource-setting-nodes path)]
+      (let [default-resource (settings-core/get-default-setting meta-settings path)]
+        (g/set-property resource-setting-node-id :value default-resource)))
+    (g/update-property node-id :raw-settings settings-core/clear-setting path)))
+
+(defn- clear-form-op [user-data path]
+  (g/transact (clear-tx-data user-data path)))
 
 (defn- make-form-ops [node-id resource-setting-nodes meta-settings]
   {:user-data {:node-id node-id :resource-setting-nodes resource-setting-nodes :meta-settings meta-settings}

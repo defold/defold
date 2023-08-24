@@ -1,0 +1,4 @@
+name: "material_c"
+vertex_program: "/builtins/materials/gui.vp"
+fragment_program: "/builtins/materials/gui.fp"
+tags: "material_c"

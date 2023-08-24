@@ -16,7 +16,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
@@ -74,13 +74,6 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
-    enum AdapterType
-    {
-        ADAPTER_TYPE_NULL,
-        ADAPTER_TYPE_OPENGL,
-        ADAPTER_TYPE_VULKAN,
-    };
-
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,
@@ -101,6 +94,7 @@ namespace dmGraphics
 
     static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
     static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t MAX_VERTEX_STREAM_COUNT      = 8;
 
     // render states
     enum State
@@ -256,6 +250,18 @@ namespace dmGraphics
         uint16_t m_Depth; // For array texture, this is slice count
         uint8_t  m_MipMap       : 7;
         uint8_t  m_SubUpdate    : 1;
+    };
+
+    struct RenderTargetCreationParams
+    {
+        TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureCreationParams m_DepthBufferCreationParams;
+        TextureCreationParams m_StencilBufferCreationParams;
+        TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams         m_DepthBufferParams;
+        TextureParams         m_StencilBufferParams;
+        uint8_t               m_DepthTexture   : 1;
+        uint8_t               m_StencilTexture : 1;
     };
 
     // Parameters structure for OpenWindow
@@ -540,6 +546,8 @@ namespace dmGraphics
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
 
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
@@ -564,12 +572,18 @@ namespace dmGraphics
     HProgram       NewComputeProgram(HContext context, HComputeShader compute_shader);
     void           DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
+    // Attributes
+    uint32_t         GetAttributeCount(HProgram prog);
+    void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
+    void             GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type);
+
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t GetUniformCount(HProgram prog);
     int32_t  GetUniformLocation(HProgram prog, const char* name);
 
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
     void SetSampler(HContext context, int32_t location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
@@ -589,16 +603,16 @@ namespace dmGraphics
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
-    void DeleteRenderTarget(HRenderTarget render_target);
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
-    uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    const char* GetBufferTypeLiteral(BufferType buffer_type);
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
+    void          DeleteRenderTarget(HRenderTarget render_target);
+    void          SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    HTexture      GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
+    void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+    void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
+    uint32_t      GetBufferTypeIndex(BufferType buffer_type);
+    const char*   GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
-    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
+    bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
@@ -668,6 +682,14 @@ namespace dmGraphics
         return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
     }
 
+    static inline bool IsColorBufferType(BufferType buffer_type)
+    {
+        return buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR3_BIT;
+    }
+
     /**
      * Get status of texture.
      *
@@ -703,6 +725,8 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
+    uint32_t GetTypeSize(dmGraphics::Type type);
 }
 
 #endif // DM_GRAPHICS_H

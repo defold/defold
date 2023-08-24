@@ -146,7 +146,7 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        helper.copyOrWriteManifestFile(platform, appDir);
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 

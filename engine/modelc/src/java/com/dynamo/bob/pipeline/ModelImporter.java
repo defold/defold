@@ -137,10 +137,20 @@ public class ModelImporter {
             if (z > max.z) max.z = z;
         }
     }
+    public static class Material {
+        public String           name;
+        public int              index;
+
+        public Material() {
+            name = "";
+            index = 0;
+        }
+    }
 
     public static class Mesh {
         public String      name;
-        public String      material;
+        public Material    material;
+
         public Aabb        aabb;
 
         public float[]     positions; // float3
@@ -231,6 +241,7 @@ public class ModelImporter {
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
+        public Material[]     materials;
         public Buffer[]       buffers;
     }
 
@@ -324,13 +335,20 @@ public class ModelImporter {
         System.out.printf("\n");
     }
 
+    private static void DebugPrintMaterial(Material material, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Material: %s\n", material.name);
+        // PrintIndent(indent+1);
+        // System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
+    }
+
     private static void DebugPrintMesh(Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
         PrintIndent(indent+1);
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
-        System.out.printf("Material: %s\n", mesh.material);
+        System.out.printf("Material: %s\n", mesh.material!=null?mesh.material.name:"null");
         PrintIndent(indent+1);
         System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
@@ -490,6 +508,15 @@ public class ModelImporter {
         }
 
         System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Material material : scene.materials)
+        {
+            DebugPrintMaterial(material, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
         System.out.printf("Num Nodes: %d\n", scene.nodes.length);
         for (Node node : scene.nodes)
         {

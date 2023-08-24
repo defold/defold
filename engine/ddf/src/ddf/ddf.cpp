@@ -314,6 +314,28 @@ namespace dmDDF
         return ret;
     }
 
+    Result CopyMessage(const void* message, const dmDDF::Descriptor* desc, void** out)
+    {
+        if (!message)
+            return RESULT_INTERNAL_ERROR;
+
+        dmArray<uint8_t> buffer;
+        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(message, desc, buffer);
+        if (dmDDF::RESULT_OK != ddf_result)
+        {
+            return ddf_result;
+        }
+
+        ddf_result = dmDDF::LoadMessage((void*)&buffer[0], buffer.Size(), desc, out);
+        if (dmDDF::RESULT_OK != ddf_result)
+        {
+            return ddf_result;
+        }
+
+        return RESULT_OK;
+    }
+
+
     int32_t GetEnumValue(const EnumDescriptor* desc, const char* name)
     {
         assert(desc);

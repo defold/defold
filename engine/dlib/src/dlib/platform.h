@@ -41,7 +41,7 @@
 #elif defined(__NX__)
 #define DM_PLATFORM DM_PLATFORM_NAME_SWITCH
 #elif defined(__SCE__)
-#define DM_PLATFORM DM_PLATFORM_PLAYSTATION
+#define DM_PLATFORM DM_PLATFORM_NAME_PLAYSTATION
 #else
 #error "Unsupported platform"
 #endif

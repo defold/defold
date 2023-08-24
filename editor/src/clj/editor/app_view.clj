@@ -2481,7 +2481,7 @@ If you do not specifically require different script states, consider changing th
                     render-install-progress! (make-render-task-progress :resource-sync)]
                 (render-install-progress! (progress/make "Installing updated libraries..."))
                 (ui/run-later
-                  (workspace/install-validated-libraries! workspace library-uris lib-states)
+                  (workspace/install-validated-libraries! workspace lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success

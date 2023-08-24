@@ -177,6 +177,12 @@ namespace dmDDF
     Result SaveMessageSize(const void* message, const Descriptor* desc, uint32_t* size);
 
     /**
+     * Deep copy message
+     * Use dmDDF::FreeMessage to free the message
+     */
+    Result CopyMessage(const void* message, const dmDDF::Descriptor* desc, void** out);
+
+    /**
      * Get enum value for name. NOTE: Using this function for undefined names is considered as a fatal run-time error.
      * @param desc Enum descriptor
      * @param name Enum name

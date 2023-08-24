@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,7 +33,7 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static const int8_t    g_vulkan_adapter_priority = 0;
-    static GraphicsAdapter g_vulkan_adapter(ADAPTER_TYPE_VULKAN);
+    static GraphicsAdapter g_vulkan_adapter("vulkan");
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
 
@@ -352,6 +352,21 @@ namespace dmGraphics
         context->m_CurrentRenderTarget = render_target;
     }
 
+    static VkImageAspectFlags GetDefaultDepthAndStencilAspectFlags(VkFormat vk_format)
+    {
+        // The aspect flag indicates what the image should be used for,
+        // it is usually color or stencil | depth.
+        VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+            vk_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
+            vk_format == VK_FORMAT_D16_UNORM_S8_UINT)
+        {
+            vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+        return vk_aspect;
+    }
+
     static void GetDepthFormatAndTiling(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_list, uint8_t vk_format_list_size, VkFormat* vk_format_out, VkImageTiling* vk_tiling_out)
     {
         // Depth formats are optional, so we need to query
@@ -385,29 +400,19 @@ namespace dmGraphics
     }
 
     static VkResult CreateDepthStencilTexture(VulkanContext* context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling,
-        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, Texture* depth_stencil_texture_out)
+        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, VkImageAspectFlags vk_aspect_flags, Texture* depth_stencil_texture_out)
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
 
-        // The aspect flag indicates what the image should be used for,
-        // it is usually color or stencil | depth.
-        VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-        if (vk_depth_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
-            vk_depth_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
-            vk_depth_format == VK_FORMAT_D16_UNORM_S8_UINT)
-        {
-            vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
-        }
-
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1, 1,
-            vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
+            vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect_flags, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect,
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect_flags,
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
@@ -507,6 +512,7 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
+            GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
             depth_stencil_texture);
         CHECK_VK_ERROR(res);
 
@@ -664,6 +670,7 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
+            GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
             depth_stencil_texture);
         CHECK_VK_ERROR(res);
 
@@ -1236,6 +1243,7 @@ bail:
         vk_clear_rect.layerCount         = 1;
 
         bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || current_rt->m_TextureDepthStencil;
+        bool clear_depth_stencil       = flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
 
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
@@ -1264,7 +1272,7 @@ bail:
         }
 
         // Clear depth / stencil
-        if (has_depth_stencil_texture && (flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)))
+        if (has_depth_stencil_texture && clear_depth_stencil)
         {
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
@@ -1607,7 +1615,7 @@ bail:
         return 0;
     }
 
-    static inline VkFormat GetVulkanFormatFromTypeAndSize(Type type, uint16_t size)
+    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
         if (type == TYPE_FLOAT)
         {
@@ -1631,14 +1639,36 @@ bail:
                 default:break;
             }
         }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R8_UINT;
-                case 2: return VK_FORMAT_R8G8_UINT;
-                case 3: return VK_FORMAT_R8G8B8_UINT;
-                case 4: return VK_FORMAT_R8G8B8A8_UINT;
+                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -1646,10 +1676,10 @@ bail:
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R16_UINT;
-                case 2: return VK_FORMAT_R16G16_UINT;
-                case 3: return VK_FORMAT_R16G16B16_UINT;
-                case 4: return VK_FORMAT_R16G16B16A16_UINT;
+                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
@@ -1675,9 +1705,36 @@ bail:
 
         for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
         {
-            VertexStream& stream        = stream_declaration->m_Streams[i];
+            VertexStream& stream = stream_declaration->m_Streams[i];
+
+        #if __MACH__
+            if (stream.m_Type == TYPE_UNSIGNED_BYTE && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_BYTE.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_BYTE;
+            }
+            else if (stream.m_Type == TYPE_UNSIGNED_SHORT && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to TYPE_SHORT.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Type = TYPE_SHORT;
+            }
+        #else
+
+            // JG: Not sure this is what we want to do, OpenGL performs automatic conversion to float regardless of type, but Vulkan doesn't seem to do that
+            //     unless we use the normalized format variants of these types.. which in turn means that we will have different looks between the adapters if we use the narrower formats
+            //     Alternatively, we could force OpenGL to behave like vulkan?
+            if ((stream.m_Type == TYPE_BYTE           ||
+                 stream.m_Type == TYPE_UNSIGNED_BYTE  ||
+                 stream.m_Type == TYPE_SHORT          ||
+                 stream.m_Type == TYPE_UNSIGNED_SHORT) && !stream.m_Normalize)
+            {
+                dmLogWarning("Using the type '%s' for stream '%s' with normalize: false is not supported for vertex declarations. Defaulting to normalize:true.", GetGraphicsTypeLiteral(stream.m_Type), dmHashReverseSafe64(stream.m_NameHash));
+                stream.m_Normalize = 1;
+            }
+        #endif
+
             vd->m_Streams[i].m_NameHash = stream.m_NameHash;
-            vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(stream.m_Type, stream.m_Size);
+            vd->m_Streams[i].m_Format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;
             vd->m_Streams[i].m_Location = 0;
             vd->m_Stride               += stream.m_Size * GetGraphicsTypeSize(stream.m_Type);
@@ -1686,6 +1743,8 @@ bail:
             dmHashUpdateBuffer64(hash, &stream.m_Type, sizeof(stream.m_Type));
             dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Format, sizeof(vd->m_Streams[i].m_Format));
         }
+
+        vd->m_Stride = DM_ALIGN(vd->m_Stride, 4);
 
         return vd;
     }
@@ -1727,29 +1786,43 @@ bail:
 
     static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        VulkanContext* context = (VulkanContext*) _context;
+        VulkanContext* context              = (VulkanContext*) _context;
         context->m_CurrentVertexBuffer      = (DeviceBuffer*) vertex_buffer;
         context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
     }
 
-    static void VulkanEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
     {
-        Program* program_ptr = (Program*) program;
-        VulkanEnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+        VulkanContext* context      = (VulkanContext*) _context;
+        Program* program_ptr        = (Program*) program;
+        ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        for (uint32_t i=0; i < vertex_declaration->m_StreamCount; i++)
+        context->m_MainVertexDeclaration = {0};
+        VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration, vertex_buffer);
+
+        // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
+        //     Basically we create fake bindings if a stream isn't defined in the vertex declaration, because otherwise
+        //     the MVK driver will complain that we haven't defined all bindings in the shader.
+        //     This means that we might get side-effects since we are basically binding the first data buffer
+        //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
+        context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_InputCount;
+        context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
+
+        for (uint32_t i = 0; i < vertex_shader->m_InputCount; i++)
         {
-            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
+            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration.m_Streams[i];
 
-            stream.m_Location = 0xffff;
+            stream.m_NameHash = input.m_NameHash;
+            stream.m_Location = input.m_Binding;
+            stream.m_Format   = VK_FORMAT_R8_UNORM;
 
-            ShaderModule* vertex_shader = program_ptr->m_VertexModule;
-
-            for (uint32_t j=0; j < vertex_shader->m_InputCount; j++)
+            for (int j = 0; j < vertex_declaration->m_StreamCount; ++j)
             {
-                if (vertex_shader->m_Inputs[j].m_NameHash == stream.m_NameHash)
+                if (vertex_declaration->m_Streams[j].m_NameHash == input.m_NameHash)
                 {
-                    stream.m_Location = vertex_shader->m_Inputs[j].m_Binding;
+                    stream.m_Offset = vertex_declaration->m_Streams[j].m_Offset;
+                    stream.m_Format = vertex_declaration->m_Streams[j].m_Format;
                     break;
                 }
             }
@@ -1759,6 +1832,11 @@ bail:
     static void VulkanDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         ((VulkanContext*) context)->m_CurrentVertexDeclaration = 0;
+    }
+
+    static uint32_t VulkanGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
     }
 
     static inline bool IsUniformTextureSampler(ShaderResourceBinding uniform)
@@ -2235,6 +2313,7 @@ bail:
                 res.m_Set                  = ddf->m_Inputs[i].m_Set;
                 res.m_Type                 = ddf->m_Inputs[i].m_Type;
                 res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
+                res.m_ElementCount         = ddf->m_Inputs[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
             }
         }
@@ -2687,11 +2766,53 @@ bail:
         return true;
     }
 
+    static uint32_t VulkanGetAttributeCount(HProgram prog)
+    {
+        Program* program_ptr = (Program*) prog;
+        return program_ptr->m_VertexModule->m_InputCount;
+    }
+
+    // TODO: Move to graphics.cpp
+    static Type ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
+    {
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
+            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
+            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
+            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
+            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
+            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
+            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            default: break;
+        }
+
+        // Not supported
+        return (Type) 0xffffffff;
+    }
+
+    static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        Program* program_ptr = (Program*) prog;
+        assert(index < program_ptr->m_VertexModule->m_InputCount);
+        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
+
+        *name_hash     = attr.m_NameHash;
+        *type          = ShaderDataTypeToGraphicsType(attr.m_Type);
+        *num_values    = attr.m_ElementCount;
+        *location      = attr.m_Binding;
+        *element_count = GetShaderTypeSize(attr.m_Type) / sizeof(float);
+    }
+
     static uint32_t VulkanGetUniformCount(HProgram prog)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
-
         if (program_ptr->m_VertexModule && program_ptr->m_FragmentModule)
         {
             return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
@@ -2702,26 +2823,6 @@ bail:
         }
         assert(0 && "No shader module!");
         return 0;
-    }
-
-    // TODO: Move to graphics.cpp
-    static Type shaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
-    {
-        switch(shader_type)
-        {
-            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
-            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
-            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
-            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
-            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
-            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
-            default: break;
-        }
-
-        // Not supported
-        return (Type) 0xffffffff;
     }
 
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
@@ -2751,7 +2852,7 @@ bail:
         }
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
-        *type = shaderDataTypeToGraphicsType(res->m_Type);
+        *type = ShaderDataTypeToGraphicsType(res->m_Type);
         *size = res->m_ElementCount;
 
         return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
@@ -3119,7 +3220,7 @@ bail:
         };
     }
 
-    static VkResult CreateRenderTarget(VkDevice vk_device, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  Texture* depthStencilTexture, RenderTarget* rtOut)
+    static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, RenderTarget* rtOut)
     {
         assert(rtOut->m_Framebuffer == VK_NULL_HANDLE && rtOut->m_RenderPass == VK_NULL_HANDLE);
         const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
@@ -3135,45 +3236,42 @@ bail:
 
         for (int i = 0; i < num_color_textures; ++i)
         {
-            Texture* color_texture = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, color_textures[i]);
+            Texture* color_texture_ptr = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, color_textures[i]);
 
-            assert(!color_texture->m_Destroyed && color_texture->m_Handle.m_ImageView != VK_NULL_HANDLE && color_texture->m_Handle.m_Image != VK_NULL_HANDLE);
+            assert(!color_texture_ptr->m_Destroyed && color_texture_ptr->m_Handle.m_ImageView != VK_NULL_HANDLE && color_texture_ptr->m_Handle.m_Image != VK_NULL_HANDLE);
             uint8_t color_buffer_index = GetBufferTypeIndex(buffer_types[i]);
-            fb_width                   = rtOut->m_BufferTextureParams[color_buffer_index].m_Width;
-            fb_height                  = rtOut->m_BufferTextureParams[color_buffer_index].m_Height;
+            fb_width                   = rtOut->m_ColorTextureParams[color_buffer_index].m_Width;
+            fb_height                  = rtOut->m_ColorTextureParams[color_buffer_index].m_Height;
 
             RenderPassAttachment* rp_attachment_color = &rp_attachments[i];
             rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            rp_attachment_color->m_Format             = color_texture->m_Format;
-            fb_attachments[fb_attachment_count++]     = color_texture->m_Handle.m_ImageView;
+            rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
+            fb_attachments[fb_attachment_count++]     = color_texture_ptr->m_Handle.m_ImageView;
         }
 
-        if (depthStencilTexture)
+        if (depth_stencil_texture)
         {
-            uint8_t depth_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
-            uint16_t depth_width       = rtOut->m_BufferTextureParams[depth_buffer_index].m_Width;
-            uint16_t depth_height      = rtOut->m_BufferTextureParams[depth_buffer_index].m_Height;
-
+            Texture* depth_stencil_texture_ptr = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, depth_stencil_texture);
             if (num_color_textures == 0)
             {
-                fb_width  = depth_width;
-                fb_height = depth_height;
+                fb_width  = rtOut->m_DepthStencilTextureParams.m_Height;
+                fb_height = rtOut->m_DepthStencilTextureParams.m_Height;
             }
 
             rp_attachment_depth_stencil                = &rp_attachments[fb_attachment_count];
             rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            rp_attachment_depth_stencil->m_Format      = depthStencilTexture->m_Format;
+            rp_attachment_depth_stencil->m_Format      = depth_stencil_texture_ptr->m_Format;
 
-            fb_attachments[fb_attachment_count++] = depthStencilTexture->m_Handle.m_ImageView;
+            fb_attachments[fb_attachment_count++] = depth_stencil_texture_ptr->m_Handle.m_ImageView;
         }
 
-        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
+        VkResult res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
-        res = CreateFramebuffer(vk_device, rtOut->m_RenderPass,
+        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_RenderPass,
             fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Framebuffer);
         if (res != VK_SUCCESS)
         {
@@ -3187,7 +3285,7 @@ bail:
         }
 
         rtOut->m_ColorAttachmentCount = num_color_textures;
-        rtOut->m_TextureDepthStencil  = depthStencilTexture;
+        rtOut->m_TextureDepthStencil  = depth_stencil_texture;
         rtOut->m_Extent.width         = fb_width;
         rtOut->m_Extent.height        = fb_height;
 
@@ -3204,25 +3302,29 @@ bail:
         renderTarget->m_RenderPass = VK_NULL_HANDLE;
     }
 
-    static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
-        memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
 
-        BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
-        Texture* texture_depth_stencil = 0; 
-
-        uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-        uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-        uint8_t color_index = 0;
+        memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
+            params.m_DepthBufferParams :
+            params.m_StencilBufferParams;
 
         // don't save the data
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            rt->m_BufferTextureParams[i].m_Data     = 0x0;
-            rt->m_BufferTextureParams[i].m_DataSize = 0;
+            ClearTextureParamsData(rt->m_ColorTextureParams[i]);
         }
+        ClearTextureParamsData(rt->m_DepthStencilTextureParams);
+
+        BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture texture_depth_stencil = 0;
+
+        uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+        uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+        uint8_t color_index = 0;
 
         uint16_t fb_width  = 0;
         uint16_t fb_height = 0;
@@ -3240,8 +3342,7 @@ bail:
 
             if (buffer_type_flags & buffer_type)
             {
-                uint8_t color_buffer_index         = GetBufferTypeIndex(buffer_type);
-                TextureParams& color_buffer_params = rt->m_BufferTextureParams[color_buffer_index];
+                TextureParams& color_buffer_params = rt->m_ColorTextureParams[i];
                 fb_width                           = color_buffer_params.m_Width;
                 fb_height                          = color_buffer_params.m_Height;
 
@@ -3258,7 +3359,7 @@ bail:
                     vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
                 }
 
-                HTexture new_texture_color_handle = NewTexture(context, creation_params[color_buffer_index]);
+                HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
                 Texture* new_texture_color = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, new_texture_color_handle);
                 VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
                     new_texture_color->m_Width, new_texture_color->m_Height, 1, new_texture_color->m_MipMapCount,
@@ -3286,7 +3387,8 @@ bail:
         {
             VkFormat vk_depth_stencil_format = VK_FORMAT_UNDEFINED;
             VkImageTiling vk_depth_tiling    = VK_IMAGE_TILING_OPTIMAL;
-            uint8_t depth_buffer_index       = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+
+            const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
 
             // Only try depth formats first
             if (has_depth && !has_stencil)
@@ -3296,8 +3398,8 @@ bail:
                     VK_FORMAT_D16_UNORM
                 };
 
-                uint8_t vk_format_list_size = sizeof(vk_format_list) / sizeof(vk_format_list[2]);
-                GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, vk_format_list, vk_format_list_size, &vk_depth_stencil_format, &vk_depth_tiling);
+                GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, vk_format_list,
+                    DM_ARRAY_SIZE(vk_format_list), &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
             // If we request both depth & stencil OR test above failed,
@@ -3307,15 +3409,19 @@ bail:
                 GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            texture_depth_stencil = VulkanNewTextureInternal(creation_params[depth_buffer_index]);
+            texture_depth_stencil              = NewTexture(context, stencil_depth_create_params);
+            Texture* texture_depth_stencil_ptr = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture_depth_stencil);
+    
+            // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_depth_tiling,
                 fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
-                texture_depth_stencil);
+                VK_IMAGE_ASPECT_DEPTH_BIT, // JG: This limits us to sampling depth only afaik
+                texture_depth_stencil_ptr);
             CHECK_VK_ERROR(res);
         }
 
-        VkResult res = CreateRenderTarget(g_VulkanContext->m_LogicalDevice.m_Device, texture_color, buffer_types, color_index, texture_depth_stencil, rt);
+        VkResult res = CreateRenderTarget(g_VulkanContext, texture_color, buffer_types, color_index, texture_depth_stencil, rt);
         CHECK_VK_ERROR(res);
 
         return StoreAssetInContainer(g_VulkanContext->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
@@ -3336,7 +3442,7 @@ bail:
 
         if (rt->m_TextureDepthStencil)
         {
-            VulkanDeleteTextureInternal(rt->m_TextureDepthStencil);
+            DeleteTexture(rt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, rt);
@@ -3354,37 +3460,53 @@ bail:
 
     static HTexture VulkanGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-         if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR1_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR2_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR3_BIT))
-        {
-            return 0;
-        }
-
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
-        return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+
+        if (IsColorBufferType(buffer_type))
+        {
+            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return rt->m_TextureDepthStencil;
+        }
+        return 0;
     }
 
     static void VulkanGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
-        uint32_t i = GetBufferTypeIndex(buffer_type);
-        assert(i < MAX_BUFFER_TYPE_COUNT);
-        width  = rt->m_BufferTextureParams[i].m_Width;
-        height = rt->m_BufferTextureParams[i].m_Height;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);    
+        TextureParams* params = 0;
+
+        if (IsColorBufferType(buffer_type))
+        {
+            uint32_t i = GetBufferTypeIndex(buffer_type);
+            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
+            params = &rt->m_ColorTextureParams[i];
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            params = &rt->m_DepthStencilTextureParams;
+        }
+        else
+        {
+            assert(0);
+        }
+
+        width  = params->m_Width;
+        height = params->m_Height;
     }
 
     static void VulkanSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
 
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            rt->m_BufferTextureParams[i].m_Width = width;
-            rt->m_BufferTextureParams[i].m_Height = height;
+            rt->m_ColorTextureParams[i].m_Width = width;
+            rt->m_ColorTextureParams[i].m_Height = height;
 
-            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && rt->m_TextureColor[i])
+            if (rt->m_TextureColor[i])
             {
                 Texture* texture_color = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, rt->m_TextureColor[i]);
 
@@ -3399,11 +3521,15 @@ bail:
 
         if (rt->m_TextureDepthStencil)
         {
-            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], rt->m_TextureDepthStencil);
+            rt->m_DepthStencilTextureParams.m_Width = width;
+            rt->m_DepthStencilTextureParams.m_Height = height;
+
+            Texture* depth_stencil_texture = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], depth_stencil_texture);
 
             // Check tiling support for this format
             VkImageTiling vk_image_tiling    = VK_IMAGE_TILING_OPTIMAL;
-            VkFormat vk_depth_stencil_format = rt->m_TextureDepthStencil->m_Format;
+            VkFormat vk_depth_stencil_format = depth_stencil_texture->m_Format;
             VkFormat vk_depth_format         = GetSupportedTilingFormat(g_VulkanContext->m_PhysicalDevice.m_Device, &vk_depth_stencil_format,
                 1, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
@@ -3415,12 +3541,13 @@ bail:
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_image_tiling,
                 width, height, VK_SAMPLE_COUNT_1_BIT,
-                rt->m_TextureDepthStencil);
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                depth_stencil_texture);
             CHECK_VK_ERROR(res);
         }
 
         DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, rt);
-        VkResult res = CreateRenderTarget(g_VulkanContext->m_LogicalDevice.m_Device,
+        VkResult res = CreateRenderTarget(g_VulkanContext,
             rt->m_TextureColor,
             rt->m_ColorAttachmentBufferTypes,
             rt->m_ColorAttachmentCount,
@@ -3605,19 +3732,6 @@ bail:
             res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Handle.m_Image,
                 VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
-        }
-    }
-
-    static void RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
-    {
-        for(uint32_t px=0; px < num_pixels; px++)
-        {
-            rgba[0] = rgb[0];
-            rgba[1] = rgb[1];
-            rgba[2] = rgb[2];
-            rgba[3] = 255;
-            rgba+=4;
-            rgb+=3;
         }
     }
 

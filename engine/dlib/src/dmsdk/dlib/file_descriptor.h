@@ -16,10 +16,10 @@
 #define DMSDK_FILE_DESCRIPTOR_H
 
 #include <dmsdk/dlib/array.h>
-#if defined(_WIN32)
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dmsdk/dlib/file_descriptor_vendor.h>
+#elif defined(_WIN32)
     #include <dmsdk/dlib/file_descriptor_win32.h>
-#elif defined(__SCE__)
-    #include <dmsdk/dlib/file_descriptor_ps4.h>
 #else
     #include <dmsdk/dlib/file_descriptor_posix.h>
 #endif

@@ -49,6 +49,7 @@
           <entry key="editor.ui/on-action!" value="-1" />
           <entry key="editor.ui/on-closing!" value="-1" />
           <entry key="editor.ui/with-controls" value="-1" />
+          <entry key="editor.ui/with-on-edit-event-suppressed" value="-1" />
           <entry key="editor.ui/with-progress" value="-1" />
           <entry key="editor.updater-test/with-server" value="2" />
           <entry key="editor.workspace/register-resource-type" value="-1" />
