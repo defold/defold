@@ -15,7 +15,7 @@
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$ResourceFields TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
 
@@ -144,6 +144,17 @@
   (is (= "StoreFrontImageUrl" (protobuf/underscores-to-camel-case "store_front_image_url")))
   (is (= "IOSExecutableUrl" (protobuf/underscores-to-camel-case "iOSExecutableUrl")))
   (is (= "SomeField_" (protobuf/underscores-to-camel-case "some_field#"))))
+
+(deftest resource-field-paths-test
+  (is (= [[:image]] (protobuf/resource-field-paths TestDdf$ResourceSimple)))
+  (is (= [[{:image "/default.png"}]] (protobuf/resource-field-paths TestDdf$ResourceDefaulted)))
+  (is (= [[[:images]]] (protobuf/resource-field-paths TestDdf$ResourceRepeated)))
+  (is (= [[:simple :image]] (protobuf/resource-field-paths TestDdf$ResourceSimpleNested)))
+  (is (= [[:defaulted {:image "/default.png"}]] (protobuf/resource-field-paths TestDdf$ResourceDefaultedNested)))
+  (is (= [[:repeated [:images]]] (protobuf/resource-field-paths TestDdf$ResourceRepeatedNested)))
+  (is (= [[[:simples] :image]] (protobuf/resource-field-paths TestDdf$ResourceSimpleRepeatedlyNested)))
+  (is (= [[[:defaulteds] {:image "/default.png"}]] (protobuf/resource-field-paths TestDdf$ResourceDefaultedRepeatedlyNested)))
+  (is (= [[[:repeateds] [:images]]] (protobuf/resource-field-paths TestDdf$ResourceRepeatedRepeatedlyNested))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-with-defaults

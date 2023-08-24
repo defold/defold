@@ -48,7 +48,7 @@
   (if (g/error-value? save-data)
     save-data
     (if-some [content (save-data-content save-data)]
-      ;; TODO(save-value): Can we digest the save-value without converting it to a string?
+      ;; TODO(save-value-cleanup): Can we digest the save-value without converting it to a string?
       (digest/string->sha256-hex content)
       (let [resource (:resource save-data)
             node-id (:node-id save-data)
@@ -137,7 +137,7 @@
               :outline-overridden? (not (empty? _overridden-properties))})))
   (output sha256 g/Str :cached produce-sha256))
 
-;; TODO(save-value): Can we remove this now?
+;; TODO(save-value-cleanup): Can we remove this now?
 (g/defnode NonEditableResourceNode
   (inherits ResourceNode)
 

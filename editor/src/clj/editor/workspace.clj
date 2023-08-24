@@ -229,7 +229,10 @@ ordinary paths."
                         a resource or a Reader) to a data structure
                         representation of the resource (a source value)
     :write-fn           a fn from a data representation of the resource
-                        (a save value) to string
+                        (a save-value) to string
+    :source-value-fn    a fn from a save-value to whatever you want to cache as
+                        the source-value for the resource type. When not
+                        specified, the save-value will be the source-value.
     :search-value-fn    a fn from node-id, resource and an evaluation-context to
                         a search-value that can be accepted by the :search-fn in
                         order to find a matching substring inside the resource.
@@ -274,8 +277,7 @@ ordinary paths."
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
 
-  ;; TODO(save-value): Should we get rid of :auto-connect-save-data? now that we don't use it externally?
-  ;; TODO(save-value): Document the :source-value-fn kv-arg.
+  ;; TODO(save-value-cleanup): Should we get rid of :auto-connect-save-data? now that we don't use it externally?
   [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? lazy-loaded auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)

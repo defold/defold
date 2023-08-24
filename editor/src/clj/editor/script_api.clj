@@ -172,7 +172,7 @@
 
 (defn register-resource-types
   [workspace]
-  ;; TODO(save-value): This seems like it should be able to use r/register-code-resource-type with an :additional-load-fn?
+  ;; TODO(save-value-cleanup): This seems like it should be able to use r/register-code-resource-type with an :additional-load-fn?
   (workspace/register-resource-type workspace
     :ext "script_api"
     :label "Script API"

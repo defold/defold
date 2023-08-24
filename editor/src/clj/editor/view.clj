@@ -24,7 +24,7 @@
                                         {:resource-node node-id
                                          :resource-node-type type
                                          :resource resource})]))
-  ;; TODO(save-value): Merge dirty state into view-data?
+  ;; TODO(save-value-cleanup): Merge dirty state into view-data?
   (output view-dirty g/Any (g/fnk [_node-id dirty] [_node-id dirty])))
 
 (defn connect-resource-node [view resource-node]

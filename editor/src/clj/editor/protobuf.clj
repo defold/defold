@@ -220,15 +220,23 @@ Macros currently mean no foreseeable performance gain, however."
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field-desc]
-                 (pair (field->key field-desc)
-                       {:type (field-type cls field-desc)
-                        :java-name (underscores-to-camel-case (.getName field-desc))
-                        :options (options (.getOptions field-desc))
-                        :field-type-key (field-type->key (.getType field-desc))
-                        :field-rule (cond (.isRepeated field-desc) :repeated
-                                          (.isRequired field-desc) :required
-                                          (.isOptional field-desc) :optional
-                                          :else (assert false))})))
+                 (let [field-key (field->key field-desc)
+                       field-rule (cond (.isRepeated field-desc) :repeated
+                                        (.isRequired field-desc) :required
+                                        (.isOptional field-desc) :optional
+                                        :else (assert false))
+                       default (when (not= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+                                 (.getDefaultValue field-desc))
+                       declared-default (when (.hasDefaultValue field-desc)
+                                          default)]
+                   (pair field-key
+                         {:type (field-type cls field-desc)
+                          :java-name (underscores-to-camel-case (.getName field-desc))
+                          :field-type-key (field-type->key (.getType field-desc))
+                          :field-rule field-rule
+                          :default default
+                          :declared-default declared-default
+                          :options (options (.getOptions field-desc))}))))
           (.getFields desc))))
 
 (def ^:private field-infos (memoize field-infos-raw))
@@ -244,65 +252,84 @@ Macros currently mean no foreseeable performance gain, however."
   "Returns the set of field keywords applicable to the supplied protobuf Class."
   (memoize (comp set keys field-infos)))
 
-(declare default resource-field-paths)
+(defn- declared-default [^Class cls field]
+  (if-some [field-info (get (field-infos cls) field)]
+    (:declared-default field-info)
+    (throw (ex-info (format "Field '%s' does not exist in protobuf class '%s'."
+                            field
+                            (.getName cls))
+                    {:pb-class cls
+                     :field field}))))
+
+(declare resource-field-paths)
 
 (defn resource-field-paths-raw
-  ;; TODO(save-value): Update this comment to reflect that the return value includes field default values.
   "Returns a list of path expressions pointing out all resource fields.
 
   path-expr := '[' elem+ ']'
-  elem := :keyword          ; index into structure using :keyword
-  elem := '[' :keyword ']'  ; :keyword is a repeated field, use rest of step* (if any) to index into each repetition (a message)
+  elem := :keyword                  ; index into structure using :keyword
+  elem := '{' :keyword default '}'  ; index into structure using :keyword, with default value to use when not specified
+  elem := '[' :keyword ']'          ; :keyword is a repeated field, use rest of step* (if any) to index into each repetition (a message)
 
-  message Simple
-  {
-    required string image = 1 [(resource) = true];
+  message ResourceSimple {
+      optional string image = 1 [(resource) = true];
   }
 
-  message Repeated
-  {
-    repeated string images = 1 [(resource) = true];
+  message ResourceDefaulted {
+      optional string image = 1 [(resource) = true, default = '/default.png'];
   }
 
-  message SimpleNested
-  {
-    required Simple simple;
+  message ResourceRepeated {
+      repeated string images = 1 [(resource) = true];
   }
 
-  message RepeatedNested
-  {
-    required Repeated repeated;
+  message ResourceSimpleNested {
+      optional ResourceSimple simple = 1;
   }
 
-  message SimpleRepeatedlyNested
-  {
-    repeated Simple simples;
+  message ResourceDefaultedNested {
+      optional ResourceDefaulted defaulted = 1;
   }
 
-  message RepeatedRepeatedlyNested
-  {
-    repeated Repeated repeateds;
+  message ResourceRepeatedNested {
+      optional ResourceRepeated repeated = 1;
   }
 
-  (resource-field-paths-raw Simple) -> [ [:image] ]
-  (resource-field-paths-raw Repeated) -> [ [[:images]] ]
+  message ResourceSimpleRepeatedlyNested {
+      repeated ResourceSimple simples = 1;
+  }
 
-  (resource-field-paths-raw SimpleNested) -> [ [:simple :image] ]
-  (resource-field-paths-raw RepeatedNested) -> [ [:simple [:images]] ]
+  message ResourceDefaultedRepeatedlyNested {
+      repeated ResourceDefaulted defaulteds = 1;
+  }
 
-  (resource-field-paths-raw SimpleRepeatedlyNested) -> [ [[:simples] :image] ]
-  (resource-field-paths-raw RepeatedRepeatedlyNested) -> [ [[:repeateds] [:images]] ]"
+  message ResourceRepeatedRepeatedlyNested {
+      repeated ResourceRepeated repeateds = 1;
+  }
+
+  (resource-field-paths-raw ResourceSimple)    => [ [:image] ]
+  (resource-field-paths-raw ResourceDefaulted) => [ [{:image '/default.png'}] ]
+  (resource-field-paths-raw ResourceRepeated)  => [ [[:images]] ]
+
+  (resource-field-paths-raw ResourceSimpleNested)    => [ [:simple :image] ]
+  (resource-field-paths-raw ResourceDefaultedNested) => [ [:defaulted {:image '/default.png'}] ]
+  (resource-field-paths-raw ResourceRepeatedNested)  => [ [:repeated [:images]] ]
+
+  (resource-field-paths-raw ResourceSimpleRepeatedlyNested)    => [ [[:simples] :image] ]
+  (resource-field-paths-raw ResourceDefaultedRepeatedlyNested) => [ [[:defaulteds] {:image '/default.png'}] ]
+  (resource-field-paths-raw ResourceRepeatedRepeatedlyNested)  => [ [[:repeateds] [:images]] ]"
   [^Class class]
   (into []
         (comp
           (map (fn [[key field-info]]
                  (cond
                    (resource-field? field-info)
-                   (if (= :repeated (:field-rule field-info))
-                     [ [[key]] ]
-                     (if-some [field-default (default class key nil)]
-                       [ [{key field-default}] ]
-                       [ [key] ]))
+                   (case (:field-rule field-info)
+                     :repeated [ [[key]] ]
+                     :required [ [key] ]
+                     :optional (if-some [field-default (declared-default class key)]
+                                 [ [{key field-default}] ]
+                                 [ [key] ]))
 
                    (message-field? field-info)
                    (let [sub-paths (resource-field-paths (:type field-info))]
