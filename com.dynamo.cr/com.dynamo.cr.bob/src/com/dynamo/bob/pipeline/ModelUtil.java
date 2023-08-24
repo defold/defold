@@ -290,7 +290,9 @@ public class ModelUtil {
         public int compare(ModelImporter.NodeAnimation a, ModelImporter.NodeAnimation b) {
             Bone bonea = findBoneByName(this.bones, a.node.name);
             Bone boneb = findBoneByName(this.bones, b.node.name);
-            return bonea.index - boneb.index;
+            int indexa = bonea == null ? 0xffffffff : bonea.index;
+            int indexb = boneb == null ? 0xffffffff : boneb.index;
+            return indexa - indexb;
         }
         private ArrayList<ModelImporter.Bone> bones;
     }

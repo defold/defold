@@ -127,7 +127,7 @@ public class ArchiveBuilder {
 
     public boolean shouldUseCompressedResourceData(byte[] original, byte[] compressed) {
         if (this.getForceCompression())
-            return compressed.length < original.length;
+            return true;
 
         double ratio = (double) compressed.length / (double) original.length;
         return ratio <= 0.95;
@@ -214,13 +214,6 @@ public class ArchiveBuilder {
 
             int resourceEntryFlags = 0;
 
-            // Encrypt data first, so we can decrypt in place at runtime
-            // this allows us to minimize allocations/copying
-            if (entry.isEncrypted()) {
-                buffer = this.encryptResourceData(buffer);
-                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
-            }
-
             if (entry.isCompressed()) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
@@ -233,6 +226,12 @@ public class ArchiveBuilder {
                 } else {
                     entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
+            }
+
+            // we need to do this last or the compression won't work as well
+            if (entry.isEncrypted()) {
+                buffer = this.encryptResourceData(buffer);
+                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
             }
 
             // Add entry to manifest
