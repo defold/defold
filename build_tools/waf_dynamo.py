@@ -1838,7 +1838,7 @@ def detect(conf):
 
     if conf.env.IS_TARGET_DESKTOP:
         if 'JAVA_HOME' in os.environ:
-            host = 'windows'
+            host = 'win32'
             if 'linux' in sys.platform:
                 host = 'linux'
             elif 'darwin' in sys.platform:
