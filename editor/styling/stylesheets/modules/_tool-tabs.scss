@@ -119,11 +119,11 @@
         }
 
         @mixin colorize-severity($color, $active-color) {
-            .image-view {
+            & > .image-view {
                 -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
             }
             &:selected, &:hover {
-                .image-view {
+                & > .image-view {
                     -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
                 }
             }

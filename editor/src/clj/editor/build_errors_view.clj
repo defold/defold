@@ -196,10 +196,9 @@
         style (case (:severity error-item)
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
-                #{"severity-error"})
-        image (icons/get-image-view icon 16)
-        text (Text. message)]
-    {:graphic (HBox. (ui/node-array [image text]))
+                #{"severity-error"})]
+    {:text message
+     :icon icon
      :style style}))
 
 (defn- find-outline-node [resource-node-id error-node-id]

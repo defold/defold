@@ -1079,9 +1079,9 @@ namespace dmGraphics
     {
         g_functions.m_SetPolygonOffset(context, factor, units);
     }
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
     }
     void DeleteRenderTarget(HRenderTarget render_target)
     {
