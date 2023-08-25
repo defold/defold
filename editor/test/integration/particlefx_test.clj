@@ -72,8 +72,7 @@
                (let [sim (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms))
-                     ;attribute-infos vertex-attribute-bytes
-                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] vertex-description attribute-infos attribute-bytes)
+                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description attribute-infos attribute-bytes)
                                (plib/stats sim))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"

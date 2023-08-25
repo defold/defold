@@ -287,6 +287,7 @@
 (defn- editable-attribute-info? [attribute-info]
   (case (:semantic-type attribute-info)
     (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
+    nil false
     true))
 
 (defn- attribute-property-type [attribute]
@@ -361,7 +362,7 @@
                 [property-key prop]))))
         material-attribute-infos))
 
-(g/defnk produce-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
+(defn produce-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
   (let [vertex-attribute-bytes
         (into {}
               (map (fn [{:keys [name-key] :as attribute-info}]
