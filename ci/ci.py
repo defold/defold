@@ -299,18 +299,6 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
 
     opts.append('--platform=%s' % platform)
 
-    if windows_cert:
-        windows_cert = os.path.abspath(windows_cert)
-        if not os.path.exists(windows_cert):
-            print("Certificate file not found:", windows_cert)
-            sys.exit(1)
-        print("Using cert", windows_cert)
-        opts.append('--windows-cert=%s' % windows_cert)
-
-    if windows_cert_pass:
-        windows_cert_pass = os.path.abspath(windows_cert_pass)
-        opts.append("--windows-cert-pass=%s" % windows_cert_pass)
-
     cmd = ' '.join(args + opts)
     call(cmd)
 

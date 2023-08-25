@@ -35,7 +35,7 @@
             &:hover {
                 -fx-text-fill: -df-text-selected;
             }
-            .image-view {
+            & > .image-view {
                 @include effect-bright-grey();
             }
 

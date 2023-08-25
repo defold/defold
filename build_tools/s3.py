@@ -196,3 +196,72 @@ def move_release(archive_path, sha1, channel):
         # update the redirect
         new_redirect = "http://%s/%s" % (bucket_name, new_key)
         key.set_redirect(new_redirect)
+
+def redirect_release(archive_path, sha1, channel):
+    u = urlparse(archive_path)
+    # get archive root and bucket name
+    # archive root:     s3://d.defold.com/archive -> archive
+    # bucket name:      s3://d.defold.com/archive -> d.defold.com
+    archive_root = u.path[1:]
+    bucket_name = u.hostname
+    bucket = get_bucket(bucket_name)
+
+    # the search prefix we use when listing keys
+    # we only want the keys associated with specifed sha1
+    prefix = "%s/%s/" % (archive_root, sha1)
+
+    # collect the redirects, ensuring all destination keys point to existing files
+    redirected_prefixes = [
+        prefix + "engine/",
+        prefix + "bob/"
+    ]
+
+    redirects = []
+
+    for key in bucket.get_all_keys(prefix = prefix):
+        if not any(key.name.startswith(x) for x in redirected_prefixes):
+            continue
+
+        old_target_url = key.get_redirect()
+
+        if not old_target_url:
+            continue
+
+        name = key.name.replace(prefix, "")
+        new_target_path = "archive/%s/%s/%s" % (channel, sha1, name)
+        new_target_url = "http://%s/%s" % (bucket_name, new_target_path)
+
+        if new_target_url == old_target_url:
+            continue
+
+        print("Preparing %s" % key.name)
+        print("     From %s" % old_target_url)
+        print("       To %s" % new_target_url)
+
+        # ensure we're redirecting to an existing file
+        new_target_key = bucket.get_key(new_target_path)
+        assert(new_target_key)
+        assert(not new_target_key.get_redirect())
+
+        redirect_url = "http://%s/%s" % (bucket_name, new_target_path)
+        redirects.append((key, new_target_url))
+
+    if redirects:
+        print()
+
+        for (key, new_target_url) in redirects:
+            print("Setting %s" % key.name)
+            print("     To %s" % new_target_url)
+            key.set_redirect(new_target_url)
+    
+        # output a list of Objects that should be invalidated in CloudFront.
+        # TODO: Use the boto.cloudfront API to do this automatically.
+        print()
+        print("You should invalidate these Objects in CloudFront:")
+        print("https://console.aws.amazon.com/cloudfront/v3/home")
+        print()
+
+        for (key, _) in redirects:
+            print("/%s" % key.name)
+
+        print()

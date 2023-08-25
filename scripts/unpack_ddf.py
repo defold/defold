@@ -177,7 +177,7 @@ def print_shader(shader):
     print("{")
     for field, data in shader.ListFields():
         if field.name == 'source':
-            lines = str(data.strip(), encoding="ascii").split("\n")
+            lines = data.decode("utf-8", errors="replace").strip().split("\n")
             data = '\n    '.join(['']+lines)
         print(field.name, ":", data)
     print("}")
