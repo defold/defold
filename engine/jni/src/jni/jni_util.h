@@ -33,6 +33,7 @@ namespace dmJNI
     // Jni helper functions
     jclass GetClass(JNIEnv* env, const char* basecls, const char* clsname);
     jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID);
+    jfieldID GetFieldFromString(JNIEnv* env, jclass cls, const char* field_name, const char* type_name);
 
     void SetObject(JNIEnv* env, jobject obj, jfieldID field, jobject value);
     void SetObjectDeref(JNIEnv* env, jobject obj, jfieldID field, jobject value);

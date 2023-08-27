@@ -73,6 +73,18 @@ jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID)
     return (jclass)type;
 }
 
+jfieldID GetFieldFromString(JNIEnv* env, jclass cls, const char* field_name, const char* type_name)
+{
+    jfieldID field = env->GetFieldID(cls, field_name, type_name);
+    if (!field)
+    {
+        printf("ERROR: Field '%s' does not have type '%s'.\n", field_name, type_name);
+        assert(0);
+        return 0;
+    }
+    return field;
+}
+
 // *******************************************************************************
 
 void SetObject(JNIEnv* env, jobject obj, jfieldID field, jobject value)

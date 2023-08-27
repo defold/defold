@@ -221,6 +221,7 @@ public class JniTest
         Testapi.Misc misc = TestCreateMisc();
         assertEquals(Testapi.TestEnum.TE_VALUE_B, misc.testEnum);
         assertEquals("Hello World!", misc.string);
+        assertEquals(42, misc.opaque);
     }
 
     // ----------------------------------------------------
@@ -303,12 +304,13 @@ public class JniTest
         Testapi.Misc misc = new Testapi.Misc();
         misc.testEnum = Testapi.TestEnum.TE_VALUE_A;
         misc.string = "Hello From Java!";
+        misc.opaque = 77;
 
         Testapi.Misc misc2 = TestDuplicateMisc(misc);
 
-
         assertEquals(Testapi.TestEnum.TE_VALUE_B, misc2.testEnum);
         assertEquals("Hello From C!", misc2.string);
+        assertEquals(78, misc2.opaque);
     }
 
     // ----------------------------------------------------

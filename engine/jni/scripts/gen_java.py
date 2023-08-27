@@ -84,10 +84,11 @@ c_type_to_jni_type_specifiers = {
     'uint16_t':     '0',
     'int32_t':      'I',
     'uint32_t':     'I',
-    'int64_t':      'L',
-    'uint64_t':     'L',
+    'int64_t':      'J',
+    'uint64_t':     'J',
     'float':        'F',
     'double':       'D',
+    'void *':       'J',
 }
 
 # https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#Set_type_Field_routines
@@ -295,10 +296,8 @@ def gen_struct(decl, namespace):
             l(f"        public {field_type} {jni_field_name} = {field_type}.{enum_default_item(field_type)};")
         elif util.is_string_ptr(field_type):
             l(f"        public String {jni_field_name};")
-        # elif util.is_const_void_ptr(field_type):
-        #     l(f"        public {jni_field_name}: ?*const anyopaque = null,")
-        # elif util.is_void_ptr(field_type):
-        #     l(f"        public {jni_field_name}: ?*anyopaque = null,")
+        elif util.is_const_void_ptr(field_type) or util.is_void_ptr(field_type):
+            l(f"        public long {jni_field_name};")
         elif util.is_dmarray_type(field_type):
             field_type = util.extract_dmarray_type(field_type)
             c_type, _ = util.extract_ptr_type2(field_type)
@@ -533,13 +532,13 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
     l(f'        }}')
     l(f'')
     l(f'    #define GET_FLD_TYPESTR(NAME, FULL_TYPE_STR) \\')
-    l(f'        obj-> NAME = env->GetFieldID(obj->cls, # NAME, FULL_TYPE_STR)')
+    l(f'        obj-> NAME = dmJNI::GetFieldFromString(env, obj->cls, # NAME, FULL_TYPE_STR);')
     l(f'')
     l(f'    #define GET_FLD(NAME, TYPE_NAME) \\')
-    l(f'        obj-> NAME = env->GetFieldID(obj->cls, # NAME, "L" CLASS_NAME "$" TYPE_NAME ";")')
+    l(f'        obj-> NAME = dmJNI::GetFieldFromString(env, obj->cls, # NAME, "L" CLASS_NAME "$" TYPE_NAME ";")')
     l(f'')
     l(f'    #define GET_FLD_ARRAY(NAME, TYPE_NAME) \\')
-    l(f'        obj-> NAME = env->GetFieldID(obj->cls, # NAME, "[L" CLASS_NAME "$" TYPE_NAME ";")')
+    l(f'        obj-> NAME = dmJNI::GetFieldFromString(env, obj->cls, # NAME, "[L" CLASS_NAME "$" TYPE_NAME ";")')
     l(f'')
 
     for decl in struct_jni_types:
@@ -570,6 +569,10 @@ def gen_jni_type_init(namespace, class_name, package_name, header=False):
                 l(f'        GET_FLD({jni_field_name}, "{field_type}");')
             elif util.is_string_ptr(field_type):
                 l(f'        GET_FLD_TYPESTR({jni_field_name}, "Ljava/lang/String;");')
+            elif util.is_const_void_ptr(field_type) or util.is_void_ptr(field_type):
+                jni_type = c_type_to_jni_type_specifiers.get(field_type);
+                l(f'        GET_FLD_TYPESTR({jni_field_name}, "{jni_type}");')
+
             elif is_struct_ptr(field_type):
                 jni_type, ptr = util.extract_ptr_type2(field_type)
                 if ptr and len(ptr) > 2:
@@ -701,6 +704,8 @@ def gen_to_jni_create_object(decl, namespace, class_name, package_name, header=F
             l(f'    dmJNI::SetEnum(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
         elif util.is_string_ptr(field_type):
             l(f'    dmJNI::SetString(env, obj, types->m_{struct_name}JNI.{jni_field_name}, src->{field_name});')
+        elif util.is_const_void_ptr(field_type) or util.is_void_ptr(field_type):
+            l(f'    dmJNI::SetLong(env, obj, types->m_{struct_name}JNI.{jni_field_name}, (uintptr_t)src->{field_name});')
 
         elif util.is_dmarray_type(field_type):
             field_type = util.extract_dmarray_type(field_type)
@@ -867,6 +872,10 @@ def gen_from_jni_create_object(decl, namespace, class_name, package_name, header
 
         elif util.is_string_ptr(field_type):
             l(f'    out->{field_name} = dmJNI::GetString(env, obj, {field_id});')
+        elif util.is_const_void_ptr(field_type):
+            l(f'    out->{field_name} = (const void*)(uintptr_t)dmJNI::GetLong(env, obj, {field_id});')
+        elif util.is_void_ptr(field_type):
+            l(f'    out->{field_name} = (void*)(uintptr_t)dmJNI::GetLong(env, obj, {field_id});')
 
         elif util.is_dmarray_type(field_type):
 

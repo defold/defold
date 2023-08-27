@@ -78,8 +78,9 @@ namespace dmJniTest
 
     struct Misc
     {
-        TestEnum m_TestEnum;
+        TestEnum    m_TestEnum;
         const char* m_String;
+        void*       m_Opaque;
     };
 }
 

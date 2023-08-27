@@ -106,6 +106,7 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateMisc(JNIEnv* env, jclass cls)
         dmJniTest::Misc misc;
         misc.m_TestEnum = dmJniTest::TE_VALUE_B;
         misc.m_String = s;
+        misc.m_Opaque = (void*)(uintptr_t)42;
         jmisc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &misc);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jmisc;
@@ -134,6 +135,8 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateMisc(JNIEnv* env, jclass cls
             s[1] = '!';
             s[2] = '\0';
         }
+
+        out_misc.m_Opaque = (void*)((uintptr_t)in_misc.m_Opaque + 1);
         jni_out_misc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &out_misc);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jni_out_misc;
