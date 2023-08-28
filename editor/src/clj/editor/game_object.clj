@@ -104,7 +104,7 @@
     #{}
     (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
       (assert (set? supported-properties))
-      (assert (every? (partial contains? game-object-common/identity-transform-properties) supported-properties))
+      (assert (every? (partial contains? scene/identity-transform-properties) supported-properties))
       supported-properties)))
 
 (defn- select-transform-properties
@@ -112,7 +112,7 @@
   Unsupported properties will be initialized to the identity transform.
   If the resource type is unknown to us, keep all transform properties."
   [component-resource-type component]
-  (merge game-object-common/identity-transform-properties
+  (merge scene/identity-transform-properties
          (select-keys component
                       (if (some? component-resource-type)
                         (supported-transform-properties component-resource-type)
@@ -132,7 +132,7 @@
   (assert (set? transform-properties))
   (-> _declared-properties
       (update :properties (fn [properties]
-                            (let [stripped-transform-properties (remove transform-properties (keys game-object-common/identity-transform-properties))
+                            (let [stripped-transform-properties (remove transform-properties (keys scene/identity-transform-properties))
                                   component-node-properties (apply dissoc properties stripped-transform-properties)
                                   source-resource-properties (:properties source-properties)]
                               (merge-with (fn [_ _]
@@ -486,7 +486,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-component go-id resource id game-object-common/identity-transform-properties [] select-fn)))))
+        (add-component go-id resource id scene/identity-transform-properties [] select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (keep (fn [[ext {:keys [tags :as _resource-type]}]]
@@ -537,7 +537,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-embedded-component go-id project (:ext resource-type) pb-map id game-object-common/identity-transform-properties select-fn)))))
+        (add-embedded-component go-id project (:ext resource-type) pb-map id scene/identity-transform-properties select-fn)))))
 
 (defn- add-embedded-component-handler [user-data select-fn]
   (let [go-id (:_node-id user-data)

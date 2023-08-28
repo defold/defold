@@ -66,6 +66,19 @@
 
 (set! *warn-on-reflection* true)
 
+;; TODO(save-value): Can we use (vector-of :float ...) for these?
+
+(def default-position [(float 0.0) (float 0.0) (float 0.0)])
+
+(def default-rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)])
+
+(def default-scale [(float 1.0) (float 1.0) (float 1.0)])
+
+(def identity-transform-properties
+  {:position default-position
+   :rotation default-rotation
+   :scale default-scale})
+
 (defn overlay-text [^GL2 gl ^String text x y]
   (scene-text/overlay gl text x y))
 
@@ -1517,22 +1530,45 @@
 (def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
 
 ;; Arbitrarily small value to avoid 0-determinants
-(def ^:private ^:const ^double scale-min 0.000001)
+(def ^:private ^:const ^float scale-min-float (float 0.000001))
 
-(defn- non-zeroify-scale [^double v]
-  (if (< (Math/abs v) scale-min) (Math/copySign scale-min v) v))
+(def ^:private ^:const ^double scale-min-double 0.000001)
+
+(defn- non-zeroify-component [num]
+  (cond
+    (instance? Float num)
+    (let [num-float (float num)]
+      (if (< (Math/abs num-float) scale-min-float)
+        (Math/copySign scale-min-float num-float)
+        num-float))
+
+    (double? num)
+    (let [num-double (double num)]
+      (if (< (Math/abs num-double) scale-min-double)
+        (Math/copySign scale-min-double num-double)
+        num-double))
+
+    :else
+    num))
+
+(def ^:private empty-scale (empty default-scale))
+
+(defn- non-zeroify-scale [scale]
+  (into empty-scale
+        (map non-zeroify-component)
+        scale))
 
 (g/defnode SceneNode
-  (property position types/Vec3 (default [0.0 0.0 0.0])
+  (property position types/Vec3 (default default-position)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :position))))
-  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
+  (property rotation types/Vec4 (default default-rotation)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
-            (dynamic edit-type (g/constantly (properties/quat->euler))))
-  (property scale types/Vec3 (default [1.0 1.0 1.0])
+            (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
+  (property scale types/Vec3 (default default-scale)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)
-                     (g/set-property self :scale (mapv non-zeroify-scale new-value))))))
+                     (g/set-property self :scale (non-zeroify-scale new-value))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)

@@ -577,6 +577,7 @@
 (defn round-vec [v]
   (mapv round-scalar v))
 
+;; SDK api
 (defn ->choicebox [vals]
   {:type :choicebox
    :options (mapv (juxt identity identity) (sort util/natural-order vals))})
@@ -586,17 +587,22 @@
     {:type :choicebox
      :options (mapv (juxt first (comp :display-name second)) values)}))
 
+;; SDK api
 (def ->pb-choicebox (memoize ->pb-choicebox-raw))
 
+;; SDK api
 (defn vec3->vec2 [default-z]
   {:type t/Vec2
    :from-type (fn [[x y _]] [x y])
    :to-type (fn [[x y]] [x y default-z])})
 
+;; SDK api
 (defn quat->euler []
   {:type t/Vec3
    :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
    :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+
+(def quat-rotation-edit-type (quat->euler))
 
 (defn property-entry->go-prop [[key {:keys [go-prop-type value error]}]]
   (when (some? go-prop-type)

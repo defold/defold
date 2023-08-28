@@ -35,14 +35,7 @@
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 
-(def identity-transform-properties
-  {:position [(float 0.0) (float 0.0) (float 0.0)]
-   :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
-   :scale [(float 1.0) (float 1.0) (float 1.0)]})
-
-(def component-transform-property-keys (set (keys identity-transform-properties)))
-
-(def default-scale-value (:scale identity-transform-properties))
+(def component-transform-property-keys (set (keys scene/identity-transform-properties)))
 
 (defn template-pb-map [workspace resource-type]
   (let [template (workspace/template workspace resource-type)
@@ -53,7 +46,7 @@
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
   (let [scale (:scale component-desc)]
-    (if (or (= default-scale-value scale)
+    (if (or (= scene/default-scale scale)
             (protobuf/default-read-scale-value? scale))
       (dissoc component-desc :scale)
       component-desc)))
@@ -62,7 +55,7 @@
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
   (cond-> component-desc
           (not (contains? component-desc :scale))
-          (assoc :scale default-scale-value)))
+          (assoc :scale scene/default-scale)))
 
 (defn- sanitize-component-property-desc [component-property-desc]
   ;; GameObject$ComponentPropertyDesc or GameObject$ComponentDesc in map format.

@@ -263,7 +263,7 @@
 
 (g/defnode QuatAsEuler
   (property rotation t/Vec4
-            (dynamic edit-type (g/constantly (properties/quat->euler)))))
+            (dynamic edit-type (g/constantly properties/quat-rotation-edit-type))))
 
 (deftest value-conversion
   (with-clean-system

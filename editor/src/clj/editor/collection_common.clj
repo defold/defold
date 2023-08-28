@@ -49,7 +49,7 @@
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (let [scale3 (:scale3 any-instance-desc)]
     (if (and (some? scale3)
-             (or (= game-object-common/default-scale-value scale3)
+             (or (= scene/default-scale scale3)
                  (protobuf/default-read-scale-value? scale3)))
       (dissoc any-instance-desc :scale3)
       any-instance-desc)))
