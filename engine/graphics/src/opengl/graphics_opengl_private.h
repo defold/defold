@@ -41,16 +41,33 @@ namespace dmGraphics
         TextureParams m_Params;
     };
 
+    enum AttachmentType
+    {
+        ATTACHMENT_TYPE_UNUSED  = 0,
+        ATTACHMENT_TYPE_BUFFER  = 1,
+        ATTACHMENT_TYPE_TEXTURE = 2,
+    };
+
+    struct OpenGLRenderTargetAttachment
+    {
+        TextureParams m_Params;
+        union
+        {
+            HTexture m_Texture;
+            GLuint   m_Buffer;
+        };
+        AttachmentType m_Type;
+        bool           m_Attached;
+    };
+
     struct OpenGLRenderTarget
     {
-        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
-        GLuint          m_DepthBuffer;
-        GLuint          m_StencilBuffer;
-        GLuint          m_DepthStencilBuffer;
-        GLuint          m_Id;
-        uint32_t        m_BufferTypeFlags;
-        uint32_t        m_DepthBufferBits;
+        OpenGLRenderTargetAttachment m_ColorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
+        OpenGLRenderTargetAttachment m_DepthAttachment;
+        OpenGLRenderTargetAttachment m_StencilAttachment;
+        OpenGLRenderTargetAttachment m_DepthStencilAttachment;
+        GLuint                       m_Id;
+        uint32_t                     m_BufferTypeFlags;
     };
 
     struct OpenGLContext
@@ -95,7 +112,7 @@ namespace dmGraphics
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
-        uint32_t                m_PackedDepthStencil               : 1;
+        uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_WindowOpened                     : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;
         uint32_t                m_RenderDocSupport                 : 1;

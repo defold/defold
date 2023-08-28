@@ -50,6 +50,12 @@ namespace dmGraphics
     void          RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*   TextureFormatToString(TextureFormat format);
 
+    static inline void ClearTextureParamsData(TextureParams& params)
+    {
+        params.m_Data     = 0x0;
+        params.m_DataSize = 0;
+    }
+
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
     {

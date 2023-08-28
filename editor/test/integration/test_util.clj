@@ -180,7 +180,7 @@
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
     (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace dependencies))
+         (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn set-libraries! [workspace library-uris]
@@ -194,7 +194,7 @@
                                         {:library-uris library-uris}))))
               library-uris)]
     (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace library-uris))
+         (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn setup-project!
