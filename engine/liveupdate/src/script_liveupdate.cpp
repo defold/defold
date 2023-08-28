@@ -316,11 +316,8 @@ namespace dmLiveUpdate
         if (name[0] == '_')
             return DM_LUA_ERROR("Cannot remove base mounts: %s", name);
 
-        dmResourceMounts::HContext mounts = dmResource::GetMountsContext(g_LUScriptCtx.m_Factory);
-        dmResource::Result result = dmResourceMounts::RemoveMountByName(mounts, name);
-
-        dmLiveUpdate::Result r = dmLiveUpdate::ResourceResultToLiveupdateResult(result);
-        lua_pushinteger(L, r);
+        dmLiveUpdate::Result result = dmLiveUpdate::RemoveMountSync(name);
+        lua_pushinteger(L, result);
         return 1;
     }
 
