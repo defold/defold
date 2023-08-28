@@ -308,9 +308,9 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
 
         gcloud_certfile = os.path.abspath(gcloud_certfile)
         if not os.path.exists(gcloud_certfile):
-            print("Google Cloud certificate chain not found:", gcloud_certfile)
+            print("Google Cloud certificate not found:", gcloud_certfile)
             sys.exit(1)
-        print("Using Google Cloud certificate chain", gcloud_certfile)
+        print("Using Google Cloud certificate ", gcloud_certfile)
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
 
     cmd = ' '.join(args + opts)
@@ -553,7 +553,7 @@ def main(argv):
             gcloud_certfile = None
             gcloud_keyfile = None
             if args.gcloud_service_key:
-                gcloud_certfile = os.path.join("ci", "gcloud_certfile.pem")
+                gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
                 gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
             sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
