@@ -558,6 +558,8 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     _glfwWin.height     = height;
     _glfwWin.fullscreen = (mode == GLFW_FULLSCREEN ? GL_TRUE : GL_FALSE);
 
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
+
     // Platform specific window opening routine
     if( !_glfwPlatformOpenWindow( width, height, &wndconfig, &fbconfig ) )
     {
@@ -565,15 +567,19 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
         return GL_FALSE;
     }
 
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
+
     // Flag that window is now opened
     _glfwWin.opened = GL_TRUE;
 
     // Read back window and context parameters
     _glfwPlatformRefreshWindowParams();
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
     if (wndconfig.clientAPI != GLFW_NO_API)
     {
         _glfwRefreshContextParams();
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
         if( _glfwWin.glMajor < wndconfig.glMajor ||
             ( _glfwWin.glMajor == wndconfig.glMajor &&
@@ -582,6 +588,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
             glfwCloseWindow();
             return GL_FALSE;
         }
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
         // Do we have non-power-of-two textures (added to core in version 2.0)?
         _glfwWin.has_GL_ARB_texture_non_power_of_two =
@@ -592,6 +599,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
         _glfwWin.has_GL_SGIS_generate_mipmap =
             ( _glfwWin.glMajor >= 2 ) || ( _glfwWin.glMinor >= 4 ) ||
             glfwExtensionSupported( "GL_SGIS_generate_mipmap" );
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
         //
         // The following check for glGetString(i) is a modification to improve compatibility
@@ -615,6 +623,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
             }
         }
     }
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
     // If full-screen mode was requested, disable mouse cursor
     if( mode == GLFW_FULLSCREEN )
@@ -630,6 +639,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     // remains in our OpenGL window)
     // glClear( GL_COLOR_BUFFER_BIT );
     //_glfwPlatformSwapBuffers();
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
     return GL_TRUE;
 }
@@ -988,6 +998,7 @@ GLFWAPI void GLFWAPIENTRY glfwSetWindowSizeCallback( GLFWwindowsizefun cbfun )
     // window size
     if( cbfun )
     {
+printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, _glfwWin.width, _glfwWin.height);
         cbfun( _glfwWin.width, _glfwWin.height );
     }
 }

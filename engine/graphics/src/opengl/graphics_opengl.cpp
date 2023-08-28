@@ -191,13 +191,13 @@ static void LogGLError(GLint err, const char* fnname, int line)
     const char* error_str = "<unknown-gl-error>";
     switch(err)
     {
-        case GL_INVALID_ENUM: 
+        case GL_INVALID_ENUM:
             error_str = "GL_INVALID_ENUM";
             break;
-        case GL_INVALID_VALUE: 
+        case GL_INVALID_VALUE:
             error_str = "GL_INVALID_VALUE";
             break;
-        case GL_INVALID_OPERATION: 
+        case GL_INVALID_OPERATION:
             error_str = "GL_INVALID_OPERATION";
             break;
         default:break;
@@ -555,6 +555,7 @@ static void LogFrameBufferError(GLenum status)
     static void OnWindowResize(int width, int height)
     {
         assert(g_Context);
+        printf("%s %d: %d %d\n", __FUNCTION__, __LINE__, width, height);
         g_Context->m_WindowWidth = (uint32_t)width;
         g_Context->m_WindowHeight = (uint32_t)height;
         if (g_Context->m_WindowResizeCallback != 0x0)
@@ -816,6 +817,8 @@ static void LogFrameBufferError(GLenum status)
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
 
+printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, params->m_Width, params->m_Height);
+
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
@@ -956,6 +959,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_WindowIconifyCallback          = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
         context->m_WindowOpened                   = 1;
+
+        printf("Setting width/height: %d %d\n", params->m_Width, params->m_Height);
+       // 960 640 in both cases
         context->m_Width                          = params->m_Width;
         context->m_Height                         = params->m_Height;
 
@@ -1415,6 +1421,7 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetWindowWidth(HContext context)
     {
         assert(context);
+        printf("%s %d: %u\n", __FUNCTION__, __LINE__, ((OpenGLContext*) context)->m_WindowWidth);
         return ((OpenGLContext*) context)->m_WindowWidth;
     }
 
@@ -1434,6 +1441,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
+        printf("%s %d: width/height %u %u\n",  __FUNCTION__, __LINE__, width, height);
         if (context->m_WindowOpened)
         {
             context->m_Width = width;
@@ -1456,6 +1464,7 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         if (((OpenGLContext*) context)->m_WindowOpened)
         {
+printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, width, height);
             glfwSetWindowSize((int)width, (int)height);
         }
     }
@@ -2367,7 +2376,7 @@ static void LogFrameBufferError(GLenum status)
                 break;
             case ATTACHMENT_TYPE_TEXTURE:
                 attachment.m_Texture = NewTexture(context, creation_params);
-                break; 
+                break;
             default: assert(0);
         }
 
