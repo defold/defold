@@ -3825,7 +3825,7 @@ namespace dmGui
             // general error in retreiving animation. This could be it being deleted or otherwise changed erraneously
             anim_desc.Init();
             CancelAnimationComponent(scene, GetNodeHandle(n), &n->m_Node.m_FlipbookAnimPosition);
-            dmLogWarning("Failed to  animation '%s'.", dmHashReverseSafe64(anim_hash));
+            dmLogWarning("Failed to update animation '%s'.", dmHashReverseSafe64(anim_hash));
             return;
         }
 

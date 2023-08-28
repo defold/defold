@@ -111,12 +111,14 @@ public class ParticleLibrary {
 
     public static class ParticleVertexAttributeInfo extends Structure {
         public long    nameHash;
+        public int     semanticType;
+        public int     coordinateSpace;
         public Pointer valuePtr;
         public int     valueByteSize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("nameHash", "valuePtr", "valueByteSize");
+            return Arrays.asList("nameHash", "semanticType", "coordinateSpace", "valuePtr", "valueByteSize");
         }
     }
 

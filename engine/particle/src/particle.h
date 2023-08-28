@@ -134,9 +134,11 @@ namespace dmParticle
 
     struct ParticleVertexAttributeInfo
     {
-        dmhash_t m_NameHash;
-        uint8_t* m_ValuePtr;
-        uint32_t m_ValueByteSize;
+        dmhash_t                                  m_NameHash;
+        dmGraphics::VertexAttribute::SemanticType m_SemanticType;
+        dmGraphics::CoordinateSpace               m_CoordinateSpace;
+        uint8_t*                                  m_ValuePtr;
+        uint32_t                                  m_ValueByteSize;
     };
 
     struct ParticleVertexAttributeInfos

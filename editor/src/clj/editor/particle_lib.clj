@@ -173,8 +173,7 @@
                                 0
                                 (.capacity attribute-bytes))
         particle-attribute-info (ParticleLibrary$ParticleVertexAttributeInfo.)
-        context-attribute-scratch (ParticleLibrary/Particle_GetAttributeScratchBuffer context)
-        ]
+        context-attribute-scratch (ParticleLibrary/Particle_GetAttributeScratchBuffer context)]
     (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch)
@@ -191,7 +190,7 @@
     (set! (. infos numInfos) (int num-attribute-infos))
     infos))
 
-(defn get-emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
+(defn- get-emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
   (or (get (:raw-vbufs sim) emitter-index)
       (make-raw-vbuf max-particle-count (:size vertex-description))))
 

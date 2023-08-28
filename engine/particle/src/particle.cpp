@@ -59,11 +59,7 @@ namespace dmParticle
 
 
     // JG: Would be nice to share these somewhere more locally, like a constant hash directory in dlib or something..
-    //     These are copied from material.cpp
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
+    static const dmhash_t VERTEX_STREAM_COLOR = dmHashString64("color");
 
     AnimationData::AnimationData()
     {
@@ -1028,34 +1024,52 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-    static uint8_t* WriteParticleVertex(const ParticleVertexAttributeInfos& attribute_infos, uint8_t* write_ptr, Vector3& position, Vector4& color, float* uv, int page_index)
+    static uint8_t* WriteParticleVertex(const ParticleVertexAttributeInfos& attribute_infos, uint8_t* write_ptr, Vector3& p, Vector4& color, float* uv, int page_index)
     {
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
             const ParticleVertexAttributeInfo& info = attribute_infos.m_Infos[i];
 
-            float* f = (float*) write_ptr;
-
-            if (info.m_NameHash == VERTEX_STREAM_POSITION)
+            switch(info.m_SemanticType)
             {
-                memcpy(write_ptr, &position, info.m_ValueByteSize);
-            }
-            else if (info.m_NameHash == VERTEX_STREAM_TEXCOORD0)
-            {
-                memcpy(write_ptr, uv, info.m_ValueByteSize);
-            }
-            else if (info.m_NameHash == VERTEX_STREAM_COLOR)
-            {
-                memcpy(write_ptr, &color, info.m_ValueByteSize);
-            }
-            else if (info.m_NameHash == VERTEX_STREAM_PAGE_INDEX)
-            {
-                memcpy(write_ptr, &page_index, info.m_ValueByteSize);
-            }
-            else
-            {
-                assert(info.m_ValuePtr);
-                memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
+                {
+                    if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
+                    {
+                        // Vector4 wp = w * p;
+                        // memcpy(write_ptr, &wp, info.m_ValueByteSize);
+                        memcpy(write_ptr, &p, info.m_ValueByteSize);
+                    }
+                    else if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
+                    {
+                        memcpy(write_ptr, &p, info.m_ValueByteSize);
+                    }
+                    else assert(0);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                {
+                    memcpy(write_ptr, uv, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
+                {
+                    if (info.m_NameHash == VERTEX_STREAM_COLOR)
+                    {
+                        memcpy(write_ptr, &color, info.m_ValueByteSize);
+                    }
+                    else
+                    {
+                        memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
+                    }
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+                {
+                    memcpy(write_ptr, &page_index, info.m_ValueByteSize);
+                } break;
+                default:
+                {
+                    assert(info.m_ValuePtr);
+                    memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
+                } break;
             }
 
             write_ptr += info.m_ValueByteSize;
@@ -1284,9 +1298,8 @@ namespace dmParticle
                 // Hmm what to do with this..
                 if (format == PARTICLE_GUI)
                     config_key = "gui.max_particle_count";
-                */
-
                 dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.", context->m_MaxParticleCount, config_key);
+                */
                 emitter->m_RenderWarning = 1;
             }
         }
