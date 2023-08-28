@@ -17,8 +17,7 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
   DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
-  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-  WINDOWS_CERTIFICATE_PASS: ${{ secrets.WINDOWS_CERTIFICATE_PASS }}
+  GCLOUD_EDITOR_SERVICE_KEY: ${{ secrets.GCLOUD_EDITOR_SERVICE_KEY }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
@@ -310,7 +309,7 @@ jobs:
 
   sign-editor-windows:
     needs: [build-editor]
-    runs-on: windows-latest
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         platform: [x86_64-win32]
@@ -328,7 +327,7 @@ jobs:
         name: 'Install dependencies',
         shell: bash,
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+        run: 'ci/ci.sh install'
       },
       {
         name: 'Install ext dependencies',
@@ -340,7 +339,7 @@ jobs:
         name: 'Sign editor',
         shell: bash,
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass=./ci/windows_cert.pass --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh sign-editor --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
