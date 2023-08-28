@@ -124,7 +124,7 @@ namespace dmGraphics
         }
 
     #ifdef _DEBUG
-        if (allocator->m_DescriptorsPerPool * allocator->m_DescriptorPools.Size() > 16768)
+        if (allocator->m_DescriptorsPerPool * allocator->m_DescriptorPools.Size() > 16384)
         {
             dmLogOnceWarning("Vulkan: There are more than 16768 descriptors (%d) in flight, this might be a performance issue.", m_DescriptorPools.Size());
         }
