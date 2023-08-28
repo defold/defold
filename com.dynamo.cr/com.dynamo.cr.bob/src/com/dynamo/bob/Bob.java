@@ -664,6 +664,11 @@ public class Bob {
             return;
         }
 
+        if (cmd.hasOption("exclude-build-folder")) {
+            // Deprecated in 1.5.1. Just a message for now.
+            System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
+        }
+
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
             commands = new String[] { "build" };
