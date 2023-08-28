@@ -500,6 +500,11 @@ public class Project {
         return sortedInputs;
     }
 
+    /*
+        The same logic implemented in the Editor.
+        If you change something here, make sure you change it in resource.clj
+        (defignore-pred).
+    */
     private void loadIgnoredFilesAndFolders() throws CompileExceptionError {
         String excludeFoldersStr = this.option("exclude-build-folder", "");
         List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
@@ -537,6 +542,8 @@ public class Project {
         // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
+            // Ignore for resources.
+            // Check comment for loadIgnoredFilesAndFolders()
             for (String excludeEntry : excluedFilesAndFoldersEntries) {
                 if (input.startsWith(excludeEntry)) {
                     skipped = true;
@@ -2050,6 +2057,8 @@ run:
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
                 boolean shouldAdd = true;
+                // Ignore for native extensions and the other systems.
+                // Check comment for loadIgnoredFilesAndFolders()
                 for (String prefix : excluedFilesAndFoldersEntries) {
                     if (path.startsWith(prefix)) {
                         shouldAdd = false;
