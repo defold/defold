@@ -461,7 +461,7 @@ public class Bob {
         addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
         addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
-        addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
+        addOption(options, null, "exclude-build-folder", true, "DEPRECATED! Use '.defignore' file instead", true);
 
         addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
         addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
