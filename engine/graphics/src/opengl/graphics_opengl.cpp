@@ -2624,13 +2624,13 @@ static void LogFrameBufferError(GLenum status)
         if (attachment.m_Type == ATTACHMENT_TYPE_BUFFER && attachment.m_Buffer)
         {
             glDeleteRenderbuffers(1, &attachment.m_Buffer);
+            attachment.m_Buffer = 0;
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE && attachment.m_Texture)
         {
             DeleteTexture(attachment.m_Texture);
+            attachment.m_Texture = 0;
         }
-
-        assert(attachment.m_Texture == 0 && attachment.m_Buffer == 0);
     }
 
     static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
