@@ -135,11 +135,11 @@ namespace dmGameSystem
         }
     }
 
-    static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::CoordinateSpace coordinate_space, uint32_t element_count)
+    static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
     {
         info.m_NameHash        = name_hash;
         info.m_SemanticType    = semantic_type;
-        info.m_CoordinateSpace = coordinate_space;
+        info.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
         info.m_ValuePtr        = 0;
         info.m_ValueByteSize   = sizeof(float) * element_count;
     }
@@ -178,9 +178,9 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], attribute_hash_position,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::COORDINATE_SPACE_WORLD, 3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], attribute_hash_texcoord0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, dmGraphics::COORDINATE_SPACE_WORLD, 2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], attribute_hash_color,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    dmGraphics::COORDINATE_SPACE_WORLD, 4);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], attribute_hash_position,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, 3);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], attribute_hash_texcoord0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, 2);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], attribute_hash_color,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    4);
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 3;
