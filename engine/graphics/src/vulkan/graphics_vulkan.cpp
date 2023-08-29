@@ -1760,7 +1760,7 @@ bail:
         //     the MVK driver will complain that we haven't defined all bindings in the shader.
         //     This means that we might get side-effects since we are basically binding the first data buffer
         //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
-        context->m_MainVertexDeclaration               = {0};
+        context->m_MainVertexDeclaration = {0};
         context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_InputCount;
         context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
         context->m_MainVertexDeclaration.m_Hash        = vertex_declaration->m_Hash;
@@ -3098,7 +3098,7 @@ bail:
 
             texture_depth_stencil              = NewTexture(context, stencil_depth_create_params);
             Texture* texture_depth_stencil_ptr = GetAssetFromContainer<Texture>(g_VulkanContext->m_AssetHandleContainer, texture_depth_stencil);
-    
+
             // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_depth_tiling,
@@ -3162,7 +3162,7 @@ bail:
 
     static void VulkanGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);    
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
 
         if (IsColorBufferType(buffer_type))
