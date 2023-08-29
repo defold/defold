@@ -2517,17 +2517,17 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script ^:try template-build-targets]
+(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
                     (validate-material-resource _node-id material material-shader)
-                    (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
-(g/defnk produce-build-errors [_node-id build-errors own-build-errors]
+(g/defnk produce-build-errors [_node-id build-errors own-build-errors ^:try template-build-targets]
   (g/package-errors _node-id
                     build-errors
-                    own-build-errors))
+                    own-build-errors
+                    (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))))
 
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
