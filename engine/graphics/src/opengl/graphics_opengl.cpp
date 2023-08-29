@@ -191,13 +191,13 @@ static void LogGLError(GLint err, const char* fnname, int line)
     const char* error_str = "<unknown-gl-error>";
     switch(err)
     {
-        case GL_INVALID_ENUM: 
+        case GL_INVALID_ENUM:
             error_str = "GL_INVALID_ENUM";
             break;
-        case GL_INVALID_VALUE: 
+        case GL_INVALID_VALUE:
             error_str = "GL_INVALID_VALUE";
             break;
-        case GL_INVALID_OPERATION: 
+        case GL_INVALID_OPERATION:
             error_str = "GL_INVALID_OPERATION";
             break;
         default:break;
@@ -956,6 +956,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_WindowIconifyCallback          = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
         context->m_WindowOpened                   = 1;
+
         context->m_Width                          = params->m_Width;
         context->m_Height                         = params->m_Height;
 
@@ -2367,7 +2368,7 @@ static void LogFrameBufferError(GLenum status)
                 break;
             case ATTACHMENT_TYPE_TEXTURE:
                 attachment.m_Texture = NewTexture(context, creation_params);
-                break; 
+                break;
             default: assert(0);
         }
 
