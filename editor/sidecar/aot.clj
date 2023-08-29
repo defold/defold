@@ -22,7 +22,8 @@
 
 (def excluded-sources-by-build-type
   {"release" ["src/clj/dev.clj"
-              "src/clj/prof.clj"]})
+              "src/clj/prof.clj"
+              "src/clj/yourkit.clj"]})
 
 (defn all-sources-tracker
   [build-type srcdirs]
