@@ -76,12 +76,36 @@ namespace dmJniTest
         ~Arrays();
     };
 
+    struct Forward; // testing forward declaration
+
     struct Misc
     {
         TestEnum    m_TestEnum;
         const char* m_String;
         void*       m_Opaque;
+
+        Vec2i*              m_NullPtr; // Keep this 0 to make sure we can handle it
+        Forward*            m_Forward1;
+
+        Misc() {
+            memset(this, 0, sizeof(*this));
+        }
     };
+
+    struct Forward
+    {
+        int8_t   i8;
+        uint8_t  u8;
+        int16_t  i16;
+        uint16_t u16;
+        int32_t  i32;
+        uint32_t u32;
+        int64_t  i64;
+        uint64_t u64;
+
+        bool     b;
+    };
+
 }
 
 #endif // DM_JNI_TESTAPI_H

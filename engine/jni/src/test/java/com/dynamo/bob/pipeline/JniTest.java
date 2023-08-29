@@ -222,6 +222,19 @@ public class JniTest
         assertEquals(Testapi.TestEnum.TE_VALUE_B, misc.testEnum);
         assertEquals("Hello World!", misc.string);
         assertEquals(42, misc.opaque);
+        assertEquals(null, misc.nullPtr);
+
+        assertEquals(       -127,   misc.forward1.i8);
+        assertEquals(         -1,   misc.forward1.u8);
+        assertEquals(     -32767,   misc.forward1.i16);
+        assertEquals(         -1,   misc.forward1.u16);
+        assertEquals(-2147483647,   misc.forward1.i32);
+        assertEquals(         -1,   misc.forward1.u32);
+
+        assertEquals(-9223372036854775807L,  misc.forward1.i64);
+        assertEquals(                  -1L,  misc.forward1.u64);
+
+        assertEquals(true, misc.forward1.b);
     }
 
     // ----------------------------------------------------
@@ -306,11 +319,34 @@ public class JniTest
         misc.string = "Hello From Java!";
         misc.opaque = 77;
 
+        misc.forward1 = new Testapi.Forward();
+        misc.forward1.i8    = -127;
+        misc.forward1.u8    = 127;
+        misc.forward1.i16   = -32767;
+        misc.forward1.u16   = 32767;
+        misc.forward1.i32   = -2147483647;
+        misc.forward1.u32   = 2147483647;
+        misc.forward1.i64   = -9223372036854775807L;
+        misc.forward1.u64   = 9223372036854775807L;
+        misc.forward1.b     = true;
+
         Testapi.Misc misc2 = TestDuplicateMisc(misc);
 
         assertEquals(Testapi.TestEnum.TE_VALUE_B, misc2.testEnum);
         assertEquals("Hello From C!", misc2.string);
         assertEquals(78, misc2.opaque);
+
+        assertEquals(       -127,   misc2.forward1.i8);
+        assertEquals(        127,   misc2.forward1.u8);
+        assertEquals(     -32767,   misc2.forward1.i16);
+        assertEquals(      32767,   misc2.forward1.u16);
+        assertEquals(-2147483647,   misc2.forward1.i32);
+        assertEquals( 2147483647,   misc2.forward1.u32);
+
+        assertEquals(-9223372036854775807L,  misc2.forward1.i64);
+        assertEquals( 9223372036854775807L,  misc2.forward1.u64);
+
+        assertEquals(true, misc2.forward1.b);
     }
 
     // ----------------------------------------------------

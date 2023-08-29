@@ -107,7 +107,20 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestCreateMisc(JNIEnv* env, jclass cls)
         misc.m_TestEnum = dmJniTest::TE_VALUE_B;
         misc.m_String = s;
         misc.m_Opaque = (void*)(uintptr_t)42;
+        misc.m_NullPtr = 0;
+        misc.m_Forward1 = new dmJniTest::Forward();
+        misc.m_Forward1->i8 = (int8_t)-0x7F;
+        misc.m_Forward1->u8 = (uint8_t)0xFF; // -1
+        misc.m_Forward1->i16 = (int16_t)-0x7FFF;
+        misc.m_Forward1->u16 = (uint16_t)0xFFFF; // -1
+        misc.m_Forward1->i32 = (int32_t)-0x7FFFFFFF;
+        misc.m_Forward1->u32 = (uint32_t)0xFFFFFFFF; // -1
+        misc.m_Forward1->i64 = (int64_t)-0x7FFFFFFFFFFFFFFF;
+        misc.m_Forward1->u64 = (uint64_t)0xFFFFFFFFFFFFFFFF; // -1
+        misc.m_Forward1->b   = true;
+
         jmisc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &misc);
+        delete misc.m_Forward1;
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jmisc;
 }
@@ -137,7 +150,14 @@ JNIEXPORT jobject JNICALL Java_JniTest_TestDuplicateMisc(JNIEnv* env, jclass cls
         }
 
         out_misc.m_Opaque = (void*)((uintptr_t)in_misc.m_Opaque + 1);
+        out_misc.m_NullPtr = 0;
+
+        out_misc.m_Forward1 = new dmJniTest::Forward();
+        memcpy(&out_misc.m_Forward1, &in_misc.m_Forward1, sizeof(out_misc.m_Forward1));
+
         jni_out_misc = dmJniTest::jni::C2J_CreateMisc(env, &jni_scope.m_TypeInfos, &out_misc);
+
+        delete out_misc.m_Forward1;
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jni_out_misc;
 }

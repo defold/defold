@@ -47,6 +47,9 @@ def parse_struct(decl):
     return outp
 
 def parse_cpp_struct(decl):
+    if 'inner' not in decl:
+        return None # Skip forward declaration
+
     outp = {}
     outp['kind'] = decl['tagUsed']
     outp['name'] = decl['name']
