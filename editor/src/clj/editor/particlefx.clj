@@ -831,7 +831,8 @@
                  :page-indices page-indices-buffer
                  :frame-indices frame-indices-buffer}))))
   (output _properties g/Properties :cached produce-properties)
-  (output vertex-attribute-bytes g/Any :cached graphics/produce-attribute-bytes))
+  (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
+                                                 (graphics/produce-attribute-bytes _node-id material-attribute-infos vertex-attribute-overrides))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

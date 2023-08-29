@@ -132,6 +132,13 @@ namespace dmParticle
         EMITTER_STATE_POSTSPAWN = 3,
     };
 
+    enum GenerateVertexDataResult
+    {
+        GENERATE_VERTEX_DATA_OK                     = 0,
+        GENERATE_VERTEX_DATA_INVALID_INSTANCE       = 1,
+        GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED = 2,
+    };
+
     struct ParticleVertexAttributeInfo
     {
         dmhash_t                                  m_NameHash;
@@ -374,7 +381,7 @@ namespace dmParticle
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      */
-    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const ParticleVertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const ParticleVertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Debug render the status of the instances within the specified context.

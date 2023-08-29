@@ -45,11 +45,11 @@ namespace dmParticle
     const static Vector3 VORTEX_LOCAL_START_DIR = -Vector3::xAxis();
 
     /// Config key to use for tweaking maximum number of instances in a context.
-    const char* MAX_INSTANCE_COUNT_KEY          = "particle_fx.max_count";
+    const char* MAX_INSTANCE_COUNT_KEY = "particle_fx.max_count";
     /// Config key to use for tweaking maximum number of emitters in a context.
-    const char* MAX_EMITTER_COUNT_KEY          = "particle_fx.max_emitter_count";
+    const char* MAX_EMITTER_COUNT_KEY  = "particle_fx.max_emitter_count";
     /// Config key to use for tweaking the total maximum number of particles in a context.
-    const char* MAX_PARTICLE_COUNT_KEY          = "particle_fx.max_particle_count";
+    const char* MAX_PARTICLE_COUNT_KEY = "particle_fx.max_particle_count";
 
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
@@ -596,7 +596,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
-    static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt);
+    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -637,19 +637,23 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
         assert(attribute_infos.m_StructSize == sizeof(ParticleVertexAttributeInfos));
         assert(attribute_infos.m_VertexStride != 0);
 
         DM_PROFILE(__FUNCTION__);
         if (instance == INVALID_INSTANCE)
-            return;
+        {
+            return GENERATE_VERTEX_DATA_INVALID_INSTANCE;
+        }
 
         Instance* inst = GetInstance(context, instance);
 
         if (IsSleeping(inst))
-            return;
+        {
+            return GENERATE_VERTEX_DATA_OK;
+        }
 
         uint32_t vertex_size            = attribute_infos.m_VertexStride;
         const uint32_t vb_buffer_offset = *out_vertex_buffer_size;
@@ -666,15 +670,18 @@ namespace dmParticle
         Emitter* emitter                    = &inst->m_Emitters[emitter_index];
         dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_index];
 
+        GenerateVertexDataResult res = GENERATE_VERTEX_DATA_OK;
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
-            UpdateRenderData(context, inst, emitter, emitter_ddf, attribute_infos, color, vertex_index, &vertex_buffer_write, vertex_buffer_size, dt);
+            res = UpdateRenderData(context, inst, emitter, emitter_ddf, attribute_infos, color, vertex_index, &vertex_buffer_write, vertex_buffer_size, dt);
         }
 
         uint32_t bytes_written = vertex_buffer_write - vertex_buffer_begin;
         *out_vertex_buffer_size += bytes_written;
 
         context->m_Stats.m_Particles = bytes_written / vertex_size / 6; // Debug data for editor playback
+
+        return res;
     }
 
     void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
@@ -1095,7 +1102,7 @@ namespace dmParticle
         1.0f, 1.0f,
     };
 
-    static void UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt)
+    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t** vertex_buffer, uint32_t vertex_buffer_size, float dt)
     {
         DM_PROFILE(__FUNCTION__);
         static int tex_coord_order[] = {
@@ -1316,22 +1323,20 @@ namespace dmParticle
 
             vertex_index += 6;
         }
+
+        GenerateVertexDataResult res = GENERATE_VERTEX_DATA_OK;
+
         if (j < particle_count)
         {
             if (emitter->m_RenderWarning == 0)
             {
-                const char* config_key = MAX_PARTICLE_COUNT_KEY;
-
-                /*
-                // Hmm what to do with this..
-                if (format == PARTICLE_GUI)
-                    config_key = "gui.max_particle_count";
-                dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.", context->m_MaxParticleCount, config_key);
-                */
+                res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
                 emitter->m_RenderWarning = 1;
             }
         }
         emitter->m_VertexCount = vertex_index - emitter->m_VertexIndex;
+
+        return res;
     }
 
     struct SortPred
@@ -2263,14 +2268,6 @@ namespace dmParticle
         return name(a1, a2, a3, a4, a5, a6, a7, a8, a9);\
     }\
 
-    /*
-#define DM_PARTICLE_TRAMPOLINE10(ret, name, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10) \
-    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8, t9 a9, t10 a10)\
-    {\
-        return name(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);\
-    }\
-    */
-
     DM_PARTICLE_TRAMPOLINE2(HParticleContext, CreateContext, uint32_t, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HParticleContext);
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetContextMaxParticleCount, HParticleContext);
@@ -2290,7 +2287,7 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
-    DM_PARTICLE_TRAMPOLINE9(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const ParticleVertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE9(GenerateVertexDataResult, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const ParticleVertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX*);

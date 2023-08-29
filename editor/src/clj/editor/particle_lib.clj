@@ -165,8 +165,24 @@
   (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]
     (buffers/wrap-byte-array attribute-bytes)))
 
+(defn- semantic-type->int [semantic-type]
+  (case semantic-type
+    :semantic-type-none 1
+    :semantic-type-position 2
+    :semantic-type-texcoord 3
+    :semantic-type-page-index 4
+    :semantic-type-color 5))
+
+(defn- coordinate-space->int [coordinate-space]
+  (case coordinate-space
+    :coordinate-space-world 1
+    :coordinate-space-local 2
+    2))
+
 (defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
+        attribute-semantic-type (semantic-type->int (:semantic-type attribute-info))
+        attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
         attribute-byte-size (graphics/attribute-values+data-type->byte-size (:values attribute-info) (:data-type attribute-info))
         attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
         attribute-bytes-count (if (nil? attribute-bytes)
@@ -176,6 +192,8 @@
         context-attribute-scratch (ParticleLibrary/Particle_GetAttributeScratchBuffer context)]
     (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
+    (set! (. particle-attribute-info semanticType) attribute-semantic-type)
+    (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch)
     (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
     particle-attribute-info))

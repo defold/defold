@@ -556,7 +556,8 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
-  (output vertex-attribute-bytes g/Any :cached graphics/produce-attribute-bytes))
+  (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
+                                                 (graphics/produce-attribute-bytes _node-id material-attribute-infos vertex-attribute-overrides))))
 
 (defn load-sprite [project self resource sprite]
   (let [image (workspace/resolve-resource resource (:tile-set sprite))

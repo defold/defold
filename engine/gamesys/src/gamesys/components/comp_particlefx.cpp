@@ -342,9 +342,22 @@ namespace dmGameSystem
 
             FillEmitterAttributeInfos(emitter_render_data->m_Attributes, emitter_render_data->m_AttributeCount, &attribute_infos);
 
-            dmParticle::GenerateVertexData(particle_context,
+            dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(particle_context,
                 pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                 attribute_infos, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
+
+            if (res != dmParticle::GENERATE_VERTEX_DATA_OK)
+            {
+                if (res == dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED)
+                {
+                    dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.",
+                        pfx_context->m_MaxParticleCount, dmParticle::MAX_PARTICLE_COUNT_KEY);
+                }
+                else if (res == dmParticle::GENERATE_VERTEX_DATA_INVALID_INSTANCE)
+                {
+                    dmLogWarning("Cannot generate vertex data for emitter (%d), particle instance handle is invalid.", (*i));
+                }
+            }
         }
 
         uint32_t ro_vertex_count = (vb_size - vb_size_init) / attribute_infos.m_VertexStride;

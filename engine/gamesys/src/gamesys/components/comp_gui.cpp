@@ -1130,7 +1130,7 @@ namespace dmGameSystem
 
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             uint32_t vb_generate_size = 0;
-            dmParticle::GenerateVertexData(
+            dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext,
                 gui_world->m_DT,
                 emitter_render_data->m_Instance,
@@ -1140,6 +1140,18 @@ namespace dmGameSystem
                 (void*) vb_end,
                 vb_max_size,
                 &vb_generate_size);
+
+            if (res != dmParticle::GENERATE_VERTEX_DATA_OK)
+            {
+                if (res == dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED)
+                {
+                    dmLogWarning("Maximum number of GUI particles (%d) exceeded, particles will not be rendered. Change \"gui.max_particle_count\" in the config file.", gui_world->m_MaxParticleCount);
+                }
+                else if (res == dmParticle::GENERATE_VERTEX_DATA_INVALID_INSTANCE)
+                {
+                    dmLogWarning("Cannot generate vertex data for GUI node (%d), particle instance handle is invalid.", i);
+                }
+            }
 
             uint32_t emitter_vertex_count = vb_generate_size / sizeof(ParticleGuiVertex);
             total_vertex_count += emitter_vertex_count;
