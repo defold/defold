@@ -2703,9 +2703,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        int width = dmGraphics::GetWindowWidth(i->m_RenderContext->m_GraphicsContext);
-        printf("%s %d: %d\n", __FUNCTION__, __LINE__,  width);
-        lua_pushnumber(L, width);
+        lua_pushnumber(L, dmGraphics::GetWindowWidth(i->m_RenderContext->m_GraphicsContext));
         return 1;
     }
 

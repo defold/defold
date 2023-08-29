@@ -555,7 +555,6 @@ static void LogFrameBufferError(GLenum status)
     static void OnWindowResize(int width, int height)
     {
         assert(g_Context);
-        printf("%s %d: %d %d\n", __FUNCTION__, __LINE__, width, height);
         g_Context->m_WindowWidth = (uint32_t)width;
         g_Context->m_WindowHeight = (uint32_t)height;
         if (g_Context->m_WindowResizeCallback != 0x0)
@@ -817,8 +816,6 @@ static void LogFrameBufferError(GLenum status)
             glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         }
 
-printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, params->m_Width, params->m_Height);
-
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
@@ -960,7 +957,6 @@ printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, params->m_Width, params-
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
         context->m_WindowOpened                   = 1;
 
-        printf("Setting width/height: %d %d\n", params->m_Width, params->m_Height);
        // 960 640 in both cases
         context->m_Width                          = params->m_Width;
         context->m_Height                         = params->m_Height;
@@ -1421,7 +1417,6 @@ printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, params->m_Width, params-
     static uint32_t OpenGLGetWindowWidth(HContext context)
     {
         assert(context);
-        printf("%s %d: %u\n", __FUNCTION__, __LINE__, ((OpenGLContext*) context)->m_WindowWidth);
         return ((OpenGLContext*) context)->m_WindowWidth;
     }
 
@@ -1441,7 +1436,6 @@ printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, params->m_Width, params-
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        printf("%s %d: width/height %u %u\n",  __FUNCTION__, __LINE__, width, height);
         if (context->m_WindowOpened)
         {
             context->m_Width = width;
@@ -1464,7 +1458,6 @@ printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, params->m_Width, params-
         assert(context);
         if (((OpenGLContext*) context)->m_WindowOpened)
         {
-printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, width, height);
             glfwSetWindowSize((int)width, (int)height);
         }
     }

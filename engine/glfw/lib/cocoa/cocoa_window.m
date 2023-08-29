@@ -66,12 +66,16 @@
 {
     [_glfwWin.context update];
 
-    NSRect contentRect =
-        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    NSRect contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    NSRect contentBackingRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
 
-    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
-    _glfwWin.width = contentRect.size.width;
-    _glfwWin.height = contentRect.size.height;
+    if (contentBackingRect.size.width == 0 && contentBackingRect.size.height == 0)
+    {
+        contentBackingRect = contentRect;
+    }
+
+    _glfwWin.width = contentBackingRect.size.width;
+    _glfwWin.height = contentBackingRect.size.height;
 
     if( _glfwWin.windowSizeCallback )
     {
@@ -616,8 +620,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
-printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, _glfwWin.width, _glfwWin.height);
-
     _glfwWin.pixelFormat = nil;
     _glfwWin.window = nil;
     _glfwWin.context = nil;
@@ -704,8 +706,6 @@ printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, _glfwWin.width, _glfwWin.heigh
                   styleMask:styleMask
                     backing:NSBackingStoreBuffered
                       defer:NO];
-
-    printf("%s %d: width height: %d %d\n", __FUNCTION__, __LINE__, width, height);
 
     GLFWContentView* view = [[GLFWContentView alloc] init];
     view.wantsLayer = _glfwWin.clientAPI == GLFW_NO_API ? YES : NO;
@@ -815,25 +815,27 @@ printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, _glfwWin.width, _glfwWin.heigh
 
         // Fetch the resulting width and height for backing buffer
         // will differ from the input params on retina enabled windows.
-        NSRect contentRect =
-            [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
-
-    printf("%s %d: contentRect: width height: %f %f\n", __FUNCTION__, __LINE__, contentRect.size.width, contentRect.size.height);
-
-        contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
-
-    printf("%s %d: contentRectBacking: width height: %f %f\n", __FUNCTION__, __LINE__, contentRect.size.width, contentRect.size.height);
-
+        NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+        NSRect contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRectFrame];
+        if (contentRect.size.width == 0 && contentRect.size.height == 0)
+        {
+            contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+        }
 
         _glfwWin.width = contentRect.size.width;
         _glfwWin.height = contentRect.size.height;
-printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
 
         if( wndconfig->mode == GLFW_FULLSCREEN )
         {
             // TODO: Make this work on pre-Leopard systems
             [[_glfwWin.window contentView] enterFullScreenMode:[NSScreen mainScreen]
                                                    withOptions:nil];
+        }
+
+        contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+        if (contentRect.size.width == 0 && contentRect.size.height == 0)
+        {
+            contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
         }
 
         [_glfwWin.context makeCurrentContext];
@@ -938,7 +940,6 @@ void _glfwPlatformSetWindowTitle( const char *title )
 
 void _glfwPlatformSetWindowSize( int width, int height )
 {
-printf("%s %d: %u %u\n", __FUNCTION__ , __LINE__, width, height);
     [_glfwWin.window setContentSize:NSMakeSize(width, height)];
 }
 
@@ -1095,38 +1096,20 @@ void _glfwPlatformRefreshWindowParams( void )
 
     NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
     NSRect contentRectBacking = [[_glfwWin.window contentView] convertRectToBacking:contentRectFrame];
+
+    if (contentRectBacking.size.width == 0 && contentRectBacking.size.height == 0)
+    {
+        contentRectBacking = contentRectFrame;
+    }
+
     _glfwWin.highDPI = 0;
     if (contentRectBacking.size.width > contentRectFrame.size.width ||
         contentRectBacking.size.height > contentRectFrame.size.height) {
         _glfwWin.highDPI = 1;
     }
 
-printf("%s %d: size: rectFrame  %f %f\n", __FUNCTION__, __LINE__, contentRectFrame.size.width, contentRectFrame.size.height);
-printf("%s %d: size: contentRectBacking  %f %f\n", __FUNCTION__, __LINE__, contentRectBacking.size.width, contentRectBacking.size.height);
-printf("%s %d: highDPI  %d\n", __FUNCTION__, __LINE__, _glfwWin.highDPI);
-
-    NSRect contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
-
-printf("%s %d: size: contentRect  %f %f\n", __FUNCTION__, __LINE__, contentRect.size.width, contentRect.size.height);
-
-    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
-
-printf("%s %d: size: contentRect  %f %f\n", __FUNCTION__, __LINE__, contentRect.size.width, contentRect.size.height);
-
-printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
-
-    if (_glfwWin.fullscreen)
-    {
-        _glfwWin.width = contentRectFrame.size.width;
-        _glfwWin.height = contentRectFrame.size.height;
-    }
-    else
-    {
-        _glfwWin.width = contentRect.size.width;
-        _glfwWin.height = contentRect.size.height;
-    }
-
-printf("%s %d: size:  %d %d\n", __FUNCTION__, __LINE__, _glfwWin.width, _glfwWin.height);
+    _glfwWin.width = contentRectBacking.size.width;
+    _glfwWin.height = contentRectBacking.size.height;
 }
 
 //========================================================================
