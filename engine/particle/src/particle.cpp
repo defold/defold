@@ -95,7 +95,13 @@ namespace dmParticle
             delete instance;
         }
         if (lingering > 0)
+        {
             dmLogWarning("Destroyed %d instances (this might indicate leakage).", lingering);
+        }
+        for (int i = 0; i < context->m_AttributeDataPtrs.Capacity(); ++i)
+        {
+            free(context->m_AttributeDataPtrs[i]);
+        }
         delete context;
     }
 
@@ -2137,6 +2143,25 @@ namespace dmParticle
         return GetVertexBufferSize(context->m_MaxParticleCount, vertex_size);
     }
 
+    #define ATTRIBUTE_WRAPPER_SIZE (sizeof(float) * 16)
+
+    // EDITOR ONLY
+    static void* AcquireAttributeDataPtr(HParticleContext context)
+    {
+        uint32_t ix = context->m_AttributeDataPtrIndex;
+        context->m_AttributeDataPtrIndex++;
+
+        if (ix >= context->m_AttributeDataPtrs.Capacity())
+        {
+            void* new_ptr = malloc(ATTRIBUTE_WRAPPER_SIZE);
+            context->m_AttributeDataPtrs.OffsetCapacity(1);
+            context->m_AttributeDataPtrs.Push(new_ptr);
+            return new_ptr;
+        }
+
+        return context->m_AttributeDataPtrs[ix];
+    }
+
     // EDITOR ONLY
     void* WriteAttributeToScratchBuffer(HParticleContext context, void* bytes, uint32_t byte_count)
     {
@@ -2144,26 +2169,21 @@ namespace dmParticle
         {
             return 0;
         }
-        if (context->m_ScratchBuffer.Empty())
-        {
-            context->m_ScratchBuffer.SetCapacity(byte_count);
-        }
-        else if (context->m_ScratchBuffer.Remaining() < byte_count)
-        {
-            context->m_ScratchBuffer.OffsetCapacity(byte_count - context->m_ScratchBuffer.Remaining());
-        }
-        uint8_t* write_ptr = context->m_ScratchBuffer.Begin() + context->m_ScratchBuffer.Size();
-        memcpy(write_ptr, bytes, byte_count);
 
-        context->m_ScratchBuffer.SetSize(context->m_ScratchBuffer.Size() + byte_count);
+        void* wrapper = AcquireAttributeDataPtr(context);
 
-        return (void*) write_ptr;
+        assert(byte_count < ATTRIBUTE_WRAPPER_SIZE);
+        memcpy(wrapper, bytes, byte_count);
+
+        return wrapper;
     }
+
+    #undef ATTRIBUTE_WRAPPER_SIZE
 
     // EDITOR ONLY
     void ResetAttributeScratchBuffer(HParticleContext context)
     {
-        context->m_ScratchBuffer.SetSize(0);
+        context->m_AttributeDataPtrIndex = 0;
     }
 
     void ReHashEmitter(Emitter* e)
