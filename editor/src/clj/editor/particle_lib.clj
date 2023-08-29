@@ -189,12 +189,11 @@
                                 0
                                 (.capacity attribute-bytes))
         particle-attribute-info (ParticleLibrary$ParticleVertexAttributeInfo.)
-        context-attribute-scratch (ParticleLibrary/Particle_GetAttributeScratchBuffer context)]
-    (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)
+        context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)]
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
-    (set! (. particle-attribute-info valuePtr) context-attribute-scratch)
+    (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
     particle-attribute-info))
 
@@ -202,6 +201,7 @@
   (let [vertex-stride (:size vertex-description)
         infos (ParticleLibrary$ParticleVertexAttributeInfos.)
         num-attribute-infos (count attribute-infos)]
+    (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
     (doseq [i (range num-attribute-infos)]
       (aset (.infos infos) i (attribute-info->particle-attribute-info context (get attribute-infos i) vertex-attribute-bytes)))
     (set! (. infos vertexStride) (int vertex-stride))

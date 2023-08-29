@@ -106,7 +106,8 @@ public class ParticleLibrary {
 
     public static native int Particle_GetVertexBufferSize(int particle_count, int vertex_format);
 
-    public static native Pointer Particle_GetAttributeScratchBuffer(Pointer context);
+    public static native void Particle_ResetAttributeScratchBuffer(Pointer context);
+
     public static native Pointer Particle_WriteAttributeToScratchBuffer(Pointer context, Buffer bytes, int byte_count);
 
     public static class ParticleVertexAttributeInfo extends Structure {

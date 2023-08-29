@@ -83,6 +83,7 @@ namespace dmParticle
 
     void DestroyContext(HParticleContext context)
     {
+        dmLogInfo("CONTEXT DESTROY");
         uint32_t lingering = 0;
         for (uint32_t i=0; i < context->m_Instances.Size(); ++i)
         {
@@ -2038,12 +2039,6 @@ namespace dmParticle
         prototype->m_Emitters[emitter_index].m_TileSource = tile_source;
     }
 
-    void GetAttributes(HPrototype prototype, uint32_t emitter_index, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count)
-    {
-        *attribute_count = prototype->m_DDF->m_Emitters[emitter_index].m_Attributes.m_Count;
-        *attributes      = prototype->m_DDF->m_Emitters[emitter_index].m_Attributes.m_Data;
-    }
-
     static void SetRenderConstantInternal(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Matrix4 value, bool is_matrix4)
     {
         Instance* inst = GetInstance(context, instance);
@@ -2143,31 +2138,32 @@ namespace dmParticle
         return GetVertexBufferSize(context->m_MaxParticleCount, vertex_size);
     }
 
-    // room for a single matrix
-    #define SCRATCH_BUFFER_SIZE (sizeof(float) * 4 * 4)
-
-    static inline void EnsureScratchBuffer(HParticleContext context)
+    void* WriteAttributeToScratchBuffer(HParticleContext context, void* bytes, uint32_t byte_count)
     {
-        if (!context->m_ScratchBuffer)
+        if (byte_count == 0)
         {
-            context->m_ScratchBuffer = malloc(SCRATCH_BUFFER_SIZE);
+            return 0;
         }
+        if (context->m_ScratchBuffer.Empty())
+        {
+            context->m_ScratchBuffer.SetCapacity(byte_count);
+        }
+        else if (context->m_ScratchBuffer.Remaining() < byte_count)
+        {
+            context->m_ScratchBuffer.OffsetCapacity(byte_count - context->m_ScratchBuffer.Remaining());
+        }
+        uint8_t* write_ptr = context->m_ScratchBuffer.Begin() + context->m_ScratchBuffer.Size();
+        memcpy(write_ptr, bytes, byte_count);
+
+        context->m_ScratchBuffer.SetSize(context->m_ScratchBuffer.Size() + byte_count);
+
+        return (void*) write_ptr;
     }
 
-    void* GetAttributeScratchBuffer(HParticleContext context)
+    void ResetAttributeScratchBuffer(HParticleContext context)
     {
-        EnsureScratchBuffer(context);
-        return context->m_ScratchBuffer;
+        context->m_ScratchBuffer.SetSize(0);
     }
-
-    void WriteAttributeToScratchBuffer(HParticleContext context, void* bytes, uint32_t byte_count)
-    {
-        assert(byte_count < SCRATCH_BUFFER_SIZE);
-        EnsureScratchBuffer(context);
-        memcpy(context->m_ScratchBuffer, bytes, byte_count);
-    }
-
-    #undef SCRATCH_BUFFER_SIZE
 
     void ReHashEmitter(Emitter* e)
     {
@@ -2311,8 +2307,8 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(uint32_t, GetVertexBufferSize, uint32_t, uint32_t);
 
-    DM_PARTICLE_TRAMPOLINE1(void*, GetAttributeScratchBuffer, HParticleContext);
-    DM_PARTICLE_TRAMPOLINE3(void, WriteAttributeToScratchBuffer, HParticleContext, void*, uint32_t);
+    DM_PARTICLE_TRAMPOLINE1(void, ResetAttributeScratchBuffer, HParticleContext);
+    DM_PARTICLE_TRAMPOLINE3(void*, WriteAttributeToScratchBuffer, HParticleContext, void*, uint32_t);
 
     dmhash_t Particle_Hash(const char* value)
     {

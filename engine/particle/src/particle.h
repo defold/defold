@@ -481,15 +481,6 @@ namespace dmParticle
     DM_PARTICLE_PROTO(void*, GetTileSource, HPrototype prototype, uint32_t emitter_index);
 
     /**
-     * Retrieve all vertex attributes from the emitter in the supplied prototype
-     * @param prototype Prototype
-     * @param emitter_index Index of the emitter in question
-     * @param attributes Out data for the attribute array
-     * @param attribute_count Out data for the attribute count
-     */
-    DM_PARTICLE_PROTO(void, GetAttributes, HPrototype prototype, uint32_t emitter_index, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
-
-    /**
      * Set material in the emitter in the supplied prototype
      * @param prototype Prototype
      * @param emitter_index Index of the emitter in question
@@ -571,8 +562,8 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, ReHash, HParticleContext context, HInstance instance);
 
-    DM_PARTICLE_PROTO(void*, GetAttributeScratchBuffer, HParticleContext context);
-    DM_PARTICLE_PROTO(void, WriteAttributeToScratchBuffer, HParticleContext context, void* bytes, uint32_t byte_count);
+    DM_PARTICLE_PROTO(void, ResetAttributeScratchBuffer, HParticleContext context);
+    DM_PARTICLE_PROTO(void*, WriteAttributeToScratchBuffer, HParticleContext context, void* bytes, uint32_t byte_count);
 
     /**
      * Wrapper for dmHashString64
