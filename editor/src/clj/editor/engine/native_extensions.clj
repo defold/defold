@@ -23,6 +23,7 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
             [editor.workspace :as workspace]
             [util.http-client :as http])
@@ -290,8 +291,13 @@
             (throw (engine-build-errors/build-error extender-platform status log))))))))
 
 (defn get-build-server-url
-  ^String [prefs]
-  (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
+  (^String [prefs project]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-build-server-url prefs project evaluation-context)))
+  (^String [prefs project evaluation-context]
+   (or (not-empty (prefs/get-prefs prefs "extensions-server" ""))
+       (not-empty (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context))
+       defold-build-server-url)))
 
 (defn get-build-server-headers
   ^String [prefs]
