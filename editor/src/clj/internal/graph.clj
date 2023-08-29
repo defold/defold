@@ -892,7 +892,7 @@
                                           (let [node (node-id->node graph node-id)
                                                 explicit-arcs (remove (comp seen-inputs :target-label) (graph-explicit-arcs-by-target graph node-id))
                                                 result' (if (seq explicit-arcs)
-                                                          (conj! result [override-chain explicit-arcs])
+                                                          (conj! result (pair override-chain explicit-arcs))
                                                           result)]
                                             (if-some [original (gt/original node)]
                                               (recur original
@@ -901,21 +901,28 @@
                                                      result')
                                               (persistent! result'))))]
       (into []
-            (mapcat (fn [[override-chain explicit-arcs]]
-                      (lift-target-arcs this node-id override-chain explicit-arcs)))
+            (mapcat (fn [override-chain+explicit-arcs]
+                      (let [override-chain (key override-chain+explicit-arcs)
+                            explicit-arcs (val override-chain+explicit-arcs)]
+                        (lift-target-arcs this node-id override-chain explicit-arcs))))
             override-chains+explicit-arcs)))
 
   (arcs-by-target
     [this node-id label]
     (let [graph (node-id->graph this node-id)
-          [override-chain explicit-arcs] (loop [node-id node-id
-                                                chain '()]
-                                           (let [arcs (graph-explicit-arcs-by-target graph node-id label)
-                                                 node (gt/node-by-id-at this node-id)
-                                                 original (gt/original node)]
-                                             (if (and original (empty? arcs))
-                                               (recur original (conj chain (gt/override-id node)))
-                                               [chain arcs])))]
+
+          override-chain+explicit-arcs
+          (loop [node-id node-id
+                 chain '()]
+            (let [arcs (graph-explicit-arcs-by-target graph node-id label)
+                  node (gt/node-by-id-at this node-id)
+                  original (gt/original node)]
+              (if (and original (empty? arcs))
+                (recur original (conj chain (gt/override-id node)))
+                (pair chain arcs))))
+
+          override-chain (key override-chain+explicit-arcs)
+          explicit-arcs (val override-chain+explicit-arcs)]
       (lift-target-arcs this node-id override-chain explicit-arcs)))
 
   (arcs-by-source
