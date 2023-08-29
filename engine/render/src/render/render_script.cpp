@@ -3428,7 +3428,6 @@ bail:
             else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)
             {
                 dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)message->m_Data;
-printf("%s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
                 dmGraphics::ResizeWindow(instance->m_RenderContext->m_GraphicsContext, resize_msg->m_Width, resize_msg->m_Height);
                 return;
             }
