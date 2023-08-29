@@ -957,7 +957,6 @@ static void LogFrameBufferError(GLenum status)
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
         context->m_WindowOpened                   = 1;
 
-       // 960 640 in both cases
         context->m_Width                          = params->m_Width;
         context->m_Height                         = params->m_Height;
 
