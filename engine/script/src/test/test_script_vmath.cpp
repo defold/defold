@@ -157,6 +157,7 @@ TEST_F(ScriptVmathTest, TestVector4Fail)
 
 }
 
+#if !defined(__SCE__)
 TEST_F(ScriptVmathTest, TestQuat)
 {
     int top = lua_gettop(L);
@@ -173,6 +174,7 @@ TEST_F(ScriptVmathTest, TestQuat)
 
     ASSERT_TRUE(RunFile(L, "test_quat.luac"));
 }
+#endif
 
 TEST_F(ScriptVmathTest, TestQuatFail)
 {

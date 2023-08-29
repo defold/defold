@@ -76,9 +76,9 @@ excluded_files = [
     "editor/resources/templates/template.gui_script",
     "editor/resources/templates/template.render_script",
     "editor/resources/templates/template.lua",
-    # resource test files:
     "engine/resource/src/test/archive_data/file5.script",
     "engine/resource/src/test/archive_data/liveupdate.file6.script",
+    "engine/liveupdate/src/ringbuffer.h",
 ]
 
 excluded_paths = [

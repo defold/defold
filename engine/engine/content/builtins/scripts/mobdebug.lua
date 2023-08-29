@@ -348,11 +348,11 @@ local function stack(start)
   return stack
 end
 
-local function set_breakpoint(file, line)
+local function set_breakpoint(file, line, chunk)
   if file == '-' and lastfile then file = lastfile
   elseif iscasepreserving then file = string.lower(file) end
   if not breakpoints[line] then breakpoints[line] = {} end
-  breakpoints[line][file] = true
+  breakpoints[line][file] = chunk or true
   if mobdebug.setbreakpoint_hook then mobdebug.setbreakpoint_hook(line, file) end
 end
 
@@ -364,7 +364,8 @@ local function remove_breakpoint(file, line)
   if mobdebug.removebreakpoint_hook then mobdebug.removebreakpoint_hook(line, file) end
 end
 
-local function has_breakpoint(file, line)
+---@return true | function | nil breakpoint
+local function get_breakpoint(file, line)
   return breakpoints[line]
      and breakpoints[line][iscasepreserving and string.lower(file) or file]
 end
@@ -530,8 +531,8 @@ local function handle_breakpoint(peer)
     return
   end
 
-  local _, _, cmd, file, line = (buf..res):find("^([A-Z]+)%s+(.-)%s+(%d+)%s*$")
-  if cmd == 'SETB' then set_breakpoint(file, tonumber(line))
+  local _, _, cmd, file, line, condition = (buf..res):find("^([A-Z]+)%s+(.-)%s+(%d+)%s*(.*)$")
+  if cmd == 'SETB' then set_breakpoint(file, tonumber(line), string.len(condition) > 0 and mobdebug.loadstring("return " .. condition) or nil)
   elseif cmd == 'DELB' then remove_breakpoint(file, tonumber(line))
   else
     -- this looks like a breakpoint command, but something went wrong;
@@ -713,13 +714,31 @@ local function debug_hook(event, line)
 
     -- need to get into the "regular" debug handler, but only if there was
     -- no watch that was fired. If there was a watch, handle its result.
-    local getin = (status == nil) and
-      (step_into
-      -- when coroutine.running() return `nil` (main thread in Lua 5.1),
-      -- step_over will equal 'main', so need to check for that explicitly.
-      or (step_over and step_over == (coroutine.running() or 'main') and stack_level <= step_level)
-      or has_breakpoint(file, line)
-      or is_pending(server))
+    local no_watch_fired = status == nil
+
+    -- Before conditional breakpoints, getin was defined as: 
+    --   no_watch_fired and (step or has_breakpoint(file, line) or is_pending(server))
+    -- With conditional breakpoints, we might need to capture vars to check if we should perform a break.
+    -- The following code up to `local getin = ...` basically unrolls that check so we can reuse/capture vars
+    -- while checking the conditional breakpoint
+    local step = no_watch_fired and
+        (step_into
+          -- when coroutine.running() return `nil` (main thread in Lua 5.1),
+          -- step_over will equal 'main', so need to check for that explicitly.
+          or (step_over and step_over == (coroutine.running() or 'main') and stack_level <= step_level))
+    -- check breakpoint only if we are not stepping in
+    local breakpoint = no_watch_fired and not step and get_breakpoint(file, line)
+    local has_breakpoint
+    if type(breakpoint) == "function" then
+      vars = vars or capture_vars(1)
+      setfenv(breakpoint, vars)
+      local ok, breakpoint_result = pcall(breakpoint)
+      has_breakpoint = ok and breakpoint_result
+    else
+      has_breakpoint = breakpoint
+    end
+
+    local getin = step or has_breakpoint or (no_watch_fired and is_pending(server))
 
     if getin then
       vars = vars or capture_vars(1)
@@ -868,9 +887,10 @@ local function debugger_loop(sev, svars, sfile, sline)
     command = string.sub(line, string.find(line, "^[A-Z]+"))
     if mobdebug.command_hook then mobdebug.command_hook(command) end
     if command == "SETB" then
-      local _, _, _, file, line = string.find(line, "^([A-Z]+)%s+(.-)%s+(%d+)%s*$")
-      if file and line then
-        set_breakpoint(file, tonumber(line))
+      local _, file, breakpoint_line, condition = string.match(line, "^([A-Z]+)%s+(.-)%s+(%d+)%s*(.*)$")
+      if file and breakpoint_line and condition then
+        local chunk = string.len(condition) > 0 and mobdebug.loadstring("return " .. condition) or nil
+        set_breakpoint(file, tonumber(breakpoint_line), chunk)
         server:send("200 OK\n")
       else
         server:send("400 Bad Request\n")

@@ -139,7 +139,10 @@ def get_tagged_releases(archive_path, pattern=None, num_releases=10):
 
     return releases
 
-def get_single_release(archive_path, version_tag, sha1):
+def get_single_release(archive_path, version_tag, sha1=None):
+    if sha1 is None:
+        sha1 = run.shell_command('git rev-list -n 1 tags/%s' % version_tag)
+    
     u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
     files = get_files(archive_path, bucket, sha1)
