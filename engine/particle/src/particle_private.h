@@ -212,7 +212,7 @@ namespace dmParticle
         dmArray<Instance*>  m_Instances;
         /// Index pool used to index the instance buffer.
         dmIndexPool16       m_InstanceIndexPool;
-        /// TODO: description
+        /// An intermediate buffer to use for the custom attribute backing data (Editor only!)
         dmArray<uint8_t>    m_ScratchBuffer;
         /// Maximum number of particles allowed
         uint32_t            m_MaxParticleCount;

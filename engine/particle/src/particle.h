@@ -377,9 +377,12 @@ namespace dmParticle
      * @param dt Time step.
      * @param instance Particle instance handle
      * @param emitter_index Emitter index for which to generate vertex data for
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
      * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
      */
     DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const ParticleVertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
@@ -542,7 +545,7 @@ namespace dmParticle
     /**
      * Get required vertex buffer size
      * @param particle_count number of particles in vertex buffer
-     * @param vertex_format Which vertex format to use
+     * @param vertex_size Size of the vertex in bytes
      * @return Required vertex buffer size in bytes
      */
     DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count, uint32_t vertex_size);
@@ -550,7 +553,7 @@ namespace dmParticle
     /**
      * Get the required vertex buffer size for a context
      * @param context Particle context
-     * @param vertex_format Which vertex format to use
+     * @param vertex_size Size of the vertex in bytes
      * @return Required vertex buffer size in bytes
      */
     DM_PARTICLE_PROTO(uint32_t, GetMaxVertexBufferSize, HParticleContext context, uint32_t vertex_size);
@@ -562,7 +565,19 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, ReHash, HParticleContext context, HInstance instance);
 
+    /**
+     * Sets the current scratch data cursor to 0
+     * @param context Particle context
+     */
     DM_PARTICLE_PROTO(void, ResetAttributeScratchBuffer, HParticleContext context);
+
+    /**
+     * Copies the bytes into the scratch buffer
+     * @param context Particle context
+     * @param bytes Data bytes to copy into the buffer
+     * @param byte_count Data byte count to copy
+     * @return pointer to the start of the data written into the buffer
+     */
     DM_PARTICLE_PROTO(void*, WriteAttributeToScratchBuffer, HParticleContext context, void* bytes, uint32_t byte_count);
 
     /**

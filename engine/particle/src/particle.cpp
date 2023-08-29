@@ -83,7 +83,6 @@ namespace dmParticle
 
     void DestroyContext(HParticleContext context)
     {
-        dmLogInfo("CONTEXT DESTROY");
         uint32_t lingering = 0;
         for (uint32_t i=0; i < context->m_Instances.Size(); ++i)
         {
@@ -2138,6 +2137,7 @@ namespace dmParticle
         return GetVertexBufferSize(context->m_MaxParticleCount, vertex_size);
     }
 
+    // EDITOR ONLY
     void* WriteAttributeToScratchBuffer(HParticleContext context, void* bytes, uint32_t byte_count)
     {
         if (byte_count == 0)
@@ -2160,6 +2160,7 @@ namespace dmParticle
         return (void*) write_ptr;
     }
 
+    // EDITOR ONLY
     void ResetAttributeScratchBuffer(HParticleContext context)
     {
         context->m_ScratchBuffer.SetSize(0);
