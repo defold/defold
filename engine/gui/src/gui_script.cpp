@@ -1983,7 +1983,7 @@ namespace dmGui
     /*# resets the node material
      * Resets the node material to the material assigned in the gui scene.
      *
-     * @name gui.set_material
+     * @name gui.reset_material
      * @param node [type:node] node to reset the material for
      * @examples
      *
