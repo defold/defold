@@ -336,7 +336,7 @@
   (-> (doto (Quat4d.)
         (math/clj->vecmath clj-quat))
       math/quat->euler
-      properties/round-vec
+      properties/round-vec-coarse
       (conj 1.0)))
 
 (declare get-registered-node-type-info get-registered-node-type-infos)
