@@ -93,16 +93,16 @@
 (defn compile-clj
   [namespaces]
   (binding [*compiler-options* (build->compiler-options build-type default-compiler-options)]
-    (println "Using build profile " build-type)
-    (println "Compiler options: " *compiler-options*)
+    (println "Using build profile:" build-type)
+    (println "Compiler options:" *compiler-options*)
     (doseq [n namespaces]
-      (println "Compiling " n)
+      (println "Compiling" n)
       (compile n))))
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))
   (let [order (compile-order srcdirs build-type)]
-    (println "Compiling in order " order)
+    (println "Compiling in order" order)
     (compile-clj order))
   (println "Done compiling")
   (System/exit 0))
