@@ -20,24 +20,15 @@
             [clojure.tools.namespace.find :as find]
             [clojure.tools.namespace.track :as track]))
 
-(def excluded-sources-by-build-type
-  {"release" ["src/clj/dev.clj"
-              "src/clj/prof.clj"
-              "src/clj/yourkit.clj"]})
-
 (defn all-sources-tracker
   [build-type srcdirs]
-  (let [excluded-files (into #{}
-                             (map io/file)
-                             (excluded-sources-by-build-type build-type))]
-    (reduce
-      (fn [tracker dir]
-        (->> dir
-             find/find-clojure-sources-in-dir
-             (remove excluded-files)
-             (file/add-files tracker)))
-      (track/tracker)
-      srcdirs)))
+  (reduce
+    (fn [tracker dir]
+      (->> dir
+           (find/find-clojure-sources-in-dir)
+           (file/add-files tracker)))
+    (track/tracker)
+    srcdirs))
 
 (defn sorted-deps
   [tracker]
