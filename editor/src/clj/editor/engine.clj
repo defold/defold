@@ -168,7 +168,7 @@
 (def custom-engine-pref-key "dev-custom-engine")
 
 (defn current-platform []
-  (.getPair (Platform/getJavaPlatform)))
+  (.getPair (Platform/getHostPlatform)))
 
 (defn- dev-custom-engine
   [prefs platform]
