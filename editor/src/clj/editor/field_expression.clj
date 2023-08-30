@@ -45,7 +45,7 @@
 
 (defn to-double [s]
  (try
-   (evaluate-expression #(Double/parseDouble %) 0.01 s)
+   (evaluate-expression #(Double/parseDouble %) math/precision-general s)
    (catch Throwable _
      nil)))
 
