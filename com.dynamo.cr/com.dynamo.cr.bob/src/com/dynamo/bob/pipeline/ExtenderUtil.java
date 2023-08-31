@@ -531,22 +531,6 @@ public class ExtenderUtil {
         return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
-    /*
-    private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
-        String path = projectProperties.getStringValue(section, key, "");
-        if (!path.isEmpty()) {
-            IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return resource;
-            } else {
-                IResource projectResource = project.getResource("game.project");
-                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
-            }
-        }
-        return null;
-    }
-    */
-
     /**
      * Get a list of all extension sources and libraries from a project for a specific platform.
      * @param project
