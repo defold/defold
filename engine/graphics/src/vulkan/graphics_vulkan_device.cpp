@@ -20,7 +20,7 @@
 
 namespace dmGraphics
 {
-    void InitializeVulkanTexture(Texture* t)
+    void InitializeVulkanTexture(VulkanTexture* t)
     {
         t->m_Type                = TEXTURE_TYPE_2D;
         t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
@@ -182,7 +182,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_DEVICE_BUFFER;
     }
 
-    const VulkanResourceType Texture::GetType()
+    const VulkanResourceType VulkanTexture::GetType()
     {
         return RESOURCE_TYPE_TEXTURE;
     }
@@ -654,7 +654,7 @@ bail:
         VkMemoryPropertyFlags vk_memory_flags,
         VkImageAspectFlags    vk_aspect,
         VkImageLayout         vk_initial_layout,
-        Texture*              textureOut)
+        VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
         TextureType tex_type = textureOut->m_Type;
@@ -1193,7 +1193,7 @@ bail:
         }
     }
 
-    void DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle)
+    void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_ImageView != VK_NULL_HANDLE)

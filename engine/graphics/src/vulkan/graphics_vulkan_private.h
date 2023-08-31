@@ -72,7 +72,7 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
-    struct Texture
+    struct VulkanTexture
     {
         struct VulkanHandle
         {
@@ -295,9 +295,9 @@ namespace dmGraphics
     {
         union
         {
-            DeviceBuffer::VulkanHandle m_DeviceBuffer;
-            Texture::VulkanHandle      m_Texture;
-            Program::VulkanHandle      m_Program;
+            DeviceBuffer::VulkanHandle  m_DeviceBuffer;
+            VulkanTexture::VulkanHandle m_Texture;
+            Program::VulkanHandle       m_Program;
         };
         VulkanResourceType m_ResourceType;
     };
@@ -325,11 +325,11 @@ namespace dmGraphics
             VkSampleCountFlagBits        vk_sample_flag,
             const SwapChainCapabilities& capabilities,
             const QueueFamily            queueFamily,
-            Texture*                     resolveTexture);
+            VulkanTexture*               resolveTexture);
 
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
-        Texture*              m_ResolveTexture;
+        VulkanTexture*        m_ResolveTexture;
         const VkSurfaceKHR    m_Surface;
         const QueueFamily     m_QueueFamily;
         VkSurfaceFormatKHR    m_SurfaceFormat;
@@ -377,7 +377,7 @@ namespace dmGraphics
         dmArray<ScratchBuffer>          m_MainScratchBuffers;
         dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
         VkRenderPass                    m_MainRenderPass;
-        Texture                         m_MainTextureDepthStencil;
+        VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
         VertexDeclaration               m_MainVertexDeclaration;
@@ -390,10 +390,10 @@ namespace dmGraphics
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
-        Texture*                        m_DefaultTexture2D;
-        Texture*                        m_DefaultTexture2DArray;
-        Texture*                        m_DefaultTextureCubeMap;
-        Texture                         m_ResolveTexture;
+        VulkanTexture*                  m_DefaultTexture2D;
+        VulkanTexture*                  m_DefaultTexture2DArray;
+        VulkanTexture*                  m_DefaultTextureCubeMap;
+        VulkanTexture                   m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -433,7 +433,7 @@ namespace dmGraphics
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily, const char** deviceExtensions, const uint8_t deviceExtensionCount, const char** validationLayers, const uint8_t validationLayerCount, LogicalDevice* logicalDeviceOut);
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator);
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
-    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, Texture* textureOut);
+    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, VulkanTexture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
@@ -452,7 +452,7 @@ namespace dmGraphics
     void DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
-    void DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
+    void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle);
 
     // Get functions
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);
@@ -479,7 +479,7 @@ namespace dmGraphics
 
     // called from OpenWindow
     bool InitializeVulkan(HContext context, const WindowParams* params);
-    void InitializeVulkanTexture(Texture* t);
+    void InitializeVulkanTexture(VulkanTexture* t);
 
     void OnWindowResize(int width, int height);
     int  OnWindowClose();
