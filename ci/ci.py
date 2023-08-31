@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -317,7 +317,7 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
     call(cmd)
 
 
-def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None, platform = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
         exit(1)
@@ -326,7 +326,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
 
-    opts.append('--platform=x86_64-macos')
+    opts.append('--platform=%s' % platform)
 
     opts.append('--notarization-username="%s"' % notarization_username)
     opts.append('--notarization-password="%s"' % notarization_password)
@@ -546,7 +546,8 @@ def main(argv):
             notarize_editor2(
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider)
+                notarization_itc_provider = args.notarization_itc_provider,
+                platform = platform)
         elif command == "sign-editor":
             if not platform:
                 raise Exception("No --platform specified.")

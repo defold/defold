@@ -15,6 +15,7 @@
 package com.defold.editor;
 
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.rolling.RollingFileAppender;
 import ch.qos.logback.core.rolling.TimeBasedRollingPolicy;
 import ch.qos.logback.core.util.FileSize;
@@ -174,13 +175,13 @@ public class Start extends Application {
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
 
-        RollingFileAppender appender = new RollingFileAppender();
+        RollingFileAppender<ILoggingEvent> appender = new RollingFileAppender<>();
         appender.setName("FILE");
         appender.setAppend(true);
         appender.setPrudent(true);
         appender.setContext(root.getLoggerContext());
 
-        TimeBasedRollingPolicy rollingPolicy = new TimeBasedRollingPolicy();
+        TimeBasedRollingPolicy<Object> rollingPolicy = new TimeBasedRollingPolicy<>();
         rollingPolicy.setMaxHistory(30);
         rollingPolicy.setFileNamePattern(logDirectory.resolve("editor2.%d{yyyy-MM-dd}.log").toString());
         rollingPolicy.setTotalSizeCap(FileSize.valueOf("1GB"));
