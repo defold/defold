@@ -143,7 +143,8 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
     base_url = "https://" + urlparse(config.archive_path).hostname
 
     def is_editor_file(path):
-        return os.path.basename(path) in ('Defold-x86_64-macos.dmg',
+        return os.path.basename(path) in ('Defold-arm64-macos.dmg',
+                                          'Defold-x86_64-macos.dmg',
                                           'Defold-x86_64-linux.zip',
                                           'Defold-x86_64-win32.zip')
 
