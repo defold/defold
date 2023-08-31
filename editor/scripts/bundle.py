@@ -20,6 +20,7 @@ import os.path as path
 import stat
 import sys
 import optparse
+import platform
 import re
 import shutil
 import subprocess
@@ -60,11 +61,13 @@ java_version = '17.0.5+8'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-macos': 'macos-x64',
+                    'arm64-macos': 'macos-arm64',
                     'x86_64-win32': 'windows-x64'}
 
-python_platform_to_java = {'linux': 'linux-x64',
-                           'win32': 'windows-x64',
-                           'darwin': 'macos-x64'}
+python_platform_to_java = {'x86_64-linux': 'linux-x64',
+                           'x86_64-win32': 'windows-x64',
+                           'x86_64-darwin': 'macos-x64',
+                           'arm64-darwin': 'macos-arm64'}
 
 def log(msg):
     print(msg)
@@ -180,35 +183,7 @@ def mac_certificate(codesigning_identity):
 def sign_files(platform, options, dir):
     if options.skip_codesign:
         return
-    if 'win32' in platform:
-        certificate = options.windows_cert
-        certificate_pass_path = options.windows_cert_pass
-        if certificate == None:
-            print("No codesigning certificate specified")
-            sys.exit(1)
-
-        if not os.path.exists(certificate):
-            print("Certificate file does not exist:", certificate)
-            sys.exit(1)
-
-        certificate_pass = 'invalid'
-        with open(certificate_pass_path, 'rb') as f:
-            certificate_pass = f.read()
-
-        signtool = os.path.join(os.environ['DYNAMO_HOME'], 'ext','SDKs','Win32','WindowsKits','10','bin','10.0.18362.0','x64','signtool.exe')
-        if not os.path.exists(signtool):
-            print("signtool.exe file does not exist:", signtool)
-            sys.exit(1)
-        run.command([
-            signtool,
-            'sign',
-            '/fd', 'sha256',
-            '/a',
-            '/f', certificate,
-            '/p', certificate_pass,
-            '/tr', 'http://timestamp.digicert.com',
-            dir])
-    elif 'macos' in platform:
+    if 'macos' in platform:
         codesigning_identity = options.codesigning_identity
         certificate = mac_certificate(codesigning_identity)
         if certificate == None:
@@ -245,7 +220,7 @@ def full_jdk_url(jdk_platform):
     return '%s/OpenJDK17U-jdk_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
 
 def full_build_jdk_url():
-    return full_jdk_url(python_platform_to_java[sys.platform])
+    return full_jdk_url(python_platform_to_java["%s-%s" % (platform.machine(), sys.platform)])
 
 def download_build_jdk():
     print('Downloading build jdk')
@@ -309,7 +284,7 @@ def build(options):
     else:
         run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
 
-    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'prerelease'])
 
 
 def get_exe_suffix(platform):
@@ -343,7 +318,7 @@ def remove_platform_files_from_archive(platform, jar):
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
-            if platform == "x86_64-macos" and (file.endswith(".so") or file.endswith(".dll")):
+            if (platform == "x86_64-macos" or platform == "arm64-macos") and (file.endswith(".so") or file.endswith(".dll")):
                 files_to_remove.append(file)
             elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
                 files_to_remove.append(file)
@@ -365,12 +340,15 @@ def remove_platform_files_from_archive(platform, jar):
 
 
 def create_bundle(options):
-    jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
+    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
 
     mkdirs('target/editor')
     for platform in options.target_platform:
+        print("Creating uberjar for platform %s" % platform)
+        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'])
+        jar_file = 'target/editor-%s-standalone.jar' % platform
         print("Creating bundle for platform %s" % platform)
         rmtree('tmp')
 
@@ -469,7 +447,7 @@ def sign(options):
         if 'win32' in platform:
             bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-win32.zip")
         elif 'macos' in platform:
-            bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.zip")
+            bundle_file = os.path.join(options.bundle_dir, "Defold-%s.zip" % platform)
         else:
             print("No signing support for platform %s" % platform)
             continue
@@ -518,11 +496,11 @@ def find_files(root_dir, file_pattern):
                 matches.append(fullname)
     return matches
 
-def create_dmg(options):
+def create_dmg(options, platform):
     print("Creating .dmg from file in '%s'" % options.bundle_dir)
 
     # check that we have an editor bundle to create a dmg from
-    bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.zip")
+    bundle_file = os.path.join(options.bundle_dir, "Defold-%s.zip" % platform)
     if not os.path.exists(bundle_file):
         print('Editor bundle %s does not exist' % bundle_file)
         run.command(['ls', '-la', options.bundle_dir])
@@ -542,7 +520,7 @@ def create_dmg(options):
     run.command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
 
     # create dmg
-    dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.dmg")
+    dmg_file = os.path.join(options.bundle_dir, "Defold-%s.dmg" % platform)
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
@@ -560,9 +538,9 @@ def create_dmg(options):
 def create_installer(options):
     print("Creating installers")
     for platform in options.target_platform:
-        if platform == "x86_64-macos":
+        if platform == "x86_64-macos" or platform == "arm64-macos":
             print("Creating installer for platform %s" % platform)
-            create_dmg(options)
+            create_dmg(options, platform)
         else:
             print("Ignoring platform %s" % platform)
 
@@ -581,7 +559,7 @@ Commands:
     parser.add_option('--platform', dest='target_platform',
                       default = None,
                       action = 'append',
-                      choices = ['x86_64-linux', 'x86_64-macos', 'x86_64-win32'],
+                      choices = ['x86_64-linux', 'arm64-macos', 'x86_64-macos', 'x86_64-win32'],
                       help = 'Target platform to create editor bundle for. Specify multiple times for multiple platforms')
 
     parser.add_option('--version', dest='version',

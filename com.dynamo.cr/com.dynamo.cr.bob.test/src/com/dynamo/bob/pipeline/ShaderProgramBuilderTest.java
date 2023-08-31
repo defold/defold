@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -58,6 +58,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
         switch(Platform.getHostPlatform())
         {
+            case Arm64MacOS:
             case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
@@ -80,6 +81,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
         switch(Platform.getHostPlatform())
         {
+            case Arm64MacOS:
             case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
@@ -99,6 +101,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shader = (ShaderDesc)outputs.get(0);
         switch(Platform.getHostPlatform())
         {
+            case Arm64MacOS:
             case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
@@ -118,6 +121,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shader = (ShaderDesc)outputs.get(0);
         switch(Platform.getHostPlatform())
         {
+            case Arm64MacOS:
             case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
@@ -142,8 +146,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private void testOutput(String expected, String source) {
         if (!expected.equals(source)) {
-            System.err.printf("EXPECTED:\n'%s'\n", expected);
-            System.err.printf("SOURCE:\n'%s'\n", source);
+            System.err.println(String.format("EXPECTED:\n'%s'", expected));
+            System.err.println(String.format("SOURCE:\n'%s'", source));
         }
         assertEquals(expected, source);
     }
@@ -165,8 +169,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                                "#define highp\n" +
                                "#endif\n" +
                                "\n" +
-                               "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
                                "\n" +
+                               "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
                                "%s" +
                                "\n" +
                                "void main(){\n" +
@@ -301,15 +305,49 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         source = ShaderCompilerHelpers.compileGLSL(source, ShaderUtil.ES2ToES3Converter.ShaderType.FRAGMENT_SHADER, ShaderDesc.Language.LANGUAGE_GLES_SM300, true);
         expected =  "#version 300 es\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
+                    "\n" +
                     "precision mediump float;\n" +
                     "\n" +
                     "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
-                    "\n" +
                     "#line 1\n" +
                     "void main() {\n" +
                     "    _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
                     "}\n";
         testOutput(expected, source);
+    }
 
+    @Test
+    public void testGlslMisc() throws Exception {
+        String source;
+        String expected;
+
+        // Test guards around a uniform when transforming with latest features (uniform blocks)
+        source =
+            "varying vec4 my_varying;\n" +
+            "#ifndef MY_DEFINE\n" +
+            "#define MY_DEFINE\n" +
+            "   uniform vec4 my_uniform;\n" +
+            "#endif\n" +
+            "void main(){\n" +
+            "   gl_FragColor = my_uniform + my_varying;\n" +
+            "}\n";
+
+        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderUtil.ES2ToES3Converter.ShaderType.FRAGMENT_SHADER, "", 140, true);
+
+        expected =
+            "#version 140\n" +
+            "\n" +
+            "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
+            "in vec4 my_varying;\n" +
+            "#ifndef MY_DEFINE\n" +
+            "#define MY_DEFINE\n" +
+            "\n" +
+            "layout(set=1) uniform _DMENGINE_GENERATED_UB_0 { vec4 my_uniform  ; };\n" +
+            "#endif\n" +
+            "void main(){\n" +
+            "   _DMENGINE_GENERATED_gl_FragColor_0 = my_uniform + my_varying;\n" +
+            "}\n";
+
+        testOutput(expected, res.output);
     }
 }

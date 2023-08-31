@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -119,6 +119,15 @@ def setup_windows_cert(args):
         file.write(args.windows_cert_pass.encode())
     print("Wrote cert password to", cert_pass_path)
 
+def setup_steam_config(args):
+    print("Setting up Steam config")
+    system = platform.system()
+    steam_config_path = "~/.local/share/Steam/config"
+    os.makedirs(steam_config_path)
+    steam_config_file = os.path.abspath(os.path.join(steam_config_path, "config.vdf"))
+    with open(steam_config_file, "wb") as file:
+        file.write(base64.decodebytes(args.steam_config_b64.encode()))
+    print("Wrote config to", steam_config_file)
 
 def install(args):
     # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
@@ -162,6 +171,23 @@ def install(args):
             "xvfb"
         ]
         aptfast(" ".join(packages))
+
+        if args.steam_config_b64:
+            # for steamcmd
+            # https://github.com/steamcmd/docker/blob/master/dockerfiles/ubuntu-22/Dockerfile#L15C5-L16C62
+            # https://github.com/game-ci/steam-deploy
+            call("sudo dpkg --add-architecture i386")
+            call("sudo apt-get update", failonerror=False)
+            # accept license agreement
+            call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
+            call("echo steam steam/license note '' | sudo debconf-set-selections")
+            packages = [
+                "steamcmd",
+                "lib32gcc1",
+                "hfsprogs"   # for mounting DMG files
+            ]
+            aptfast(" ".join(packages))
+            setup_steam_config(args)
 
     elif system == "Darwin":
         if args.keychain_cert:
@@ -273,23 +299,11 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
 
     opts.append('--platform=%s' % platform)
 
-    if windows_cert:
-        windows_cert = os.path.abspath(windows_cert)
-        if not os.path.exists(windows_cert):
-            print("Certificate file not found:", windows_cert)
-            sys.exit(1)
-        print("Using cert", windows_cert)
-        opts.append('--windows-cert=%s' % windows_cert)
-
-    if windows_cert_pass:
-        windows_cert_pass = os.path.abspath(windows_cert_pass)
-        opts.append("--windows-cert-pass=%s" % windows_cert_pass)
-
     cmd = ' '.join(args + opts)
     call(cmd)
 
 
-def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None, platform = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
         exit(1)
@@ -298,7 +312,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
 
-    opts.append('--platform=x86_64-macos')
+    opts.append('--platform=%s' % platform)
 
     opts.append('--notarization-username="%s"' % notarization_username)
     opts.append('--notarization-password="%s"' % notarization_password)
@@ -430,6 +444,7 @@ def main(argv):
     parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
     parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
     parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
+    parser.add_argument("--steam-config-b64", dest="steam_config_b64", help="String containing Steam config (vdf) encoded as base 64")
 
     args = parser.parse_args()
 
@@ -519,7 +534,8 @@ def main(argv):
             notarize_editor2(
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider)
+                notarization_itc_provider = args.notarization_itc_provider,
+                platform = platform)
         elif command == "sign-editor":
             if not platform:
                 raise Exception("No --platform specified.")

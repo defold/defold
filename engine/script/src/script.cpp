@@ -362,11 +362,12 @@ namespace dmScript
 
     dmConfigFile::HConfig GetConfigFile(HContext context)
     {
-        if (context != 0x0)
-        {
-            return context->m_ConfigFile;
-        }
-        return 0x0;
+        return context ? context->m_ConfigFile : 0;
+    }
+
+    dmResource::HFactory GetResourceFactory(HContext context)
+    {
+        return context ? context->m_ResourceFactory : 0;
     }
 
     int LuaPrint(lua_State* L)
