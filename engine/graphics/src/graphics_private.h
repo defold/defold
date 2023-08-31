@@ -77,7 +77,7 @@ namespace dmGraphics
     }
 
     // Test functions:
-    uint64_t    GetDrawCount(); // Unit test
+    uint64_t    GetDrawCount();
     void*       MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
     bool        UnmapVertexBuffer(HVertexBuffer buffer);
     void*       MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);

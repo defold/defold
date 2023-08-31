@@ -496,13 +496,12 @@ namespace dmGraphics
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
-    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
+    void DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
     {
         if (vk_framebuffer != VK_NULL_HANDLE)
         {
             vkDestroyFramebuffer(vk_device, vk_framebuffer, 0);
         }
-        return VK_SUCCESS;
     }
 
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
