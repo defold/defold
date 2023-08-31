@@ -64,7 +64,9 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
           (keep (fn [line]
                   (when-let [[_ id kvs] (re-matches #"^([^\s]+)\s+device\s(.+)" line)]
                     (let [{:strs [device model]} (into {}
-                                                       (map #(string/split % #":" 2))
+                                                       (keep #(let [kv (string/split % #":" 2)]
+                                                                (when (= 2 (count kv))
+                                                                  kv)))
                                                        (string/split kvs #" "))]
                       {:id id
                        :label (cond
