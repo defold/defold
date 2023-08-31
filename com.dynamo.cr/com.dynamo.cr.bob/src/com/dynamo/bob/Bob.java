@@ -871,6 +871,9 @@ public class Bob {
             validateChoicesList(project, "build-artifacts", validArtifacts);
         }
 
+        // Build spir-v either if:
+        //   1. project has app manifest with vulkan enabled
+        //   2. bob was invoked with --debug-output-spirv
         project.setOption("output-spirv", (getSpirvRequired(project) || project.hasOption("debug-output-spirv")) ? "true" : "false");
 
         boolean ret = true;

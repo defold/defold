@@ -143,7 +143,7 @@
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
+      (let [compile-spirv true
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
