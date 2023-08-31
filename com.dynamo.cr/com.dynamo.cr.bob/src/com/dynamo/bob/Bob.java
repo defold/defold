@@ -31,10 +31,11 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -61,6 +62,7 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 
 public class Bob {
     private static Logger logger = Logger.getLogger(Bob.class.getName());
@@ -500,6 +502,7 @@ public class Bob {
 
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
+        addOption(options, null, "debug-output-spirv", false, "Force build SPIR-V shaders", false);
 
         return options;
     }
@@ -550,6 +553,49 @@ public class Bob {
         else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
             strSeverity = "WARNING";
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
+    }
+
+    private static boolean getSpirvRequired(Project project) throws IOException, CompileExceptionError {
+        IResource appManifestResource = project.getPropertyResource("native_extension", "app_manifest");
+        if (appManifestResource != null) {
+            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
+            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
+
+            if (yamlPlatforms != null) {
+                String targetPlatform = project.getPlatform().toString();
+                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
+
+                if (yamlPlatform != null) {
+                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
+
+                    if (yamlPlatformContext != null) {
+                        boolean vulkanSymbolFound = false;
+                        boolean vulkanLibraryFound = false;
+
+                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
+                        List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
+
+                        for (String symbol : symbols) {
+                            if (symbol.equals("GraphicsAdapterVulkan")) {
+                                vulkanSymbolFound = true;
+                                break;
+                            }
+                        }
+
+                        for (String lib : libs) {
+                            if (lib.equals("graphics_vulkan")) {
+                                vulkanLibraryFound = true;
+                                break;
+                            }
+                        }
+
+                        return vulkanLibraryFound && vulkanSymbolFound;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
@@ -824,6 +870,8 @@ public class Bob {
             String[] validArtifacts = {"engine", "plugins"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
         }
+
+        project.setOption("output-spirv", (getSpirvRequired(project) || project.hasOption("debug-output-spirv")) ? "true" : "false");
 
         boolean ret = true;
         StringBuilder errors = new StringBuilder();

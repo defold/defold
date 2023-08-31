@@ -531,6 +531,7 @@ public class ExtenderUtil {
         return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
+    /*
     private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
@@ -544,6 +545,7 @@ public class ExtenderUtil {
         }
         return null;
     }
+    */
 
     /**
      * Get a list of all extension sources and libraries from a project for a specific platform.
@@ -558,16 +560,15 @@ public class ExtenderUtil {
         platformFolderAlternatives.add("common");
 
         // Find app manifest if there is one
-        BobProjectProperties projectProperties = project.getProjectProperties();
         {
-            IResource resource = getPropertyResource(project, projectProperties, "native_extension", "app_manifest");
+            IResource resource = project.getPropertyResource("native_extension", "app_manifest");
             if (resource == null) {
                  resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
             }
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
         }
         {
-            IResource resource = getPropertyResource(project, projectProperties, "android", "proguard");
+            IResource resource = project.getPropertyResource("android", "proguard");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
             }

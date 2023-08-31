@@ -190,11 +190,12 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         IResource in                          = inputs.get(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
         boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-        boolean outputSpirv                   = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+        boolean outputSpirv                   = this.project.option("output-spirv", "false").equals("true");
+        boolean outputSpirvProjectSetting     = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 
         ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor,
-            shaderType, this.project.getPlatformStrings()[0], isDebug, outputSpirv, false);
+            shaderType, this.project.getPlatformStrings()[0], isDebug, outputSpirv || outputSpirvProjectSetting, false);
 
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
