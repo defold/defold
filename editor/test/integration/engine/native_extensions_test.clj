@@ -46,7 +46,7 @@
 (deftest unpack-bin-zip-test
   (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
    (with-clean-system
-     (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
            _ (test-util/setup-project! workspace)
            root (g/node-value workspace :root)]
        ;; The plugins/${platform}.zip archive has a following structure:
