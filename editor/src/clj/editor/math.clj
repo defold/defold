@@ -28,6 +28,9 @@
 (def ^:const recip-180 (/ 1.0 180.0))
 (def ^:const recip-pi (/ 1.0 Math/PI))
 
+(def ^:const precision-general 0.000001)
+(def ^:const precision-coarse 0.001)
+
 (def ^Vector3d zero-v3 (Vector3d. 0.0 0.0 0.0))
 (def ^Vector3d one-v3 (Vector3d. 1.0 1.0 1.0))
 (def ^Quat4d identity-quat (Quat4d. 0.0 0.0 0.0 1.0))

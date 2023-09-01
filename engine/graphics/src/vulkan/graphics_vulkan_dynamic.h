@@ -117,6 +117,7 @@ extern PFN_vkCmdBeginQuery vkCmdBeginQuery;
 extern PFN_vkCmdEndQuery vkCmdEndQuery;
 extern PFN_vkCmdResetQueryPool vkCmdResetQueryPool;
 extern PFN_vkCmdCopyQueryPoolResults vkCmdCopyQueryPoolResults;
+extern PFN_vkResetDescriptorPool vkResetDescriptorPool;
 
 extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
 extern PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR;

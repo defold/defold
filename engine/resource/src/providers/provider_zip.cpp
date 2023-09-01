@@ -239,7 +239,7 @@ static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveIntern
     return dmResourceProvider::RESULT_NOT_FOUND;
 }
 
-static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, const uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
+static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
 {
     dmResourceArchive::LiveUpdateResource resource(raw_resource, raw_resource_size);
 
@@ -248,6 +248,16 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     bool compressed = flags & dmLiveUpdateDDF::COMPRESSED;
     uint32_t compressed_size = compressed ? entry->m_CompressedSize : entry->m_Size;
     uint32_t resource_size = entry->m_Size;
+
+    if (encrypted)
+    {
+        dmResource::Result r = dmResource::DecryptBuffer((void*)resource.m_Data, resource.m_Count);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to decrypt resource: '%s", path);
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+    }
 
     if (compressed)
     {
@@ -262,16 +272,6 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     else
     {
         memcpy(out_buffer, resource.m_Data, resource.m_Count);
-    }
-
-    if (encrypted)
-    {
-        dmResource::Result r = dmResource::DecryptBuffer(out_buffer, resource_size);
-        if (dmResource::RESULT_OK != r)
-        {
-            dmLogError("Failed to decrypt resource: '%s", path);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
     }
 
     return dmResourceProvider::RESULT_OK;
@@ -302,7 +302,7 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
         delete[] raw_data;
     } else
     {
-        // Uncompressed, regular files
+        // Uncompressed, regular files (i.e. no Liveupdate header)
         dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
     }
 

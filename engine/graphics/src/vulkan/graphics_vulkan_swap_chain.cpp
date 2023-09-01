@@ -67,7 +67,7 @@ namespace dmGraphics
     }
 
     SwapChain::SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
-        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, Texture* resolveTexture)
+        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily, VulkanTexture* resolveTexture)
         : m_ResolveTexture(resolveTexture)
         , m_Surface(surface)
         , m_QueueFamily(queueFamily)

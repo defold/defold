@@ -20,10 +20,6 @@
 
 namespace dmGraphics
 {
-    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t        GetGraphicsTypeDataSize(Type type);
-    const char*     GetGraphicsTypeLiteral(Type type);
-
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -39,16 +35,19 @@ namespace dmGraphics
         uint8_t      m_StreamCount;
     };
 
-    void          InstallAdapterVendor();
-    PipelineState GetDefaultPipelineState();
-    Type          GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
-    void          SetForceFragmentReloadFail(bool should_fail);
-    void          SetForceVertexReloadFail(bool should_fail);
-    void          SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    bool          IsTextureFormatCompressed(TextureFormat format);
-    bool          IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
-    void          RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
-    const char*   TextureFormatToString(TextureFormat format);
+    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t        GetGraphicsTypeDataSize(Type type);
+    const char*     GetGraphicsTypeLiteral(Type type);
+    void            InstallAdapterVendor();
+    PipelineState   GetDefaultPipelineState();
+    Type            GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
+    void            SetForceFragmentReloadFail(bool should_fail);
+    void            SetForceVertexReloadFail(bool should_fail);
+    void            SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    bool            IsTextureFormatCompressed(TextureFormat format);
+    bool            IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
+    void            RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+    const char*     TextureFormatToString(TextureFormat format);
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {
@@ -77,7 +76,7 @@ namespace dmGraphics
     }
 
     // Test functions:
-    uint64_t    GetDrawCount(); // Unit test
+    uint64_t    GetDrawCount();
     void*       MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
     bool        UnmapVertexBuffer(HVertexBuffer buffer);
     void*       MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);

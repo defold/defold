@@ -331,7 +331,7 @@
   (-> (doto (Quat4d.)
         (math/clj->vecmath clj-quat))
       math/quat->euler
-      properties/round-vec
+      properties/round-vec-coarse
       (conj 0.0)))
 
 (def ^:private property-conversions

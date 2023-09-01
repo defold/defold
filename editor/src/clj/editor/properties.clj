@@ -572,10 +572,16 @@
                (:prop-kws property)))))))
 
 (defn round-scalar [n]
-  (math/round-with-precision n 0.001))
+  (math/round-with-precision n math/precision-general))
+
+(defn round-scalar-coarse [n]
+  (math/round-with-precision n math/precision-coarse))
 
 (defn round-vec [v]
   (mapv round-scalar v))
+
+(defn round-vec-coarse [v]
+  (mapv round-scalar-coarse v))
 
 ;; SDK api
 (defn ->choicebox [vals]
@@ -600,7 +606,7 @@
 (defn quat->euler []
   {:type t/Vec3
    :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
-   :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+   :to-type (fn [v] (round-vec-coarse (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
 
 (def quat-rotation-edit-type (quat->euler))
 

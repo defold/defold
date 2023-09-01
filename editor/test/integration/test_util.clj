@@ -66,6 +66,8 @@
 
 (def project-path "test/resources/test_project")
 
+(def ^:private ^:const system-cache-size 1000)
+
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
 
@@ -337,7 +339,7 @@
      [workspace project app-view])))
 
 (defn- load-system-and-project-raw [path]
-  (test-support/with-clean-system {:cache-size 1000
+  (test-support/with-clean-system {:cache-size system-cache-size
                                    :cache-retain? project/cache-retain?}
     (let [workspace (setup-workspace! world path)]
       (fetch-libraries! workspace)
@@ -368,11 +370,26 @@
                                                (load-system-and-project ~project-path))
                                              (load-system-and-project ~project-path))
            system-clone# (is/clone-system system#)
-           ~'cache  (:cache system-clone#)
-           ~'world  (g/node-id->graph-id ~'workspace)]
+           ~'cache (:cache system-clone#)
+           ~'world (g/node-id->graph-id ~'workspace)]
        (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
+
+(defmacro with-scratch-project
+  [project-path & forms]
+  (let [[options forms] (split-keyword-options forms)]
+    `(let [options# ~options]
+       (test-support/with-clean-system {:cache-size ~system-cache-size
+                                        :cache-retain? project/cache-retain?}
+         (let [~'workspace (setup-scratch-workspace! ~'world ~project-path)]
+           (fetch-libraries! ~'workspace)
+           (let [~'project (if (:logging-suppressed options#)
+                             (log/without-logging
+                               (setup-project! ~'workspace))
+                             (setup-project! ~'workspace))
+                 ~'app-view (setup-app-view! ~'project)]
+             ~@forms))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]

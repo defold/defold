@@ -88,12 +88,12 @@ public class ResourceUnpacker {
                 unpackResourceFile("builtins.zip", unpackPath.resolve("builtins"));
                 unpackResourceDir("/_unpack", unpackPath);
 
-                Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
+                Path binDir = unpackPath.resolve(Platform.getHostPlatform().getPair() + "/bin").toAbsolutePath();
                 if (binDir.toFile().exists()) {
                     Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
                 }
 
-                unpackedLibDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath();
+                unpackedLibDir = unpackPath.resolve(Platform.getHostPlatform().getPair() + "/lib").toAbsolutePath();
                 System.setProperty("java.library.path", unpackedLibDir.toString());
                 System.setProperty("jna.library.path", unpackedLibDir.toString());
 

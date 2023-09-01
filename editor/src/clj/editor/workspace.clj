@@ -555,11 +555,18 @@ ordinary paths."
 (defn- register-jar-file! [jar-file]
   (.addURL ^DynamicClassLoader class-loader (io/as-url jar-file)))
 
+(defn- native-library-parent-dir-allowed? [parent-dir-name]
+    (->> (Platform/getHostPlatform)
+         .getExtenderPaths
+         (some #(= parent-dir-name %))
+         boolean))
+
 (defn- register-shared-library-file! [^File shared-library-file]
-  (let [parent-dir (.getParent shared-library-file)]
-    ; TODO: Only add files for the current platform (e.g. dylib on macOS)
-    (add-to-path-property "jna.library.path" parent-dir)
-    (add-to-path-property "java.library.path" parent-dir)))
+  (let [parent-dir-file (.getParentFile shared-library-file)]
+    (when (native-library-parent-dir-allowed? (.getName parent-dir-file))
+      (let [parent-dir (str parent-dir-file)]
+        (add-to-path-property "jna.library.path" parent-dir)
+        (add-to-path-property "java.library.path" parent-dir)))))
 
 (defn unpack-resource!
   ([workspace resource]
