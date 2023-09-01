@@ -623,8 +623,9 @@
     (-> local-camera
         (set-extents fov-x fov-y z-near z-far)
         filter-fn)))
-(defn- get-valid-yaw-pitch [yaw pitch shift-pressed last-x last-y x y]
-  (if (and shift-pressed (every? some? [last-x last-y]))
+
+(defn- valid-yaw-pitch [yaw pitch update-values last-x last-y x y]
+  (if (and true update-values (every? some? [last-x last-y]))
     (let [dx (- x last-x)
           dy (- y last-y)]
       [(- yaw dx) (- pitch dy)])
@@ -636,11 +637,12 @@
         ui-state                   (or (g/user-data self ::ui-state) {:movement :idle :yaw 0 :pitch 0 :last-x 0 :last-y 0})
         {:keys [last-x last-y yaw pitch]}    ui-state
         {:keys [x y type delta-y]} action
-        yaw-pitch                  (get-valid-yaw-pitch yaw pitch (:shift action) last-x last-y x y)
-        movement                   (cond (and (= type :mouse-moved) (:shift action)) :wasd
+        camera                     (g/node-value self :camera)
+        camera-type                (:type camera)
+        yaw-pitch                  (valid-yaw-pitch yaw pitch (and (= camera-type :perspective) (:shift action)) last-x last-y x y)
+        movement                   (cond (and (= type :mouse-moved) (:shift action) (= camera-type :perspective)) :wasd
                                          (= type :mouse-pressed) (get movements-enabled (camera-movement action) :idle)
                                          :else (:movement ui-state))
-        camera                     (g/node-value self :camera)
         filter-fn                  (or (:filter-fn camera) identity)
         camera                     (cond-> camera
                                            (and (= type :scroll) (contains? movements-enabled :dolly)) (dolly (* -0.002 delta-y))
@@ -695,33 +697,17 @@
 
 (defn- do-wasd-movement-perspective [^Camera camera key-mask-entry]
   (let [camera-key-mask (first key-mask-entry)
-        camera-movement-speed 0.25
+        camera-movement-speed 0.8
         camera-movement-info (key->movement-info camera camera-key-mask camera-movement-speed)
         x (* (:movement-dir camera-movement-info) (.getX ^Vector3d (:movement-vec camera-movement-info)))
         y (* (:movement-dir camera-movement-info) (.getY ^Vector3d (:movement-vec camera-movement-info)))
         z (* (:movement-dir camera-movement-info) (.getZ ^Vector3d (:movement-vec camera-movement-info)))]
     (camera-move camera x y z)))
 
-(defn- do-wasd-movement-orthographic [^Camera camera key-mask-entry]
-  (let [camera-fov-delta -0.01
-        camera-key-mask (first key-mask-entry)
-        camera-movement-info (key->movement-info camera camera-key-mask camera-fov-delta)
-        camera-ws-update-fn (fn [fov]
-                              (max 0.01 (+ (or fov 0)
-                                           (* (or fov 1)
-                                              (:movement-dir camera-movement-info)))))]
-    (cond (= camera-key-mask :W) (-> camera
-                                     (update :fov-x camera-ws-update-fn)
-                                     (update :fov-y camera-ws-update-fn))
-          (= camera-key-mask :S) (-> camera
-                                     (update :fov-x camera-ws-update-fn)
-                                     (update :fov-y camera-ws-update-fn))
-          :else (do-wasd-movement-perspective camera key-mask-entry))))
-
 (defn tick-camera [^Camera camera movement-state]
   (case (:type camera)
     :perspective (reduce do-wasd-movement-perspective camera movement-state)
-    :orthographic (reduce do-wasd-movement-orthographic camera movement-state)))
+    :orthographic camera))
 
 (defn- lerp [a b t]
   (let [d (- b a)]
