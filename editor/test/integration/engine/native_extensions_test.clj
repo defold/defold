@@ -16,16 +16,17 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.resource :as resource]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
-  (:import [com.dynamo.bob.archive EngineVersion]))
+  (:import [com.dynamo.bob Platform]
+           [com.dynamo.bob.archive EngineVersion]))
 
 (defn fix-engine-sha1 [f]
   (let [engine-sha1 (or (repo/detect-engine-sha1) EngineVersion/sha1)]
@@ -45,20 +46,20 @@
 (deftest unpack-bin-zip-test
   (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
    (with-clean-system
-     (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
            _ (test-util/setup-project! workspace)
            root (g/node-value workspace :root)]
-       ;; The plugins/x86_64-macos.zip archive has a following structure:
+       ;; The plugins/${platform}.zip archive has a following structure:
        ;; /bin
-       ;;   /x86_64-macos
+       ;;   /${platform}
        ;;     /lsp.editor_script
-       (is (.exists (io/file (str root "/ext_with_bin_zip/plugins/x86_64-macos.zip"))))
+       (is (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/%s.zip" (.getPair (Platform/getHostPlatform)))))))
        ;; We verify that there is no file resource at
-       ;; plugins/bin/x86_64-macos/lsp.editor_script path that could be extracted
+       ;; plugins/bin/${platform}/lsp.editor_script path that could be extracted
        ;; to the expected place (so it must come from the zip)
-       (is (not (.exists (io/file (str root "/ext_with_bin_zip/plugins/bin/x86_64-macos/lsp.editor_script")))))
+       (is (not (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform))))))))
        ;; The file is extracted to its place from zip:
-       (is (.exists (io/file (str root "/build/plugins/ext_with_bin_zip/plugins/bin/x86_64-macos/lsp.editor_script"))))))))
+       (is (.exists (io/file (str root (format "/build/plugins/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform)))))))))))
 
 (deftest extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
