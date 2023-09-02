@@ -51,15 +51,19 @@ namespace dmHttpService
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
+        dmMessage::URL        m_CurrentRequesterURL;
         dmHttpDDF::HttpRequest*   m_Request;
         const char*           m_Filepath;
         int                   m_Status;
+        uintptr_t             m_ResponseUserData1;
+        uintptr_t             m_ResponseUserData2;
         dmArray<char>         m_Response;
         dmArray<char>         m_Headers;
         const HttpService*    m_Service;
         bool                  m_CacheFlusher;
         volatile bool         m_Run;
         int                   m_Canceled;
+        bool                  m_ReportProgress;
     };
 
     struct HttpService
@@ -113,6 +117,22 @@ namespace dmHttpService
             r.OffsetCapacity((int32_t) dmMath::Max(content_data_size - left, 128U * 1024U));
         }
         r.PushArray((char*) content_data, content_data_size);
+
+        if (worker->m_ReportProgress)
+        {
+            dmHttpDDF::HttpRequestProgress progress = {};
+            progress.m_BytesReceived = content_data_size;
+
+            if (dmMessage::RESULT_OK != dmMessage::Post(0,
+                &worker->m_CurrentRequesterURL,
+                dmHttpDDF::HttpRequestProgress::m_DDFHash,
+                worker->m_ResponseUserData1, worker->m_ResponseUserData2,
+                (uintptr_t) dmHttpDDF::HttpRequestProgress::m_DDFDescriptor,
+                &progress, sizeof(progress), 0))
+            {
+                dmLogWarning("Failed to return http-progress. Requester deleted?");
+            }
+        }
     }
 
     uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
@@ -237,6 +257,14 @@ namespace dmHttpService
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         worker->m_Filepath = request->m_Path;
 
+        if (request->m_ReportProgress)
+        {
+            worker->m_ReportProgress    = request->m_ReportProgress;
+            worker->m_ResponseUserData1 = userdata1;
+            worker->m_ResponseUserData2 = userdata2;
+            memcpy(&worker->m_CurrentRequesterURL, requester, sizeof(dmMessage::URL));
+        }
+
         if (worker->m_Client) {
             worker->m_Request = request;
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
@@ -244,6 +272,7 @@ namespace dmHttpService
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_CHUNKED_TRANSFER, request->m_ChunkedTransfer);
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
+
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
                 SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             } else {
