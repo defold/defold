@@ -2505,10 +2505,13 @@ static int SetBuffer(lua_State* L)
             {
                 // We are transferring the ownership of the resource in the lua buffer
                 // to the destination resource, so we decref the source resource.
-                // We don't need to incref the destination resource in this case,
-                // because we are simply updating the content and not the resoure itself
                 dmResource::Release(g_ResourceModule.m_Factory, luabuf->m_BufferRes);
             }
+
+            // We need to incref the destination resource in this case,
+            // because otherwise the GC for the lua buffer will decref the resourec
+            // and eventually prematurely destroy the resource.
+            dmResource::IncRef(g_ResourceModule.m_Factory, resource);
         }
 
         luabuf->m_Owner     = dmScript::OWNER_RES;
