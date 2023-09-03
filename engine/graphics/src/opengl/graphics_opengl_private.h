@@ -87,6 +87,7 @@ namespace dmGraphics
         WindowIconifyCallback   m_WindowIconifyCallback;
         void*                   m_WindowIconifyCallbackUserData;
         PipelineState           m_PipelineState;
+        uint64_t                m_TextureFormatSupport;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
@@ -101,7 +102,6 @@ namespace dmGraphics
         // Version zero is never used
         uint32_t                m_ModificationVersion;
         uint32_t                m_IndexBufferFormatSupport;
-        uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;

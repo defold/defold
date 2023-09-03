@@ -110,7 +110,7 @@ namespace dmGraphics
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_RenderDocSupport        = params.m_RenderDocSupport;
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static inline uint32_t GetNextRenderTargetId()
@@ -385,13 +385,13 @@ namespace dmGraphics
         // Check if we can use optimal tiling for this format, otherwise
         // we try to find the best format that supports linear
         VkImageTiling vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
-        VkFormat vk_depth_format      = GetSupportedTilingFormat(vk_physical_device, &vk_formats_to_test[0],
+        VkFormat vk_depth_format      = GetSupportedTilingFormat(vk_physical_device, vk_formats_to_test,
             vk_formats_to_test_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
         if (vk_depth_format == VK_FORMAT_UNDEFINED)
         {
             vk_image_tiling = VK_IMAGE_TILING_LINEAR;
-            vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_formats_to_test[0],
+            vk_depth_format = GetSupportedTilingFormat(vk_physical_device, vk_formats_to_test,
                 vk_formats_to_test_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
 
@@ -823,6 +823,29 @@ namespace dmGraphics
                 context->m_TextureFormatSupport |= 1 << texture_format;
             }
         }
+
+        VkFormat depth_stencil_formats[] {
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM,
+        };
+
+        #define SET_IF_DEPTH_FORMAT_SUPPORTED(d_variants, d_num_variants, gfx_fmt) \
+            { \
+                VkImageTiling tiling; \
+                VkFormat fmt; \
+                GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, depth_stencil_formats, 2, &fmt, &tiling); \
+                if (fmt != VK_FORMAT_UNDEFINED) \
+                    context->m_TextureFormatSupport |= 1LL << gfx_fmt; \
+            }
+
+        SET_IF_DEPTH_FORMAT_SUPPORTED(depth_stencil_formats + 0, 2, TEXTURE_FORMAT_DEPTH32F);
+        SET_IF_DEPTH_FORMAT_SUPPORTED(depth_stencil_formats + 2, 1, TEXTURE_FORMAT_DEPTH24);
+        SET_IF_DEPTH_FORMAT_SUPPORTED(depth_stencil_formats + 3, 2, TEXTURE_FORMAT_DEPTH16);
+
+        #undef SET_IF_DEPTH_FORMAT_SUPPORTED
     }
 
     bool InitializeVulkan(HContext _context, const WindowParams* params)
@@ -2989,6 +3012,19 @@ bail:
         renderTarget->m_RenderPass = VK_NULL_HANDLE;
     }
 
+    static VkFormat GetDepthStencilFormat(TextureFormat from_format, bool has_stencil)
+    {
+        switch(from_format)
+        {
+            case TEXTURE_FORMAT_DEPTH16:  return has_stencil ? VK_FORMAT_D16_UNORM_S8_UINT : VK_FORMAT_D16_UNORM;
+            case TEXTURE_FORMAT_DEPTH24:  return VK_FORMAT_D24_UNORM_S8_UINT;
+            case TEXTURE_FORMAT_DEPTH32F: return has_stencil ? VK_FORMAT_D32_SFLOAT_S8_UINT : VK_FORMAT_D32_SFLOAT;
+            default:break;
+        }
+
+        return VK_FORMAT_UNDEFINED;
+    }
+
     static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
@@ -3076,34 +3112,25 @@ bail:
             VkImageTiling vk_depth_tiling    = VK_IMAGE_TILING_OPTIMAL;
 
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
+            const TextureParams& stencil_depth_params                = has_depth ? params.m_DepthBufferParams : params.m_StencilBufferParams;
 
-            // Only try depth formats first
-            if (has_depth && !has_stencil)
-            {
-                VkFormat vk_format_list[] = {
-                    VK_FORMAT_D32_SFLOAT,
-                    VK_FORMAT_D16_UNORM
-                };
+            VkFormat vk_format_to_test = GetDepthStencilFormat(stencil_depth_params.m_Format, has_stencil);
+            GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, &vk_format_to_test, 1, &vk_depth_stencil_format, &vk_depth_tiling);
 
-                GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, vk_format_list,
-                    DM_ARRAY_SIZE(vk_format_list), &vk_depth_stencil_format, &vk_depth_tiling);
-            }
-
-            // If we request both depth & stencil OR test above failed,
-            // try with default depth stencil formats
+            // If we couldn't find a specific format, we pick the best possible
             if (vk_depth_stencil_format == VK_FORMAT_UNDEFINED)
             {
                 GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            texture_depth_stencil              = NewTexture(context, stencil_depth_create_params);
+            texture_depth_stencil                    = NewTexture(context, stencil_depth_create_params);
             VulkanTexture* texture_depth_stencil_ptr = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture_depth_stencil);
 
             // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_depth_tiling,
                 fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
-                VK_IMAGE_ASPECT_DEPTH_BIT, // JG: This limits us to sampling depth only afaik
+                VK_IMAGE_ASPECT_DEPTH_BIT,                  // JG: This limits us to sampling depth only afaik
                 texture_depth_stencil_ptr);
             CHECK_VK_ERROR(res);
         }

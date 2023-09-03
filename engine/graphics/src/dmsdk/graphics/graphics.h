@@ -199,6 +199,11 @@ namespace dmGraphics
         TEXTURE_FORMAT_R32F                 = 28,
         TEXTURE_FORMAT_RG32F                = 29,
 
+        // Depth formats
+        TEXTURE_FORMAT_DEPTH16              = 30,
+        TEXTURE_FORMAT_DEPTH24              = 31,
+        TEXTURE_FORMAT_DEPTH32F             = 32,
+
         TEXTURE_FORMAT_COUNT
     };
 

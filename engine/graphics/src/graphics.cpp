@@ -459,6 +459,9 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RG_BC5:             return 8;
         case TEXTURE_FORMAT_RGBA_BC7:           return 8;
         case TEXTURE_FORMAT_DEPTH:              return 24;
+        case TEXTURE_FORMAT_DEPTH16:            return 16;
+        case TEXTURE_FORMAT_DEPTH24:            return 24;
+        case TEXTURE_FORMAT_DEPTH32F:           return 32;
         case TEXTURE_FORMAT_STENCIL:            return 8;
         case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return 2;
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return 4;

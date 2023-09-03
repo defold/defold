@@ -760,6 +760,14 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    static bool IsDepthFormat(dmGraphics::TextureFormat format)
+    {
+        return format == dmGraphics::TEXTURE_FORMAT_DEPTH   ||
+               format == dmGraphics::TEXTURE_FORMAT_DEPTH16 ||
+               format == dmGraphics::TEXTURE_FORMAT_DEPTH24 ||
+               format == dmGraphics::TEXTURE_FORMAT_DEPTH32F;
+    }
+
     /*#
      * @name render.FORMAT_LUMINANCE
      * @variable
@@ -1059,7 +1067,7 @@ namespace dmRender
                     p->m_Format = (dmGraphics::TextureFormat)(int) luaL_checkinteger(L, -1);
                     if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
                     {
-                        if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
+                        if(!IsDepthFormat(p->m_Format))
                         {
                             return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
                         }
@@ -2953,24 +2961,27 @@ namespace dmRender
 
 #undef REGISTER_FORMAT_CONSTANT
 
-#define REGISTER_FORMAT_CONSTANT(name)\
+#define REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(name)\
         if (dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::TEXTURE_FORMAT_##name)) { \
             lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FORMAT_##name); \
             lua_setfield(L, -2, "FORMAT_"#name); \
         }
 
-        // These depend on driver support
-        REGISTER_FORMAT_CONSTANT(RGB);
-        REGISTER_FORMAT_CONSTANT(RGB16F);
-        REGISTER_FORMAT_CONSTANT(RGB32F);
-        REGISTER_FORMAT_CONSTANT(RGBA16F);
-        REGISTER_FORMAT_CONSTANT(RGBA32F);
-        REGISTER_FORMAT_CONSTANT(R16F);
-        REGISTER_FORMAT_CONSTANT(RG16F);
-        REGISTER_FORMAT_CONSTANT(R32F);
-        REGISTER_FORMAT_CONSTANT(RG32F);
+        // These depend on driver and context support
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RGB);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RGB16F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RGB32F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RGBA16F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RGBA32F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(R16F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RG16F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(R32F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(RG32F);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(DEPTH16);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(DEPTH24);
+        REGISTER_FORMAT_CONSTANT_IF_SUPPORTED(DEPTH32F);
 
-#undef REGISTER_FORMAT_CONSTANT
+#undef REGISTER_FORMAT_CONSTANT_IF_SUPPORTED
 
 #define REGISTER_FILTER_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::TEXTURE_FILTER_##name); \

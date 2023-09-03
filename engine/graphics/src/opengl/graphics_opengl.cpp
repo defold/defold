@@ -411,7 +411,7 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
@@ -1177,6 +1177,10 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH16;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH24;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH32F;
         }
 
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
@@ -2532,9 +2536,9 @@ static void LogFrameBufferError(GLenum status)
             dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
         }
 
-        if (use_depth_attachment && use_stencil_attachment)
+        if (use_depth_attachment && use_stencil_attachment && depth_texture != stencil_texture)
         {
-            dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
+            dmLogWarning("Creating a RenderTarget with different backing storage type (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
                 (depth_texture ? "texture" : "buffer"),
                 (stencil_texture ? "texture" : "buffer"));
             stencil_texture = depth_texture;
@@ -2819,7 +2823,8 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return (((OpenGLContext*) context)->m_TextureFormatSupport & (1 << format)) != 0;
+        OpenGLContext* ctx = (OpenGLContext*) context;
+        return (ctx->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext context)
@@ -3189,6 +3194,21 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = GL_UNSIGNED_INT;
             gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
         #endif
+            break;
+        case TEXTURE_FORMAT_DEPTH16:
+            gl_format          = GL_DEPTH_COMPONENT;
+            gl_type            = GL_UNSIGNED_INT;
+            gl_internal_format = DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
+            break;
+        case TEXTURE_FORMAT_DEPTH24:
+            gl_format          = GL_DEPTH_COMPONENT;
+            gl_type            = GL_UNSIGNED_INT;
+            gl_internal_format = DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
+            break;
+        case TEXTURE_FORMAT_DEPTH32F:
+            gl_format          = GL_DEPTH_COMPONENT;
+            gl_type            = GL_FLOAT;
+            gl_internal_format = GL_DEPTH_COMPONENT32F;
             break;
 
         default:
