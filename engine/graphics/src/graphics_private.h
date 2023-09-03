@@ -55,6 +55,16 @@ namespace dmGraphics
         params.m_DataSize = 0;
     }
 
+    static inline void AddTextureFormatSupport(uint64_t& bits, TextureFormat format)
+    {
+        bits |= 1ULL << format;
+    }
+
+    static inline void AddIndexBufferSupport(uint32_t& bits, IndexBufferFormat format)
+    {
+        bits |= 1ULL << format;
+    }
+
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
     {

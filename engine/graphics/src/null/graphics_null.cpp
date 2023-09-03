@@ -72,13 +72,13 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_LUMINANCE);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_LUMINANCE_ALPHA);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGB);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGBA);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGB_16BPP);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_16BPP);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGB_ETC1);
     }
 
     static HContext NullNewContext(const ContextParams& params)

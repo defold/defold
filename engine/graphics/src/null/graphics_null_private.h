@@ -109,13 +109,13 @@ namespace dmGraphics
         PipelineState               m_PipelineState;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
+        uint64_t                    m_TextureFormatSupport;
         uint32_t                    m_Width;
         uint32_t                    m_Height;
         uint32_t                    m_WindowWidth;
         uint32_t                    m_WindowHeight;
         uint32_t                    m_Dpi;
         int32_t                     m_ScissorRect[4];
-        uint32_t                    m_TextureFormatSupport;
         uint32_t                    m_WindowOpened : 1;
         // Only use for testing
         uint32_t                    m_RequestWindowClose : 1;

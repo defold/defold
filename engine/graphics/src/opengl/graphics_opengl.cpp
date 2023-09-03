@@ -402,14 +402,16 @@ static void LogFrameBufferError(GLenum status)
         m_RenderDocSupport        = params.m_RenderDocSupport;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+
         // Formats supported on all platforms
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-        m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_LUMINANCE);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_LUMINANCE_ALPHA);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGB);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGBA);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGB_16BPP);
+        AddTextureFormatSupport(m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_16BPP);
+
+        AddIndexBufferSupport(m_IndexBufferFormatSupport, INDEXBUFFER_FORMAT_16);
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -1111,27 +1113,27 @@ static void LogFrameBufferError(GLenum status)
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
         }
 
         if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_etc1"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGB_ETC1);
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_s3tc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1; // DXT1
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGB_BC1); // DXT1
             // We'll use BC3 for this
-            //context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC2; // DXT3
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3; // DXT5
+            // AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_BC2); // DXT3
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_BC3); // DXT5
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
@@ -1139,8 +1141,8 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(context, "EXT_texture_compression_rgtc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_R_BC4);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RG_BC5);
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_bptc.txt
@@ -1148,13 +1150,13 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "GL_EXT_texture_compression_bptc") ||
             OpenGLIsExtensionSupported(context, "EXT_texture_compression_bptc") )
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_BC7);
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
         if (OpenGLIsExtensionSupported(context, "GL_ARB_ES3_compatibility"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_ETC2);
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
@@ -1163,24 +1165,24 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "OES_texture_compression_astc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA_ASTC_4x4);
         }
 
         // Check if we're using a recent enough OpenGL version
         if (context->m_IsGles3Version)
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGB16F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGB32F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA16F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RGBA32F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_R16F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RG16F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_R32F);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_RG32F);
 
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH16;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH24;
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH32F;
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_DEPTH16);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_DEPTH24);
+            AddTextureFormatSupport(context->m_TextureFormatSupport, TEXTURE_FORMAT_DEPTH32F);
         }
 
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
@@ -1194,10 +1196,10 @@ static void LogFrameBufferError(GLenum status)
             {
                 switch (pCompressedFormats[i])
                 {
-                    #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
+                    #define CASE(_NAME1,_NAME2) case _NAME1 : AddTextureFormatSupport(context->m_TextureFormatSupport, _NAME2); break;
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC,    TEXTURE_FORMAT_RGBA_ETC2);
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC,           TEXTURE_FORMAT_R_ETC2);
+                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC,          TEXTURE_FORMAT_RG_ETC2);
                     CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, TEXTURE_FORMAT_RGBA_ASTC_4x4);
                     #undef CASE
                 default: break;
@@ -1261,7 +1263,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            AddTextureFormatSupport(context->m_TextureFormatSupport,  TEXTURE_FORMAT_RGB_ETC1);
         }
 
         if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_filter_anisotropic"))
@@ -1285,7 +1287,7 @@ static void LogFrameBufferError(GLenum status)
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
-            context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+            AddIndexBufferSupport(context->m_IndexBufferFormatSupport, INDEXBUFFER_FORMAT_32);
         }
 
     #if !defined(__EMSCRIPTEN__)
@@ -1298,7 +1300,7 @@ static void LogFrameBufferError(GLenum status)
         }
     #endif
 #else
-        context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+        AddIndexBufferSupport(context->m_IndexBufferFormatSupport, INDEXBUFFER_FORMAT_32);
 
         glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
         CLEAR_GL_ERROR;

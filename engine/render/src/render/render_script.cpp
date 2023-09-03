@@ -760,7 +760,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    static bool IsDepthFormat(dmGraphics::TextureFormat format)
+    static inline bool IsDepthFormat(dmGraphics::TextureFormat format)
     {
         return format == dmGraphics::TEXTURE_FORMAT_DEPTH   ||
                format == dmGraphics::TEXTURE_FORMAT_DEPTH16 ||
@@ -837,6 +837,24 @@ namespace dmRender
      */
 
     /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_DEPTH16
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_DEPTH24
+     * @variable
+     */
+
+    /*#
+     * May be nil if the format isn't supported
+     * @name render.FORMAT_DEPTH32F
+     * @variable
+     */
+
+    /*#
      * @name render.FORMAT_STENCIL
      * @variable
      */
@@ -881,7 +899,7 @@ namespace dmRender
      *
      * Key                     | Values
      * ----------------------- | ----------------------------
-     * `format`                |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
+     * `format`                |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_DEPTH16`<br/>`render.FORMAT_DEPTH24`<br/>`render.FORMAT_DEPTH32F`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
      * `width`                 | number
      * `height`                | number
      * `min_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
