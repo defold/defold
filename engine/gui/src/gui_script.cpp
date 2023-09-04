@@ -3190,7 +3190,7 @@ namespace dmGui
      *
      * @name gui.move_above
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node above which the first node should be moved
+     * @param reference [type:node|nil] reference node above which the first node should be moved
      */
     static int LuaMoveAbove(lua_State* L)
     {
@@ -3213,7 +3213,7 @@ namespace dmGui
      *
      * @name gui.move_below
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node below which the first node should be moved
+     * @param reference [type:node|nil] reference node below which the first node should be moved
      */
     static int LuaMoveBelow(lua_State* L)
     {
@@ -3944,7 +3944,7 @@ namespace dmGui
      *
      * @name gui.get_flipbook_cursor
      * @param node [type:node] node to get the cursor for (node)
-     * @return cursor value [type:number] cursor value
+     * @return cursor [type:number] cursor value
      */
     static int LuaGetFlipbookCursor(lua_State* L)
     {

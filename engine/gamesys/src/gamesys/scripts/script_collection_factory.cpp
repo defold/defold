@@ -156,7 +156,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.load
      * @param [url] [type:string|hash|url] the collection factory component to load
-     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
