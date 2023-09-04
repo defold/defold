@@ -846,7 +846,7 @@ namespace dmGameSystem
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             MeshRenderItem* render_item = (MeshRenderItem*)entry->m_UserData;
 
-            bool intersect = dmIntersection::TestFrustumOBB(frustum, render_item->m_World, render_item->m_AabbMin, render_item->m_AabbMax, true);
+            bool intersect = dmIntersection::TestFrustumOBB(frustum, render_item->m_World, render_item->m_AabbMin, render_item->m_AabbMax, false);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
