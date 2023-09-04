@@ -411,7 +411,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.set_prototype
      * @param [url] [type:string|hash|url] the collection factory component
-     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     * @param [prototype] [type:string|nil] the path to the new prototype, or `nil`
      *
      * @note
      *   - Requires the factory to have the "Dynamic Prototype" set

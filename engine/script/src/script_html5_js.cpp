@@ -129,7 +129,7 @@ namespace dmScript
      * or start playing sounds the first time the callback is invoked.
      *
      * @name html5.set_interaction_listener
-     * @param callback [type:function(self)] The interaction callback. Pass an empty function or nil if you no longer wish to receive callbacks.
+     * @param callback [type:function(self)|nil] The interaction callback. Pass an empty function or `nil` if you no longer wish to receive callbacks.
      *
      * `self`
      * : [type:object] The calling script
