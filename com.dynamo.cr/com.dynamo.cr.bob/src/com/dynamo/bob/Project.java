@@ -1309,7 +1309,7 @@ public class Project {
 
         // Generate and save build report
         TimeProfiler.start("Generating build size report");
-        if (generateReport) {
+        if (generateReport && !anyFailing(result)) {
             mrep = monitor.subProgress(1);
             mrep.beginTask("Generating report...", 1);
             ReportGenerator rg = new ReportGenerator(this);
