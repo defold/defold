@@ -1394,7 +1394,7 @@ namespace dmGameObject
      *
      * @name go.get_parent
      * @param [id] [type:string|hash|url] optional id of the game object instance to get parent for, defaults to the instance containing the calling script
-     * @return parent_id [type:hash] parent instance or nil
+     * @return parent_id [type:hash|nil] parent instance or `nil`
      * @examples
      *
      * Get parent of the instance containing the calling script:
@@ -2951,7 +2951,7 @@ bail:
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * This example demonstrates how a game object instance can be moved as a response to user input.

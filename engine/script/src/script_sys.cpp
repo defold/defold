@@ -570,7 +570,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil plus the error message.
+     * If loading fails, the function returns `nil` plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -582,8 +582,8 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
-     * @return error [type:string] the error message, or `nil` if no error occurred
+     * @return data [type:string|nil] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string|nil] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
