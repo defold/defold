@@ -327,7 +327,8 @@ def gen_struct(decl, namespace):
 
                 l(f"        public {jni_type}[] {jni_field_name};")
 
-        # elif util.is_func_ptr(field_type):
+        elif util.is_func_ptr(field_type):
+            print(f"Function pointers aren't yet supported. Skipping {struct_name}.{field_name}")
         #     l(f"        public {jni_field_name}: ?*const fn ({funcptr_args_c(field_type, prefix)}) callconv(.C) {funcptr_result_c(field_type)} = null,")
         # elif util.is_1d_array_type(field_type):
         #     array_type = util.extract_array_type(field_type)

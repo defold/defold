@@ -54,9 +54,13 @@ static int (*g_UserCallback)(int, void*) = 0;
 // Helpers
 jclass GetClass(JNIEnv* env, const char* basecls, const char* clsname)
 {
-    char buffer[128];
-    dmSnPrintf(buffer, sizeof(buffer), "%s$%s", basecls, clsname);
-    return env->FindClass(buffer);
+    if (clsname)
+    {
+        char buffer[128];
+        dmSnPrintf(buffer, sizeof(buffer), "%s$%s", basecls, clsname);
+        return env->FindClass(buffer);
+    }
+    return env->FindClass(basecls);
 }
 
 jclass GetFieldType(JNIEnv* env, jobject obj, jfieldID fieldID)
