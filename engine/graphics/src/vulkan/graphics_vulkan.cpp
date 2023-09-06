@@ -1751,7 +1751,6 @@ bail:
         Program* program_ptr        = (Program*) program;
         ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        context->m_MainVertexDeclaration = {0};
         VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration, vertex_buffer);
 
         // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
@@ -1759,8 +1758,10 @@ bail:
         //     the MVK driver will complain that we haven't defined all bindings in the shader.
         //     This means that we might get side-effects since we are basically binding the first data buffer
         //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
+        context->m_MainVertexDeclaration = {0};
         context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_InputCount;
         context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration.m_Hash        = vertex_declaration->m_Hash;
 
         for (uint32_t i = 0; i < vertex_shader->m_InputCount; i++)
         {
