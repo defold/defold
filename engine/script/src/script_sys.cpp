@@ -113,7 +113,7 @@ union SaveLoadBuffer
      * ```
      */
 
-    int Sys_Save(lua_State* L)
+    static int Sys_Save(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
 
@@ -212,7 +212,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_Load(lua_State* L)
+    static int Sys_Load(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
@@ -241,6 +241,32 @@ union SaveLoadBuffer
         }
         PushTable(L, buffer, nread);
         Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
+    }
+
+    /*# check if a path exists
+     * Check if a path exists
+     * Good for checking if a file exists before loading a large file
+     *
+     * @name sys.exists
+     * @param path [type:string] path to check
+     * @return result [type:bool] `true` if the path exists, `false` otherwise
+     * @examples
+     *
+     * Load data but return nil if path didn't exist
+     *
+     * ```lua
+     * if not sys.exists(path) then
+     *     return nil
+     * end
+     * return sys.load(path) -- returns {} if it failed
+     * ```
+     */
+    static int Sys_Exists(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        bool result = dmSys::Exists(path);
+        lua_pushboolean(L, result);
         return 1;
     }
 
@@ -295,7 +321,7 @@ union SaveLoadBuffer
      * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
      * ```
      */
-    int Sys_GetSaveFile(lua_State* L)
+    static int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);
 
@@ -352,7 +378,7 @@ union SaveLoadBuffer
      * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
-    int Sys_GetApplicationPath(lua_State* L)
+    static int Sys_GetApplicationPath(lua_State* L)
     {
         char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
         dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
@@ -538,7 +564,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_OpenURL(lua_State* L)
+    static int Sys_OpenURL(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1)
         int top = lua_gettop(L);
@@ -598,7 +624,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_LoadResource(lua_State* L)
+    static int Sys_LoadResource(lua_State* L)
     {
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
@@ -764,7 +790,7 @@ union SaveLoadBuffer
      * gui.set_text(gui.get_node("version"), version_str)
      * ```
      */
-    int Sys_GetEngineInfo(lua_State* L)
+    static int Sys_GetEngineInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -833,7 +859,7 @@ union SaveLoadBuffer
      * ...
      * ```
      */
-    int Sys_GetApplicationInfo(lua_State* L)
+    static int Sys_GetApplicationInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -896,7 +922,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetIfaddrs(lua_State* L)
+    static int Sys_GetIfaddrs(lua_State* L)
     {
         int top = lua_gettop(L);
         const uint32_t max_count = 16;
@@ -1018,7 +1044,7 @@ union SaveLoadBuffer
      *end
      * ```
      */
-    int Sys_SetErrorHandler(lua_State* L)
+    static int Sys_SetErrorHandler(lua_State* L)
     {
         int top = lua_gettop(L);
         luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -1379,6 +1405,7 @@ union SaveLoadBuffer
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
+        {"exists", Sys_Exists},
         {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfigString}, // deprecated
