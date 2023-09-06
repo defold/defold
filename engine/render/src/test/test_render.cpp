@@ -500,7 +500,7 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
     {
         dmRender::RenderListEntry* entry = &params.m_Entries[i];
-        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition, true);
+        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition);
         entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
     }
 }
@@ -571,7 +571,17 @@ TEST_F(dmRenderTest, TestRenderListCulling)
         dmRender::RenderListSubmit(m_Context, out, out + n);
         dmRender::RenderListEnd(m_Context);
 
-        dmRender::DrawRenderList(m_Context, 0, 0, frustum_matrices[c]);
+        if (frustum_matrices[c])
+        {
+            dmRender::FrustumOptions frustum_options;
+            frustum_options.m_Matrix = *frustum_matrices[c];
+            frustum_options.m_SkipNearFarPlanes = true;
+            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
+        }
+        else
+        {
+            dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        }
 
         ASSERT_EQ(ctx.m_BeginCalls, 2);
         ASSERT_GT(ctx.m_BatchCalls, 2);

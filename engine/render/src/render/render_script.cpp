@@ -1762,7 +1762,10 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     *
+     * `frustum_skip_near_far`
+     * : [type:bool] Determines if frustum culling will use near and far planes of the frustum planes. default=true
      *
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
@@ -1812,6 +1815,7 @@ namespace dmRender
         }
 
         dmVMath::Matrix4* frustum_matrix = 0;
+        bool frustum_skip_near_far = true;
         HNamedConstantBuffer constant_buffer = 0;
 
         if (lua_istable(L, 2))
@@ -1821,6 +1825,10 @@ namespace dmRender
 
             lua_getfield(L, -1, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frustum_skip_near_far");
+            frustum_skip_near_far = lua_isnil(L, -1) ? 0 : dmScript::CheckBoolean(L, -1);
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "constants");
@@ -1836,15 +1844,16 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_SkipNearFarPlanes = frustum_skip_near_far;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1857,6 +1866,9 @@ namespace dmRender
      *
      * `frustum`
      * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `frustum_skip_near_far`
+     * : [type:bool] Determines if frustum culling will use near and far planes of the frustum planes. default=true
      *
      * @replaces render.draw_debug2d
      * @examples
@@ -1872,6 +1884,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
+        bool frustum_skip_near_far = true;
 
         if (lua_istable(L, 1))
         {
@@ -1882,18 +1895,23 @@ namespace dmRender
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "frustum_skip_near_far");
+            frustum_skip_near_far = lua_isnil(L, -1) ? 0 : dmScript::CheckBoolean(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_SkipNearFarPlanes = frustum_skip_near_far;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());

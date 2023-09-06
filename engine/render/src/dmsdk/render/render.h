@@ -275,6 +275,19 @@ namespace dmRender
     };
 
     /*#
+     * Frustum options used when setting up a draw call
+     * @struct
+     * @name FrustumOptions
+     * @member m_FrustumMatrix [type: matrix4] the frustum matrix
+     * @member m_SkipNearFarPlanes [type: bool] should the frustum culling use the near and far planes
+     */
+    struct FrustumOptions
+    {
+        dmVMath::Matrix4 m_Matrix;
+        bool             m_SkipNearFarPlanes;
+    };
+
+    /*#
      * Visibility dispatch function callback.
      * @struct
      * @name RenderListVisibilityParams
