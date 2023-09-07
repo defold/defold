@@ -57,7 +57,6 @@ namespace dmParticle
     /// Simulate motion blur at 60 fps with a 180 deg shutter
     const static float STRETCH_SCALING = (1.0f/60.0f) * 0.5f;
 
-    // JG: Would be nice to share these somewhere more locally, like a constant hash directory in dlib or something..
     static const dmhash_t VERTEX_STREAM_COLOR = dmHashString64("color");
 
     AnimationData::AnimationData()
@@ -1075,14 +1074,7 @@ namespace dmParticle
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
                 {
-                    if (info.m_NameHash == VERTEX_STREAM_COLOR)
-                    {
-                        memcpy(write_ptr, &color, info.m_ValueByteSize);
-                    }
-                    else
-                    {
-                        memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                    }
+                    memcpy(write_ptr, &color, info.m_ValueByteSize);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
                 {
