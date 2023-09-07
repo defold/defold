@@ -103,7 +103,9 @@
 ;;; Extension discovery/processing
 
 (def ^:private extender-platforms
-  {(.getPair Platform/X86_64MacOS)  {:platform      "x86_64-osx"
+  {(.getPair Platform/Arm64MacOS)   {:platform      "arm64-osx"
+                                     :library-paths #{"osx" "arm64-osx"}}
+   (.getPair Platform/X86_64MacOS)  {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
    (.getPair Platform/Arm64Ios)     {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
@@ -320,6 +322,7 @@
 
 (defn- get-ne-platform [platform]
   (case platform
+    "arm64-macos" "arm64-osx"
     "x86_64-macos" "x86_64-osx"
     platform))
 
@@ -329,6 +332,7 @@
      "arm64-android" ["android" "manifest"]
      "arm64-ios"     ["ios" "infoplist"]
      "armv7-ios"     ["ios" "infoplist"]
+     "arm64-osx"     ["osx" "infoplist"]
      "x86_64-osx"    ["osx" "infoplist"]
      "js-web"        ["html5" "htmlfile"]
      "wasm-web"      ["html5" "htmlfile"]))
@@ -339,6 +343,7 @@
     "arm64-android" "AndroidManifest.xml"
     "arm64-ios"     "Info.plist"
     "armv7-ios"     "Info.plist"
+    "arm64-osx"     "Info.plist"
     "x86_64-osx"    "Info.plist"
     "js-web"        "engine_template.html"
     "wasm-web"      "engine_template.html"

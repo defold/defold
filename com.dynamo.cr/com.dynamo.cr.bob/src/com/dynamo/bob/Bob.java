@@ -461,7 +461,7 @@ public class Bob {
         addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
         addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
-        addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
+        addOption(options, null, "exclude-build-folder", true, "DEPRECATED! Use '.defignore' file instead", true);
 
         addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
         addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
@@ -662,6 +662,11 @@ public class Bob {
             System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
             System.exit(1);
             return;
+        }
+
+        if (cmd.hasOption("exclude-build-folder")) {
+            // Deprecated in 1.5.1. Just a message for now.
+            System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
         }
 
         String[] commands = cmd.getArgs();

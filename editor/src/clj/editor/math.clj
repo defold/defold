@@ -28,6 +28,9 @@
 (def ^:const recip-180 (/ 1.0 180.0))
 (def ^:const recip-pi (/ 1.0 Math/PI))
 
+(def ^:const precision-general 0.000001)
+(def ^:const precision-coarse 0.001)
+
 (defn deg->rad
   ^double [^double deg]
   (* deg Math/PI recip-180))
