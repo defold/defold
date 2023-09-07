@@ -1273,7 +1273,7 @@ class Configuration(object):
             args = [ant, 'test-clean', 'test'] + ant_args
             run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
-    def build_sdk_headers_package(self):
+    def build_sdk_headers(self):
         # Used to provide a small sized bundle with the headers for any C++ auto completion tools
 
         # Step 1: Generate the package
