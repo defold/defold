@@ -22,9 +22,13 @@ namespace dmSpinlock
 {
     typedef uint32_t Spinlock;
 
-    static inline void Init(Spinlock* lock)
+    static inline void Create(Spinlock* lock)
     {
         *lock = 0;
+    }
+
+    static inline void Destroy(Spinlock* lock)
+    {
     }
 
     static inline void Lock(Spinlock* lock)
