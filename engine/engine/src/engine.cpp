@@ -1220,7 +1220,6 @@ namespace dmEngine
         }
 #endif
 
-        dmGui::SetDefaultFont(engine->m_GuiContext, engine->m_SystemFontMap);
         dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
@@ -1634,8 +1633,9 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
+#if !defined(DM_RELEASE)
             dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
-
+#endif
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
             // in case any extension wants to render just before the Flip().
@@ -1921,7 +1921,7 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         dmResource::Result fact_error;
-
+#if !defined(DM_RELEASE)
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
@@ -1930,7 +1930,7 @@ bail:
             return false;
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
-
+#endif
         // The system font is currently the only resource we need from the connection app
         // After this point, the rest of the resources should be loaded the ordinary way
         if (!engine->m_ConnectionAppMode)
