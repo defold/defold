@@ -502,7 +502,7 @@ public class Bob {
 
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
-        addOption(options, null, "debug-output-spirv", false, "Force build SPIR-V shaders", false);
+        addOption(options, null, "debug-output-spirv", true, "Force build SPIR-V shaders", false);
 
         return options;
     }
@@ -556,8 +556,8 @@ public class Bob {
     }
 
     private static boolean getSpirvRequired(Project project) throws IOException, CompileExceptionError {
-        IResource appManifestResource = project.getPropertyResource("native_extension", "app_manifest");
-        if (appManifestResource != null) {
+        IResource appManifestResource = project.getResource("native_extension", "app_manifest", false);
+        if (appManifestResource != null && appManifestResource.exists()) {
             Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
             Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
 
@@ -877,9 +877,13 @@ public class Bob {
         }
 
         // Build spir-v either if:
-        //   1. project has app manifest with vulkan enabled
-        //   2. bob was invoked with --debug-output-spirv
-        project.setOption("output-spirv", (getSpirvRequired(project) || project.hasOption("debug-output-spirv")) ? "true" : "false");
+        //   1. If the user has specified explicitly to build or not to build with spir-v
+        //   2. The project has an app manifest with vulkan enabled
+        if (project.hasOption("debug-output-spirv")) {
+            project.setOption("output-spirv", project.option("debug-output-spirv", "false"));
+        } else {
+            project.setOption("output-spirv", getSpirvRequired(project) ? "true" : "false");
+        }
 
         boolean ret = true;
         StringBuilder errors = new StringBuilder();

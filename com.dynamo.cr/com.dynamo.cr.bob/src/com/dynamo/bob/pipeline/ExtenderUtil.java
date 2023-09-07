@@ -531,12 +531,22 @@ public class ExtenderUtil {
         return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
+    private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {
+        IResource resource = project.getResource(section, key, false);
+        if (resource != null && !resource.exists()) {
+            IResource projectResource = project.getGameProjectResource();
+            String path               = project.getProjectProperties().getStringValue(section, key);
+            throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
+        }
+        return resource;
+    }
+
     /**
      * Get a list of all extension sources and libraries from a project for a specific platform.
      * @param project
      * @return A list of ExtenderResource that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError, IOException {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -545,14 +555,16 @@ public class ExtenderUtil {
 
         // Find app manifest if there is one
         {
-            IResource resource = project.getPropertyResource("native_extension", "app_manifest");
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
             if (resource == null) {
                  resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
             }
+
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
         }
+        // Find a Proguard file if specified
         {
-            IResource resource = project.getPropertyResource("android", "proguard");
+            IResource resource = getProjectResource(project, "android", "proguard");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
             }
