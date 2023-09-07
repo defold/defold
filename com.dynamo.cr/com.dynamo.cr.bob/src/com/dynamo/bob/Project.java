@@ -1378,7 +1378,7 @@ public class Project {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
-        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
+        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_buildState_"));
         state = State.load(stateResource);
 
         List<TaskResult> result = new ArrayList<TaskResult>();
