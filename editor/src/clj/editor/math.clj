@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.math
+  (:require [util.coll :as coll])
   (:import [java.lang Math]
            [java.math RoundingMode]
            [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple2d Tuple3d Tuple4d]))
@@ -35,6 +36,9 @@
 (def ^Vector3d one-v3 (Vector3d. 1.0 1.0 1.0))
 (def ^Quat4d identity-quat (Quat4d. 0.0 0.0 0.0 1.0))
 (def ^Matrix4d identity-mat4 (doto (Matrix4d.) (.setIdentity)))
+
+(definline float32? [value]
+  `(instance? Float ~value))
 
 (defn deg->rad
   ^double [^double deg]
@@ -399,24 +403,42 @@
 
 (defprotocol VecmathConverter
   (clj->vecmath [this v])
-  (vecmath->clj [this]))
+  (vecmath->clj [this])
+  (vecmath-into-clj [this dest]))
 
 (extend-protocol VecmathConverter
   Tuple2d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1)))
   (vecmath->clj [this] [(.getX this) (.getY this)])
+  (vecmath-into-clj [this dest] (-> dest (conj (.getX this)) (conj (.getY this))))
   Tuple3d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2)))
   (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this)])
+  (vecmath-into-clj [this dest] (-> dest (conj (.getX this)) (conj (.getY this)) (conj (.getZ this))))
   Tuple4d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2) (nth v 3)))
   (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this) (.getW this)])
+  (vecmath-into-clj [this dest] (-> dest (conj (.getX this)) (conj (.getY this)) (conj (.getZ this)) (conj (.getW this))))
   Matrix4d
   (clj->vecmath [this v] (.set this (double-array v)))
   (vecmath->clj [this] [(.m00 this) (.m01 this) (.m02 this) (.m03 this)
                         (.m10 this) (.m11 this) (.m12 this) (.m13 this)
                         (.m20 this) (.m21 this) (.m22 this) (.m23 this)
-                        (.m30 this) (.m31 this) (.m32 this) (.m33 this)]))
+                        (.m30 this) (.m31 this) (.m32 this) (.m33 this)])
+  (vecmath-into-clj [this dest]
+    (if (coll/supports-transient? dest)
+      (-> (transient dest)
+          (conj! (.m00 this)) (conj! (.m01 this)) (conj! (.m02 this)) (conj! (.m03 this))
+          (conj! (.m10 this)) (conj! (.m11 this)) (conj! (.m12 this)) (conj! (.m13 this))
+          (conj! (.m20 this)) (conj! (.m21 this)) (conj! (.m22 this)) (conj! (.m23 this))
+          (conj! (.m30 this)) (conj! (.m31 this)) (conj! (.m32 this)) (conj! (.m33 this))
+          (persistent!)
+          (with-meta (meta dest)))
+      (-> dest
+          (conj (.m00 this)) (conj (.m01 this)) (conj (.m02 this)) (conj (.m03 this))
+          (conj (.m10 this)) (conj (.m11 this)) (conj (.m12 this)) (conj (.m13 this))
+          (conj (.m20 this)) (conj (.m21 this)) (conj (.m22 this)) (conj (.m23 this))
+          (conj (.m30 this)) (conj (.m31 this)) (conj (.m32 this)) (conj (.m33 this))))))
 
 (defn clj->mat4
   ^Matrix4d [position rotation scale]

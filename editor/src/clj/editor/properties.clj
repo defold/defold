@@ -571,11 +571,14 @@
                (:node-ids property)
                (:prop-kws property)))))))
 
-(defn round-scalar [n]
-  (math/round-with-precision n math/precision-general))
+(definline round-scalar [n]
+  `(math/round-with-precision ~n math/precision-general))
 
-(defn round-scalar-coarse [n]
-  (math/round-with-precision n math/precision-coarse))
+(definline round-scalar-coarse [n]
+  `(math/round-with-precision ~n math/precision-coarse))
+
+(definline round-scalar-coarse-float [n]
+  `(float (round-scalar-coarse ~n)))
 
 (defn round-vec [v]
   (mapv round-scalar v))
@@ -597,6 +600,7 @@
 (def ->pb-choicebox (memoize ->pb-choicebox-raw))
 
 ;; SDK api
+;; TODO(save-value): Add test case for this to float-properties-test.
 (defn vec3->vec2 [default-z]
   {:type t/Vec2
    :from-type (fn [[x y _]] [x y])
@@ -605,8 +609,20 @@
 ;; SDK api
 (defn quat->euler []
   {:type t/Vec3
-   :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
-   :to-type (fn [v] (round-vec-coarse (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+   :from-type (fn [euler]
+                (let [quat (math/euler->quat euler)]
+                  (if-not (math/float32? (first euler))
+                    (math/vecmath-into-clj quat (empty euler))
+                    (into (empty euler)
+                          (map float)
+                          (math/vecmath->clj quat)))))
+   :to-type (fn [clj-quat]
+              (let [euler (math/clj-quat->euler clj-quat)]
+                (into (empty clj-quat)
+                      (map (if (math/float32? (first clj-quat))
+                             round-scalar-coarse-float
+                             round-scalar-coarse))
+                      euler)))})
 
 (def quat-rotation-edit-type (quat->euler))
 

@@ -66,6 +66,12 @@
 (defonce ^:private positive-infinity-string (Float/toString Float/POSITIVE_INFINITY))
 (defonce ^:private negative-infinity-string (Float/toString Float/NEGATIVE_INFINITY))
 
+(defn to-float [s]
+  (try
+    (evaluate-expression #(Float/parseFloat %) math/precision-general s)
+    (catch Throwable _
+      nil)))
+
 (defn- format-float
   ^String [n]
   ;; NOTE: The NaN and Infinity tests are also true for Double NaN and Infinity values.

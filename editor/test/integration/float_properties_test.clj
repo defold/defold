@@ -46,8 +46,8 @@
    :rotation (float-vec 0.1 0.2 0.3 1.0)
    :slider (float 0.1)
    :color (float-vec 0.1 0.2 0.3 0.4)
-   :curve (properties/->curve [(float-vec 0.0 0.1 1.0 0.2)])
-   :curve-spread (properties/->curve-spread [(float-vec 0.0 0.1 1.0 0.2)] (float 0.3))})
+   :curve (properties/->curve [(float-vec 0.0 0.1 1.0 0.0)])
+   :curve-spread (properties/->curve-spread [(float-vec 0.0 0.1 1.0 0.0)] (float 0.2))})
 
 (def ^:private generic-double-property-values
   {:num (double 0.1)
@@ -57,8 +57,8 @@
    :rotation (double-vec 0.1 0.2 0.3 1.0)
    :slider (double 0.1)
    :color (double-vec 0.1 0.2 0.3 0.4)
-   :curve (properties/->curve [(double-vec 0.0 0.1 1.0 0.2)])
-   :curve-spread (properties/->curve-spread [(double-vec 0.0 0.1 1.0 0.2)] (double 0.3))})
+   :curve (properties/->curve [(double-vec 0.0 0.1 1.0 0.0)])
+   :curve-spread (properties/->curve-spread [(double-vec 0.0 0.1 1.0 0.0)] (double 0.2))})
 
 (def ^:private specialized-float-property-values
   {:num (float 0.1)
@@ -68,8 +68,8 @@
    :rotation (vector-of :float 0.1 0.2 0.3 1.0)
    :slider (float 0.1)
    :color (vector-of :float 0.1 0.2 0.3 0.4)
-   :curve (properties/->curve [(vector-of :float 0.0 0.1 1.0 0.2)])
-   :curve-spread (properties/->curve-spread [(vector-of :float 0.0 0.1 1.0 0.2)] (float 0.3))})
+   :curve (properties/->curve [(vector-of :float 0.0 0.1 1.0 0.0)])
+   :curve-spread (properties/->curve-spread [(vector-of :float 0.0 0.1 1.0 0.0)] (float 0.2))})
 
 (def ^:private specialized-double-property-values
   {:num (double 0.1)
@@ -79,8 +79,8 @@
    :rotation (vector-of :double 0.1 0.2 0.3 1.0)
    :slider (double 0.1)
    :color (vector-of :double 0.1 0.2 0.3 0.4)
-   :curve (properties/->curve [(vector-of :double 0.0 0.1 1.0 0.2)])
-   :curve-spread (properties/->curve-spread [(vector-of :double 0.0 0.1 1.0 0.2)] (double 0.3))})
+   :curve (properties/->curve [(vector-of :double 0.0 0.1 1.0 0.0)])
+   :curve-spread (properties/->curve-spread [(vector-of :double 0.0 0.1 1.0 0.0)] (double 0.2))})
 
 (defn- property-widget-controls [^Parent parent]
   (->> parent
@@ -122,17 +122,16 @@
     widget))
 
 (defn- type-preserving? [a b]
-  (assert (or (float? a) (vector? a)))
-  (assert (or (float? b) (vector? b)))
+  (assert (or (number? a) (vector? a)))
+  (assert (or (number? b) (vector? b)))
   (and (is (= (type a) (type b)))
-       (or (float? a)
-           (and (is (= (count a) (count b)))
-                (is (identical? (meta a) (meta b)))
+       (or (number? a)
+           (and (is (identical? (meta a) (meta b)))
                 (or (not (instance? Vec a))
                     (is (= (type (.am ^Vec a))
                            (type (.am ^Vec b)))))
-                (is (every? true?
-                            (map type-preserving? a b)))))))
+                (is (every? true? (map type-preserving? a (cycle b))))
+                (is (every? true? (map type-preserving? b (cycle a))))))))
 
 (deftest type-preserving?-test
   (let [type-preserving? ; Silence inner assertions since we'll be triggering failures.
@@ -163,10 +162,16 @@
     (is (false? (type-preserving? (vector-of :float 0.0) (vector-of :double 0.0))))
     (is (false? (type-preserving? (vector-of :double 0.0) (vector-of :float 0.0))))
 
-    (is (false? (type-preserving? [(float 0.0)] [(float 0.0) (float 0.0)])))
-    (is (false? (type-preserving? [(float 0.0) (float 0.0)] [(float 0.0)])))
-    (is (false? (type-preserving? [(double 0.0)] [(double 0.0) (double 0.0)])))
-    (is (false? (type-preserving? [(double 0.0) (double 0.0)] [(double 0.0)])))
+    (is (true? (type-preserving? [(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)])))
+    (is (true? (type-preserving? [(double 0.0) (float 0.0)] [(double 0.0) (float 0.0)])))
+    (is (false? (type-preserving? [(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)])))
+    (is (false? (type-preserving? [(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)])))
+
+    (is (true? (type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]])))
+    (is (true? (type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)]])))
+    (is (false? (type-preserving? [[(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)]])))
+    (is (false? (type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)]])))
+    (is (false? (type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)]])))
 
     (is (true? (type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] original-meta))))
     (is (false? (type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] altered-meta))))
