@@ -61,6 +61,10 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
+    static const dmhash_t VERTEX_STREAM_POSITION  = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0 = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_COLOR     = dmHashString64("color");
+
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
@@ -164,23 +168,17 @@ namespace dmGameSystem
         gui_world->m_Components.SetCapacity(comp_count);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
-
-        // JG: Can we move these to dlib? We hash these all the time and even store them in some modules, feels like wasted cycles..
-        dmhash_t attribute_hash_position  = dmHashString64("position");
-        dmhash_t attribute_hash_texcoord0 = dmHashString64("texcoord0");
-        dmhash_t attribute_hash_color     = dmHashString64("color");
-
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, attribute_hash_position,  3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, attribute_hash_texcoord0, 2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, attribute_hash_color,     4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_POSITION,  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_TEXCOORD0, 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_COLOR,     4, dmGraphics::TYPE_FLOAT, true);
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], attribute_hash_position,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, 3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], attribute_hash_texcoord0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, 2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], attribute_hash_color,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    4);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], VERTEX_STREAM_POSITION,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, 3);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], VERTEX_STREAM_TEXCOORD0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, 2);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    4);
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 3;
@@ -1081,7 +1079,7 @@ namespace dmGameSystem
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_PARTICLEFX);
 
-        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, sizeof(ParticleGuiVertex)) - gui_world->m_RenderedParticlesSize;
+        uint32_t vb_max_size = dmParticle::GetVertexBufferSize(gui_world->m_MaxParticleCount, sizeof(ParticleGuiVertex)) - gui_world->m_RenderedParticlesSize;
         uint32_t total_vertex_count = 0;
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);

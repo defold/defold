@@ -13,23 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.particle-lib
-  (:require [dynamo.graph :as g]
-            [editor.buffers :as buffers]
+  (:require [editor.buffers :as buffers]
             [editor.graphics :as graphics]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
-  (:import [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.defold.libs ParticleLibrary ParticleLibrary$ParticleVertexAttributeInfos ParticleLibrary$ParticleVertexAttributeInfo ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$Quat
-                            ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback
-                            ParticleLibrary$FetchAnimationResult ParticleLibrary$AnimPlayback
-                            ParticleLibrary$Stats ParticleLibrary$InstanceStats
-                            ParticleLibrary$RenderInstanceCallback]
+  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$ParticleVertexAttributeInfo ParticleLibrary$ParticleVertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$SemanticType]
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.jogamp.common.nio Buffers]
            [com.sun.jna Pointer]
            [com.sun.jna.ptr IntByReference]
-           [com.jogamp.common.nio Buffers]
            [java.nio ByteBuffer]
-           [javax.vecmath Point3d Quat4d Vector3d Matrix4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -117,7 +113,7 @@
     {:context context
      :prototype prototype
      :instances instances
-     :raw-vbufs []
+     :raw-vbufs (vec (repeat max-emitter-count nil))
      :elapsed-time 0}))
 
 (defn destroy-sim [sim]
@@ -167,17 +163,17 @@
 
 (defn- semantic-type->int [semantic-type]
   (case semantic-type
-    :semantic-type-none 1
-    :semantic-type-position 2
-    :semantic-type-texcoord 3
-    :semantic-type-page-index 4
-    :semantic-type-color 5))
+    :semantic-type-none Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NONE_VALUE
+    :semantic-type-position Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_POSITION_VALUE
+    :semantic-type-texcoord Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_TEXCOORD_VALUE
+    :semantic-type-page-index Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_PAGE_INDEX_VALUE
+    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE))
 
 (defn- coordinate-space->int [coordinate-space]
   (case coordinate-space
-    :coordinate-space-world 1
-    :coordinate-space-local 2
-    2))
+    :coordinate-space-world Graphics$CoordinateSpace/COORDINATE_SPACE_WORLD_VALUE
+    :coordinate-space-local Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE
+    Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
 
 (defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
@@ -208,12 +204,12 @@
     (set! (. infos numInfos) (int num-attribute-infos))
     infos))
 
-(defn- get-emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
+(defn- emitter-vertex-data [sim emitter-index max-particle-count vertex-description]
   (or (get (:raw-vbufs sim) emitter-index)
       (make-raw-vbuf max-particle-count (:size vertex-description))))
 
 (defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description attribute-infos vertex-attribute-bytes]
-  (when-let [raw-vbuf ^ByteBuffer (get-emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
+  (when-let [raw-vbuf ^ByteBuffer (emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
     (let [context (:context sim)
           dt (:last-dt sim)
           out-size (IntByReference. 0)
@@ -260,4 +256,4 @@
     (doseq [instance (:instances sim)]
       (ParticleLibrary/Particle_ReloadInstance context instance true))
     (ParticleLibrary/Particle_SetContextMaxParticleCount context ^int max-particle-count))
-  (assoc sim :raw-vbufs []))
+  (assoc sim :raw-vbufs (vec (repeat (count (:emitters prototype-msg)) nil))))

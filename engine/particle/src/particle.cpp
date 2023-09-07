@@ -2138,11 +2138,6 @@ namespace dmParticle
         return particle_count * 6 * vertex_size;
     }
 
-    uint32_t GetMaxVertexBufferSize(HParticleContext context, uint32_t vertex_size)
-    {
-        return GetVertexBufferSize(context->m_MaxParticleCount, vertex_size);
-    }
-
     #define ATTRIBUTE_WRAPPER_SIZE (sizeof(float) * 16)
 
     // EDITOR ONLY
@@ -2172,8 +2167,12 @@ namespace dmParticle
 
         void* wrapper = AcquireAttributeDataPtr(context);
 
-        assert(byte_count < ATTRIBUTE_WRAPPER_SIZE);
-        memcpy(wrapper, bytes, byte_count);
+        if (byte_count >= ATTRIBUTE_WRAPPER_SIZE)
+        {
+            dmLogOnceError("Overflow when writing scratch buffer data for particles.");
+        }
+
+        memcpy(wrapper, bytes, dmMath::Min(byte_count, (uint32_t) ATTRIBUTE_WRAPPER_SIZE));
 
         return wrapper;
     }

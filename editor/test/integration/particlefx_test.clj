@@ -63,7 +63,7 @@
                                 (map graphics/attribute-key->default-attribute-info)
                                 [:position])
           vertex-description (graphics/make-vertex-description attribute-infos)
-          attribute-bytes (graphics/produce-attribute-bytes node-id attribute-infos {})]
+          attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos {})]
       (testing "Sim sleeping"
                (is (plib/sleeping? sim))
                (plib/simulate sim 1/60 fetch-anim-fn transforms)

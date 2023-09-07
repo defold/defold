@@ -551,14 +551,6 @@ namespace dmParticle
     DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count, uint32_t vertex_size);
 
     /**
-     * Get the required vertex buffer size for a context
-     * @param context Particle context
-     * @param vertex_size Size of the vertex in bytes
-     * @return Required vertex buffer size in bytes
-     */
-    DM_PARTICLE_PROTO(uint32_t, GetMaxVertexBufferSize, HParticleContext context, uint32_t vertex_size);
-
-    /**
      * Rehash all emitters on an instance
      * @param context Particle context
      * @param instance Instance containing the emitters to be rehashed

@@ -306,7 +306,7 @@
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            shader-bound-attributes (graphics/get-shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index])
+            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index])
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
             vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
@@ -439,7 +439,7 @@
                                             [:tile-set :material])]))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
-  (let [attribute-properties (graphics/produce-attribute-properties _node-id material-attribute-infos vertex-attribute-overrides)]
+  (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))
@@ -557,16 +557,17 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/produce-attribute-bytes _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
 
 (defn load-sprite [project self resource sprite]
   (let [image (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))
-        vertex-attribute-overrides (into {}
-                                         (map (fn [attribute]
-                                                [(graphics/attribute-name->key (:name attribute))
-                                                 (graphics/attribute->any-doubles attribute)]))
-                                         (:attributes sprite))]
+        vertex-attribute-overrides
+        (into {}
+              (map (fn [attribute]
+                     [(graphics/attribute-name->key (:name attribute))
+                      (graphics/attribute->any-doubles attribute)]))
+              (:attributes sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self :default-animation (:default-animation sprite))

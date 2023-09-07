@@ -398,17 +398,12 @@
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
-(defn- vset [v i value]
-  (let [c (count v)
-        v (if (<= c i) (into v (repeat (- i c) nil)) v)]
-    (assoc v i value)))
-
 (defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
     (let [user-data (:user-data renderable)
           {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
           shader (:shader emitter-sim-data)
-          shader-bound-attributes (graphics/get-shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
+          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
           vertex-description (graphics/make-vertex-description shader-bound-attributes)
           vertex-attribute-bytes (:vertex-attribute-bytes user-data)
           pfx-sim-request-id (some-> renderable :updatable :node-id)]
@@ -418,7 +413,13 @@
               raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
               context (:context pfx-sim)
               vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
-              all-raw-vbufs (vset (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
+              all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
+          ;; TODO: We have to update the "raw-vbufs" here because we will
+          ;;       at some point create the GPU vertex buffer from this call.
+          ;;       This is due to the fact that we don't know how big the vertex buffer
+          ;;       will be until we have a valid GL context: We don't have the correct information
+          ;;       until the shader has been compiled. In the future we could perhaps use the meta-data
+          ;;       we get from the SPIR-V toolchain to figure this out beforehand.
           (swap! pfx-sim-atom assoc :raw-vbufs all-raw-vbufs)
           (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
             (let [gpu-texture (:gpu-texture emitter-sim-data)
@@ -670,7 +671,7 @@
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
-  (let [attribute-properties (graphics/produce-attribute-properties _node-id material-attribute-infos vertex-attribute-overrides)]
+  (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))
@@ -832,7 +833,7 @@
                  :frame-indices frame-indices-buffer}))))
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/produce-attribute-bytes _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

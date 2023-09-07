@@ -111,7 +111,7 @@ namespace dmGameSystem
         // page_index : 1
         const uint32_t default_vx_size = sizeof(float) * (3 + 4 + 2 + 1);
         const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
-        world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6 * default_vx_size);
+        world->m_VertexBufferData.SetCapacity(buffer_size);
 
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_WarnOutOfROs = 0;

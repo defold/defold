@@ -246,7 +246,7 @@
           :data-type :type-float
           :element-count 1}]))
 
-(defn get-shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys]
+(defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys]
   (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
         declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
         manufactured-attribute-infos (into []
@@ -332,7 +332,7 @@
             (= attribute-semantic-type :semantic-type-color)
             (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
 
-(defn produce-attribute-properties [_node-id material-attribute-infos vertex-attribute-overrides]
+(defn attribute-properties-by-property-key [_node-id material-attribute-infos vertex-attribute-overrides]
   (keep (fn [attribute-info]
           (when (editable-attribute-info? attribute-info)
             (let [attribute-key (:name-key attribute-info)
@@ -362,7 +362,7 @@
                 [property-key prop]))))
         material-attribute-infos))
 
-(defn produce-attribute-bytes [_node-id material-attribute-infos vertex-attribute-overrides]
+(defn attribute-bytes-by-attribute-key [_node-id material-attribute-infos vertex-attribute-overrides]
   (let [vertex-attribute-bytes
         (into {}
               (map (fn [{:keys [name-key] :as attribute-info}]
