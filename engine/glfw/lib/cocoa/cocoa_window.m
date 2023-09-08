@@ -934,6 +934,8 @@ void _glfwPlatformCloseWindow( void )
     [_glfwWin.window close];
     _glfwWin.window = nil;
 
+    _glfwLibrary.Unbundled = 0;
+
     // TODO: Probably more cleanup
 }
 
