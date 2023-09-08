@@ -575,7 +575,7 @@ TEST_F(dmRenderTest, TestRenderListCulling)
         {
             dmRender::FrustumOptions frustum_options;
             frustum_options.m_Matrix = *frustum_matrices[c];
-            frustum_options.m_SkipNearFarPlanes = true;
+            frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
             dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
         }
         else

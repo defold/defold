@@ -48,7 +48,7 @@ TEST(dmVMath, CreateFrustum)
     dmVMath::Matrix4 view_proj = proj * view;
 
     dmIntersection::Frustum frustum;
-    dmIntersection::CreateFrustumFromMatrix(view_proj, true, false, frustum);
+    dmIntersection::CreateFrustumFromMatrix(view_proj, true, 6, frustum);
 
     float px = FRUSTUM_WIDTH / 2.0f;
     float py = FRUSTUM_HEIGHT / 2.0f;
@@ -80,7 +80,7 @@ TEST(dmVMath, TestFrustumSphere)
     dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, FRUSTUM_WIDTH, 0.0f, FRUSTUM_HEIGHT, FRUSTUM_NEAR, FRUSTUM_FAR);
 
     dmIntersection::Frustum frustum;
-    dmIntersection::CreateFrustumFromMatrix(proj, true, false, frustum);
+    dmIntersection::CreateFrustumFromMatrix(proj, true, 6, frustum);
 
     const float RADIUS = 10.0f;
     float px = FRUSTUM_WIDTH / 2.0f;
@@ -115,7 +115,7 @@ TEST(dmVMath, TestFrustumSphere)
     ASSERT_FALSE( dmIntersection::TestFrustumSphere(frustum, dmVMath::Point3(px, py, -1000.0f), RADIUS) );
     ASSERT_FALSE( dmIntersection::TestFrustumSphere(frustum, dmVMath::Point3(px, py,  1000.0f), RADIUS) );
 
-    dmIntersection::CreateFrustumFromMatrix(proj, true, true, frustum);
+    dmIntersection::CreateFrustumFromMatrix(proj, true, 4, frustum);
     ASSERT_TRUE( dmIntersection::TestFrustumSphere(frustum, dmVMath::Point3(px, py, -1000.0f), RADIUS) );
     ASSERT_TRUE( dmIntersection::TestFrustumSphere(frustum, dmVMath::Point3(px, py,  1000.0f), RADIUS) );
 }
@@ -126,7 +126,7 @@ TEST(dmVMath, TestFrustumOBB)
 
     // frustum lies on positive X axis from 0 to FRUSTUM_WIDTH, on Y from 0 to FRUSTUM_HEIGHT and on Z from -FRUSTUM_NEAR to -FRUSTUM_FAR
     dmIntersection::Frustum frustum;
-    dmIntersection::CreateFrustumFromMatrix(proj, true, false, frustum);
+    dmIntersection::CreateFrustumFromMatrix(proj, true, 6, frustum);
 
     float BOX_SIDE = 1;
     dmVMath::Vector3 minPoint(0,0,0);
@@ -189,7 +189,7 @@ TEST(dmVMath, TestFrustumOBBPerspective)
     dmVMath::Matrix4 view_proj = proj * view;
 
     dmIntersection::Frustum frustum;
-    dmIntersection::CreateFrustumFromMatrix(view_proj, true, false, frustum);
+    dmIntersection::CreateFrustumFromMatrix(view_proj, true, 6, frustum);
 
     dmVMath::Matrix4 world;
     dmVMath::Vector3 minPoint(0, 0, 0);
@@ -231,8 +231,8 @@ TEST(dmVMath, TestFrustumOBBPerspective)
     world = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, -PER_FRUSTUM_NEAR -PER_FRUSTUM_DEPTH -BOX_SIDE + 0.1f));
     ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, world, minPoint, maxPoint));
 
-    // front and back plane should be ingored with skip_near_far = true
-    dmIntersection::CreateFrustumFromMatrix(view_proj, true, true, frustum);
+    // front and back plane should be ignored
+    dmIntersection::CreateFrustumFromMatrix(view_proj, true, 4, frustum);
     world = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, -PER_FRUSTUM_NEAR -PER_FRUSTUM_DEPTH -BOX_SIDE - 0.1f));
     ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, world, minPoint, maxPoint));
     world = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, -PER_FRUSTUM_NEAR + 0.1f));
@@ -245,7 +245,7 @@ TEST(dmVMath, TestFrustumOBBCorners)
     // Frustum's center is on origin on X, Y axes. On Z it's placed from -FRUSTUM_NEAR to -FRUSTUM_FAR.
     dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(-FRUSTUM_WIDTH/2, FRUSTUM_WIDTH/2, -FRUSTUM_HEIGHT/2, FRUSTUM_HEIGHT/2, FRUSTUM_NEAR, FRUSTUM_FAR);
     dmIntersection::Frustum frustum;
-    dmIntersection::CreateFrustumFromMatrix(proj, true, false, frustum);
+    dmIntersection::CreateFrustumFromMatrix(proj, true, 6, frustum);
 
     float FRUSTUM_NEARFAR_MIDDLE = (FRUSTUM_NEAR + FRUSTUM_FAR)/2;
     float BOX_SIDE = 2;

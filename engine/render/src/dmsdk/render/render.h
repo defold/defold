@@ -275,6 +275,19 @@ namespace dmRender
     };
 
     /*#
+     * Frustum planes to use in a frustum
+     * @enum
+     * @name FrustumPlanes
+     * @member FRUSTUM_PLANES_SIDES
+     * @member FRUSTUM_PLANES_ALL
+     */
+    enum FrustumPlanes
+    {
+        FRUSTUM_PLANES_SIDES = 4,
+        FRUSTUM_PLANES_ALL   = 6
+    };
+
+    /*#
      * Frustum options used when setting up a draw call
      * @struct
      * @name FrustumOptions
@@ -284,7 +297,7 @@ namespace dmRender
     struct FrustumOptions
     {
         dmVMath::Matrix4 m_Matrix;
-        bool             m_SkipNearFarPlanes;
+        FrustumPlanes    m_NumPlanes;
     };
 
     /*#

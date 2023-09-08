@@ -691,7 +691,7 @@ namespace dmRender
             if (frustum_options)
             {
                 dmIntersection::Frustum frustum;
-                dmIntersection::CreateFrustumFromMatrix(frustum_options->m_Matrix, true, frustum_options->m_SkipNearFarPlanes, frustum);
+                dmIntersection::CreateFrustumFromMatrix(frustum_options->m_Matrix, true, (int)frustum_options->m_NumPlanes, frustum);
                 FrustumCulling(context, frustum);
             }
             else

@@ -37,14 +37,14 @@ static Plane NormalizePlane(Plane plane)
 // Gribb-Hartmann
 // https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
 
-void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, bool skip_near_far, Frustum& frustum)
+void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, int num_planes, Frustum& frustum)
 {
     dmVMath::Vector4 x = m.getRow(0);
     dmVMath::Vector4 y = m.getRow(1);
     dmVMath::Vector4 z = m.getRow(2);
     dmVMath::Vector4 w = m.getRow(3);
 
-    frustum.m_NumPlanes = skip_near_far ? 4 : 6;
+    frustum.m_NumPlanes = num_planes;
     frustum.m_Planes[0] = w + x; // left
     frustum.m_Planes[1] = w - x; // right
     frustum.m_Planes[2] = w + y; // bottom

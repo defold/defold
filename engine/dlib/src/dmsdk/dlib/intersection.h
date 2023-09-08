@@ -65,7 +65,7 @@ namespace dmIntersection
      * @param normalize [type: bool] true if the normals should be normalized
      * @return frustum [type: dmIntersection::Frustum&] the frustum output
      */
-    void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, bool skip_near_far, Frustum& frustum);
+    void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, int num_planes, Frustum& frustum);
 
     // Returns true if the objects intersect
 
