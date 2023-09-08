@@ -99,7 +99,6 @@ namespace dmGui
         dmArray<uint16_t>               m_StencilScopeIndices;
         dmArray<HNode>                  m_ScratchBoneNodes;
         dmHID::HContext                 m_HidContext;
-        void*                           m_DefaultFont;
         void*                           m_DisplayProfiles;
         SceneTraversalCache             m_SceneTraversalCache;
     };
