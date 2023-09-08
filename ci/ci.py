@@ -208,6 +208,9 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     if platform == 'js-web' or platform == 'wasm-web':
         args.append('install_ems')
 
+    if platform == 'x86_64-linux':
+        args.append('build_sdk_headers')
+
     args.append('build_engine')
 
     if channel:
@@ -387,7 +390,7 @@ def release(channel):
     call(cmd)
 
 def build_sdk(channel):
-    args = "python scripts/build.py install_ext build_sdk build_sdk_headers".split()
+    args = "python scripts/build.py install_ext build_sdk".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
