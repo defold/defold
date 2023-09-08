@@ -432,7 +432,7 @@ void LogInitialize(const LogParams* params)
         return;
     }
 
-    dmSpinlock::Init(&g_LogServerLock);
+    dmSpinlock::Create(&g_LogServerLock);
 
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
     uint16_t port = 0;
@@ -473,7 +473,7 @@ void LogInitialize(const LogParams* params)
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     dmAtomicStore32(&g_ListenersCount, 0);
-    dmSpinlock::Init(&g_ListenerLock);
+    dmSpinlock::Create(&g_ListenerLock);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
@@ -539,6 +539,9 @@ void LogFinalize()
     delete self;
     g_dmLogServer = 0;
     CloseLogFile();
+
+    dmSpinlock::Destroy(&g_ListenerLock);
+    dmSpinlock::Destroy(&g_LogServerLock);
 }
 
 uint16_t GetPort()

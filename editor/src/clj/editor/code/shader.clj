@@ -24,8 +24,7 @@
             [editor.workspace :as workspace]
             [schema.core :as s])
   (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
-           (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$Shader Graphics$ShaderDesc$Shader$Builder)
-           (com.google.protobuf ByteString)))
+           (com.dynamo.graphics.proto Graphics$ShaderDesc$Language)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)

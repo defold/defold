@@ -26,8 +26,9 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics :as graphics]
             [editor.handler :as handler]
             [editor.material :as material]
             [editor.math :as math]
@@ -48,9 +49,10 @@
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
+           [editor.gl.vertex2 VertexBuffer]
            [editor.properties Curve CurveSpread]
            [editor.types AABB]
-           [java.nio ByteBuffer ByteOrder IntBuffer]
+           [java.nio ByteBuffer ByteOrder]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -81,6 +83,15 @@
     (-> pb
       (assoc :emitters new-emitters)
       (dissoc :modifiers))))
+
+(defn- select-attribute-values [pb-data key]
+  (let [transformed-emitters (mapv (fn [emitter]
+                                     (-> emitter
+                                         (protobuf/assign-repeated :attributes (key emitter))
+                                         (dissoc :attributes-save-values)
+                                         (dissoc :attributes-build-target)))
+                                   (:emitters pb-data))]
+    (protobuf/assign-repeated pb-data :emitters transformed-emitters)))
 
 ; Geometry generation
 
@@ -178,11 +189,14 @@
   {:emitter-type-2dcone 6
    :emitter-type-circle 6 #_(* 2 circle-steps)})
 
-(defn- ->vb [vs vcount color]
-  (let [vb (->color-vtx vcount)]
+(defn- ->vbuf
+  ^VertexBuffer [vs vcount color]
+  (let [^VertexBuffer vbuf (->color-vtx vcount)
+        ^ByteBuffer buf (.buf vbuf)]
     (doseq [v vs]
-      (conj! vb (into v color)))
-    (persistent! vb)))
+      (vtx/buf-push-floats! buf v)
+      (vtx/buf-push-floats! buf color))
+    (vtx/flip! vbuf)))
 
 (defn- orthonormalize [^Matrix4d m]
   (let [m' (Matrix4d. m)
@@ -191,7 +205,7 @@
     (.setRotationScale m' r)
     m'))
 
-(defn render-lines [^GL2 gl render-args renderables rcount]
+(defn render-lines [^GL2 gl render-args renderables _rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
         scale-f (camera/scale-factor camera viewport)
@@ -211,7 +225,7 @@
             render-args (if (= pass/selection (:pass render-args))
                           (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
-            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) shader)]
+            vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
@@ -391,18 +405,31 @@
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
-(defn- render-emitters-sim [^GL2 gl render-args renderables rcount]
+(defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
-    (let [{:keys [emitter-sim-data emitter-index color]} (:user-data renderable)
+    (let [user-data (:user-data renderable)
+          {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
+          shader (:shader emitter-sim-data)
+          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
+          vertex-description (graphics/make-vertex-description shader-bound-attributes)
+          vertex-attribute-bytes (:vertex-attribute-bytes user-data)
           pfx-sim-request-id (some-> renderable :updatable :node-id)]
-      (when-let [pfx-sim (when (and emitter-sim-data pfx-sim-request-id)
-                           (some-> (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)) deref))]
-        (plib/gen-emitter-vertex-data pfx-sim emitter-index color)
-        (let [context (:context pfx-sim)
-              vbuf (plib/get-emitter-vertex-data pfx-sim emitter-index)]
+      (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
+                                (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
+        (let [pfx-sim @pfx-sim-atom
+              raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
+              context (:context pfx-sim)
+              vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
+              all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
+          ;; TODO: We have to update the "raw-vbufs" here because we will
+          ;;       at some point create the GPU vertex buffer from this call.
+          ;;       This is due to the fact that we don't know how big the vertex buffer
+          ;;       will be until we have a valid GL context: We don't have the correct information
+          ;;       until the shader has been compiled. In the future we could perhaps use the meta-data
+          ;;       we get from the SPIR-V toolchain to figure this out beforehand.
+          (swap! pfx-sim-atom assoc :raw-vbufs all-raw-vbufs)
           (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
             (let [gpu-texture (:gpu-texture emitter-sim-data)
-                  shader (:shader emitter-sim-data)
                   vtx-binding (vtx/use-with context vbuf shader)
                   blend-mode (convert-blend-mode (:blend-mode render-data))]
               (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
@@ -411,7 +438,7 @@
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))
 
-(defn- render-emitters [^GL2 gl render-args renderables rcount]
+(defn- render-emitters [^GL2 gl render-args renderables _rcount]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/selection (render-lines gl render-args renderables count)
@@ -511,11 +538,14 @@
                            [+bx +bx (case type :emitter-type-circle 0.0 +bx)])))))
 
 (g/defnk produce-emitter-scene
-  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos max-particle-count vertex-attribute-bytes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
                    :emitter-index emitter-index
+                   :material-attribute-infos material-attribute-infos
+                   :max-particle-count max-particle-count
+                   :vertex-attribute-bytes vertex-attribute-bytes
                    :color [1.0 1.0 1.0 1.0]
                    :geom-data-world (apply (:geom-data-world emitter-type)
                                            (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
@@ -582,39 +612,44 @@
       true [[kw value]])))
 
 (g/defnk produce-emitter-pb
-  [position rotation _declared-properties modifier-msgs]
-  (let [properties (:properties _declared-properties)
-        emitter-properties (into []
-                                 (comp (map first)
-                                       (keep (fn [kw]
-                                               (let [v (get-in properties [kw :value])]
-                                                 (when-let [points (get-curve-points v)]
-                                                   (protobuf/make-map-with-defaults Particle$Emitter$Property
-                                                     :key kw
-                                                     :points points
-                                                     :spread (:spread v)))))))
-                                 (butlast (protobuf/enum-values Particle$EmitterKey)))
-        particle-properties (into []
-                                  (comp (map first)
-                                        (keep (fn [kw]
-                                                (when-let [points (get-curve-points (get-in properties [kw :value]))]
-                                                  (protobuf/make-map-with-defaults Particle$Emitter$ParticleProperty
-                                                    :key kw
-                                                    :points points)))))
-                                  (butlast (protobuf/enum-values Particle$ParticleKey)))]
-    (cond-> (into (protobuf/make-map-with-defaults Particle$Emitter
-                    :position position
-                    :rotation rotation
-                    :modifiers modifier-msgs)
-                  (mapcat #(get-property properties %))
-                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                   :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
+  [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
+  (let [attributes-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)
+        attributes-build-target (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+        properties (:properties _declared-properties)
 
-            (seq emitter-properties)
-            (assoc :properties emitter-properties)
+        emitter-properties
+        (into []
+              (comp (map first)
+                    (keep (fn [kw]
+                            (let [v (get-in properties [kw :value])]
+                              (when-let [points (get-curve-points v)]
+                                (protobuf/make-map-with-defaults Particle$Emitter$Property
+                                  :key kw
+                                  :points points
+                                  :spread (:spread v)))))))
+              (butlast (protobuf/enum-values Particle$EmitterKey)))
 
-            (seq particle-properties)
-            (assoc :particle-properties particle-properties))))
+        particle-properties
+        (into []
+              (comp (map first)
+                    (keep (fn [kw]
+                            (when-let [points (get-curve-points (get-in properties [kw :value]))]
+                              (protobuf/make-map-with-defaults Particle$Emitter$ParticleProperty
+                                :key kw
+                                :points points)))))
+              (butlast (protobuf/enum-values Particle$ParticleKey)))]
+
+    (-> (protobuf/make-map-with-defaults Particle$Emitter
+          :position position
+          :rotation rotation
+          :modifiers modifier-msgs)
+        (into (mapcat #(get-property properties %))
+              [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
+               :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
+        (protobuf/assign-repeated :properties emitter-properties)
+        (protobuf/assign-repeated :particle-properties particle-properties)
+        (assoc :attributes-save-values attributes-save-values
+               :attributes-build-target attributes-build-target))))
 
 (defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key?]
   (concat
@@ -652,6 +687,12 @@
   (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
     (or (prop-resource-error :fatal _node-id :material material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+
+(g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
+  (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
+    (-> _declared-properties
+        (update :properties into attribute-properties)
+        (update :display-order into (map first) attribute-properties))))
 
 (declare ParticleFXNode)
 
@@ -704,6 +745,7 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:max-page-count :material-max-page-count]
+                                            [:attribute-infos :material-attribute-infos]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
@@ -731,6 +773,9 @@
             (dynamic label (g/constantly "Size Mode")))
   (property stretch-with-velocity g/Bool)
   (property start-offset g/Num)
+  (property vertex-attribute-overrides g/Any
+            (default {})
+            (dynamic visible (g/constantly false)))
 
   (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
@@ -740,6 +785,7 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
   (input material-max-page-count g/Int)
+  (input material-attribute-infos g/Any)
   (input default-tex-params g/Any)
   (input texture-set g/Any)
   (input gpu-texture g/Any)
@@ -802,7 +848,10 @@
                  :texture-set-anim texture-set-anim
                  :tex-coords tex-coords-buffer
                  :page-indices page-indices-buffer
-                 :frame-indices frame-indices-buffer})))))
+                 :frame-indices frame-indices-buffer}))))
+  (output _properties g/Properties :cached produce-properties)
+  (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -886,12 +935,13 @@
   (input ids g/Str :array)
 
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
-  (output save-value g/Any (gu/passthrough pb-data))
+  (output save-value g/Any (g/fnk [pb-data] (select-attribute-values pb-data :attributes-save-values)))
   (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
                           (protobuf/make-map-with-defaults Particle$ParticleFX
                             :emitters emitter-msgs
                             :modifiers modifier-msgs)))
-  (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
+  (output rt-pb-data g/Any :cached (g/fnk [pb-data]
+                                     (particle-fx-transform (select-attribute-values pb-data :attributes-build-target))))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output emitter-indices g/Any :cached (g/fnk [nodes]
                                                (into {}
@@ -988,11 +1038,16 @@
           workspace (project/workspace project)
           graph-id (g/node-id->graph-id self)
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
-          material (workspace/resolve-workspace-resource workspace (:material emitter))]
+          material (workspace/resolve-workspace-resource workspace (:material emitter))
+          vertex-attribute-overrides (into {}
+                                           (map (fn [attribute]
+                                                  [(graphics/attribute-name->key (:name attribute))
+                                                   (graphics/attribute->any-doubles attribute)]))
+                                           (:attributes emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
-                                   :tile-source tile-source :animation (:animation emitter) :material material
+                                   :tile-source tile-source :animation (:animation emitter) :material material :vertex-attribute-overrides vertex-attribute-overrides
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)

@@ -112,6 +112,9 @@
   ;; path->{:mtime ... :pred ...}
   (atom {}))
 
+;; The same logic implemented in Project.java.
+;; If you change something here, plese change it there as well
+;; Search for excluedFilesAndFoldersEntries.
 ;; root -> pred if project path (string starting with /) is ignored
 (defn- defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
