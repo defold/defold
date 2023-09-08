@@ -208,9 +208,6 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     if platform == 'js-web' or platform == 'wasm-web':
         args.append('install_ems')
 
-    if platform == 'x86_64-linux':
-        args.append('build_sdk_headers')
-
     args.append('build_engine')
 
     if channel:
@@ -240,6 +237,9 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         waf_opts.append('--with-tsan')
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
+
+    if platform == 'x86_64-linux':
+        args.append('build_sdk_headers') # gather headers after a successful build
 
     cmd = ' '.join(args + opts)
 
