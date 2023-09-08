@@ -150,7 +150,7 @@ namespace dmMessage
         ContextDestroyer()
         {
             dmAtomicStore32(&m_Deleted, 0);
-            dmSpinlock::Init(&g_MessageSpinlock);
+            dmSpinlock::Create(&g_MessageSpinlock);
         }
 
         ~ContextDestroyer()
@@ -162,6 +162,7 @@ namespace dmMessage
                 delete g_MessageContext;
                 g_MessageContext = 0;
             }
+            dmSpinlock::Destroy(&g_MessageSpinlock);
         }
         int32_atomic_t m_Deleted;
     } g_ContextDestroyer;
