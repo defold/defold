@@ -370,16 +370,6 @@ public class ArchiveBuilder {
                     printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
                 }
 
-                if (args[i].endsWith("fontc")) {
-                    File glyphBankFile = new File(args[i].replace("fontc", "glyph_bankc"));
-
-                    if (!glyphBankFile.isFile()) {
-                        printUsageAndTerminate("file does not exist: " + glyphBankFile.getAbsolutePath());
-                    }
-
-                    inputs.add(glyphBankFile);
-                }
-
                 inputs.add(currentInput);
             }
         }
