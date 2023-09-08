@@ -84,7 +84,7 @@ namespace dmCrash
      * load, so loading is one-shot.
      *
      * @name crash.load_previous
-     * @return handle [type:number] handle to the loaded dump, or nil if no dump was found
+     * @return handle [type:number|nil] handle to the loaded dump, or `nil` if no dump was found
      */
     static int Crash_LoadPrevious(lua_State* L)
     {
@@ -221,7 +221,7 @@ namespace dmCrash
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
      * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
-     * @return value [type:string] value recorded in the crash dump, or nil if it didn't exist
+     * @return value [type:string|nil] value recorded in the crash dump, or `nil` if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)
     {

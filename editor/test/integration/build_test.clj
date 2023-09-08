@@ -703,7 +703,7 @@
                                ;; Custom property
                                (check-project-setting built-properties ["custom" "love"] "defold")
 
-                               ;; project.dependencies entry should be removed
+                               ;; Non-responding project.dependencies entry should be removed
                                (check-project-setting built-properties ["project" "dependencies"] nil)
 
                                ;; Compiled resource
