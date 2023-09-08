@@ -36,6 +36,7 @@ import graphics.graphics_ddf_pb2
 import resource.liveupdate_ddf_pb2
 import rig.rig_ddf_pb2
 import render.material_ddf_pb2
+import particle.particle_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -51,6 +52,7 @@ BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
 BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
 BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
 BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
+BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
 
 
 proto_type_to_string_map = {}
