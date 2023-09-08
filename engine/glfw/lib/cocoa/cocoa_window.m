@@ -135,7 +135,7 @@
     if( !_glfwLibrary.Unbundled ) {
         ProcessSerialNumber psn = { 0, kCurrentProcess };
         TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
-        [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.01];
+        [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
         _glfwLibrary.Unbundled = GL_TRUE;
     }
 }
@@ -144,13 +144,13 @@
 {
     ProcessSerialNumber psn = { 0, kCurrentProcess }; 
     (void) TransformProcessType(&psn, kProcessTransformToForegroundApplication);
-    [self performSelector:@selector(activateWindow) withObject:nil afterDelay:0.01];
+    [self performSelector:@selector(activateWindow) withObject:nil afterDelay:0.1];
 }
 
 - (void)activateWindow
 {
     [_glfwWin.window makeKeyAndOrderFront:nil];
-    [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+    [[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
 }
 
 @end
