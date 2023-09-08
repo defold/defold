@@ -40,7 +40,5 @@
 	<key>NSHighResolutionCapable</key>
 		<true/>
 	{{/display.high_dpi}}
-	<key>LSRequiresCarbon</key>
-		<true/>
 </dict>
 </plist>

@@ -24,8 +24,6 @@
 	<string>????</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
-	<key>LSRequiresCarbon</key>
-	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleDocumentTypes</key>
