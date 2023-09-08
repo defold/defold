@@ -129,15 +129,28 @@
 
 - (void)applicationDidUpdate:(NSNotification *)notification
 {
-    // Wait for the first update to make window active
+    // Wait for the first update to make window inactive and then activate it again
     // It helps to avoid issue when the window opens inactive
     // https://github.com/defold/defold/issues/6709
     if( !_glfwLibrary.Unbundled ) {
         ProcessSerialNumber psn = { 0, kCurrentProcess };
-        TransformProcessType( &psn, kProcessTransformToForegroundApplication );
-        [[NSApplication sharedApplication] activateIgnoringOtherApps: YES];
+        TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
+        [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.01];
         _glfwLibrary.Unbundled = GL_TRUE;
     }
+}
+
+- (void)activateProcess
+{
+    ProcessSerialNumber psn = { 0, kCurrentProcess }; 
+    (void) TransformProcessType(&psn, kProcessTransformToForegroundApplication);
+    [self performSelector:@selector(activateWindow) withObject:nil afterDelay:0.01];
+}
+
+- (void)activateWindow
+{
+    [_glfwWin.window makeKeyAndOrderFront:nil];
+    [[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
 }
 
 @end
@@ -723,7 +736,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
     [_glfwWin.window setDelegate:_glfwWin.delegate];
     [_glfwWin.window setAcceptsMouseMovedEvents:YES];
     [_glfwWin.window center];
-    [_glfwWin.window makeKeyAndOrderFront:nil];
 
     if (_glfwWin.clientAPI == GLFW_OPENGL_API && wndconfig->highDPI)
     {
