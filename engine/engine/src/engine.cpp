@@ -962,7 +962,7 @@ namespace dmEngine
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
-        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);;
+        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
         render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_RenderScriptContext;
 #if !defined(DM_RELEASE)
