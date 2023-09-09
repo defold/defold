@@ -1020,14 +1020,10 @@ public class Fontc {
 
             String basedir = ".";
             String outfile = args[1];
-            String projectRootDir = "";
 
             if (args.length >= 3) {
                 basedir = args[1];
                 outfile = args[2];
-            }
-            if (args.length >= 4) {
-                projectRootDir = args[3];
             }
 
             final File fontInput = new File(args[0]);
@@ -1076,17 +1072,33 @@ public class Fontc {
             }
 
             String glyphBankOutputPath   = outfile.replace("fontc", "glyph_bankc");
-            String glyphBankRelativePath = glyphBankOutputPath.replace(projectRootDir, "").replace("\\", "/");
+            String glyphBankRelativePath = glyphBankOutputPath;
 
             FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
             fontc.getGlyphBank().writeTo(glyphBankOutputStream);
+
+            System.out.println("------------------------------------");
+            System.out.println("basedir             : " + basedir);
+            System.out.println("outfile             : " + outfile);
+
+            Path fontInputPath = fontInput.toPath().toAbsolutePath();
+            Path glyphCoolPath = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
+
+            Path basedirAbsolute  = Paths.get(basedir).toAbsolutePath();
+            Path glyphBankOutputPathAbsolute = Paths.get(glyphBankOutputPath).toAbsolutePath();
+            Path glyphBankRelativePathObj = basedirAbsolute.relativize(glyphCoolPath);
+
+            System.out.println("glyph_bank_abs_obj  : " + glyphBankOutputPathAbsolute);
+            System.out.println("glyph_bank_rel_obj--: " + glyphBankRelativePathObj);
+            System.out.println("font_input          : " + fontInput.toPath().toAbsolutePath());
+            System.out.println("------------------------------------");
 
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-            fontMapBuilder.setGlyphBank(glyphBankRelativePath);
+            fontMapBuilder.setGlyphBank("/" + glyphBankRelativePathObj); //glyphBankRelativePath);
             fontMapBuilder.setShadowX(fontDesc.getShadowX());
             fontMapBuilder.setShadowY(fontDesc.getShadowY());
             fontMapBuilder.setAlpha(fontDesc.getAlpha());

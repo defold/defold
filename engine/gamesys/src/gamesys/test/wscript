@@ -65,7 +65,6 @@ def build(bld):
                                 web_libs = ['library_sys.js', 'library_script.js'],
                                 proto_gen_py = True,
                                 content_root='../test',
-                                project_root=os.path.join('src','gamesys','test'),
                                 source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=['**/*.ttf', '**/*.basis']),
                                 target = 'test_gamesys')
 

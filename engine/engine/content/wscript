@@ -40,7 +40,6 @@ def build(bld):
     builtins = bld(features='barchive',
                    source_root='default/content',
                    content_root='../content',
-                   project_root='content',
                    resource_name='builtins',
                    source = bld.path.ant_glob([
                        'builtins/input/**/*',
@@ -61,7 +60,6 @@ def build(bld):
     builtins_release = bld(features='barchive',
                            source_root='default/content',
                            content_root='../content',
-                           project_root='content',
                            resource_name='builtins_release',
                            source = bld.path.ant_glob('builtins/fonts/*', excl=['builtins/fonts/*.ttf']),
                            use_compression=True)
