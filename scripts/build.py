@@ -2198,6 +2198,7 @@ archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation
 build_builtins   - Build builtin content archive
