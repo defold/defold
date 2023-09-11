@@ -2102,12 +2102,4 @@ run:
         this.textureProfiles = textureProfiles;
     }
 
-    public void excludeCollectionProxy(String path) {
-        state.addExcludedCollectionProxy(path);
-    }
-
-    public final List<String> getExcludedCollectionProxies() {
-        return state.getExcludedCollectionProxies();
-    }
-
 }
