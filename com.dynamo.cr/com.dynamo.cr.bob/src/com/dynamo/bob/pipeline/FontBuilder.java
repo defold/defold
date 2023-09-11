@@ -17,18 +17,21 @@ package com.dynamo.bob.pipeline;
 import java.awt.FontFormatException;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
+import java.io.IOException;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.MurmurHash;
+
+import com.dynamo.bob.pipeline.GlyphBankBuilder;
+
 import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends Builder<Void>  {
@@ -38,6 +41,8 @@ public class FontBuilder extends Builder<Void>  {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
+
+        this.project.createTask(input, GlyphBankBuilder.class);
 
         Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
                 .setName(params.name())
@@ -49,49 +54,28 @@ public class FontBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
-            IOException {
-
+    public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.input(0), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        final IResource inputFontFile = BuilderUtil.checkResource(this.project, task.input(0), "font", fontDesc.getFont());
         BuilderUtil.checkResource(this.project, task.input(0), "material", fontDesc.getMaterial());
 
-        Fontc fontc = new Fontc();
-        BufferedInputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(inputFontFile.getContent()));
-        try {
+        long fontDescHash      = Fontc.FontDescToHash(fontDesc);
+        IResource genResource  = this.project.getGeneratedResource(fontDescHash, "glyph_bank");
+        int buildDirLen        = this.project.getBuildDirectory().length();
+        String genResourcePath = genResource.getPath().substring(buildDirLen);
 
-            // Run fontc, fills the fontmap builder and returns an image
-            fontc.compile(fontStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    IResource res = inputFontFile.getResource(resourceName);
-                    if (!res.exists()) {
-                        throw new FileNotFoundException("Could not find resource: " + res.getPath());
-                    }
+        FontMap.Builder fontMapBuilder = FontMap.newBuilder();
+        fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+        fontMapBuilder.setGlyphBank(BuilderUtil.replaceExt(genResourcePath, ".glyph_bank", ".glyph_bankc"));
+        fontMapBuilder.setShadowX(fontDesc.getShadowX());
+        fontMapBuilder.setShadowY(fontDesc.getShadowY());
+        fontMapBuilder.setAlpha(fontDesc.getAlpha());
+        fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
+        fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
+        fontMapBuilder.setLayerMask(Fontc.GetFontMapLayerMask(fontDesc));
 
-                    try {
-                        return new BufferedInputStream(new ByteArrayInputStream(res.getContent()));
-                    } catch (IOException e) {
-                        throw new FileNotFoundException("Could not find resource: " + res.getPath());
-                    }
-                }
-            });
-
-            // Save fontmap file
-            task.output(0).setContent(fontc.getFontMap().toByteArray());
-
-        } catch (FontFormatException e) {
-            task.output(0).remove();
-            throw new CompileExceptionError(task.input(0), 0, e.getMessage());
-        } catch (TextureGeneratorException e) {
-            task.output(0).remove();
-            throw new CompileExceptionError(task.input(0), 0, e.getMessage());
-        } finally {
-            fontStream.close();
-        }
+        task.output(0).setContent(fontMapBuilder.build().toByteArray());
     }
 }

@@ -30,14 +30,20 @@ namespace dmResourceMounts
     typedef struct ResourceMountsContext* HContext;
 
     HContext    Create(dmResourceProvider::HArchive base_archive);
+
+    // Calls Unmount on all archives
     void        Destroy(HContext context);
 
     dmMutex::HMutex GetMutex(HContext ctx);
 
+    // Does not call Unmount on the archives
     dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
-    dmResource::Result RemoveMountByName(HContext ctx, const char* name);
 
+    // Also calls Unmount on the archive
+    dmResource::Result RemoveAndUnmountByName(HContext ctx, const char* name);
+
+    // Loads and mounts archives
     dmResource::Result LoadMounts(HContext ctx, const char* app_support_path);
     dmResource::Result SaveMounts(HContext ctx, const char* app_support_path);
 

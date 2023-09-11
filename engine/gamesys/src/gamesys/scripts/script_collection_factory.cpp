@@ -156,7 +156,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.load
      * @param [url] [type:string|hash|url] the collection factory component to load
-     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
@@ -411,7 +411,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.set_prototype
      * @param [url] [type:string|hash|url] the collection factory component
-     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     * @param [prototype] [type:string|nil] the path to the new prototype, or `nil`
      *
      * @note
      *   - Requires the factory to have the "Dynamic Prototype" set

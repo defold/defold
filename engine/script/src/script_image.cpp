@@ -65,7 +65,7 @@ namespace dmScript
     * @name image.load
     * @param buffer [type:string] image data buffer
     * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
-    * @return image [type:table] object or `nil` if loading fails. The object is a table with the following fields:
+    * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height

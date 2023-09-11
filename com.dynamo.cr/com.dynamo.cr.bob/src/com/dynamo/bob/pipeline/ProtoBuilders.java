@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -105,6 +105,16 @@ public class ProtoBuilders {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         materialBuilder.mergeFrom(materialBuildResource.getContent());
         return materialBuilder;
+    }
+
+    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
+    {
+        for (VertexAttribute attr : attributes) {
+            if (attr.getName().equals(attributeName)) {
+                return attr;
+            }
+        }
+        return null;
     }
 
     // TODO: Should we move this to a build resource?
@@ -289,7 +299,7 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
-    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> 
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
 {
         @Override
         public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -323,16 +333,6 @@ public class ProtoBuilders {
             return task.build();
         }
 
-        private VertexAttribute FindMaterialAttribute(List<VertexAttribute> materialAttributes, String attributeName)
-        {
-            for (VertexAttribute attr : materialAttributes) {
-                if (attr.getName().equals(attributeName)) {
-                    return attr;
-                }
-            }
-            return null;
-        }
-
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
@@ -353,7 +353,7 @@ public class ProtoBuilders {
 
                 for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
                     VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                    VertexAttribute materialAttribute = FindMaterialAttribute(materialAttributes, spriteAttribute.getName());
+                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
                         spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
@@ -456,6 +456,22 @@ public class ProtoBuilders {
                     mb.setRotation(MathUtil.vecmathToDDF(r));
                     emitterBuilder.addModifiers(mb.build());
                 }
+
+                List<VertexAttribute> materialAttributes        = materialBuilder.getAttributesList();
+                List<VertexAttribute> emitterAttributeOverrides = new ArrayList<VertexAttribute>();
+
+                for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
+                    VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
+                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+
+                    if (materialAttribute != null) {
+                        emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));
+                    }
+                }
+
+                emitterBuilder.clearAttributes();
+                emitterBuilder.addAllAttributes(emitterAttributeOverrides);
+
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
             messageBuilder.clearModifiers();

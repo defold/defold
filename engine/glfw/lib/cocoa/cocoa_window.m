@@ -127,8 +127,29 @@
     return NSTerminateCancel;
 }
 
-- (void)applicationDidFinishLaunching:(NSNotification *)notification
+- (void)applicationDidUpdate:(NSNotification *)notification
 {
+    // Wait for the first update to make window inactive and then activate it again
+    // It helps to avoid issue when the window opens inactive
+    // https://github.com/defold/defold/issues/6709
+    if( !_glfwLibrary.Unbundled ) {
+        ProcessSerialNumber psn = { 0, kCurrentProcess };
+        TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
+        [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
+        _glfwLibrary.Unbundled = GL_TRUE;
+    }
+}
+
+- (void)activateProcess
+{
+    ProcessSerialNumber psn = { 0, kCurrentProcess }; 
+    (void) TransformProcessType(&psn, kProcessTransformToForegroundApplication);
+    [self performSelector:@selector(activateWindow) withObject:nil afterDelay:0.1];
+}
+
+- (void)activateWindow
+{
+    [_glfwWin.window makeKeyAndOrderFront:nil];
     [[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
 }
 
@@ -727,8 +748,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
         CGDisplaySetDisplayMode( CGMainDisplayID(), fullscreenMode, NULL );
     }
 
-    [_glfwWin.window makeKeyAndOrderFront:nil];
-
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         unsigned int attribute_count = 0;
@@ -810,7 +829,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
         }
         _glfwWin.aux_context = [[NSOpenGLContext alloc] initWithFormat:_glfwWin.pixelFormat shareContext:_glfwWin.context];
 
-        [_glfwWin.window makeKeyAndOrderFront:nil];
         [_glfwWin.context setView:[_glfwWin.window contentView]];
 
         // Fetch the resulting width and height for backing buffer
@@ -915,6 +933,8 @@ void _glfwPlatformCloseWindow( void )
 
     [_glfwWin.window close];
     _glfwWin.window = nil;
+
+    _glfwLibrary.Unbundled = 0;
 
     // TODO: Probably more cleanup
 }
