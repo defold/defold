@@ -1098,7 +1098,7 @@ public class Fontc {
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-            fontMapBuilder.setGlyphBank("/" + glyphBankRelativePathObj); //glyphBankRelativePath);
+            fontMapBuilder.setGlyphBank("/" + glyphBankRelativePathObj.toString().replace("\\","/"));
             fontMapBuilder.setShadowX(fontDesc.getShadowX());
             fontMapBuilder.setShadowY(fontDesc.getShadowY());
             fontMapBuilder.setAlpha(fontDesc.getAlpha());
