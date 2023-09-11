@@ -61,6 +61,10 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
+    static const dmhash_t VERTEX_STREAM_POSITION  = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0 = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_COLOR     = dmHashString64("color");
+
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
@@ -117,6 +121,7 @@ namespace dmGameSystem
         uint32_t                    m_MaxGuiComponents;
         uint32_t                    m_MaxParticleFXCount;
         uint32_t                    m_MaxParticleCount;
+        uint32_t                    m_MaxAnimationCount;
     };
 
     static void GuiResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
@@ -132,6 +137,15 @@ namespace dmGameSystem
                 dmGui::ReloadScene(component->m_Scene);
             }
         }
+    }
+
+    static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+    {
+        info.m_NameHash        = name_hash;
+        info.m_SemanticType    = semantic_type;
+        info.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
+        info.m_ValuePtr        = 0;
+        info.m_ValueByteSize   = sizeof(float) * element_count;
     }
 
     static dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -154,14 +168,20 @@ namespace dmGameSystem
         gui_world->m_Components.SetCapacity(comp_count);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
-
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_POSITION,  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_TEXCOORD0, 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_COLOR,     4, dmGraphics::TYPE_FLOAT, true);
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], VERTEX_STREAM_POSITION,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, 3);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], VERTEX_STREAM_TEXCOORD0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, 2);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    4);
+
+        gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
+        gui_world->m_ParticleAttributeInfos.m_NumInfos     = 3;
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -200,6 +220,7 @@ namespace dmGameSystem
         gui_world->m_MaxParticleFXCount = gui_context->m_MaxParticleFXCount;
         gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
         gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
+        gui_world->m_MaxAnimationCount = gui_context->m_MaxAnimationCount;
 
         gui_world->m_ScriptWorld = dmScript::NewScriptWorld(gui_context->m_ScriptContext);
 
@@ -729,11 +750,11 @@ namespace dmGameSystem
         // This is a hard cap since the render key has 13 bits for node index (see gui.cpp)
         assert(scene_desc->m_MaxNodes <= 8192);
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
-        scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxMaterials = 16;
+        scene_params.m_MaxAnimations = gui_world->m_MaxAnimationCount;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
@@ -979,6 +1000,8 @@ namespace dmGameSystem
             assert(node_type == dmGui::NODE_TYPE_TEXT);
 
             dmRender::HFontMap font_map  = (dmRender::HFontMap) dmGui::GetNodeFont(scene, node);
+            if (!font_map)
+                continue;
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
 
             dmRender::DrawTextParams params;
@@ -1058,7 +1081,7 @@ namespace dmGameSystem
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_PARTICLEFX);
 
-        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI) - gui_world->m_RenderedParticlesSize;
+        uint32_t vb_max_size = dmParticle::GetVertexBufferSize(gui_world->m_MaxParticleCount, sizeof(ParticleGuiVertex)) - gui_world->m_RenderedParticlesSize;
         uint32_t total_vertex_count = 0;
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
@@ -1107,16 +1130,28 @@ namespace dmGameSystem
 
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             uint32_t vb_generate_size = 0;
-            dmParticle::GenerateVertexData(
+            dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext,
                 gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
+                gui_world->m_ParticleAttributeInfos,
                 color,
-                (void*)vb_end,
+                (void*) vb_end,
                 vb_max_size,
-                &vb_generate_size,
-                dmParticle::PARTICLE_GUI);
+                &vb_generate_size);
+
+            if (res != dmParticle::GENERATE_VERTEX_DATA_OK)
+            {
+                if (res == dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED)
+                {
+                    dmLogWarning("Maximum number of GUI particles (%d) exceeded, particles will not be rendered. Change \"gui.max_particle_count\" in the config file.", gui_world->m_MaxParticleCount);
+                }
+                else if (res == dmParticle::GENERATE_VERTEX_DATA_INVALID_INSTANCE)
+                {
+                    dmLogWarning("Cannot generate vertex data for GUI node (%d), particle instance handle is invalid.", i);
+                }
+            }
 
             uint32_t emitter_vertex_count = vb_generate_size / sizeof(ParticleGuiVertex);
             total_vertex_count += emitter_vertex_count;
@@ -2776,6 +2811,7 @@ namespace dmGameSystem
         gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
+        gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
 
         int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
         gui_context->m_Worlds.SetCapacity(max_gui_count);

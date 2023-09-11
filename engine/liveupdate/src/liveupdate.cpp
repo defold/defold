@@ -803,7 +803,7 @@ namespace dmLiveUpdate
         dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
-        dmResource::Result result = dmResourceMounts::RemoveMountByName(mounts, name);
+        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByName(mounts, name);
         if (result != dmResource::RESULT_OK)
         {
             dmLogError("Failed to remove mount '%s': %s (%d)", name, dmResource::ResultToString(result), result);
@@ -889,9 +889,6 @@ namespace dmLiveUpdate
     {
         dmResource::HFactory factory = params->m_ResourceFactory;
 
-        if (params->m_L) // TODO: until unit tests have been updated with a Lua context
-            ScriptInit(params->m_L, factory);
-
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
         g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
@@ -920,6 +917,12 @@ namespace dmLiveUpdate
         dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
         g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
+
+        if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
+        {
+            if (params->m_L) // TODO: until unit tests have been updated with a Lua context
+                ScriptInit(params->m_L, factory);
+        }
 
         // initialize legacy mode
         InitializeLegacy(params);

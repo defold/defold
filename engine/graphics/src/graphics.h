@@ -67,9 +67,17 @@ namespace dmGraphics
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
 
-    const static uint64_t MAX_ASSET_HANDLE_VALUE = 0x20000000000000-1; // 2^53 - 1
+    const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
+    static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
+    static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t  MAX_VERTEX_STREAM_COUNT      = 8;
 
-    static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
+
+    static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
     enum AssetType
@@ -90,10 +98,6 @@ namespace dmGraphics
         BUFFER_TYPE_STENCIL_BIT = 0x20,
     };
 
-    static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
-    static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t MAX_VERTEX_STREAM_COUNT      = 8;
-
     // render states
     enum State
     {
@@ -105,13 +109,6 @@ namespace dmGraphics
         STATE_CULL_FACE            = 5,
         STATE_POLYGON_OFFSET_FILL  = 6,
         STATE_ALPHA_TEST_SUPPORTED = 7,
-    };
-
-    // Translation table to translate RenderTargetAttachment to BufferType
-    struct AttachmentToBufferType
-    {
-        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
-        AttachmentToBufferType();
     };
 
     // Texture type
@@ -188,6 +185,19 @@ namespace dmGraphics
         TEXTURE_STATUS_DATA_PENDING     = (1 << 0), // Currently waiting for the upload to be done
     };
 
+    enum ContextFeature
+    {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
+        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+    };
+
+    // Translation table to translate RenderTargetAttachment to BufferType
+    struct AttachmentToBufferType
+    {
+        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
+        AttachmentToBufferType();
+    };
+
     struct TextureCreationParams {
 
         TextureCreationParams() :
@@ -249,6 +259,18 @@ namespace dmGraphics
         uint8_t  m_SubUpdate : 1;
     };
 
+    struct RenderTargetCreationParams
+    {
+        TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureCreationParams m_DepthBufferCreationParams;
+        TextureCreationParams m_StencilBufferCreationParams;
+        TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams         m_DepthBufferParams;
+        TextureParams         m_StencilBufferParams;
+        uint8_t               m_DepthTexture   : 1;
+        uint8_t               m_StencilTexture : 1;
+    };
+
     // Parameters structure for OpenWindow
     struct WindowParams
     {
@@ -289,12 +311,6 @@ namespace dmGraphics
         uint32_t                m_BackgroundColor;
     };
 
-    enum ContextFeature
-    {
-        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
-        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
-    };
-
     // Parameters structure for NewContext
     struct ContextParams
     {
@@ -308,11 +324,6 @@ namespace dmGraphics
         uint8_t       m_UseValidationLayers : 1;        // Vulkan only
         uint8_t       : 5;
     };
-
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
 
     struct PipelineState
     {
@@ -583,16 +594,16 @@ namespace dmGraphics
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
-    void DeleteRenderTarget(HRenderTarget render_target);
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
-    uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    const char* GetBufferTypeLiteral(BufferType buffer_type);
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
+    void          DeleteRenderTarget(HRenderTarget render_target);
+    void          SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    HTexture      GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
+    void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+    void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
+    uint32_t      GetBufferTypeIndex(BufferType buffer_type);
+    const char*   GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
-    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
+    bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
@@ -660,6 +671,14 @@ namespace dmGraphics
     static inline HOpaqueHandle GetOpaqueHandle(HAssetHandle asset_handle)
     {
         return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
+    }
+
+    static inline bool IsColorBufferType(BufferType buffer_type)
+    {
+        return buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR3_BIT;
     }
 
     /**

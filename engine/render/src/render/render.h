@@ -134,10 +134,10 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options);
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
-    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix);
+    Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
     Result DrawDebug2d(HRenderContext context);
 
     /**

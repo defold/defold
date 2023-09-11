@@ -168,18 +168,18 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_DRAW:
                 {
-                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[2];
+                    FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[2];
                     dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
                                                              (dmRender::HNamedConstantBuffer)c->m_Operands[1],
-                                                             matrix);
-                    delete matrix;
+                                                             frustum_options);
+                    delete frustum_options;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG3D:
                 {
-                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*)c->m_Operands[0];
-                    dmRender::DrawDebug3d(render_context, matrix);
-                    delete matrix;
+                    FrustumOptions* frustum_options = (FrustumOptions*)c->m_Operands[0];
+                    dmRender::DrawDebug3d(render_context, frustum_options);
+                    delete frustum_options;
                     break;
                 }
                 case COMMAND_TYPE_DRAW_DEBUG2D:

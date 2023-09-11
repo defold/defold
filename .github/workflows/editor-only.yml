@@ -46,7 +46,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        platform: [x86_64-macos]
+        platform: [x86_64-macos, arm64-macos]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
@@ -65,7 +65,7 @@ jobs:
       },
       {
         name: 'Notarize editor',
-        run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
       },
       {
         name: 'Archive editor',
