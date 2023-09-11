@@ -803,7 +803,7 @@ namespace dmLiveUpdate
         dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
-        dmResource::Result result = dmResourceMounts::RemoveMountByName(mounts, name);
+        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByName(mounts, name);
         if (result != dmResource::RESULT_OK)
         {
             dmLogError("Failed to remove mount '%s': %s (%d)", name, dmResource::ResultToString(result), result);
