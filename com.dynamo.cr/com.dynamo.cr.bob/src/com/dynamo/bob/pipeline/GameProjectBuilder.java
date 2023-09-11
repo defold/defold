@@ -73,6 +73,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Font.FontMap;
@@ -313,7 +314,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    private static void buildResourceGraph(Project project, Message node, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
+    private static void buildResourceGraph(Project project, Message node, ResourceNode parentNode, Collection<String> visitedNodes, List<String> excludedResources) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
         for (FieldDescriptor fieldDescriptor : fields) {
             FieldOptions options = fieldDescriptor.getOptions();
@@ -321,19 +322,19 @@ public class GameProjectBuilder extends Builder<Void> {
             boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
-                buildResourceGraph(project, (Message) value, parentNode, visitedNodes);
+                buildResourceGraph(project, (Message) value, parentNode, visitedNodes, excludedResources);
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
                 for (Object v : list) {
                     if (v instanceof Message) {
-                        buildResourceGraph(project, (Message) v, parentNode, visitedNodes);
+                        buildResourceGraph(project, (Message) v, parentNode, visitedNodes, excludedResources);
                     } else if (isResource && v instanceof String) {
-                        buildResourceGraph(project, project.getResource((String) v), parentNode, visitedNodes);
+                        buildResourceGraph(project, project.getResource((String) v), parentNode, visitedNodes, excludedResources);
                     }
                 }
             } else if (isResource && value instanceof String) {
-                buildResourceGraph(project, project.getResource((String) value), parentNode, visitedNodes);
+                buildResourceGraph(project, project.getResource((String) value), parentNode, visitedNodes, excludedResources);
             }
         }
     }
@@ -344,13 +345,14 @@ public class GameProjectBuilder extends Builder<Void> {
         will appear as a single node per collectionproxy, but can still have a other nodes
         in other collections/collectionproxies.
     */
-    private static void buildResourceGraph(Project project, IResource resource, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
+    private static void buildResourceGraph(Project project, IResource resource, ResourceNode parentNode, Collection<String> visitedNodes, List<String> excludedResources) throws CompileExceptionError {
         if (resource.getPath().equals("") || visitedNodes.contains(resource.output().getAbsPath())) {
             return;
         }
-
+        boolean isCollelctionProxy = false;
         if (resource.output().getPath().endsWith(".collectionproxyc")) {
             visitedNodes = new HashSet<String>();
+            isCollelctionProxy = true;
         }
 
         visitedNodes.add(resource.output().getAbsPath());
@@ -374,8 +376,14 @@ public class GameProjectBuilder extends Builder<Void> {
                 throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
             builder.mergeFrom(content);
-            Object message = builder.build();
-            buildResourceGraph(project, (Message) message, currentNode, visitedNodes);
+            Message message = (Message)builder.build();
+            buildResourceGraph(project, message, currentNode, visitedNodes, excludedResources);
+            if (isCollelctionProxy && excludedResources != null) {
+                CollectionProxyDesc desc = (CollectionProxyDesc)message;
+                if (desc.getExclude()) {
+                    excludedResources.add(resource.output().getPath().substring(project.getBuildDirectory().length()));
+                }
+            }
         } catch(CompileExceptionError e) {
             throw e;
         } catch(Exception e) {
@@ -383,8 +391,13 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
+    public static HashSet<String> findResources(Project project, ResourceNode rootNode, List<String> excludedResources) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
+        boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
+        List<String> fillExcludedResources = null;
+        if (shouldPublishLU) {
+            fillExcludedResources = excludedResources;
+        }
 
         if (project.option("keep-unused", "false").equals("true")) {
 
@@ -406,7 +419,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 HashSet<String> visitedNodes = new HashSet<String>();
                 if (path != null) {
                     findResources(project, project.getResource(path), resources);
-                    buildResourceGraph(project, project.getResource(path), rootNode, visitedNodes);
+                    buildResourceGraph(project, project.getResource(path), rootNode, visitedNodes, fillExcludedResources);
                 }
             }
 
@@ -543,15 +556,9 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
-                HashSet<String> resources = findResources(project, rootNode);
-
                 List<String> excludedResources = new ArrayList<String>();
-                boolean shouldPublish = project.option("liveupdate", "false").equals("true");
-                if (shouldPublish) {
-                    for (String excludedResource : project.getExcludedCollectionProxies()) {
-                        excludedResources.add(excludedResource);
-                    }
-                }
+                HashSet<String> resources = findResources(project, rootNode, excludedResources);
+
 
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
 
