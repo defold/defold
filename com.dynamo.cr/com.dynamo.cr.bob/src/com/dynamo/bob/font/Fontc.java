@@ -1071,34 +1071,23 @@ public class Fontc {
                 ImageIO.write(previewImage, "png", new File(outfile + "_preview.png"));
             }
 
-            String glyphBankOutputPath   = outfile.replace("fontc", "glyph_bankc");
-            String glyphBankRelativePath = glyphBankOutputPath;
-
+            // Write glyph bank next to the output .fontc file
+            String glyphBankOutputPath             = outfile.replace(".fontc", ".glyph_bankc");
             FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
             fontc.getGlyphBank().writeTo(glyphBankOutputStream);
 
-            System.out.println("------------------------------------");
-            System.out.println("basedir             : " + basedir);
-            System.out.println("outfile             : " + outfile);
-
-            Path fontInputPath = fontInput.toPath().toAbsolutePath();
-            Path glyphCoolPath = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
-
-            Path basedirAbsolute  = Paths.get(basedir).toAbsolutePath();
-            Path glyphBankOutputPathAbsolute = Paths.get(glyphBankOutputPath).toAbsolutePath();
-            Path glyphBankRelativePathObj = basedirAbsolute.relativize(glyphCoolPath);
-
-            System.out.println("glyph_bank_abs_obj  : " + glyphBankOutputPathAbsolute);
-            System.out.println("glyph_bank_rel_obj--: " + glyphBankRelativePathObj);
-            System.out.println("font_input          : " + fontInput.toPath().toAbsolutePath());
-            System.out.println("------------------------------------");
+            // Construct the project-relative path based from the input font file
+            Path basedirAbsolutePath   = Paths.get(basedir).toAbsolutePath();
+            Path glyphBankProjectPath  = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
+            Path glyphBankRelativePath = basedirAbsolutePath.relativize(glyphBankProjectPath);
+            String glyphBankProjectStr = "/" + glyphBankRelativePath.toString().replace("\\","/");
 
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-            fontMapBuilder.setGlyphBank("/" + glyphBankRelativePathObj.toString().replace("\\","/"));
+            fontMapBuilder.setGlyphBank(glyphBankProjectStr);
             fontMapBuilder.setShadowX(fontDesc.getShadowX());
             fontMapBuilder.setShadowY(fontDesc.getShadowY());
             fontMapBuilder.setAlpha(fontDesc.getAlpha());
