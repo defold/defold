@@ -349,10 +349,10 @@ public class GameProjectBuilder extends Builder<Void> {
         if (resource.getPath().equals("") || visitedNodes.contains(resource.output().getAbsPath())) {
             return;
         }
-        boolean isCollelctionProxy = false;
+        boolean isCollectionProxy = false;
         if (resource.output().getPath().endsWith(".collectionproxyc")) {
             visitedNodes = new HashSet<String>();
-            isCollelctionProxy = true;
+            isCollectionProxy = true;
         }
 
         visitedNodes.add(resource.output().getAbsPath());
@@ -378,7 +378,7 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.mergeFrom(content);
             Message message = (Message)builder.build();
             buildResourceGraph(project, message, currentNode, visitedNodes, excludedResources);
-            if (isCollelctionProxy && excludedResources != null) {
+            if (isCollectionProxy && excludedResources != null) {
                 CollectionProxyDesc desc = (CollectionProxyDesc)message;
                 if (desc.getExclude()) {
                     excludedResources.add(resource.output().getPath().substring(project.getBuildDirectory().length()));
