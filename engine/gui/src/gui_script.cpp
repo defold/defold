@@ -1310,8 +1310,6 @@ namespace dmGui
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
-        if (font == 0x0)
-            font = scene->m_Context->m_DefaultFont;
         Vector3 size = Vector3(1,1,1);
         if (font != 0x0)
         {

@@ -278,11 +278,6 @@ namespace dmGui
         context->m_DisplayProfiles = display_profiles;
     }
 
-    void SetDefaultFont(HContext context, void* font)
-    {
-        context->m_DefaultFont = font;
-    }
-
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference)
     {
         scene->m_AdjustReference = adjust_reference;

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -74,15 +74,7 @@ extern uint32_t DEBUG_VPC_SIZE;
 extern unsigned char DEBUG_FPC[];
 extern uint32_t DEBUG_FPC_SIZE;
 
-#if defined(DM_RELEASE)
-    extern unsigned char BUILTINS_RELEASE_ARCD[];
-    extern uint32_t BUILTINS_RELEASE_ARCD_SIZE;
-    extern unsigned char BUILTINS_RELEASE_ARCI[];
-    extern uint32_t BUILTINS_RELEASE_ARCI_SIZE;
-    extern unsigned char BUILTINS_RELEASE_DMANIFEST[];
-    extern uint32_t BUILTINS_RELEASE_DMANIFEST_SIZE;
-
-#else
+#if !defined(DM_RELEASE)
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
@@ -901,14 +893,7 @@ namespace dmEngine
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
         }
 
-#if defined(DM_RELEASE)
-        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
-        params.m_ArchiveIndex.m_Size = BUILTINS_RELEASE_ARCI_SIZE;
-        params.m_ArchiveData.m_Data = (const void*) BUILTINS_RELEASE_ARCD;
-        params.m_ArchiveData.m_Size = BUILTINS_RELEASE_ARCD_SIZE;
-        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_RELEASE_DMANIFEST;
-        params.m_ArchiveManifest.m_Size = BUILTINS_RELEASE_DMANIFEST_SIZE;
-#else
+#if !defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
@@ -977,14 +962,18 @@ namespace dmEngine
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
+        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
+        render_params.m_CommandBufferSize = 1024;
+        render_params.m_ScriptContext = engine->m_RenderScriptContext;
+#if !defined(DM_RELEASE)
         render_params.m_VertexShaderDesc = ::DEBUG_VPC;
         render_params.m_VertexShaderDescSize = ::DEBUG_VPC_SIZE;
         render_params.m_FragmentShaderDesc = ::DEBUG_FPC;
         render_params.m_FragmentShaderDescSize = ::DEBUG_FPC_SIZE;
-        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);;
-        render_params.m_CommandBufferSize = 1024;
-        render_params.m_ScriptContext = engine->m_RenderScriptContext;
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+#else
+        render_params.m_MaxDebugVertexCount = 0;
+#endif
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
@@ -1231,7 +1220,6 @@ namespace dmEngine
         }
 #endif
 
-        dmGui::SetDefaultFont(engine->m_GuiContext, engine->m_SystemFontMap);
         dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
@@ -1645,8 +1633,9 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
+#if !defined(DM_RELEASE)
             dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
-
+#endif
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
             // in case any extension wants to render just before the Flip().
@@ -1932,7 +1921,7 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         dmResource::Result fact_error;
-
+#if !defined(DM_RELEASE)
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
@@ -1941,7 +1930,7 @@ bail:
             return false;
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
-
+#endif
         // The system font is currently the only resource we need from the connection app
         // After this point, the rest of the resources should be loaded the ordinary way
         if (!engine->m_ConnectionAppMode)
