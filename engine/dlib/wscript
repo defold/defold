@@ -68,12 +68,13 @@ def shutdown(sht):
     server_config_path = "test_http_server.cfg"
     if os.path.exists(server_config_path):
         os.unlink(server_config_path)
+        print('File ' + server_config_path + ' already exist. Removing.')
 
     start = time.time()
     timeout = 15
     while True:
         if time.time() - start > timeout:
-            error('HTTP server failed to start within ' + timeout + ' seconds')
+            error('HTTP server failed to start within ' + str(timeout) + ' seconds')
             sys.exit(1)
         try:
             if not os.path.exists(server_config_path):

@@ -103,7 +103,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function or nil if you no longer wish to receive callbacks.
+ * @param callback [type:function(self, event, data)|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
  *
  * `self`
  * : [type:object] The calling script

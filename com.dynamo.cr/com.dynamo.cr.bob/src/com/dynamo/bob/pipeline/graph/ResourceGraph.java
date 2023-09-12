@@ -26,7 +26,9 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceWalker;
 import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
+import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 
+import com.google.protobuf.Message;
 
 public class ResourceGraph {
 
@@ -57,11 +59,11 @@ public class ResourceGraph {
         FULL
     }
 
-
     private Project project;
     private GraphType type;
     private Set<IResource> resources = new HashSet<>();
     private List<ResourceNode> resourceNodes = new ArrayList<>();
+    private List<String> excludedResources = new ArrayList<>();
     private ResourceNode root = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
 
@@ -78,8 +80,9 @@ public class ResourceGraph {
      */
     public void add(IResource rootResource) throws CompileExceptionError {
         final Stack<GraphTraversalState> stack = new Stack<>();
-        
         ResourceWalker.walk(project, rootResource, new IResourceVisitor() {
+            boolean isCollectionProxy = false;
+
             @Override
             public boolean shouldVisit(IResource resource) {
                 if (type == GraphType.FULL) {
@@ -114,12 +117,29 @@ public class ResourceGraph {
                     parentNode.addChild(currentNode);
                     if (output.getPath().endsWith(".collectionproxyc")) {
                         state = new GraphTraversalState(currentNode, new HashSet<String>());
+                        isCollectionProxy = true;
                     }
                     else {
                         state = new GraphTraversalState(currentNode, state.visitedNodes);
                     }
                     state.visitedNodes.add(output.getAbsPath());
                     stack.push(state);
+                }
+            }
+
+            @Override
+            public void visitMessage(Message message) throws CompileExceptionError {
+                if (type != GraphType.FULL) {
+                    return;
+                }
+                if (isCollectionProxy) {
+                    isCollectionProxy = false;
+                    CollectionProxyDesc desc = (CollectionProxyDesc)message;
+                    if (desc.getExclude()) {
+                        ResourceNode lastNode = resourceNodes.get(resourceNodes.size() - 1);
+                        lastNode.setExcluded(true);
+                        excludedResources.add(lastNode.getRelativePath());
+                    }
                 }
             }
 
@@ -161,14 +181,10 @@ public class ResourceGraph {
     }
 
     /**
-     * Set resources in the graph as excluded from the main archive (live update)
-     * @param excludedResources List of excluded resource paths (relative to root)
+     * Get resources excluded from the main archive (live update)
+     * @return List of excluded resource paths (relative to root)
      */
-    public void setExcludedResources(Set<String> excludedResources) {
-        for (ResourceNode resourceNode : resourceNodes) {
-            if (excludedResources.contains(resourceNode.getRelativePath())) {
-                resourceNode.setExcluded(true);
-            }
-        }
+    public List<String> getExcludedResources() {
+        return excludedResources;
     }
 }

@@ -394,7 +394,7 @@
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
 
-(defn- calculate-ttf-layer-mask [font-desc]
+(defn calculate-ttf-layer-mask [font-desc]
   (let [^double alpha (:alpha font-desc)
         ^double shadow-alpha (:shadow-alpha font-desc)
         ^double outline-alpha (:outline-alpha font-desc)

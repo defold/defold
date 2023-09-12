@@ -196,6 +196,25 @@ namespace dmGraphics
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
 
+    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
+
+    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
+    {
+        switch(language)
+        {
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM140);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            default:break;
+        }
+        return "<unknown ShaderDesc::Language>";
+    }
+
+    #undef SHADERDESC_ENUM_TO_STR_CASE
+
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
     , m_ResizeCallbackUserData(0x0)
@@ -251,9 +270,8 @@ namespace dmGraphics
 
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
-        ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
-
+        ShaderDesc::Language language = GetShaderProgramLanguage(context);
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -275,7 +293,19 @@ namespace dmGraphics
                 }
             }
         }
-        assert(selected_shader);
+
+        if (selected_shader == 0)
+        {
+            const char* error_hint = "";
+            if (language == ShaderDesc::LANGUAGE_SPIRV)
+            {
+                error_hint = "Has the project been built with spir-v output enabled?";
+            }
+
+            dmLogError("Unable to get a valid shader with shader language \"%s\" from a ShaderDesc for this context. %s",
+                GetShaderProgramLanguageLiteral(language), error_hint);
+        }
+
         return selected_shader;
     }
 
@@ -1079,9 +1109,9 @@ namespace dmGraphics
     {
         g_functions.m_SetPolygonOffset(context, factor, units);
     }
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
     }
     void DeleteRenderTarget(HRenderTarget render_target)
     {

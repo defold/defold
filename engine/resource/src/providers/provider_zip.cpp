@@ -74,52 +74,15 @@ static void DeleteZipArchiveInternal(dmResourceProvider::HArchiveInternal _archi
 
 static void CreateEntryMap(ZipProviderContext* archive)
 {
-    uint32_t count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
-    archive->m_EntryMap.SetCapacity(dmMath::Max(1U, (count*2)/3), count);
-
-    dmLiveUpdateDDF::HashAlgorithm algorithm = archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
-    uint32_t hash_len = dmResource::HashLength(algorithm);
-
-    dmHashTable32<bool> added;
-    added.SetCapacity(dmMath::Max(1U, (count*2)/3), archive->m_EntryMap.Capacity());
-
     dmZip::HZip zip = archive->m_Zip;
-    for (uint32_t i = 0; i < count; ++i)
+    uint32_t archive_entry_count = dmZip::GetNumEntries(zip);
+
+    dmHashTable64<EntryInfo> temp_archive_map;
+    temp_archive_map.SetCapacity(dmMath::Max(1U, (archive_entry_count * 2) / 3), archive_entry_count);
+
+    // Iterate over archive once and collect all the info about files
+    for (uint32_t i = 0; i < archive_entry_count; ++i)
     {
-        dmLiveUpdateDDF::ResourceEntry* entry = &archive->m_Manifest->m_DDFData->m_Resources.m_Data[i];
-
-        char hash_buffer[dmResourceArchive::MAX_HASH*2+1];
-        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
-        hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
-
-        dmZip::Result zr = dmZip::OpenEntry(archive->m_Zip, hash_buffer);
-        if (dmZip::RESULT_OK != zr)
-        {
-            continue;
-        }
-
-        EntryInfo info;
-        info.m_ManifestEntry = entry;
-        info.m_Size = entry->m_Size;
-        dmZip::GetEntryIndex(zip, &info.m_EntryIndex);
-
-        // For live update resources, we account for the header size
-        dmZip::CloseEntry(archive->m_Zip);
-
-        archive->m_EntryMap.Put(entry->m_UrlHash, info);
-        added.Put(info.m_EntryIndex, true);
-
-        DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", hash_buffer, entry->m_UrlHash, info.m_Size);
-    }
-
-    // Also add any other files that the developer might have added to the zip archive
-    uint32_t entry_count = dmZip::GetNumEntries(zip);
-    for (uint32_t i = 0; i < entry_count; ++i)
-    {
-        bool* was_added = added.Get(i);
-        if (was_added) // no need to check the value. The presence of the value is enough
-            continue;
-
         dmZip::Result zr = dmZip::OpenEntry(zip, i);
         if (dmZip::RESULT_OK != zr)
         {
@@ -129,21 +92,70 @@ static void CreateEntryMap(ZipProviderContext* archive)
 
         const char* name = dmZip::GetEntryName(zip);
 
-        char archivepath[dmResource::RESOURCE_PATH_MAX];
-        dmSnPrintf(archivepath, sizeof(archivepath), "%s%s", name[0] != '/' ? "/" : "", name);
-        dmhash_t name_hash = dmHashString64(archivepath);
+        char archive_path[dmResource::RESOURCE_PATH_MAX];
+        dmSnPrintf(archive_path, sizeof(archive_path), "%s%s", name[0] != '/' ? "/" : "", name);
+        dmhash_t archive_path_hash = dmHashBufferNoReverse64(archive_path, strlen(archive_path));
 
         EntryInfo info;
         info.m_ManifestEntry = 0;
         dmZip::GetEntrySize(zip, &info.m_Size);
         dmZip::GetEntryIndex(zip, &info.m_EntryIndex);
 
-        DM_RESOURCE_DBG_LOG(3, "Added extra entry: %s %llx (%u bytes)\n", archivepath, name_hash, info.m_Size);
-
         dmZip::CloseEntry(zip);
 
-        archive->m_EntryMap.Put(name_hash, info);
+        temp_archive_map.Put(archive_path_hash, info);
     }
+
+    dmLiveUpdateDDF::HashAlgorithm algorithm = archive->m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+    uint32_t hash_len = dmResource::HashLength(algorithm);
+
+    uint32_t manifest_entry_count = archive->m_Manifest->m_DDFData->m_Resources.m_Count;
+
+    dmHashTable64<EntryInfo>* entry_map = &archive->m_EntryMap;
+    uint32_t map_size = archive_entry_count + manifest_entry_count;
+    entry_map->SetCapacity(dmMath::Max(1U, (map_size*2)/3), map_size);
+
+    // Iterate over manifest entries. Different entries may refer to the same file in archive.
+    for (uint32_t i = 0; i < manifest_entry_count; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* entry = &archive->m_Manifest->m_DDFData->m_Resources.m_Data[i];
+        char name_buffer[dmResourceArchive::MAX_HASH*2+1];
+        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_len, name_buffer, sizeof(name_buffer));
+        char archive_path_buffer[dmResourceArchive::MAX_HASH*2+1];
+        dmSnPrintf(archive_path_buffer, dmResourceArchive::MAX_HASH*2, "%s%s", name_buffer[0] != '/' ? "/" : "", name_buffer);
+        archive_path_buffer[dmResourceArchive::MAX_HASH*2] = 0;
+        dmhash_t archive_path_hash = dmHashBufferNoReverse64(archive_path_buffer, strlen(archive_path_buffer));
+        EntryInfo* info = temp_archive_map.Get(archive_path_hash);
+        if (!info)
+        {
+            // There is no such file in this archive
+            continue;
+        }
+        info->m_ManifestEntry = entry;
+        EntryInfo manifest_info;
+        manifest_info.m_ManifestEntry = entry;
+        // If we have file in manifest, get file size from there
+        manifest_info.m_Size = entry->m_Size;
+        manifest_info.m_EntryIndex = info->m_EntryIndex;
+        entry_map->Put(entry->m_UrlHash, manifest_info);
+        DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
+    }
+
+    // Also add any other files that the developer might have added to the zip archive
+    dmHashTable64<EntryInfo>::Iterator archive_entries_iter = temp_archive_map.GetIterator();
+    while(archive_entries_iter.Next())
+    {
+        const EntryInfo info = archive_entries_iter.GetValue();
+        if (info.m_ManifestEntry)
+        {
+            // This file already in the map as manifest entry
+            continue;
+        }
+        dmhash_t hash_key = archive_entries_iter.GetKey();
+        entry_map->Put(hash_key, info);
+        DM_RESOURCE_DBG_LOG(3, "Added extra entry: %llx (%u bytes)\n", hash_key, info.m_Size);
+    }
+
 }
 
 static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path, dmResource::HManifest* manifest)
@@ -227,7 +239,7 @@ static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveIntern
     return dmResourceProvider::RESULT_NOT_FOUND;
 }
 
-static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, const uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
+static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
 {
     dmResourceArchive::LiveUpdateResource resource(raw_resource, raw_resource_size);
 
@@ -236,6 +248,16 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     bool compressed = flags & dmLiveUpdateDDF::COMPRESSED;
     uint32_t compressed_size = compressed ? entry->m_CompressedSize : entry->m_Size;
     uint32_t resource_size = entry->m_Size;
+
+    if (encrypted)
+    {
+        dmResource::Result r = dmResource::DecryptBuffer((void*)resource.m_Data, resource.m_Count);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to decrypt resource: '%s", path);
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+    }
 
     if (compressed)
     {
@@ -250,16 +272,6 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     else
     {
         memcpy(out_buffer, resource.m_Data, resource.m_Count);
-    }
-
-    if (encrypted)
-    {
-        dmResource::Result r = dmResource::DecryptBuffer(out_buffer, resource_size);
-        if (dmResource::RESULT_OK != r)
-        {
-            dmLogError("Failed to decrypt resource: '%s", path);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
     }
 
     return dmResourceProvider::RESULT_OK;
@@ -290,7 +302,7 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
         delete[] raw_data;
     } else
     {
-        // Uncompressed, regular files
+        // Uncompressed, regular files (i.e. no Liveupdate header)
         dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
     }
 
