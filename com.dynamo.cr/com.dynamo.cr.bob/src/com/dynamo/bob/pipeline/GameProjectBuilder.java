@@ -77,7 +77,6 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Font.FontMap;
