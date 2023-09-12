@@ -164,6 +164,7 @@ public class Fontc {
         fontDescbuilder.mergeFrom(fontDesc);
         FontDesc desc = fontDescbuilder.build();
 
+        // the list of parameters which affect the glyph_bank
         String result = ""
             + desc.getFont()
             + desc.getSize()
