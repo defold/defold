@@ -16,7 +16,22 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <errno.h>
+#if !defined(DM_NO_ERRNO)
+    #if defined(__linux__) || defined(__MACH__)
+    #  include <sys/errno.h>
+    #elif defined(_WIN32)
+    #  include <errno.h>
+    #elif defined(__EMSCRIPTEN__)
+    #  include <unistd.h>
+    #else
+    #  include <errno.h>
+    #endif
+#endif
+
+#ifdef _WIN32
+#include <direct.h>
+#include <malloc.h>
+#endif
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
@@ -146,9 +161,13 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            char errmsg[128] = {};
-            dmStrError(errmsg, sizeof(errmsg), errno);
-            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+            #if !defined(DM_NO_ERRNO)
+                char errmsg[128] = {};
+                dmStrError(errmsg, sizeof(errmsg), errno);
+                return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+            #else
+                return luaL_error(L, "Could not open the file %s", tmp_filename);
+            #endif
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;

@@ -24,7 +24,7 @@
 #include <linux/if.h>
 #endif
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
@@ -711,7 +711,7 @@ namespace dmSocket
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
@@ -766,7 +766,7 @@ namespace dmSocket
 
     Result SetQuickAck(Socket socket, bool use_quick_ack)
     {
-#if defined(__MACH__) || defined(_WIN32) || defined(__NX__)
+#if defined(__MACH__) || defined(_WIN32)
         return RESULT_OK;
 #else
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
