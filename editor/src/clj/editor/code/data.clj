@@ -2063,7 +2063,24 @@
         to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn- delete-range [lines cursor-range]
+(defn delete-to-beginning-of-line [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-line-start lines from)]
+    [(->CursorRange from to) [""]]))
+
+(defn delete-line [lines cursor-range]
+  (let [cursor-rows (first (cursor-ranges->row-runs lines [cursor-range]))
+        row-start (get cursor-rows 0)
+        row-end (get cursor-rows 1)
+        row-ranges-to-delete (mapv (fn [row]
+                                     (let [from (->Cursor row 0)
+                                           to (cursor-line-end lines from)]
+                                       [(->CursorRange from to) [""]]))
+                                   (range row-start row-end))]
+    ;; TODO-JG: I don't know exactly what to do with these..
+    (first row-ranges-to-delete)))
+
+(defn delete-range [lines cursor-range]
   [(adjust-cursor-range lines cursor-range) [""]])
 
 (defn- put-selection-on-clipboard! [lines cursor-ranges clipboard]
@@ -2565,9 +2582,7 @@
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
 (defn delete [lines cursor-ranges regions ^LayoutInfo layout delete-fn]
-  (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines regions (map (partial delete-fn lines) cursor-ranges))
-        (splice lines regions (map (partial delete-range lines) cursor-ranges)))
+  (-> (splice lines regions (map (partial delete-fn lines) cursor-ranges))
       (frame-cursor layout)))
 
 (defn- apply-move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]
