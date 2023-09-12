@@ -35,6 +35,7 @@ public class ResourceWalker {
 
     public interface IResourceVisitor {
         public void visit(IResource resource) throws CompileExceptionError;
+        public void visitMessage(Message message) throws CompileExceptionError;
         public void leave(IResource resource) throws CompileExceptionError;
         public boolean shouldVisit(IResource resource);
     }
@@ -91,8 +92,9 @@ public class ResourceWalker {
                 throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
             builder.mergeFrom(content);
-            Object message = builder.build();
-            visitMessage(project, (Message) message, visitor);
+            Message message = (Message)builder.build();
+            visitor.visitMessage(message);
+            visitMessage(project, message, visitor);
         } catch(CompileExceptionError e) {
             throw e;
         } catch(Exception e) {

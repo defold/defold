@@ -132,7 +132,10 @@ var EngineLoader = {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
                 // May be incorrect if compressed
-                const contentLength = response.headers.get("Content-Length");
+                var contentLength = response.headers.get("Content-Length");
+                if (!contentLength){
+                    contentLength = EngineLoader.wasm_size;
+                }
                 const total = parseInt(contentLength, 10);
 
                 let bytesLoaded = 0;

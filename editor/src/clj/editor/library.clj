@@ -27,6 +27,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const connect-timeout 2000)
+
 (defn parse-library-uris [uri-string]
   (settings-core/parse-setting-value {:type :list :element {:type :url}} uri-string))
 
@@ -124,6 +126,7 @@
       (when tag
         (.setRequestProperty http-connection "If-None-Match" tag))
       (.setRequestProperty http-connection "Accept" "application/zip"))
+    (.setConnectTimeout connection connect-timeout)
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)
@@ -183,8 +186,9 @@
     (doseq [^File lib-file lib-files]
       (fs/delete-file! lib-file {:fail :silently}))))
 
-(defn- install-library! [project-directory {:keys [uri tag ^File new-file]}]
-  (fs/copy-file! new-file (library-file project-directory uri tag)))
+(defn- install-library!
+  ^File [project-directory {:keys [uri tag ^File new-file]}]
+  (second (first (fs/copy-file! new-file (library-file project-directory uri tag)))))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state

@@ -34,9 +34,8 @@ import com.dynamo.bob.fs.IResource;
  */
 public class State implements Serializable {
 
-    private static final long serialVersionUID = -275410118302470802L;
+    private static final long serialVersionUID = -275410118302470802L + 1;
     private Map<String, byte[]> signatures = new HashMap<String, byte[]>();
-    private final List<String> excludedCollectionProxies = new ArrayList<String>();
 
     /**
      * Get signature for path
@@ -62,7 +61,6 @@ public class State implements Serializable {
      */
     public void removeSignature(String path) {
         signatures.remove(path);
-        excludedCollectionProxies.remove(path);
     }
 
     /**
@@ -71,22 +69,6 @@ public class State implements Serializable {
      */
     public List<String> getPaths() {
         return new ArrayList<>(signatures.keySet());
-    }
-
-    /**
-     * Add excluded collection proxy
-     * @param path path to the collection proxy
-     */
-    public void addExcludedCollectionProxy(String path) {
-        excludedCollectionProxies.add(path);
-    }
-
-    /**
-     * Get all excluded collection proxies
-     * @return list of all excluded collection proxies
-     */
-    public List<String> getExcludedCollectionProxies() {
-        return excludedCollectionProxies;
     }
 
     /**

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,25 +15,28 @@
 #ifndef DM_SPINLOCKTYPES_MACH_H
 #define DM_SPINLOCKTYPES_MACH_H
 
-#include <os/lock.h>
-
+#include <libkern/OSAtomic.h>
 namespace dmSpinlock
 {
-    typedef struct os_unfair_lock_s Spinlock;
+    typedef OSSpinLock Spinlock;
 
-    static inline void Init(Spinlock* lock)
+    static inline void Create(Spinlock* lock)
     {
-        *lock = OS_UNFAIR_LOCK_INIT;
+        *lock = 0;
+    }
+
+    static inline void Destroy(Spinlock* lock)
+    {
     }
 
     static inline void Lock(Spinlock* lock)
     {
-        os_unfair_lock_lock(lock);
+        OSSpinLockLock(lock);
     }
 
     static inline void Unlock(Spinlock* lock)
     {
-        os_unfair_lock_unlock(lock);
+        OSSpinLockUnlock(lock);
     }
 }
 

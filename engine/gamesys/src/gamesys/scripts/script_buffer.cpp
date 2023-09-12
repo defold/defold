@@ -756,7 +756,7 @@ namespace dmGameSystem
         *s = 0;
         uint32_t version = 0;
         dmBuffer::GetContentVersion(hbuffer, &version);
-        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version);
+        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, handle = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version, (uint32_t) hbuffer);
         dmStrlCat(s, buf, maxlen);
 
         for( uint32_t i = 0; i < num_streams; ++i )
@@ -1039,8 +1039,8 @@ namespace dmGameSystem
      * @name buffer.get_metadata
      * @param buf [type:buffer] the buffer to get the metadata from
      * @param metadata_name [type:hash|string] name of the metadata entry
-     * @return values [type:table] table of metadata values or nil if the entry does not exist
-     * @return value_type [type:constant] numeric type of values or nil
+     * @return values [type:table|nil] table of metadata values or `nil` if the entry does not exist
+     * @return value_type [type:constant|nil] numeric type of values or `nil`
      *
      * @examples
      * How to get a metadata entry from a buffer

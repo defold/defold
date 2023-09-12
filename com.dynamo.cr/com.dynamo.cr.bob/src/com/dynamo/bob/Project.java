@@ -135,6 +135,7 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<String>();
     private List<String> buildServerHeaders = new ArrayList<String>();
+    private List<String> excluedFilesAndFoldersEntries = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -508,11 +509,20 @@ public class Project {
         return sortedInputs;
     }
 
-    private List<String> loadDefoldIgnore() throws CompileExceptionError {
+    /*
+        The same logic implemented in the Editor.
+        If you change something here, make sure you change it in resource.clj
+        (defignore-pred).
+    */
+    private void loadIgnoredFilesAndFolders() throws CompileExceptionError {
+        String excludeFoldersStr = this.option("exclude-build-folder", "");
+        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+        excluedFilesAndFoldersEntries.addAll(excludeFolders);
+        List<String> defIgnoreEntries = new ArrayList<String>();
         final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
         if (defIgnoreFile.isFile()) {
             try {
-                return FileUtils.readLines(defIgnoreFile, "UTF-8")
+                defIgnoreEntries = FileUtils.readLines(defIgnoreFile, "UTF-8")
                         .stream()
                         .filter(s -> !s.isEmpty())
                         .collect(Collectors.toList());
@@ -521,7 +531,14 @@ public class Project {
                 throw new CompileExceptionError("Unable to read .defignore", e);
             }
         }
-        return Collections.emptyList();
+        excluedFilesAndFoldersEntries.addAll(defIgnoreEntries);
+        // remove initial "/" from excluded folder names
+        for(int i = 0; i < excluedFilesAndFoldersEntries.size(); i++) {
+            String entry = excluedFilesAndFoldersEntries.get(i);
+            if (entry.startsWith("/")) {
+                excluedFilesAndFoldersEntries.set(i, entry.substring(1));
+            }
+        }
     }
 
     private void createTasks() throws CompileExceptionError {
@@ -530,22 +547,14 @@ public class Project {
 
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
-        String excludeFoldersStr = this.option("exclude-build-folder", "");
-        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
-        excludeFolders.addAll(loadDefoldIgnore());
 
-        // remove initial "/" from excluded folder names
-        for(int i = 0; i < excludeFolders.size(); i++) {
-            String excludeFolder = excludeFolders.get(i);
-            if (excludeFolder.startsWith("/")) {
-                excludeFolders.set(i, excludeFolder.substring(1));
-            }
-        }
         // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
-            for (String excludeFolder : excludeFolders) {
-                if (input.startsWith(excludeFolder)) {
+            // Ignore for resources.
+            // Check comment for loadIgnoredFilesAndFolders()
+            for (String excludeEntry : excluedFilesAndFoldersEntries) {
+                if (input.startsWith(excludeEntry)) {
                     skipped = true;
                     break;
                 }
@@ -1035,12 +1044,11 @@ public class Project {
             // Located in the same place as the log file in the unpacked successful build
             File logFile = new File(buildDir, "log.txt");
             String serverURL = this.option("build-server", "https://build.defold.com");
-            boolean asyncBuild = this.hasOption("use-async-build-server");
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
                 extender.setHeaders(buildServerHeaders);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
+                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
 
                 cleanEngine(platform, buildDir);
 
@@ -1220,7 +1228,7 @@ public class Project {
         Callable<Void> callable = new Callable<>() {
             public Void call() throws Exception {
                 logInfo("Build Remote Engine...");
-                TimeProfiler.start("Build Remote Engine");
+                TimeProfiler.addMark("StartBuildRemoteEngine", "Build Remote Engine");
                 final String variant = option("variant", Bob.VARIANT_RELEASE);
                 final Boolean withSymbols = hasOption("with-symbols");
 
@@ -1228,8 +1236,10 @@ public class Project {
                 appmanifestOptions.put("baseVariant", variant);
                 appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                TimeProfiler.addData("withSymbols", withSymbols);
-                TimeProfiler.addData("variant", variant);
+                // temporary removed because TimeProfiler works only with a single thread
+                // see https://github.com/pyatyispyatil/flame-chart-js
+                // TimeProfiler.addData("withSymbols", withSymbols);
+                // TimeProfiler.addData("variant", variant);
 
                 if (hasOption("build-artifacts")) {
                     String s = option("build-artifacts", "");
@@ -1251,7 +1261,7 @@ public class Project {
 
                 long tend = System.currentTimeMillis();
                 logger.info("Engine build took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.stop();
+                TimeProfiler.addMark("FinishedBuildRemoteEngine", "Build Remote Engine Finished");
 
                 return (Void)null;
             }
@@ -1317,7 +1327,7 @@ public class Project {
 
         // Generate and save build report
         TimeProfiler.start("Generating build size report");
-        if (generateReport) {
+        if (generateReport && !anyFailing(result)) {
             mrep = monitor.subProgress(1);
             mrep.beginTask("Generating report...", 1);
             ReportGenerator rg = new ReportGenerator(this);
@@ -1377,7 +1387,7 @@ public class Project {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
-        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
+        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
         state = State.load(stateResource);
 
         List<TaskResult> result = new ArrayList<TaskResult>();
@@ -1400,7 +1410,7 @@ public class Project {
             switch (command) {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
-
+                    loadIgnoredFilesAndFolders(); // load once before building to be able to use it in a few places
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
@@ -2055,7 +2065,18 @@ run:
         final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
-                results.add(FilenameUtils.normalize(path, true));
+                boolean shouldAdd = true;
+                // Ignore for native extensions and the other systems.
+                // Check comment for loadIgnoredFilesAndFolders()
+                for (String prefix : excluedFilesAndFoldersEntries) {
+                    if (path.startsWith(prefix)) {
+                        shouldAdd = false;
+                        break;
+                    }
+                }
+                if (shouldAdd) {
+                    results.add(FilenameUtils.normalize(path, true));
+                }
             }
         }, result);
     }
@@ -2088,14 +2109,6 @@ run:
 
     public void setTextureProfiles(TextureProfiles textureProfiles) {
         this.textureProfiles = textureProfiles;
-    }
-
-    public void excludeCollectionProxy(String path) {
-        state.addExcludedCollectionProxy(path);
-    }
-
-    public final List<String> getExcludedCollectionProxies() {
-        return state.getExcludedCollectionProxies();
     }
 
 }

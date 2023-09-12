@@ -2365,7 +2365,7 @@ If you do not specifically require different script states, consider changing th
         render-build-progress! (make-render-task-progress :build)
         task-cancelled? (make-task-cancelled-query :build)
         build-server-headers (native-extensions/get-build-server-headers prefs)
-        bob-args (bob/bundle-bob-args prefs platform bundle-options)
+        bob-args (bob/bundle-bob-args prefs project platform bundle-options)
         out (start-new-log-pipe!)]
     (when-not (.exists output-directory)
       (fs/create-directories! output-directory))
@@ -2481,7 +2481,7 @@ If you do not specifically require different script states, consider changing th
                     render-install-progress! (make-render-task-progress :resource-sync)]
                 (render-install-progress! (progress/make "Installing updated libraries..."))
                 (ui/run-later
-                  (workspace/install-validated-libraries! workspace library-uris lib-states)
+                  (workspace/install-validated-libraries! workspace lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success

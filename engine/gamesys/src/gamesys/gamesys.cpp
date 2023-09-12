@@ -56,6 +56,7 @@
 #include "resources/res_rig_scene.h"
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
+#include "resources/res_glyph_bank.h"
 
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
@@ -105,6 +106,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
+        REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate);
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate);

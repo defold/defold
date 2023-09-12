@@ -19,7 +19,7 @@ namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
-        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
+        dmGraphics::ShaderDesc::Shader* shader = dmGraphics::GetShaderProgram(context, ddf);
         if (shader == 0x0)
         {
             return dmResource::RESULT_FORMAT_ERROR;

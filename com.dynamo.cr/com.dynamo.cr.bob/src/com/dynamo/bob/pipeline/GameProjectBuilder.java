@@ -77,6 +77,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Font.FontMap;
@@ -419,15 +420,6 @@ public class GameProjectBuilder extends Builder<Void> {
 
         try {
             if (project.option("archive", "false").equals("true")) {
-                // build list of excluded resources
-                List<String> excludedResources = new ArrayList<String>();
-                boolean shouldPublish = project.option("liveupdate", "false").equals("true");
-                if (shouldPublish) {
-                    for (String excludedResource : project.getExcludedCollectionProxies()) {
-                        excludedResources.add(excludedResource);
-                    }
-                }
-
                 // create the resource graphs
                 // the full graph contains all resources in the project
                 // the live update graph contains each resource only once per collection proxy
@@ -445,6 +437,14 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
                 ComponentsCounter.excludeCounterPaths(resources);
 
+                boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
+                List<String> excludedResources = null;
+                if (shouldPublishLU) {
+                    excludedResources = fullGraph.getExcludedResources();
+                }
+                else {
+                    excludedResources = new ArrayList<String>();
+                }
 
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");
@@ -478,7 +478,6 @@ public class GameProjectBuilder extends Builder<Void> {
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
                 // game.graph.json
-                fullGraph.setExcludedResources(new HashSet<>(excludedResources));
                 fullGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
                 String fullGraphJSON = fullGraph.getRootNode().toJSON();
                 task.getOutputs().get(5).setContent(fullGraphJSON.getBytes());

@@ -150,18 +150,21 @@ namespace dmMessage
         ContextDestroyer()
         {
             dmAtomicStore32(&m_Deleted, 0);
-            dmSpinlock::Init(&g_MessageSpinlock);
+            dmSpinlock::Create(&g_MessageSpinlock);
         }
 
         ~ContextDestroyer()
         {
             dmAtomicStore32(&m_Deleted, 1);
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
-            if (g_MessageContext)
             {
-                delete g_MessageContext;
-                g_MessageContext = 0;
+                DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+                if (g_MessageContext)
+                {
+                    delete g_MessageContext;
+                    g_MessageContext = 0;
+                }
             }
+            dmSpinlock::Destroy(&g_MessageSpinlock);
         }
         int32_atomic_t m_Deleted;
     } g_ContextDestroyer;
