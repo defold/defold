@@ -556,7 +556,7 @@ def web_exported_functions(self):
 
     use_crash = hasattr(self, 'use') and 'CRASH' in self.use or self.name in ('crashext', 'crashext_null')
 
-    for name in ('LINKFLAGS'):
+    for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
 
         for i, v in enumerate(arr):
@@ -565,7 +565,7 @@ def web_exported_functions(self):
                 break
 
         if use_crash:
-            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_dmExportedSymbols","_main"]'])
+            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=_JSWriteDump,_dmExportedSymbols,_main'])
 
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
