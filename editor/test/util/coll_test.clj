@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.core :as core]
+            [clojure.test :refer :all]
             [util.coll :as coll])
   (:import [clojure.lang IPersistentVector]))
 
@@ -93,6 +94,25 @@
     (let [old-coll (vector-of :byte 0 1 2)
           new-coll (coll/resize old-coll (inc (count old-coll)) 0)]
       (is (= (type old-coll) (type new-coll))))))
+
+(deftest empty-with-meta-test
+  (letfn [(check! [coll]
+            (is (not (core/empty? coll)) "Tested collections should have items to ensure emptiness is tested.")
+            (let [original-meta {:version "original"}
+                  coll-with-meta (with-meta coll original-meta)
+                  empty-coll (coll/empty-with-meta coll-with-meta)]
+              (is (core/empty? empty-coll))
+              (is (identical? original-meta (meta empty-coll)))))]
+    (check! [1])
+    (check! (vector-of :long 1))
+    (check! '(1))
+    (check! {1 1})
+    (check! #{1})
+    (check! (sorted-map 1 1))
+    (check! (sorted-set 1))
+    (check! (range 1))
+    (check! (range (double 1)))
+    (check! (repeatedly 1 rand))))
 
 (deftest empty?-test
   (is (true? (coll/empty? nil)))

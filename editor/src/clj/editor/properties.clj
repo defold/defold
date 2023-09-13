@@ -574,17 +574,20 @@
 (definline round-scalar [n]
   `(math/round-with-precision ~n math/precision-general))
 
+(definline round-scalar-float [n]
+  `(float (round-scalar ~n)))
+
 (definline round-scalar-coarse [n]
   `(math/round-with-precision ~n math/precision-coarse))
 
 (definline round-scalar-coarse-float [n]
   `(float (round-scalar-coarse ~n)))
 
-(defn round-vec [v]
-  (mapv round-scalar v))
+(definline round-vec [v]
+  `(mapv round-scalar ~v))
 
-(defn round-vec-coarse [v]
-  (mapv round-scalar-coarse v))
+(definline round-vec-coarse [v]
+  `(mapv round-scalar-coarse ~v))
 
 ;; SDK api
 (defn ->choicebox [vals]

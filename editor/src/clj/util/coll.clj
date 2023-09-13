@@ -72,6 +72,15 @@
       :else
       coll)))
 
+(defn empty-with-meta
+  "Like core.empty, but ensures the metadata is preserved for all collections."
+  [coll]
+  (let [original-meta (meta coll)
+        empty-coll (empty coll)]
+    (if (and original-meta (nil? (meta empty-coll)))
+      (with-meta empty-coll original-meta)
+      empty-coll)))
+
 (defn empty?
   "Like core.empty?, but avoids generating garbage for counted collections."
   [coll]

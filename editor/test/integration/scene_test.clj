@@ -197,6 +197,28 @@
                (test-util/mouse-drag! view 64 64 100 64)
                (is (not= 0.0 (.x (pos go-node))))))))
 
+(deftest transform-tools-preserve-types
+  (testing "Transform tools and manipulator interactions"
+    (test-util/with-loaded-project
+      (let [path "/collection/empty_go.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            original-meta {:version "original"}]
+        (app-view/select! app-view [go-node])
+        (is (test-util/selected? app-view go-node))
+
+        (testing "Move tool"
+          (test-util/set-active-tool! app-view :move)
+          (doseq [original-position
+                  (mapv #(with-meta % original-meta)
+                        [[(float 0.0) (float 0.0) (float 0.0)]
+                         [(double 0.0) (double 0.0) (double 0.0)]
+                         (vector-of :float 0.0 0.0 0.0)
+                         (vector-of :double 0.0 0.0 0.0)])]
+            (g/set-property! go-node :position original-position)
+            (test-util/mouse-drag! view 64 64 100 64)
+            (test-util/ensure-float-type-preserving! original-position (g/node-value go-node :position))))))))
+
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
            (test-util/with-loaded-project

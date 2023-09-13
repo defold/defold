@@ -45,6 +45,7 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
+            [util.coll :as coll]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -1585,9 +1586,16 @@
   (contains? (g/node-value node-id :transform-properties) :scale))
 
 (defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
-  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position evaluation-context)))
-        p (math/add-vector orig-p delta)]
-    (g/set-property node-id :position (properties/round-vec (math/vecmath->clj p)))))
+  (let [old-clj-position (g/node-value node-id :position evaluation-context)
+        old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
+        new-vecmath-position (math/add-vector old-vecmath-position delta)
+        num-fn (if (math/float32? (first old-clj-position))
+                 properties/round-scalar-float
+                 properties/round-scalar)
+        new-clj-position (into (coll/empty-with-meta old-clj-position)
+                               (map num-fn)
+                               (math/vecmath->clj new-vecmath-position))]
+    (g/set-property node-id :position new-clj-position)))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
   (let [new-rotation (math/vecmath->clj
