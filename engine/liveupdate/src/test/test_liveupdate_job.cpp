@@ -112,6 +112,8 @@ TEST_F(AsyncTestSingleThread, TestJobs)
 
         if (num_finished == num_jobs)
             break;
+
+        dmTime::Sleep(1);
     }
 
     for (uint32_t i = 0; i < num_jobs; ++i)

@@ -369,7 +369,7 @@ def install_ext(platform = None):
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
 def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
+    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
 

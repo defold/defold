@@ -811,8 +811,12 @@ namespace dmGraphics
 
     static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context)
     {
-#if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
-        return ShaderDesc:: DM_GRAPHICS_NULL_SHADER_LANGUAGE ;
+#if defined(DM_PLATFORM_VENDOR)
+        #if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
+            return ShaderDesc:: DM_GRAPHICS_NULL_SHADER_LANGUAGE ;
+        #else
+            #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
+        #endif
 #else
         return ShaderDesc::LANGUAGE_GLSL_SM140;
 #endif

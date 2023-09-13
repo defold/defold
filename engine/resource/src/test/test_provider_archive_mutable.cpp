@@ -32,8 +32,17 @@
 #include "../providers/provider_archive.h"
 #include <resource/liveupdate_ddf.h>
 
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+#define DM_SUPPORT_MUTABLE_ARCHIVE
+#if defined(DM_PLATFORM_VENDOR) // Let's deprecated it now, starting with consoles
+    #undef DM_SUPPORT_MUTABLE_ARCHIVE
+#endif
+
+// We currently have disabled this test for some platforms
+#if !defined(DM_SUPPORT_MUTABLE_ARCHIVE)
 
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
@@ -372,6 +381,7 @@ TEST_F(ArchiveProviderMutable, GetUrlHashFromHexDigest)
     ASSERT_EQ(url_hash2, dmResource::GetUrlHashFromHexDigest(manifest, digest_hash2));
 }
 
+#endif // #if !defined(DM_SUPPORT_MUTABLE_ARCHIVE)
 
 int main(int argc, char **argv)
 {

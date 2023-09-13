@@ -36,12 +36,7 @@ TEST(dmTestUtil, MakeHostPath)
     char path[128];
 
     dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists");
-    if (strcmp(DM_HOSTFS, "") == 0) {
-        ASSERT_STREQ("does_not_exists", path);
-    }
-    else {
-        ASSERT_STREQ(DM_HOSTFS "/" "does_not_exists", path);
-    }
+    ASSERT_STREQ(DM_HOSTFS "does_not_exists", path);
 }
 ///////////////////////////////////////////////////////////
 
@@ -55,6 +50,24 @@ TEST(dmSys, Exists)
 
     r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "notexist"));
     ASSERT_FALSE(r);
+}
+
+TEST(dmSys, IsDir)
+{
+    char path[128];
+    dmSys::Result r;
+
+    // Check a directory
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+    ASSERT_TRUE(dmSys::Exists(path));
+    r = dmSys::IsDir(path);
+    ASSERT_EQ(dmSys::RESULT_OK, r);
+
+    // Check a file
+    dmTestUtil::MakeHostPath(path, sizeof(path), "wscript");
+    ASSERT_TRUE(dmSys::Exists(path));
+    r = dmSys::IsDir(path);
+    ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
 }
 
 TEST(dmSys, Mkdir)
@@ -73,10 +86,11 @@ TEST(dmSys, Mkdir)
     ASSERT_EQ(dmSys::RESULT_OK, r);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
 
-    ASSERT_EQ(dmSys::RESULT_NOENT, dmSys::IsDir("not_exists"));
-
     r = dmSys::Mkdir(path, 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
+
+    dmTestUtil::MakeHostPath(path, sizeof(path), "not_exists");
+    ASSERT_EQ(dmSys::RESULT_NOENT, dmSys::IsDir(path));
 
     r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"), 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
