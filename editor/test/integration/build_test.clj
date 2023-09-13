@@ -34,7 +34,7 @@
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.render.proto Font$FontMap]
+           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
@@ -481,15 +481,21 @@
   (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
       (let [content (get content-by-source "/fonts/score.font")
-            desc (protobuf/bytes->map-with-defaults Font$FontMap content)]
-        (is (= 1024 (:cache-width desc)))
-        (is (= 256 (:cache-height desc))))))
+            desc (protobuf/bytes->map-with-defaults Font$FontMap content)
+            glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
+            glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
+            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
+        (is (= 1024 (:cache-width glyph-bank)))
+        (is (= 256 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")
-            desc (protobuf/bytes->map-with-defaults Font$FontMap content)]
-        (is (= 1024 (:cache-width desc)))
-        (is (= 512 (:cache-height desc)))))))
+            desc (protobuf/bytes->map-with-defaults Font$FontMap content)
+            glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
+            glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
+            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
+        (is (= 1024 (:cache-width glyph-bank)))
+        (is (= 512 (:cache-height glyph-bank)))))))
 
 (deftest build-script
   (testing "Building a valid script succeeds"

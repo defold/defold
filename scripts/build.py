@@ -720,6 +720,30 @@ class Configuration(object):
     def is_desktop_target(self):
         return self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']
 
+    def _package_platform_sdk_headers(self, path):
+        with open(path, 'wb') as outfile:
+            zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+
+            basedir = self.dynamo_home
+            topfolder = 'defoldsdk'
+
+            # Includes
+            includes = []
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
+                for file in files:
+                    if file.endswith('.h'):
+                        includes.append(os.path.join(root, file))
+
+            # proto _ddf.h + "res_*.h"
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
+                for file in files:
+                    if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
+                        includes.append(os.path.join(root, file))
+
+            self._add_files_to_zip(zip, includes, basedir, topfolder)
+
+            zip.close()
+
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
         with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
@@ -1249,6 +1273,19 @@ class Configuration(object):
             args = [ant, 'test-clean', 'test'] + ant_args
             run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
+    def build_sdk_headers(self):
+        # Used to provide a small sized bundle with the headers for any C++ auto completion tools
+
+        # Step 1: Generate the package
+        filename = 'defoldsdk_headers.zip'
+        headers_path = join(self.dynamo_home, filename)
+        self._package_platform_sdk_headers(headers_path)
+
+        # Step 2: Upload the package
+        sha1 = self._git_sha1()
+
+        sdkurl = join(sha1, 'engine').replace('\\', '/')
+        self.upload_to_archive(headers_path, f'{sdkurl}/{filename}')
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1697,7 +1734,7 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
-        
+
         # Release to steam for stable only
         # if tag_name and (self.channel == 'editor-alpha'):
         #     self.release_to_steam()
@@ -2161,6 +2198,7 @@ archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation
 build_builtins   - Build builtin content archive

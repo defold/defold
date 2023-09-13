@@ -156,11 +156,13 @@ namespace dmMessage
         ~ContextDestroyer()
         {
             dmAtomicStore32(&m_Deleted, 1);
-            DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
-            if (g_MessageContext)
             {
-                delete g_MessageContext;
-                g_MessageContext = 0;
+                DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+                if (g_MessageContext)
+                {
+                    delete g_MessageContext;
+                    g_MessageContext = 0;
+                }
             }
             dmSpinlock::Destroy(&g_MessageSpinlock);
         }

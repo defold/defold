@@ -465,8 +465,6 @@ namespace dmGui
 
     void SetDisplayProfiles(HContext context, void* display_profiles);
 
-    void SetDefaultFont(HContext context, void* font);
-
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference);
 
     HScene NewScene(HContext context, const NewSceneParams* params);

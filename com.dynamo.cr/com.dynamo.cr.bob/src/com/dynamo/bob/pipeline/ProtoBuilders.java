@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -168,17 +168,6 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
-
-            if (messageBuilder.getExclude()) {
-            	if (project.getBuildDirectory() != null && resource.output() != null && resource.output().getPath() != null) {
-            		if (resource.output().getPath().startsWith(project.getBuildDirectory())) {
-            			String excludePath = resource.output().getPath().substring(project.getBuildDirectory().length());
-            			excludePath = BuilderUtil.replaceExt(excludePath, ".collectionproxy", ".collectionproxyc");
-            			this.project.excludeCollectionProxy(excludePath);
-            		}
-            	}
-            }
-
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -299,7 +288,7 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
-    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> 
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
 {
         @Override
         public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
