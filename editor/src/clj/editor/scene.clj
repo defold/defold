@@ -1552,10 +1552,8 @@
     :else
     num))
 
-(def ^:private empty-scale (empty default-scale))
-
 (defn- non-zeroify-scale [scale]
-  (into empty-scale
+  (into (coll/empty-with-meta scale)
         (map non-zeroify-component)
         scale))
 
@@ -1614,12 +1612,16 @@
     (g/set-property node-id :rotation new-clj-rotation)))
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
-  (let [s (Vector3d. (double-array (g/node-value node-id :scale evaluation-context)))
-        ^Vector3d d delta]
-    (.setX s (* (.x s) (.x d)))
-    (.setY s (* (.y s) (.y d)))
-    (.setZ s (* (.z s) (.z d)))
-    (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+  (let [old-clj-scale (g/node-value node-id :scale evaluation-context)
+        old-vecmath-scale (doto (Vector3d.) (math/clj->vecmath old-clj-scale))
+        new-vecmath-scale (math/multiply-vector old-vecmath-scale delta)
+        num-fn (if (math/float32? (first old-clj-scale))
+                 properties/round-scalar-float
+                 properties/round-scalar)
+        new-clj-scale (into (coll/empty-with-meta old-clj-scale)
+                            (map num-fn)
+                            (math/vecmath->clj new-vecmath-scale))]
+    (g/set-property node-id :scale new-clj-scale)))
 
 (defn selection->movable [selection]
   (handler/selection->node-ids selection scene-tools/manip-movable?))

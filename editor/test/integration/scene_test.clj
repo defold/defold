@@ -232,7 +232,20 @@
             (with-open [_ (test-util/make-graph-reverter project-graph)]
               (g/set-property! go-node :rotation original-rotation)
               (test-util/mouse-drag! view 64 80 64 84)
-              (test-util/ensure-float-type-preserving! original-rotation (g/node-value go-node :rotation)))))))))
+              (test-util/ensure-float-type-preserving! original-rotation (g/node-value go-node :rotation)))))
+
+        (testing "Scale tool"
+          (test-util/set-active-tool! app-view :scale)
+          (doseq [original-scale
+                  (mapv #(with-meta % original-meta)
+                        [[(float 1.0) (float 1.0) (float 1.0)]
+                         [(double 1.0) (double 1.0) (double 1.0)]
+                         (vector-of :float 1.0 1.0 1.0)
+                         (vector-of :double 1.0 1.0 1.0)])]
+            (with-open [_ (test-util/make-graph-reverter project-graph)]
+              (g/set-property! go-node :scale original-scale)
+              (test-util/mouse-drag! view 64 64 68 64)
+              (test-util/ensure-float-type-preserving! original-scale (g/node-value go-node :scale)))))))))
 
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
