@@ -5,9 +5,9 @@
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.types :as t]
+            [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
-  (:import [clojure.core Vec]
-           [editor.properties Curve CurveSpread]
+  (:import [editor.properties Curve CurveSpread]
            [javafx.event ActionEvent]
            [javafx.scene Parent]
            [javafx.scene.control ColorPicker Control Label Slider TextField ToggleButton]
@@ -121,64 +121,7 @@
         [widget _update-ui-fn] (properties-view/create-property-control! edit-type context coalesced-prop-info-fn)]
     widget))
 
-(defn- type-preserving? [a b]
-  (assert (or (number? a) (vector? a)))
-  (assert (or (number? b) (vector? b)))
-  (and (is (= (type a) (type b)))
-       (or (number? a)
-           (and (is (identical? (meta a) (meta b)))
-                (or (not (instance? Vec a))
-                    (is (= (type (.am ^Vec a))
-                           (type (.am ^Vec b)))))
-                (is (every? true? (map type-preserving? a (cycle b))))
-                (is (every? true? (map type-preserving? b (cycle a))))))))
-
-(deftest type-preserving?-test
-  (let [type-preserving? ; Silence inner assertions since we'll be triggering failures.
-        (fn silenced-type-preserving? [a b]
-          (with-redefs [do-report identity]
-            (type-preserving? a b)))
-
-        original-meta {:version "original"}
-        altered-meta {:version "altered"}]
-
-    (is (true? (type-preserving? (float 0.0) (float 0.0))))
-    (is (true? (type-preserving? (double 0.0) (double 0.0))))
-    (is (false? (type-preserving? (float 0.0) (double 0.0))))
-    (is (false? (type-preserving? (double 0.0) (float 0.0))))
-
-    (is (true? (type-preserving? [(float 0.0)] [(float 0.0)])))
-    (is (true? (type-preserving? [(double 0.0)] [(double 0.0)])))
-    (is (false? (type-preserving? [(float 0.0)] [(double 0.0)])))
-    (is (false? (type-preserving? [(double 0.0)] [(float 0.0)])))
-
-    (is (true? (type-preserving? [[(float 0.0)]] [[(float 0.0)]])))
-    (is (true? (type-preserving? [[(double 0.0)]] [[(double 0.0)]])))
-    (is (false? (type-preserving? [[(float 0.0)]] [[(double 0.0)]])))
-    (is (false? (type-preserving? [[(double 0.0)]] [[(float 0.0)]])))
-
-    (is (true? (type-preserving? (vector-of :float 0.0) (vector-of :float 0.0))))
-    (is (true? (type-preserving? (vector-of :double 0.0) (vector-of :double 0.0))))
-    (is (false? (type-preserving? (vector-of :float 0.0) (vector-of :double 0.0))))
-    (is (false? (type-preserving? (vector-of :double 0.0) (vector-of :float 0.0))))
-
-    (is (true? (type-preserving? [(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)])))
-    (is (true? (type-preserving? [(double 0.0) (float 0.0)] [(double 0.0) (float 0.0)])))
-    (is (false? (type-preserving? [(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)])))
-    (is (false? (type-preserving? [(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)])))
-
-    (is (true? (type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]])))
-    (is (true? (type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)]])))
-    (is (false? (type-preserving? [[(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)]])))
-    (is (false? (type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)]])))
-    (is (false? (type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)]])))
-
-    (is (true? (type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] original-meta))))
-    (is (false? (type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] altered-meta))))
-    (is (true? (type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) original-meta))))
-    (is (false? (type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) altered-meta))))))
-
-(def ensure-type-preserving! type-preserving?)
+(def ensure-type-preserving! test-util/ensure-float-type-preserving!)
 
 (defmulti test-property-widget! (fn [edit-type _node-id _prop-kw]
                                   (properties-view/edit-type->type edit-type)))

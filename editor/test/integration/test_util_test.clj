@@ -25,6 +25,51 @@
             [integration.test-util :as test-util]
             [support.test-support :as test-support]))
 
+(deftest float-type-preserving?-test
+  (let [float-type-preserving? ; Silence inner assertions since we'll be triggering failures.
+        (fn silenced-float-type-preserving? [a b]
+          (with-redefs [do-report identity]
+            (test-util/float-type-preserving? a b)))
+
+        original-meta {:version "original"}
+        altered-meta {:version "altered"}]
+
+    (is (true? (float-type-preserving? (float 0.0) (float 0.0))))
+    (is (true? (float-type-preserving? (double 0.0) (double 0.0))))
+    (is (false? (float-type-preserving? (float 0.0) (double 0.0))))
+    (is (false? (float-type-preserving? (double 0.0) (float 0.0))))
+
+    (is (true? (float-type-preserving? [(float 0.0)] [(float 0.0)])))
+    (is (true? (float-type-preserving? [(double 0.0)] [(double 0.0)])))
+    (is (false? (float-type-preserving? [(float 0.0)] [(double 0.0)])))
+    (is (false? (float-type-preserving? [(double 0.0)] [(float 0.0)])))
+
+    (is (true? (float-type-preserving? [[(float 0.0)]] [[(float 0.0)]])))
+    (is (true? (float-type-preserving? [[(double 0.0)]] [[(double 0.0)]])))
+    (is (false? (float-type-preserving? [[(float 0.0)]] [[(double 0.0)]])))
+    (is (false? (float-type-preserving? [[(double 0.0)]] [[(float 0.0)]])))
+
+    (is (true? (float-type-preserving? (vector-of :float 0.0) (vector-of :float 0.0))))
+    (is (true? (float-type-preserving? (vector-of :double 0.0) (vector-of :double 0.0))))
+    (is (false? (float-type-preserving? (vector-of :float 0.0) (vector-of :double 0.0))))
+    (is (false? (float-type-preserving? (vector-of :double 0.0) (vector-of :float 0.0))))
+
+    (is (true? (float-type-preserving? [(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)])))
+    (is (true? (float-type-preserving? [(double 0.0) (float 0.0)] [(double 0.0) (float 0.0)])))
+    (is (false? (float-type-preserving? [(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)])))
+    (is (false? (float-type-preserving? [(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)])))
+
+    (is (true? (float-type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]])))
+    (is (true? (float-type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)]])))
+    (is (false? (float-type-preserving? [[(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)]])))
+    (is (false? (float-type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)]])))
+    (is (false? (float-type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)]])))
+
+    (is (true? (float-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] original-meta))))
+    (is (false? (float-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] altered-meta))))
+    (is (true? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) original-meta))))
+    (is (false? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) altered-meta))))))
+
 (deftest run-event-loop-test
 
   (testing "Exit function terminates event loop."

@@ -51,7 +51,8 @@
             [support.test-support :as test-support]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
-  (:import [java.awt.image BufferedImage]
+  (:import [clojure.core Vec]
+           [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
            [java.net URI URL]
            [java.util UUID]
@@ -67,6 +68,20 @@
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
+
+(defn float-type-preserving? [a b]
+  (assert (or (number? a) (vector? a)))
+  (assert (or (number? b) (vector? b)))
+  (and (is (= (type a) (type b)))
+       (or (number? a)
+           (and (is (identical? (meta a) (meta b)))
+                (or (not (instance? Vec a))
+                    (is (= (type (.am ^Vec a))
+                           (type (.am ^Vec b)))))
+                (is (every? true? (map float-type-preserving? a (cycle b))))
+                (is (every? true? (map float-type-preserving? b (cycle a))))))))
+
+(def ensure-float-type-preserving! float-type-preserving?)
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
