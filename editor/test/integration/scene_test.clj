@@ -200,7 +200,8 @@
 (deftest transform-tools-preserve-types
   (testing "Transform tools and manipulator interactions"
     (test-util/with-loaded-project
-      (let [path "/collection/empty_go.collection"
+      (let [project-graph (g/node-id->graph-id project)
+            path "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
             go-node (ffirst (g/sources-of resource-node :child-scenes))
             original-meta {:version "original"}]
@@ -215,9 +216,23 @@
                          [(double 0.0) (double 0.0) (double 0.0)]
                          (vector-of :float 0.0 0.0 0.0)
                          (vector-of :double 0.0 0.0 0.0)])]
-            (g/set-property! go-node :position original-position)
-            (test-util/mouse-drag! view 64 64 100 64)
-            (test-util/ensure-float-type-preserving! original-position (g/node-value go-node :position))))))))
+            (with-open [_ (test-util/make-graph-reverter project-graph)]
+              (g/set-property! go-node :position original-position)
+              (test-util/mouse-drag! view 64 64 68 64)
+              (test-util/ensure-float-type-preserving! original-position (g/node-value go-node :position)))))
+
+        (testing "Rotate tool"
+          (test-util/set-active-tool! app-view :rotate)
+          (doseq [original-rotation
+                  (mapv #(with-meta % original-meta)
+                        [[(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
+                         [(double 0.0) (double 0.0) (double 0.0) (double 1.0)]
+                         (vector-of :float 0.0 0.0 0.0 1.0)
+                         (vector-of :double 0.0 0.0 0.0 1.0)])]
+            (with-open [_ (test-util/make-graph-reverter project-graph)]
+              (g/set-property! go-node :rotation original-rotation)
+              (test-util/mouse-drag! view 64 80 64 84)
+              (test-util/ensure-float-type-preserving! original-rotation (g/node-value go-node :rotation)))))))))
 
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
