@@ -11,7 +11,27 @@
   However, unaligned loads/stores of floats seems to be valid though.
 * Create a node.js package with uvrun for all platforms (osx, linux and windows)
 
-## Create SDK Packages
+## Updating emscripten version
+
+Note: This information is based on the latest update (2.0.11 -> 3.1.45), mileage may vary
+
+* update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
+* package_emscripten:
+  - update the `VERSION` to the new version
+  - run the script `./script/package/package_emscripten.sh` on both OSX and linux (tested on ubuntu 22.x)
+  - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
+* run `./scripts/build.py install_ems` to get the latest sdk for your host platform
+* build protobuf for js-web and wasm-web (ubuntu/linux) and copy into the `defold/packages` folder
+* build bullet3d for js-web and wasm-web (ubuntu/linux)
+  - `./scripts/build.py build_external --platform=js-web`
+  - `./scripts/build.py build_external --platform=wasm-web`
+  - these are automatically copied to packages
+* building:
+  - refresh the shell (`exit` + subsequent `scripts/build.py shell`)
+  - make sure `$EMSCRIPTEN` points to the updated version
+    - occasionally there has been issues with `fastcomp` vs `upstream` in the path so make sure the folder from the env variable exists
+
+## Create SDK Packages (DEPRECATED?)
 
 * Download [emsdk_portable](http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html)
 * Compile on 32-bit Linux
