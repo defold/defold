@@ -46,6 +46,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -114,6 +119,7 @@ public class Project {
         ENCRYPTED
     }
 
+    private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
@@ -129,6 +135,7 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<String>();
     private List<String> buildServerHeaders = new ArrayList<String>();
+    private List<String> excluedFilesAndFoldersEntries = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -158,7 +165,7 @@ public class Project {
 
     // For the editor
     public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
-        classLoader = loader;
+        this.classLoader = loader;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -195,6 +202,14 @@ public class Project {
         return FilenameUtils.concat(rootDirectory, CACHE_DIR);
     }
 
+    public String getSystemEnv(String name) {
+        return System.getenv(name);
+    }
+
+    public String getSystemProperty(String name) {
+        return System.getProperty(name);
+    }
+
     public String getLocalResourceCacheDirectory() {
         return option("resource-cache-local", null);
     }
@@ -204,11 +219,11 @@ public class Project {
     }
 
     public String getRemoteResourceCacheUser() {
-        return option("resource-cache-remote-user", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_USER"));
+        return option("resource-cache-remote-user", getSystemEnv("DM_BOB_RESOURCE_CACHE_REMOTE_USER"));
     }
 
     public String getRemoteResourceCachePass() {
-        return option("resource-cache-remote-pass", System.getenv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
+        return option("resource-cache-remote-pass", getSystemEnv("DM_BOB_RESOURCE_CACHE_REMOTE_PASS"));
     }
 
     public int getMaxCpuThreads() {
@@ -485,11 +500,20 @@ public class Project {
         return sortedInputs;
     }
 
-    private List<String> loadDefoldIgnore() throws CompileExceptionError {
+    /*
+        The same logic implemented in the Editor.
+        If you change something here, make sure you change it in resource.clj
+        (defignore-pred).
+    */
+    private void loadIgnoredFilesAndFolders() throws CompileExceptionError {
+        String excludeFoldersStr = this.option("exclude-build-folder", "");
+        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+        excluedFilesAndFoldersEntries.addAll(excludeFolders);
+        List<String> defIgnoreEntries = new ArrayList<String>();
         final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
         if (defIgnoreFile.isFile()) {
             try {
-                return FileUtils.readLines(defIgnoreFile, "UTF-8")
+                defIgnoreEntries = FileUtils.readLines(defIgnoreFile, "UTF-8")
                         .stream()
                         .filter(s -> !s.isEmpty())
                         .collect(Collectors.toList());
@@ -498,7 +522,14 @@ public class Project {
                 throw new CompileExceptionError("Unable to read .defignore", e);
             }
         }
-        return Collections.emptyList();
+        excluedFilesAndFoldersEntries.addAll(defIgnoreEntries);
+        // remove initial "/" from excluded folder names
+        for(int i = 0; i < excluedFilesAndFoldersEntries.size(); i++) {
+            String entry = excluedFilesAndFoldersEntries.get(i);
+            if (entry.startsWith("/")) {
+                excluedFilesAndFoldersEntries.set(i, entry.substring(1));
+            }
+        }
     }
 
     private void createTasks() throws CompileExceptionError {
@@ -507,22 +538,14 @@ public class Project {
 
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
-        String excludeFoldersStr = this.option("exclude-build-folder", "");
-        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
-        excludeFolders.addAll(loadDefoldIgnore());
 
-        // remove initial "/" from excluded folder names
-        for(int i = 0; i < excludeFolders.size(); i++) {
-            String excludeFolder = excludeFolders.get(i);
-            if (excludeFolder.startsWith("/")) {
-                excludeFolders.set(i, excludeFolder.substring(1));
-            }
-        }
         // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
-            for (String excludeFolder : excludeFolders) {
-                if (input.startsWith(excludeFolder)) {
+            // Ignore for resources.
+            // Check comment for loadIgnoredFilesAndFolders()
+            for (String excludeEntry : excluedFilesAndFoldersEntries) {
+                if (input.startsWith(excludeEntry)) {
                     skipped = true;
                     break;
                 }
@@ -681,6 +704,10 @@ public class Project {
                 TimeProfiler.init(reportFiles, true);
             }
             loadProjectFile();
+            String title = projectProperties.getStringValue("project", "title");
+            if (title != null && title.isEmpty()) {
+                throw new Exception("`project.title` in `game.project` must be non-empty.");
+            }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
@@ -876,7 +903,7 @@ public class Project {
         throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
     }
 
-    private static boolean anyFailing(Collection<TaskResult> results) {
+    private boolean anyFailing(Collection<TaskResult> results) {
         for (TaskResult taskResult : results) {
             if (!taskResult.isOk()) {
                 return true;
@@ -1008,12 +1035,11 @@ public class Project {
             // Located in the same place as the log file in the unpacked successful build
             File logFile = new File(buildDir, "log.txt");
             String serverURL = this.option("build-server", "https://build.defold.com");
-            boolean asyncBuild = this.hasOption("use-async-build-server");
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
                 extender.setHeaders(buildServerHeaders);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
+                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
 
                 cleanEngine(platform, buildDir);
 
@@ -1189,11 +1215,170 @@ public class Project {
         scan(scanner, "com.defold.extension.pipeline");
     }
 
-    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+    private Future buildRemoteEngine(IProgress monitor, ExecutorService executor) {
+        Callable<Void> callable = new Callable<>() {
+            public Void call() throws Exception {
+                logInfo("Build Remote Engine...");
+                TimeProfiler.addMark("StartBuildRemoteEngine", "Build Remote Engine");
+                final String variant = option("variant", Bob.VARIANT_RELEASE);
+                final Boolean withSymbols = hasOption("with-symbols");
+
+                Map<String, String> appmanifestOptions = new HashMap<>();
+                appmanifestOptions.put("baseVariant", variant);
+                appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                // temporary removed because TimeProfiler works only with a single thread
+                // see https://github.com/pyatyispyatil/flame-chart-js
+                // TimeProfiler.addData("withSymbols", withSymbols);
+                // TimeProfiler.addData("variant", variant);
+
+                if (hasOption("build-artifacts")) {
+                    String s = option("build-artifacts", "");
+                    System.out.printf("build-artifacts: %s\n", s);
+                    appmanifestOptions.put("buildArtifacts", s);
+                }
+
+                Platform platform = getPlatform();
+
+                String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                String customArchitectures = option("architectures", null);
+                if (customArchitectures != null) {
+                    architectures = customArchitectures.split(",");
+                }
+
+                long tstart = System.currentTimeMillis();
+
+                buildEngine(monitor, architectures, appmanifestOptions);
+
+                long tend = System.currentTimeMillis();
+                logger.info("Engine build took %f s", (tend-tstart)/1000.0);
+                TimeProfiler.addMark("FinishedBuildRemoteEngine", "Build Remote Engine Finished");
+
+                return (Void)null;
+            }
+        };
+        return executor.submit(callable);
+    }
+
+    private List<TaskResult> createAndRunTasks(IProgress monitor) throws IOException, CompileExceptionError {
+        // Do early test if report files are writable before we start building
+        boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
+        FileWriter resourceReportJSONWriter = null;
+        FileWriter resourceReportHTMLWriter = null;
+        FileWriter excludedResourceReportJSONWriter = null;
+        FileWriter excludedResourceReportHTMLWriter = null;
+
+        if (this.hasOption("build-report")) {
+            String resourceReportJSONPath = this.option("build-report", "report.json");
+
+            File resourceReportJSONFile = new File(resourceReportJSONPath);
+            File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
+            resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
+
+            String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
+            File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
+            excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
+        }
+        if (this.hasOption("build-report-html")) {
+            String resourceReportHTMLPath = this.option("build-report-html", "report.html");
+            File resourceReportHTMLFile = new File(resourceReportHTMLPath);
+
+            File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
+            resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
+
+            String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
+            File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
+            excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
+        }
+
+        IProgress m = monitor.subProgress(99);
+
+        IProgress mrep = m.subProgress(1);
+        mrep.beginTask("Reading tasks...", 1);
+        TimeProfiler.start("Create tasks");
+        BundleHelper.throwIfCanceled(monitor);
+        pruneSources();
+        createTasks();
+        validateBuildResourceMapping();
+        TimeProfiler.addData("TasksCount", tasks.size());
+        TimeProfiler.stop();
+        mrep.done();
+
+        BundleHelper.throwIfCanceled(monitor);
+        m.beginTask("Building...", tasks.size());
+        TimeProfiler.start("Build tasks");
+        TimeProfiler.addData("TasksCount", tasks.size());
+
+        BundleHelper.throwIfCanceled(monitor);
+        List<TaskResult> result = runTasks(m);
+        BundleHelper.throwIfCanceled(monitor);
+        m.done();
+
+        TimeProfiler.stop();
+
+        // Generate and save build report
+        TimeProfiler.start("Generating build size report");
+        if (generateReport && !anyFailing(result)) {
+            mrep = monitor.subProgress(1);
+            mrep.beginTask("Generating report...", 1);
+            ReportGenerator rg = new ReportGenerator(this);
+            String resourceReportJSON = rg.generateResourceReportJSON();
+            String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
+
+            // Save JSON report
+            if (this.hasOption("build-report")) {
+                resourceReportJSONWriter.write(resourceReportJSON);
+                resourceReportJSONWriter.close();
+                excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
+                excludedResourceReportJSONWriter.close();
+            }
+
+            // Save HTML report
+            if (this.hasOption("build-report-html")) {
+                String resourceReportHTML = rg.generateHTML(resourceReportJSON);
+                String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
+                resourceReportHTMLWriter.write(resourceReportHTML);
+                resourceReportHTMLWriter.close();
+                excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
+                excludedResourceReportHTMLWriter.close();
+            }
+            mrep.done();
+        }
+        TimeProfiler.stop();
+
+        return result;
+    }
+
+    private void clean(IProgress monitor, State state) {
+        IProgress m = monitor.subProgress(1);
+        List<String> paths = state.getPaths();
+        m.beginTask("Cleaning...", paths.size());
+        for (String path : paths) {
+            File f = new File(path);
+            if (f.exists()) {
+                state.removeSignature(path);
+                f.delete();
+                m.worked(1);
+                BundleHelper.throwIfCanceled(monitor);
+            }
+        }
+        m.done();
+    }
+
+    private void distClean(IProgress monitor) throws IOException {
+        IProgress m = monitor.subProgress(1);
+        m.beginTask("Cleaning...", 1);
+        BundleHelper.throwIfCanceled(monitor);
+        FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
+        m.worked(1);
+        m.done();
+    }
+
+    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
-        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
+        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
         state = State.load(stateResource);
 
         List<TaskResult> result = new ArrayList<TaskResult>();
@@ -1216,174 +1401,58 @@ public class Project {
             switch (command) {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
-
-                    final Boolean withSymbols = this.hasOption("with-symbols");
+                    loadIgnoredFilesAndFolders(); // load once before building to be able to use it in a few places
                     final String[] platforms = getPlatformStrings();
+                    Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
-                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                    if (buildRemoteEngine) {
-                        logInfo("Build Remote Engine...");
-                        TimeProfiler.start("Build Remote Engine");
-                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-
-                        Map<String, String> appmanifestOptions = new HashMap<>();
-                        appmanifestOptions.put("baseVariant", variant);
-                        appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                        TimeProfiler.addData("withSymbols", withSymbols);
-                        TimeProfiler.addData("variant", variant);
-
-                        if (this.hasOption("build-artifacts")) {
-                            String s = this.option("build-artifacts", "");
-                            System.out.printf("build-artifacts: %s\n", s);
-                            appmanifestOptions.put("buildArtifacts", s);
-                        }
-
-                        Platform platform = this.getPlatform();
-
-                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
-                        String customArchitectures = this.option("architectures", null);
-                        if (customArchitectures != null) {
-                            architectures = customArchitectures.split(",");
-                        }
-
-                        long tstart = System.currentTimeMillis();
-
-                        buildEngine(monitor, architectures, appmanifestOptions);
-
-                        long tend = System.currentTimeMillis();
-                        logger.info("Engine build took %f s", (tend-tstart)/1000.0);
-                        TimeProfiler.stop();
-
-                        if (!shouldBuildEngine()) {
-                            // If we only wanted to build the extensions, we simply continue here
-                            continue;
-                        }
-
-                    } else {
+                    boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    if (shouldBuildRemoteEngine) {
+                        remoteBuildFuture = buildRemoteEngine(monitor, executor);
+                    }
+                    else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngines(monitor, platforms);
-                        if (withSymbols) {
+                        if (hasOption("with-symbols")) {
                             IProgress progress = monitor.subProgress(1);
                             downloadSymbols(progress);
                             progress.done();
                         }
                     }
 
-                    BundleHelper.throwIfCanceled(monitor);
-
-                    // Do early test if report files are writable before we start building
-                    boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
-                    FileWriter resourceReportJSONWriter = null;
-                    FileWriter resourceReportHTMLWriter = null;
-                    FileWriter excludedResourceReportJSONWriter = null;
-                    FileWriter excludedResourceReportHTMLWriter = null;
-
-                    if (this.hasOption("build-report")) {
-                        String resourceReportJSONPath = this.option("build-report", "report.json");
-
-                        File resourceReportJSONFile = new File(resourceReportJSONPath);
-                        File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
-                        resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-
-                        String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
-                        File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
-                        excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
-                    }
-                    if (this.hasOption("build-report-html")) {
-                        String resourceReportHTMLPath = this.option("build-report-html", "report.html");
-                        File resourceReportHTMLFile = new File(resourceReportHTMLPath);
-
-                        File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
-                        resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-
-                        String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
-                        File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
-                        excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
+                    if (shouldBuildEngine()) {
+                        result = createAndRunTasks(monitor);
                     }
 
-                    IProgress m = monitor.subProgress(99);
-
-                    IProgress mrep = m.subProgress(1);
-                    mrep.beginTask("Reading tasks...", 1);
-                    TimeProfiler.start("Create tasks");
-                    pruneSources();
-                    createTasks();
-                    validateBuildResourceMapping();
-                    TimeProfiler.addData("TasksCount", tasks.size());
-                    TimeProfiler.stop();
-                    mrep.done();
-
-                    BundleHelper.throwIfCanceled(monitor);
-                    m.beginTask("Building...", tasks.size());
-                    TimeProfiler.start("Build tasks");
-                    TimeProfiler.addData("TasksCount", tasks.size());
-
-                    result = runTasks(m);
-                    m.done();
-
-                    TimeProfiler.stop();
+                    if (remoteBuildFuture != null) {
+                        // get the result from the remote build and catch
+                        // if an exception was thrown in buildRemoteEngine() the
+                        // original exception is included in the ExecutionException
+                        try {
+                            remoteBuildFuture.get();
+                        }
+                        catch (ExecutionException|InterruptedException e) {
+                            Throwable cause = e.getCause();
+                            if ((cause instanceof MultipleCompileException) ||
+                                (cause instanceof CompileExceptionError)) {
+                                throw cause;
+                            }
+                            else {
+                                throw new CompileExceptionError(cause);
+                            }
+                        }
+                    }
 
                     if (anyFailing(result)) {
                         break loop;
                     }
-                    BundleHelper.throwIfCanceled(monitor);
-
-                    // Generate and save build report
-                    TimeProfiler.start("Generating build size report");
-                    if (generateReport) {
-                        mrep = monitor.subProgress(1);
-                        mrep.beginTask("Generating report...", 1);
-                        ReportGenerator rg = new ReportGenerator(this);
-                        String resourceReportJSON = rg.generateResourceReportJSON();
-                        String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
-
-                        // Save JSON report
-                        if (this.hasOption("build-report")) {
-                            resourceReportJSONWriter.write(resourceReportJSON);
-                            resourceReportJSONWriter.close();
-                            excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
-                            excludedResourceReportJSONWriter.close();
-                        }
-
-                        // Save HTML report
-                        if (this.hasOption("build-report-html")) {
-                            String resourceReportHTML = rg.generateHTML(resourceReportJSON);
-                            String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
-                            resourceReportHTMLWriter.write(resourceReportHTML);
-                            resourceReportHTMLWriter.close();
-                            excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
-                            excludedResourceReportHTMLWriter.close();
-                        }
-                        mrep.done();
-                    }
-                    TimeProfiler.stop();
-
                     break;
                 }
                 case "clean": {
-                    IProgress m = monitor.subProgress(1);
-                    List<String> paths = state.getPaths();
-                    m.beginTask("Cleaning...", paths.size());
-                    for (String path : paths) {
-                        File f = new File(path);
-                        if (f.exists()) {
-                            state.removeSignature(path);
-                            f.delete();
-                            m.worked(1);
-                            BundleHelper.throwIfCanceled(monitor);
-                        }
-                    }
-                    m.done();
+                    clean(monitor, state);
                     break;
                 }
                 case "distclean": {
-                    IProgress m = monitor.subProgress(1);
-                    m.beginTask("Cleaning...", 1);
-                    BundleHelper.throwIfCanceled(monitor);
-                    FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
-                    m.worked(1);
-                    m.done();
+                    distClean(monitor);
                     break;
                 }
                 case "bundle": {
@@ -1707,7 +1776,7 @@ run:
                     String password = parts.length > 1 ? parts[1] : "";
                     if (password.startsWith("__") && password.endsWith("__")) {
                         String envKey = password.substring(2, password.length() - 2);
-                        String envValue = System.getenv(envKey);
+                        String envValue = getSystemEnv(envKey);
                         if (envValue != null) {
                             basicAuthData = username + ":" + envValue;
                         }
@@ -1987,7 +2056,18 @@ run:
         final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
-                results.add(FilenameUtils.normalize(path, true));
+                boolean shouldAdd = true;
+                // Ignore for native extensions and the other systems.
+                // Check comment for loadIgnoredFilesAndFolders()
+                for (String prefix : excluedFilesAndFoldersEntries) {
+                    if (path.startsWith(prefix)) {
+                        shouldAdd = false;
+                        break;
+                    }
+                }
+                if (shouldAdd) {
+                    results.add(FilenameUtils.normalize(path, true));
+                }
             }
         }, result);
     }
@@ -2020,14 +2100,6 @@ run:
 
     public void setTextureProfiles(TextureProfiles textureProfiles) {
         this.textureProfiles = textureProfiles;
-    }
-
-    public void excludeCollectionProxy(String path) {
-        state.addExcludedCollectionProxy(path);
-    }
-
-    public final List<String> getExcludedCollectionProxies() {
-        return state.getExcludedCollectionProxies();
     }
 
 }

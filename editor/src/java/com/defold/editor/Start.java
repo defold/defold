@@ -15,6 +15,7 @@
 package com.defold.editor;
 
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.rolling.RollingFileAppender;
 import ch.qos.logback.core.rolling.TimeBasedRollingPolicy;
 import ch.qos.logback.core.util.FileSize;
@@ -29,13 +30,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
-import java.awt.image.BufferedImage;
+import java.lang.SecurityException;
+import java.awt.Desktop;
 import java.io.File;
+import java.lang.UnsupportedOperationException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 public class Start extends Application {
 
@@ -53,25 +55,15 @@ public class Start extends Application {
                 Thread.sleep(200);
                 ResourceUnpacker.unpackResources();
 
-                // Init the GLProfile singleton on the UI thread.
-                CountDownLatch latch = new CountDownLatch(1);
-
-                Platform.runLater(() -> {
-                    try {
-                        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-                        Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
-                        Method init = glprofile.getMethod("initSingleton");
-                        init.invoke(null);
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                        logger.error("failed to initialize GLProfile singleton", t);
-                    } finally {
-                        latch.countDown();
-                    }
-                });
-
-                // Wait for the UI thread task to complete before proceeding.
-                latch.await();
+                try {
+                    ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+                    Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
+                    Method init = glprofile.getMethod("initSingleton");
+                    init.invoke(null);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    logger.error("failed to initialize GLProfile singleton", t);
+                }
 
                 // Boot the editor.
                 final EditorApplication app = new EditorApplication(Thread.currentThread().getContextClassLoader());
@@ -128,20 +120,16 @@ public class Start extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
-            /*
-              Note
-              Don't remove
+            if (Desktop.getDesktop().isSupported(Desktop.Action.APP_ABOUT)) {
+                Desktop.getDesktop().setAboutHandler(null);
+            }
+        } catch (final UnsupportedOperationException e) {
+            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
+        } catch (final SecurityException e) {
+            logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
+        }
 
-              Background
-              Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
-              The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
-              a threadpool.
-              Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
-              clojure.java.io/resource..
-            */
-
-            new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
-
+        try {
             // Clean up old packages as they consume a lot of hard drive space.
             // NOTE! This is a temp hack to give some hard drive space back to users.
             // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
@@ -187,13 +175,13 @@ public class Start extends Application {
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
 
-        RollingFileAppender appender = new RollingFileAppender();
+        RollingFileAppender<ILoggingEvent> appender = new RollingFileAppender<>();
         appender.setName("FILE");
         appender.setAppend(true);
         appender.setPrudent(true);
         appender.setContext(root.getLoggerContext());
 
-        TimeBasedRollingPolicy rollingPolicy = new TimeBasedRollingPolicy();
+        TimeBasedRollingPolicy<Object> rollingPolicy = new TimeBasedRollingPolicy<>();
         rollingPolicy.setMaxHistory(30);
         rollingPolicy.setFileNamePattern(logDirectory.resolve("editor2.%d{yyyy-MM-dd}.log").toString());
         rollingPolicy.setTotalSizeCap(FileSize.valueOf("1GB"));

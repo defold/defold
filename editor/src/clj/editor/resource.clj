@@ -20,8 +20,10 @@
             [editor.core :as core]
             [editor.fs :as fs]
             [schema.core :as s]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
-  (:import [java.io File FilterInputStream IOException InputStream]
+  (:import [clojure.lang PersistentHashMap]
+           [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -105,6 +107,9 @@
   ;; path->{:mtime ... :pred ...}
   (atom {}))
 
+;; The same logic implemented in Project.java.
+;; If you change something here, plese change it there as well
+;; Search for excluedFilesAndFoldersEntries.
 ;; root -> pred if project path (string starting with /) is ignored
 (defn- defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
@@ -378,9 +383,15 @@
     (proj-path resource)
     ""))
 
-(defn resource->sha1-hex [resource]
+(defn resource->sha1-hex
+  ^String [resource]
   (with-open [rs (io/input-stream resource)]
     (digest/stream->sha1-hex rs)))
+
+(defn resource->sha256-hex
+  ^String [resource]
+  (with-open [rs (io/input-stream resource)]
+    (digest/stream->sha256-hex rs)))
 
 (defn resource->path-inclusive-sha1-hex
   "For certain files, we want to include the proj-path in the sha1 identifier
@@ -400,7 +411,22 @@
     (when-some [^String proj-path (proj-path resource)]
       (.write digest-output-stream (.getBytes proj-path "UTF-8")))
     (.flush digest-output-stream)
-    (digest/digest-output-stream->hex digest-output-stream)))
+    (digest/completed-stream->hex digest-output-stream)))
+
+(defn read-source-value+sha256-hex
+  "Returns a pair of [read-fn-result, disk-sha256-or-nil]. If the resource is a
+  file in the project, wraps the read in a DigestInputStream that concurrently
+  hashes the file contents as they are read by the read-fn and returns the
+  SHA-256 hex string in disk-sha256-or-nil. If the resource is not a project
+  file, we use a plain InputStream, and disk-sha256-or-nil will be nil."
+  [resource read-fn]
+  (with-open [^InputStream input-stream
+              (cond-> (io/input-stream resource)
+                      (file-resource? resource)
+                      (digest/make-digest-input-stream "SHA-256"))]
+    (let [source-value (read-fn input-stream)
+          disk-sha256 (digest/completed-stream->hex input-stream)]
+      (pair source-value disk-sha256))))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
 
@@ -411,21 +437,36 @@
         (io/copy in f))
       (.getAbsolutePath f))))
 
+(def ^:private ext->style-class
+  (let [config {"script" ["fp" "gui_script" "lua" "render_script" "script" "vp"
+                          "glsl"]
+                "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
+                          "font" "go" "gui" "label" "model" "particlefx"
+                          "spinemodel" "spinescene" "sprite" "tilemap"
+                          "tilesource"]
+                "property" ["animationset" "camera" "collectionfactory"
+                            "collectionproxy" "display_profiles" "factory"
+                            "gamepads" "input_binding" "material" "project"
+                            "render" "sound" "texture_profiles"]}]
+   (->> (for [[kind extensions] config
+              :let [style-class (str "resource-kind-" kind)]
+              ext extensions
+              el [ext style-class]]
+          el)
+        seq
+        PersistentHashMap/createWithCheck)))
+
 (defn style-classes [resource]
-  (into #{"resource"}
-        (keep not-empty)
-        [(when (or (not (editable? resource))
-                   (read-only? resource))
-           "resource-read-only")
-         (case (source-type resource)
-           :file (some->> resource ext not-empty (str "resource-ext-"))
-           :folder "resource-folder"
-           nil)]))
+  (let [resource-kind-class (case (source-type resource)
+                              :file (some->> resource ext ext->style-class)
+                              :folder "resource-folder"
+                              nil)]
+    (cond-> #{"resource"} resource-kind-class (conj resource-kind-class))))
 
 (defn ext-style-classes [resource-ext]
   (assert (or (nil? resource-ext) (string? resource-ext)))
-  (if-some [ext (not-empty resource-ext)]
-    #{"resource" (str "resource-ext-" ext)}
+  (if-some [style-class (ext->style-class resource-ext)]
+    #{"resource" style-class}
     #{"resource"}))
 
 (defn filter-resources [resources query]

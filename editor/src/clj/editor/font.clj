@@ -14,39 +14,41 @@
 
 (ns editor.font
   (:require [clojure.string :as s]
-            [clojure.java.io :as io]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.graph-util :as gu]
+            [editor.colors :as colors]
+            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.gl.vertex2 :as vtx]
-            [editor.gl.texture :as texture]
-            [editor.defold-project :as project]
-            [editor.scene-cache :as scene-cache]
-            [editor.workspace :as workspace]
-            [editor.pipeline.font-gen :as font-gen]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.properties :as properties]
-            [editor.material :as material]
-            [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
-            [editor.colors :as colors]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex2 :as vtx]
+            [editor.graph-util :as gu]
+            [editor.material :as material]
+            [editor.pipeline :as pipeline]
+            [editor.pipeline.font-gen :as font-gen]
+            [editor.pipeline.fontc :as fontc]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene-cache :as scene-cache]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.bob.font BMFont]
-           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat]
-           [editor.types AABB]
+           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
+           [com.google.protobuf ByteString]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
+           [editor.types AABB]
+           [java.io InputStream]
            [java.nio ByteBuffer]
            [java.nio.file Paths]
-           [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix4d Point3d Vector3d Vector4d]
-           [com.google.protobuf ByteString]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -543,32 +545,52 @@
 (g/defnk produce-font-map [_node-id font type font-resource-map pb-msg]
   (make-font-map _node-id font type pb-msg (make-font-resource-resolver font font-resource-map)))
 
-(defn- build-font [resource _dep-resources user-data]
-  (let [{:keys [font type font-resource-map pb-msg]} user-data
-        font-resource-resolver (make-font-resource-resolver font font-resource-map)
-        font-map (make-font-map nil font type pb-msg font-resource-resolver)]
+(defn- font-desc->layer-mask [font-desc]
+  (if (= (:output-format font-desc) :type-distance-field)
+    (fontc/calculate-ttf-layer-mask font-desc)
+    0x1))
+
+(defn- build-glyph-bank [resource _dep-resources user-data]
+  (let [{:keys [font-map]} user-data]
     (g/precluding-errors
       [font-map]
       (let [compressed-font-map (font-gen/compress font-map)]
         {:resource resource
-         :content (protobuf/map->bytes Font$FontMap compressed-font-map)}))))
+         :content (protobuf/map->bytes Font$GlyphBank compressed-font-map)}))))
 
-(g/defnk produce-build-targets [_node-id resource font type font-resource-map font-resource-hashes pb-msg material dep-build-targets]
+(defn- make-glyph-bank-build-target [node-id glyph-bank-build-resource user-data]
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource glyph-bank-build-resource
+     :build-fn build-glyph-bank
+     :user-data user-data}))
+
+(g/defnk produce-build-targets [_node-id resource font-map pb-msg material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-font
-          :user-data {:font font
-                      :type type
-                      :pb-msg pb-msg
-                      :font-resource-map font-resource-map
-                      :font-resource-hashes font-resource-hashes}
-          :deps (flatten dep-build-targets)})]))
+      (let [workspace (resource/workspace resource)
+            glyph-bank-pb-fields (keys (protobuf/field-info Font$GlyphBank))
+            glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
+            glyph-bank-resource-type (workspace/get-resource-type workspace "glyph_bank")
+            glyph-bank-resource (resource/make-memory-resource workspace glyph-bank-resource-type glyph-bank-user-data)
+            glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
+            glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
+            dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
+            protobuf-build-target (pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
+                                                                       Font$FontMap
+                                                                       {:material (str (:material pb-msg) "c")
+                                                                        :glyph-bank (resource/proj-path glyph-bank-build-resource)
+                                                                        :shadow-x (:shadow-x pb-msg)
+                                                                        :shadow-y (:shadow-y pb-msg)
+                                                                        :alpha (:alpha pb-msg)
+                                                                        :outline-alpha (:outline-alpha pb-msg)
+                                                                        :shadow-alpha (:shadow-alpha pb-msg)
+                                                                        :layer-mask (font-desc->layer-mask pb-msg)}
+                                                                       nil)]
+        [(assoc protobuf-build-target :node-id _node-id)])))
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)
@@ -585,11 +607,14 @@
                                            {(resource/proj-path texture-resource) texture-resource}
                                            {}))))
 
+(defn- read-bm-font
+  ^BMFont [^InputStream input-stream]
+  (doto (BMFont.)
+    (.parse input-stream)))
+
 (defn load-font-source [project self resource]
   (when (= (resource/type-ext resource) "fnt")
-    (let [bm-font (BMFont.)]
-      (with-open [bm-stream (io/input-stream resource)]
-        (.parse bm-font bm-stream))
+    (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
       (let [;; this weird dance stolen from Fontc.java
             texture-file-name (.. (-> (.. bm-font page (get 0))
                                       FilenameUtils/normalize
@@ -597,7 +622,11 @@
                                   getFileName
                                   toString)
             texture-resource (workspace/resolve-resource resource texture-file-name)]
-        (g/set-property self :texture texture-resource)))))
+        (concat
+          (g/set-property self :texture texture-resource)
+          (when disk-sha256
+            (let [workspace (resource/workspace resource)]
+              (workspace/set-disk-sha256 workspace self disk-sha256))))))))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
@@ -777,6 +806,8 @@
       :load-fn load-font
       :icon font-icon
       :view-types [:scene :text])
+    (workspace/register-resource-type workspace
+      :ext "glyph_bank")
     (workspace/register-resource-type workspace
       :ext font-file-extensions
       :label "Font"

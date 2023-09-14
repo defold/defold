@@ -144,6 +144,53 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static void DispatchSoundEvent(PlayEntry& entry, dmhash_t message_id)
+    {
+        dmGameSystemDDF::SoundEvent message;
+        dmMessage::URL receiver = entry.m_Listener;
+        dmMessage::URL sender   = entry.m_Receiver;
+
+        if (dmMessage::IsSocketValid(sender.m_Socket) && dmMessage::IsSocketValid(receiver.m_Socket))
+        {
+            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundEvent::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmGameSystemDDF::SoundEvent);
+
+            message.m_PlayId = entry.m_PlayId;
+
+            if (dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)entry.m_LuaCallback, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
+            {
+                dmLogError("Could not send sound event (%s) to listener.", dmHashReverseSafe64(message_id));
+            }
+        }
+
+        // Currently this is a one-time-use since we reset the urls,
+        // if we want to reuse it for pause/resume events we need to move this out.
+        dmMessage::ResetURL(&entry.m_Receiver);
+        dmMessage::ResetURL(&entry.m_Listener);
+    }
+
+    static dmGameObject::UpdateResult HandleEntryFinishedPlaying(SoundWorld* world, PlayEntry& entry, uint32_t entry_index)
+    {
+        // For reverse hashing to work for easier debugging we hash these ids here
+        // The hash container is enabled in engine init so it's too early in compilation unit scope
+        static const dmhash_t SOUND_EVENT_DONE    = dmHashString64("sound_done");
+        static const dmhash_t SOUND_EVENT_STOPPED = dmHashString64("sound_stopped");
+
+        dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
+        entry.m_SoundInstance = 0;
+        world->m_EntryIndices.Push(entry_index);
+        if (r != dmSound::RESULT_OK)
+        {
+            dmLogError("Error deleting sound: (%d)", r);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+        else if (entry.m_PlayId != dmSound::INVALID_PLAY_ID && entry.m_Listener.m_Fragment != 0x0)
+        {
+            DispatchSoundEvent(entry, entry.m_StopRequested ? SOUND_EVENT_STOPPED : SOUND_EVENT_DONE);
+        }
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult&)
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
@@ -172,47 +219,7 @@ namespace dmGameSystem
                     }
                     else if (!dmSound::IsPlaying(entry.m_SoundInstance) && !(entry.m_PauseRequested || entry.m_Paused))
                     {
-                        dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
-                        entry.m_SoundInstance = 0;
-                        world->m_EntryIndices.Push(i);
-                        if (r != dmSound::RESULT_OK)
-                        {
-                            dmLogError("Error deleting sound: (%d)", r);
-                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-                        }
-                        else if (entry.m_PlayId != dmSound::INVALID_PLAY_ID && entry.m_Listener.m_Fragment != 0x0)
-                        {
-                            dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
-                            dmGameSystemDDF::SoundDone message;
-
-                            dmMessage::URL receiver = entry.m_Listener;
-                            dmMessage::URL sender = entry.m_Receiver;
-
-                            if (dmMessage::IsSocketValid(sender.m_Socket) && dmMessage::IsSocketValid(receiver.m_Socket))
-                            {
-                                uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
-                                uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
-
-                                message.m_PlayId = entry.m_PlayId;
-
-                                if (dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)entry.m_LuaCallback, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
-                                {
-                                    dmLogError("Could not send sound_done to listener.");
-                                }
-                            }
-
-                            dmMessage::ResetURL(&entry.m_Receiver);
-                            dmMessage::ResetURL(&entry.m_Listener);
-                        }
-                    }
-                    else if (entry.m_StopRequested)
-                    {
-                        dmSound::Result r = dmSound::Stop(entry.m_SoundInstance);
-                        if (r != dmSound::RESULT_OK)
-                        {
-                            dmLogError("Error deleting sound: (%d)", r);
-                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-                        }
+                        update_result = HandleEntryFinishedPlaying(world, entry, i);
                     }
                     else if (entry.m_PauseRequested)
                     {
@@ -224,6 +231,20 @@ namespace dmGameSystem
                             update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
                     }
+                    else if (entry.m_StopRequested)
+                    {
+                        dmSound::Result r = dmSound::Stop(entry.m_SoundInstance);
+                        if (r != dmSound::RESULT_OK)
+                        {
+                            dmLogError("Error deleting sound: (%d)", r);
+                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                        }
+                    }
+                }
+                else if (entry.m_StopRequested)
+                {
+                    // If a stop was requested before we started playing, we can remove it immediately and dispatch the callback
+                    update_result = HandleEntryFinishedPlaying(world, entry, i);
                 }
             }
         }
@@ -302,6 +323,15 @@ namespace dmGameSystem
      *
      * @message
      * @name sound_done
+     * @param [play_id] [type:number] id number supplied when the message was posted.
+     */
+
+    /*# reports when a sound has been manually stopped
+     * This message is sent back to the sender of a `play_sound` message, if the sound
+     * has been manually stopped.
+     *
+     * @message
+     * @name sound_stopped
      * @param [play_id] [type:number] id number supplied when the message was posted.
      */
 

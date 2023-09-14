@@ -393,7 +393,7 @@
                     {:text (value->label x)})
      :cell-factory (fn [x]
                      {:text (value->label x)})
-     :items (sort (mapv first options))}))
+     :items (mapv first options)}))
 
 (defn- show-combo-box! [^ComboBox combo-box]
   (.show combo-box))
@@ -1288,7 +1288,7 @@
                        (remove :hidden?)
                        (map #(set-field-visibility % values filter-term visible)))
                      fields)]
-    (assoc section :visible (or visible (boolean (some :visible fields)))
+    (assoc section :visible (boolean (some :visible fields))
                    :fields fields)))
 
 (defmethod handle-event :filter-text-changed [{:keys [ui-state fx/event]}]

@@ -187,38 +187,38 @@ public class ArchiveTest {
 
     @Test
     public void testArchiveIndexAlignment() throws IOException, CompileExceptionError {
-    	ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
-    	for (int i = 1; i < 50; ++i) {
-			String filename = "dummy" + Integer.toString(i);
-			String content  = "dummy" + Integer.toString(i);
-			byte[] archiveIndexMD5 = new byte[16];
-			instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
+        for (int i = 1; i < 50; ++i) {
+            String filename = "dummy" + Integer.toString(i);
+            String content  = "dummy" + Integer.toString(i);
+            byte[] archiveIndexMD5 = new byte[16];
+            instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
 
-    		RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "rw");
-	        RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
-	        archiveIndex.setLength(0);
-	        archiveData.setLength(0);
-	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
-	        archiveIndex.close();
-	        archiveData.close();
+            RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "rw");
+            RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
+            archiveIndex.setLength(0);
+            archiveData.setLength(0);
+            instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
+            archiveIndex.close();
+            archiveData.close();
 
-	        archiveIndex = new RandomAccessFile(outputIndex, "r");
+            archiveIndex = new RandomAccessFile(outputIndex, "r");
 
-	        archiveIndex.readInt();  					// Version
-	        archiveIndex.readInt();  					// Padding
-	        archiveIndex.readLong(); 					// UserData
-	        int entrySize   = archiveIndex.readInt();	// EntrySize
-	        int entryOffset = archiveIndex.readInt();	// EntryOffset
-	        int hashOffset  = archiveIndex.readInt();	// HashOffset
-	        archiveIndex.readInt();						// HashSize
-	        archiveIndex.read(archiveIndexMD5);         // Archive index MD5 identifier
-	        archiveIndex.close();
+            archiveIndex.readInt();                     // Version
+            archiveIndex.readInt();                     // Padding
+            archiveIndex.readLong();                    // UserData
+            int entrySize   = archiveIndex.readInt();   // EntrySize
+            int entryOffset = archiveIndex.readInt();   // EntryOffset
+            int hashOffset  = archiveIndex.readInt();   // HashOffset
+            archiveIndex.readInt();                     // HashSize
+            archiveIndex.read(archiveIndexMD5);         // Archive index MD5 identifier
+            archiveIndex.close();
 
-	        assertEquals(48, hashOffset);
-	        assertEquals(48 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
-	        assertTrue(entryOffset % 4 == 0);
-	        assertTrue(hashOffset % 4 == 0);
-    	}
+            assertEquals(48, hashOffset);
+            assertEquals(48 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
+            assertTrue(entryOffset % 4 == 0);
+            assertTrue(hashOffset % 4 == 0);
+        }
     }
 
     @Test
@@ -261,7 +261,7 @@ public class ArchiveTest {
     }
 
     @SuppressWarnings("unused")
-	@Test
+    @Test
     public void testWriteArchive() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -289,7 +289,7 @@ public class ArchiveTest {
     }
 
     @SuppressWarnings("unused")
-	@Test
+    @Test
     public void testWriteArchive_SiblingProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -353,7 +353,7 @@ public class ArchiveTest {
     }
 
     @SuppressWarnings("unused")
-	@Test
+    @Test
     public void testWriteArchive_DeepProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -406,10 +406,10 @@ public class ArchiveTest {
 
         byte[] buffer = "level 2 content".getBytes();
         String normalisedPath = FilenameUtils.separatorsToUnix("/level2.goc");
-        manifestBuilder.addResourceEntry(normalisedPath, buffer, (byte) ResourceEntryFlag.EXCLUDED.getNumber());
+        manifestBuilder.addResourceEntry(normalisedPath, buffer,  buffer.length, buffer.length, ResourceEntryFlag.EXCLUDED.getNumber());
         buffer = "level 1 content".getBytes();
         normalisedPath = FilenameUtils.separatorsToUnix("/level1.goc");
-        manifestBuilder.addResourceEntry(normalisedPath, buffer, (byte) ResourceEntryFlag.BUNDLED.getNumber()); // TODO
+        manifestBuilder.addResourceEntry(normalisedPath, buffer, buffer.length, buffer.length, ResourceEntryFlag.BUNDLED.getNumber()); // TODO
 
         // Test
         assertFalse(instance.excludeResource("/level1.goc", excludedResources));
@@ -449,7 +449,7 @@ public class ArchiveTest {
     }
 
     @SuppressWarnings("unused")
-	@Test
+    @Test
     public void testWriteArchive_DeepProxiesExcludeGrandparent() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);

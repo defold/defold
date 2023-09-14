@@ -44,42 +44,23 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool GetAdapterFromString(const char* adapter_type_str, AdapterType* adapter_type_out)
+    static bool SelectAdapterByName(const char* adapter_name)
     {
-        if (adapter_type_str)
+        if (adapter_name != 0)
         {
-            if (dmStrCaseCmp(adapter_type_str, "null") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_NULL;
-                return true;
-            }
-            else if (dmStrCaseCmp(adapter_type_str, "opengl") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_OPENGL;
-                return true;
-            }
-            else if (dmStrCaseCmp(adapter_type_str, "vulkan") == 0)
-            {
-                *adapter_type_out = ADAPTER_TYPE_VULKAN;
-                return true;
-            }
-        }
-        return false;
-    }
+            GraphicsAdapter* next = g_adapter_list;
 
-    static bool SelectAdapterByType(AdapterType adapter_type)
-    {
-        GraphicsAdapter* next     = g_adapter_list;
-
-        while(next)
-        {
-            if (next->m_AdapterType == adapter_type && next->m_IsSupportedCb())
+            while(next)
             {
-                g_functions = next->m_RegisterCb();
-                g_adapter   = next;
-                return true;
+                assert(next->m_AdapterName != 0);
+                if (dmStrCaseCmp(next->m_AdapterName, adapter_name) == 0 && next->m_IsSupportedCb())
+                {
+                    g_functions = next->m_RegisterCb();
+                    g_adapter   = next;
+                    return true;
+                }
+                next = next->m_Next;
             }
-            next = next->m_Next;
         }
 
         return false;
@@ -112,18 +93,6 @@ namespace dmGraphics
 
     #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
 
-    static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
-    {
-        switch(adapter_type)
-        {
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_NULL);
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_OPENGL);
-            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_TYPE_VULKAN);
-            default: break;
-        }
-        return "<unknown adapter type>";
-    }
-
     const char* GetTextureTypeLiteral(TextureType texture_type)
     {
         switch(texture_type)
@@ -133,7 +102,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
             default:break;
         }
-        return "<unknown texture type>";
+        return "<unknown dmGraphics::TextureType>";
     }
 
     const char* GetBufferTypeLiteral(BufferType buffer_type)
@@ -148,7 +117,32 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(BUFFER_TYPE_STENCIL_BIT);
             default:break;
         }
-        return "<unknown buffer type>";
+        return "<unknown dmGraphics::BufferType>";
+    }
+
+    const char* GetGraphicsTypeLiteral(Type type)
+    {
+        switch(type)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_BYTE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_BYTE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SHORT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_SHORT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_INT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_UNSIGNED_INT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC4);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT4);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_2D);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_CUBE);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_SAMPLER_2D_ARRAY);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC2);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_VEC3);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT2);
+            GRAPHICS_ENUM_TO_STR_CASE(TYPE_FLOAT_MAT3);
+            default:break;
+        }
+        return "<unknown dmGraphics::Type>";
     }
 
     const char* GetAssetTypeLiteral(AssetType type)
@@ -160,7 +154,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ASSET_TYPE_RENDER_TARGET);
             default:break;
         }
-        return "<unknown asset type>";
+        return "<unknown dmGraphics::AssetType>";
     }
 
     const char* GetTextureFormatLiteral(TextureFormat format)
@@ -197,10 +191,29 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
             default:break;
         }
-        return "<unknown texture format>";
+        return "<unknown dmGraphics::TextureFormat>";
     }
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
+
+    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
+
+    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
+    {
+        switch(language)
+        {
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM140);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            default:break;
+        }
+        return "<unknown ShaderDesc::Language>";
+    }
+
+    #undef SHADERDESC_ENUM_TO_STR_CASE
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -257,9 +270,8 @@ namespace dmGraphics
 
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
-        ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
-
+        ShaderDesc::Language language = GetShaderProgramLanguage(context);
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -281,7 +293,19 @@ namespace dmGraphics
                 }
             }
         }
-        assert(selected_shader);
+
+        if (selected_shader == 0)
+        {
+            const char* error_hint = "";
+            if (language == ShaderDesc::LANGUAGE_SPIRV)
+            {
+                error_hint = "Has the project been built with spir-v output enabled?";
+            }
+
+            dmLogError("Unable to get a valid shader with shader language \"%s\" from a ShaderDesc for this context. %s",
+                GetShaderProgramLanguageLiteral(language), error_hint);
+        }
+
         return selected_shader;
     }
 
@@ -298,6 +322,75 @@ namespace dmGraphics
             default: break;
         }
         return ~0u;
+    }
+
+    uint32_t GetTypeSize(dmGraphics::Type type)
+    {
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
+        {
+             return 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC2)
+        {
+            return 2 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC3)
+        {
+            return 3 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_VEC4)
+        {
+            return 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT2)
+        {
+            return 2 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT3)
+        {
+            return 3 * 4 * 4;
+        }
+        else if (type == dmGraphics::TYPE_FLOAT_MAT4)
+        {
+            return 4 * 4 * 4;
+        }
+        else if (type == TYPE_SAMPLER_2D || type == TYPE_SAMPLER_CUBE || type == TYPE_SAMPLER_2D_ARRAY)
+        {
+            return 0;
+        }
+
+        assert(0 && "Invalid/unsupported type");
+        return 0;
+    }
+
+    void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
+    {
+        *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
+        *data_size = attribute.m_Values.m_BinaryValues.m_Count;
+    }
+
+    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return dmGraphics::TYPE_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return dmGraphics::TYPE_UNSIGNED_BYTE;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return dmGraphics::TYPE_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return dmGraphics::TYPE_UNSIGNED_SHORT;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return dmGraphics::TYPE_INT;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return dmGraphics::TYPE_UNSIGNED_INT;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return dmGraphics::TYPE_FLOAT;
+            default: assert(0 && "Unsupported dmGraphics::VertexAttribute::DataType");
+        }
+        return (dmGraphics::Type) -1;
     }
 
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
@@ -686,13 +779,7 @@ namespace dmGraphics
             return true;
         }
 
-        AdapterType adapter_type;
-        bool result = GetAdapterFromString(adapter_name_str, &adapter_type);
-
-        if (result)
-        {
-            result = SelectAdapterByType(adapter_type);
-        }
+        bool result = SelectAdapterByName(adapter_name_str);
 
         if (!result)
         {
@@ -706,17 +793,12 @@ namespace dmGraphics
 
         if (result)
         {
-            dmLogInfo("Initialised graphics device '%s'", GetGraphicsAdapterTypeLiteral(g_adapter->m_AdapterType));
+            dmLogInfo("Initialised graphics device '%s'", g_adapter->m_AdapterName);
             return true;
         }
 
         dmLogError("Could not initialize graphics. No graphics adapter was found.");
         return false;
-    }
-
-    AdapterType GetAdapterType()
-    {
-        return g_adapter->m_AdapterType;
     }
 
     void Finalize()
@@ -871,6 +953,10 @@ namespace dmGraphics
     {
         g_functions.m_HashVertexDeclaration(state, vertex_declaration);
     }
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
@@ -926,6 +1012,14 @@ namespace dmGraphics
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
+    }
+    uint32_t GetAttributeCount(HProgram prog)
+    {
+        return g_functions.m_GetAttributeCount(prog);
+    }
+    void GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
+    {
+        return g_functions.m_GetAttribute(prog, index, name_hash, type, element_count, num_values, location);
     }
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
@@ -1015,9 +1109,9 @@ namespace dmGraphics
     {
         g_functions.m_SetPolygonOffset(context, factor, units);
     }
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
     }
     void DeleteRenderTarget(HRenderTarget render_target)
     {

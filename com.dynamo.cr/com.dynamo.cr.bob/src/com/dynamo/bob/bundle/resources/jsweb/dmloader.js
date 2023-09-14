@@ -132,7 +132,10 @@ var EngineLoader = {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
                 // May be incorrect if compressed
-                const contentLength = response.headers.get("Content-Length");
+                var contentLength = response.headers.get("Content-Length");
+                if (!contentLength){
+                    contentLength = EngineLoader.wasm_size;
+                }
                 const total = parseInt(contentLength, 10);
 
                 let bytesLoaded = 0;
@@ -725,7 +728,7 @@ var Module = {
         FS.syncfs(true, function(err) {
             if (err) {
                 Module._syncTries += 1;
-                console.error("FS syncfs error: " + err);
+                console.warn("Unable to synchronize mounted file systems: " + err);
                 if (Module._syncMaxTries > Module._syncTries) {
                     Module.preSync(done);
                 } else {
@@ -847,7 +850,7 @@ var Module = {
                 Module._syncInProgress = false;
 
                 if (err) {
-                    console.error("Module._startSyncFS error: " + err);
+                    console.warn("Unable to synchronize mounted file systems: " + err);
                     Module._syncTries += 1;
                 }
 

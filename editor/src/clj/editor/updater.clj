@@ -111,6 +111,7 @@
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
+               Platform/Arm64MacOS
                Platform/X86_64MacOS
                Platform/X86_64Win32}
              (:platform updater)))
@@ -336,7 +337,7 @@
                           (or "")
                           io/file
                           .getCanonicalFile)
-        protected-dirs [(io/file resources-dir "packages" "jdk-11.0.15+10")]
+        protected-dirs [(io/file resources-dir "packages" "jdk-17.0.5+8")]
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os

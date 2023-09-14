@@ -17,7 +17,6 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
@@ -88,10 +87,20 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             taskBuilder.addInput(this.project.getResource(path));
         }
 
+        // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
+        String spirvCacheKey = "output_spirv=" + getOutputSpirvFlag();
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.setData(shaderPreprocessor);
+        taskBuilder.addExtraCacheKey(spirvCacheKey);
+
         Task<ShaderPreprocessor> tsk = taskBuilder.build();
         return tsk;
+    }
+
+    private boolean getOutputSpirvFlag() {
+        boolean fromProjectOptions    = this.project.option("output-spirv", "false").equals("true");
+        boolean fromProjectProperties = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+        return fromProjectOptions || fromProjectProperties;
     }
 
     static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults) {
@@ -191,7 +200,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         IResource in                          = inputs.get(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
         boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-        boolean outputSpirv                   = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+        boolean outputSpirv                   = getOutputSpirvFlag();
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 
         ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor,

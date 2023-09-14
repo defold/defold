@@ -53,10 +53,11 @@
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
 
-#ifdef __MACH__
-#include <CoreFoundation/CFBundle.h>
-#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
-#include <Carbon/Carbon.h>
+#if defined(__APPLE__)
+    #include <TargetConditionals.h>
+    #include <CoreFoundation/CFBundle.h>
+#if TARGET_OS_OSX
+    #include <Carbon/Carbon.h>
 #endif
 #endif
 
@@ -994,7 +995,7 @@ namespace dmSys
 
     Result IterateTree(const char* dirpath, bool recursive, bool call_before, void* ctx, void (*callback)(void* ctx, const char* path, bool isdir))
     {
-        #if defined(__linux__) || defined(_WIN32) || (defined(__MACH__) && !(defined(__arm__) || defined(__arm64__)))
+        #if defined(__linux__) || defined(_WIN32) || defined(TARGET_OS_OSX)
         struct dirent *entry = NULL;
         DIR *dir = NULL;
         dir = opendir(dirpath);
@@ -1006,11 +1007,8 @@ namespace dmSys
             callback(ctx, dirpath, true);
 
         Result res = RESULT_OK;
-        while(entry = readdir(dir))
+        while((entry = readdir(dir)))
         {
-            DIR* sub_dir = NULL;
-            FILE* file = NULL;
-
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
 

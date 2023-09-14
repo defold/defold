@@ -29,6 +29,7 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
+#include <dmsdk/render/render.h>
 
 /**
  * Defold GUI system
@@ -151,12 +152,14 @@ namespace dmGui
         uint32_t m_MaxNodes;
         uint32_t m_MaxAnimations;
         uint32_t m_MaxTextures;
+        uint32_t m_MaxMaterials;
         uint32_t m_MaxFonts;
         uint32_t m_MaxParticlefxs;
         uint32_t m_MaxParticlefx;
         uint32_t m_MaxLayers;
+
         dmParticle::HParticleContext m_ParticlefxContext;
-        void*    m_UserData;
+        void*                       m_UserData;
         CreateCustomNodeCallback    m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
         CloneCustomNodeCallback     m_CloneCustomNodeCallback;
@@ -462,8 +465,6 @@ namespace dmGui
 
     void SetDisplayProfiles(HContext context, void* display_profiles);
 
-    void SetDefaultFont(HContext context, void* font);
-
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference);
 
     HScene NewScene(HContext context, const NewSceneParams* params);
@@ -628,6 +629,12 @@ namespace dmGui
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
 
+    Result AddMaterial(HScene scene, dmhash_t material_name_hash, void* material);
+
+    void* GetMaterial(HScene scene, dmhash_t material_id);
+
+    void AssignMaterials(HScene scene);
+
     /**
      * Adds a layer with the specified name to the scene.
      * @param scene Scene to add the layer to
@@ -754,9 +761,10 @@ namespace dmGui
     /**
      * Run the final-function of the scene script.
      * @param scene Scene for which to run the script
+     * @param deleteTexture DeleteTexture Callback to delete a texture
      * @return RESULT_OK on success
      */
-    Result FinalScene(HScene scene);
+    Result FinalScene(HScene scene, DeleteTexture delete_texture);
 
     /**
      * Run the update-function of the scene script.
@@ -877,6 +885,11 @@ namespace dmGui
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
+
+    Result   SetNodeMaterial(HScene scene, HNode node, const char* material_id);
+    Result   SetNodeMaterial(HScene scene, HNode node, dmhash_t material_id); // if material_id == 0, it will clear the assignment
+    void*    GetNodeMaterial(HScene scene, HNode node);
+    dmhash_t GetNodeMaterialId(HScene scene, HNode node);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);

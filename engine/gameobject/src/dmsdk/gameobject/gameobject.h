@@ -182,6 +182,7 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND
      * @member dmGameObject::PROPERTY_RESULT_INVALID_INDEX
      * @member dmGameObject::PROPERTY_RESULT_INVALID_KEY
+     * @member dmGameObject::PROPERTY_RESULT_READ_ONLY
      */
     enum PropertyResult
     {
@@ -198,6 +199,7 @@ namespace dmGameObject
         PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10,
         PROPERTY_RESULT_INVALID_INDEX = -11,
         PROPERTY_RESULT_INVALID_KEY = -12,
+        PROPERTY_RESULT_READ_ONLY = -13,
     };
 
     /*#
@@ -344,17 +346,19 @@ namespace dmGameObject
      * @member m_ElementIds [type: dmhash_t] For composite properties (float arrays), these ids name each element
      * @member m_Variant [type: PropertyVar] Variant holding the value
      * @member m_ValuePtr [type: float*] Pointer to the value, only set for mutable values. The actual data type is described by the variant.
-     * @member m_ReadOnly [type: bool] Determines whether we are permitted to write to this property.
-     * @member m_ValueType [type: uint8_t] Indicates type of the property.
+     * @member m_ReadOnly [type: uint16_t] Determines whether we are permitted to write to this property.
+     * @member m_ValueType [type: uint16_t] Indicates type of the property (of type PropertyValueType).
+     * @member m_ArrayLength [type: uint16_t] Number of array entries, if the property is an array and zero otherwise. Max supported length is 2^14 (16384 elements)
      */
     struct PropertyDesc
     {
         PropertyDesc();
-        dmhash_t m_ElementIds[4];
+        dmhash_t    m_ElementIds[4];
         PropertyVar m_Variant;
-        float* m_ValuePtr;
-        bool m_ReadOnly;
-        uint8_t m_ValueType : 1;
+        float*      m_ValuePtr;
+        uint16_t    m_ReadOnly    : 1;
+        uint16_t    m_ValueType   : 1;
+        uint16_t    m_ArrayLength : 14;
     };
 
     /*#
@@ -552,7 +556,7 @@ namespace dmGameObject
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
      * @param component_id [type: dmhash_t* Component id as out-argument
-     * @return result [type: dmGameObject::Result] RESULT_OK if the comopnent was found
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 

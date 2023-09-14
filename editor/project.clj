@@ -16,7 +16,8 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
+                     "jogamp" "https://jogamp.org/deployment/maven"}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
@@ -77,47 +78,22 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.7.22"]
+                     [cljfx "1.7.22"
+                      :exclusions [org.clojure/clojure
+                                   org.openjfx/javafx-base
+                                   org.openjfx/javafx-graphics
+                                   org.openjfx/javafx-controls
+                                   org.openjfx/javafx-media
+                                   org.openjfx/javafx-web]]
 
-                     [org.openjfx/javafx-base "19.0.2.1"]
-                     [org.openjfx/javafx-base "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-base "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-base "19.0.2.1" :classifier "win"]
-                     [org.openjfx/javafx-controls "19.0.2.1"]
-                     [org.openjfx/javafx-controls "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-controls "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-controls "19.0.2.1" :classifier "win"]
-                     [org.openjfx/javafx-graphics "19.0.2.1"]
-                     [org.openjfx/javafx-graphics "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "19.0.2.1" :classifier "win"]
-                     [org.openjfx/javafx-media "19.0.2.1"]
-                     [org.openjfx/javafx-media "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-media "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-media "19.0.2.1" :classifier "win"]
-                     [org.openjfx/javafx-web "19.0.2.1"]
-                     [org.openjfx/javafx-web "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-web "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-web "19.0.2.1" :classifier "win"]
-                     [org.openjfx/javafx-fxml "19.0.2.1"]
-                     [org.openjfx/javafx-fxml "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "19.0.2.1" :classifier "win"]
-                     [org.openjfx/javafx-swing "19.0.2.1"]
-                     [org.openjfx/javafx-swing "19.0.2.1" :classifier "linux"]
-                     [org.openjfx/javafx-swing "19.0.2.1" :classifier "mac"]
-                     [org.openjfx/javafx-swing "19.0.2.1" :classifier "win"]
-
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
-                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
-                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-windows-amd64"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]]
 
@@ -144,6 +120,7 @@
 
   :protobuf-includes ["../engine/gameobject/proto"
                       "../engine/gamesys/proto"
+                      "../engine/graphics/proto"
                       "../engine/ddf/src"
                       "../engine/script/src"
                       ~(str (System/getenv "DYNAMO_HOME") "/ext/include")]
@@ -155,7 +132,8 @@
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]}
+                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]
+                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -170,31 +148,32 @@
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
                       "-Dfile.encoding=UTF-8"
-                      "--illegal-access=warn"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.awt=ALL-UNNAMED"
                       "--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED"
+                      ;; used in lsp.clj (java.lang.String sun.nio.fs.Globs.toUnixRegexPattern)
+                      "--add-opens=java.base/sun.nio.fs=ALL-UNNAMED"
                       ;; hide warnings about illegal reflective access by clojure
-                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"]
+                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
+                      ;; used in editor.scene$read_to_buffered_image
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce initialize-test-prerequisites
-                                               (do
-                                                 (com.defold.libs.ResourceUnpacker/unpackResources)
-                                                 (javafx.application.Platform/startup
-                                                   (fn []
-                                                     (com.jogamp.opengl.GLProfile/initSingleton)))))]
+  :javac-options ["-Xlint:unchecked" "-Xlint:deprecation"]
+
+  :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
                                 :jvm-opts ["-Ddefold.tests=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
-                      :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
+                      :sidecar {:source-paths ["sidecar"]}
+                      :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
-                                :omit-source  true
-                                :source-paths ["sidecar"]}
+                                :auto-clean   false
+                                :omit-source  true}
                       :local-repl {:injections [(require 'dev) (future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :vscode {:plugins [[nrepl "0.6.0"]]}
@@ -210,13 +189,54 @@
                                :dependencies [[vlaaad/reveal "1.3.280"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :no-asserts {:global-vars {*assert* false}}
-                      :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]
+                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-web "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
+                                                    [org.openjfx/javafx-fxml "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "21-ea+23" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                     :uberjar-name "editor-x86_64-linux-standalone.jar"}
+                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-web "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
+                                                    [org.openjfx/javafx-fxml "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "21-ea+23" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                     :uberjar-name "editor-x86_64-win32-standalone.jar"}
+                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-web "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
+                                                    [org.openjfx/javafx-fxml "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "21-ea+23" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                     :uberjar-name "editor-x86_64-macos-standalone.jar"}
+                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-controls "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-graphics "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-media "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-web "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
+                                                   [org.openjfx/javafx-fxml "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                   [org.openjfx/javafx-swing "21-ea+23" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                    :uberjar-name "editor-arm64-macos-standalone.jar"}
+                      :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform
+                                                    [org.openjfx/javafx-base "21-ea+23"]
+                                                    [org.openjfx/javafx-controls "21-ea+23"]
+                                                    [org.openjfx/javafx-graphics "21-ea+23"]
+                                                    [org.openjfx/javafx-media "21-ea+23"]
+                                                    [org.openjfx/javafx-web "21-ea+23"]
+                                                    [org.openjfx/javafx-fxml "21-ea+23"]
+                                                    [org.openjfx/javafx-swing "21-ea+23"]
+                                                    [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [org.clojure/test.check   "0.9.0"]
                                                     [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.9.6"]]
+                                :source-paths      ["src/dev"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]

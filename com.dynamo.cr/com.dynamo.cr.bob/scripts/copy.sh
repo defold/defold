@@ -34,7 +34,6 @@ mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
 mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
-mkdir -p libexec/arm64-nx64
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -82,7 +81,7 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-32 libexec/x86_64-macos/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
-#cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-32 libexec/arm64-macos/luajit-32 # TODO create an arm32 executable
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-32 libexec/arm64-macos/luajit-32 # TODO create an arm32 executable
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe

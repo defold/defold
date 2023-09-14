@@ -590,7 +590,7 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5','nx64'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
@@ -1788,6 +1788,9 @@ def detect(conf):
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
+
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_SCRIPT'] = 'script'
 
 def configure(conf):
     detect(conf)

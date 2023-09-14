@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,7 @@
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../resource/src/resource_private.h"
 
+#include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
@@ -367,7 +368,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail 
+    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail
     //      -> set_texture.script::test_fail_out_of_bounds
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -754,6 +755,46 @@ TEST_F(SoundTest, LuaCallback)
     // Allow for one more update for messages to go through
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    // release GO
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/sound/delayed_sound_stopped_before_play.goc";
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
@@ -3565,15 +3606,15 @@ TEST_F(RenderConstantsTest, SetGetConstant)
     dmhash_t name_hash1 = dmHashString64("user_var1");
     dmhash_t name_hash2 = dmHashString64("user_var2");
 
-    dmRender::HMaterial material = 0;
+    dmGameSystem::MaterialResource* material = 0;
     {
         const char path_material[] = "/material/valid.materialc";
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, (void**)&material));
         ASSERT_NE((void*)0, material);
 
         dmRender::HConstant rconstant;
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash1, rconstant));
-        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, name_hash2, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash1, rconstant));
+        ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material->m_Material, name_hash2, rconstant));
     }
 
     dmGameSystem::HComponentRenderConstants constants = dmGameSystem::CreateRenderConstants();
@@ -3585,7 +3626,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Setting property value
     dmGameObject::PropertyVar var1(dmVMath::Vector4(1,2,3,4));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash1, 0, 0, var1); // stores the previous value
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash1, 0, 0, var1); // stores the previous value
 
     result = dmGameSystem::GetRenderConstant(constants, name_hash1, &constant);
     ASSERT_TRUE(result);
@@ -3594,7 +3635,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     // Issue in 1.2.183: We reallocated the array, thus invalidating the previous pointer
     dmGameObject::PropertyVar var2(dmVMath::Vector4(5,6,7,8));
-    dmGameSystem::SetRenderConstant(constants, material, name_hash2, 0, 0, var2);
+    dmGameSystem::SetRenderConstant(constants, material->m_Material, name_hash2, 0, 0, var2);
     // Make sure it's still valid and doesn't trigger an ASAN issue
     ASSERT_EQ(name_hash1, constant->m_NameHash);
 
@@ -3695,6 +3736,111 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
     ASSERT_FALSE(result);
 
     dmGameSystem::DestroyRenderConstants(constants);
+}
+
+TEST_F(MaterialTest, CustomVertexAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttribute* attributes;
+    uint32_t attribute_count;
+
+    // Attributes specified in the shader:
+    //      attribute vec4 position;
+    //      attribute vec3 normal;
+    //      attribute vec2 texcoord0;
+
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(3, attribute_count);
+    ASSERT_EQ(dmHashString64("position"),  attributes[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("normal"),    attributes[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("texcoord0"), attributes[2].m_NameHash);
+
+    ASSERT_EQ(2, attributes[0].m_ElementCount); // Position has been overridden!
+    ASSERT_EQ(3, attributes[1].m_ElementCount);
+    ASSERT_EQ(2, attributes[2].m_ElementCount);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, attributes[0].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,     attributes[1].m_SemanticType); // No normal semantic type (yet)
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, attributes[2].m_SemanticType);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_BYTE,  attributes[1].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_SHORT, attributes[2].m_DataType);
+
+    const uint8_t* value_ptr;
+    uint32_t num_values;
+    const float EPSILON = 0.0001;
+
+    // Test position values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 0, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(2 * sizeof(float), num_values);
+
+        // Note: The attribute specifies more values in the attribute, but in the engine we clamp the values to the element count
+        float position_expected[] = { 1.0f, 2.0f };
+        for (int i = 0; i < 2; ++i)
+        {
+            float* f_ptr = (float*) value_ptr;
+            ASSERT_NEAR(position_expected[i], f_ptr[i], EPSILON);
+        }
+    }
+
+    // Test normal values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(3, num_values);
+
+        int8_t normal_expected[] = { 64, 32, 16 };
+        for (int i = 0; i < 3; ++i)
+        {
+            ASSERT_EQ(normal_expected[i], value_ptr[i]);
+        }
+    }
+
+    // Test texcoord values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(2 * sizeof(int16_t), num_values);
+
+        int16_t texcoord0_expected[] = { -16000, 16000 };
+        for (int i = 0; i < 2; ++i)
+        {
+            int16_t* short_values = (int16_t*) value_ptr;
+            ASSERT_EQ(texcoord0_expected[i], short_values[i]);
+        }
+    }
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(MaterialTest, GoGetSetConstants)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/material.goc", dmHashString64("/material"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,11 +33,13 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -94,10 +96,31 @@ public class ProtoBuilders {
         return out;
     }
 
+    private static MaterialDesc.Builder getMaterialBuilderFromResource(IResource res) throws IOException {
+        if (res.getPath().isEmpty()) {
+            return null;
+        }
+
+        IResource materialBuildResource      = res.changeExt(".materialc");
+        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+        materialBuilder.mergeFrom(materialBuildResource.getContent());
+        return materialBuilder;
+    }
+
+    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
+    {
+        for (VertexAttribute attr : attributes) {
+            if (attr.getName().equals(attributeName)) {
+                return attr;
+            }
+        }
+        return null;
+    }
+
     // TODO: Should we move this to a build resource?
     static Set<String> materialAtlasCompatabilityCache = new HashSet<String>();
 
-    private static void validateMaterialAtlasCompatability(Project project, IResource resource, String materialProjectPath, String textureSet) throws IOException, CompileExceptionError {
+    private static void validateMaterialAtlasCompatability(Project project, IResource resource, String materialProjectPath, MaterialDesc.Builder materialBuilder, String textureSet) throws IOException, CompileExceptionError {
         if (materialProjectPath.isEmpty())
         {
             return;
@@ -108,12 +131,6 @@ public class ProtoBuilders {
             if (materialAtlasCompatabilityCache.contains(cachedValidationKey)) {
                 return;
             }
-
-            IResource materialResource      = project.getResource(materialProjectPath);
-            IResource materialBuildResource = materialResource.changeExt(".materialc");
-
-            MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-            materialBuilder.mergeFrom(materialBuildResource.getContent());
 
             IResource textureSetResource      = project.getResource(textureSet);
             IResource textureSetBuildResource = textureSetResource.changeExt(".a.texturesetc");
@@ -151,17 +168,6 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
-
-            if (messageBuilder.getExclude()) {
-            	if (project.getBuildDirectory() != null && resource.output() != null && resource.output().getPath() != null) {
-            		if (resource.output().getPath().startsWith(project.getBuildDirectory())) {
-            			String excludePath = resource.output().getPath().substring(project.getBuildDirectory().length());
-            			excludePath = BuilderUtil.replaceExt(excludePath, ".collectionproxy", ".collectionproxyc");
-            			this.project.excludeCollectionProxy(excludePath);
-            		}
-            	}
-            }
-
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -282,7 +288,7 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
-    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> 
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
 {
         @Override
         public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -321,12 +327,32 @@ public class ProtoBuilders {
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
 
-            validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), messageBuilder.getTileSet());
+            MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));
+
+            validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), materialBuilder, messageBuilder.getTileSet());
 
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+
+            if (materialBuilder != null) {
+                List<VertexAttribute> materialAttributes       = materialBuilder.getAttributesList();
+                List<VertexAttribute> spriteAttributeOverrides = new ArrayList<VertexAttribute>();
+
+                for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
+                    VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
+                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
+
+                    if (materialAttribute != null) {
+                        spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
+                    }
+                }
+
+                messageBuilder.clearAttributes();
+                messageBuilder.addAllAttributes(spriteAttributeOverrides);
+            }
+
             return messageBuilder;
         }
     }
@@ -398,7 +424,9 @@ public class ProtoBuilders {
                 BuilderUtil.checkResource(this.project, resource, "tile source", emitterBuilder.getTileSource());
                 BuilderUtil.checkResource(this.project, resource, "material", emitterBuilder.getMaterial());
 
-                validateMaterialAtlasCompatability(this.project, resource, emitterBuilder.getMaterial(), emitterBuilder.getTileSource());
+                MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(emitterBuilder.getMaterial()));
+
+                validateMaterialAtlasCompatability(this.project, resource, emitterBuilder.getMaterial(), materialBuilder, emitterBuilder.getTileSource());
 
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "t.texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "t.texturesetc"));
@@ -417,6 +445,22 @@ public class ProtoBuilders {
                     mb.setRotation(MathUtil.vecmathToDDF(r));
                     emitterBuilder.addModifiers(mb.build());
                 }
+
+                List<VertexAttribute> materialAttributes        = materialBuilder.getAttributesList();
+                List<VertexAttribute> emitterAttributeOverrides = new ArrayList<VertexAttribute>();
+
+                for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
+                    VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
+                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+
+                    if (materialAttribute != null) {
+                        emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));
+                    }
+                }
+
+                emitterBuilder.clearAttributes();
+                emitterBuilder.addAllAttributes(emitterAttributeOverrides);
+
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
             messageBuilder.clearModifiers();

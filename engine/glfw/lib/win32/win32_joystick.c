@@ -66,8 +66,8 @@ void _glfwPlatformDiscoverJoysticks()
     for (i = 0; i < GLFW_MAX_XINPUT_CONTROLLERS; i++)
     {
         dwResult = XInputGetState(i, &state);
-        g_ControllerPresent[i] = dwResult == ERROR_SUCCESS;
         g_ControllerPresent_prev[i] = g_ControllerPresent[i];
+        g_ControllerPresent[i] = dwResult == ERROR_SUCCESS;
     }
 }
 

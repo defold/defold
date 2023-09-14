@@ -182,7 +182,7 @@
           (is (= 1.0 (script-prop go-comp "number")))
           (is (= 4.0 (script-prop coll-comp "number")))
           (is (= 4.0 (script-prop parent-comp "number")))
-          (test-util/code-editor-source! script-id "go.property(\"new_value\", 2.0)\n")
+          (test-util/set-code-editor-source! script-id "go.property(\"new_value\", 2.0)\n")
           (is (= 2.0 (script-prop coll-comp "new_value"))))))))
 
 (deftest read-only-id-property

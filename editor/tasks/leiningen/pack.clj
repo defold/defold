@@ -27,6 +27,8 @@
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.dylib"]}
+   "arm64-macos" {"bin" ["dmengine"]
+                  "lib" ["libparticle_shared.dylib"]}
    "x86-win32"     {"bin" ["dmengine.exe" "dmengine.pdb"]
                     "lib" []}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine.pdb"]
@@ -57,11 +59,16 @@
    "${DYNAMO-HOME}/ext/bin/x86_64-macos/luajit-32"           "x86_64-macos/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-macos/luajit-64"           "x86_64-macos/bin/luajit-64"
 
+   "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-32"            "arm64-macos/bin/luajit-32"
+   "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-64"            "arm64-macos/bin/luajit-64"
+
    "$DYNAMO_HOME/ext/bin/x86_64-macos/glslc"                  "x86_64-macos/glslc"
+   "$DYNAMO_HOME/ext/bin/arm64-macos/glslc"                   "arm64-macos/glslc"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
 
    "$DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross"            "x86_64-macos/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross"             "arm64-macos/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
@@ -90,12 +97,11 @@
 ;; Manually re-pack JOGL natives, so we can avoid JOGLs automatic
 ;; library loading, see DEFEDIT-494.
 
-(def java-platform->platform
-  {"linux-amd64"      "x86_64-linux"
-   "macosx-universal" "x86_64-macos"
-   "windows-amd64"    "x86_64-win32"
-   "windows-i586"     "x86-win32"
-   "windows-x64"      "x86_64-win32"})
+(def jogl-classifier->platforms
+  {"linux-amd64"      ["x86_64-linux"]
+   "macosx-universal" ["arm64-macos" "x86_64-macos"]
+   "windows-amd64"    ["x86_64-win32"]
+   "windows-x64"      ["x86_64-win32"]})
 
 (defn jar-file
   [[artifact version & {:keys [classifier]} :as dependency]]
@@ -109,8 +115,8 @@
 
 (defn jogl-native-dep?
   [[artifact version & {:keys [classifier]}]]
-  (and (#{'com.metsci.ext.org.jogamp.gluegen/gluegen-rt
-          'com.metsci.ext.org.jogamp.jogl/jogl-all} artifact)
+  (and (#{'org.jogamp.gluegen/gluegen-rt
+          'org.jogamp.jogl/jogl-all} artifact)
        classifier))
 
 (defn extract-jogl-native-dep
@@ -120,11 +126,12 @@
     (with-open [zip-file (ZipFile. (jar-file dependency))]
       (doseq [entry (enumeration-seq (.entries zip-file))]
         (when (.startsWith (.getName entry) natives-path)
-          (let [libname (.getName (io/file (.getName entry)))
-                dest (io/file pack-path (java-platform->platform java-platform) "lib" libname)]
-            (println (format "extracting '%s'/'%s' to '%s'" (.getName zip-file) (.getName entry) dest))
-            (io/make-parents dest)
-            (io/copy (.getInputStream zip-file entry) dest)))))))
+          (let [libname (.getName (io/file (.getName entry)))]
+            (doseq [target-platform (jogl-classifier->platforms java-platform)]
+              (let [dest (io/file pack-path target-platform "lib" libname)]
+                (println (format "extracting '%s'/'%s' to '%s'" (.getName zip-file) (.getName entry) dest))
+                (io/make-parents dest)
+                (io/copy (.getInputStream zip-file entry) dest)))))))))
 
 (defn pack-jogl-natives
   [pack-path dependencies]

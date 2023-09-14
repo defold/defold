@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -74,15 +74,7 @@ extern uint32_t DEBUG_VPC_SIZE;
 extern unsigned char DEBUG_FPC[];
 extern uint32_t DEBUG_FPC_SIZE;
 
-#if defined(DM_RELEASE)
-    extern unsigned char BUILTINS_RELEASE_ARCD[];
-    extern uint32_t BUILTINS_RELEASE_ARCD_SIZE;
-    extern unsigned char BUILTINS_RELEASE_ARCI[];
-    extern uint32_t BUILTINS_RELEASE_ARCI_SIZE;
-    extern unsigned char BUILTINS_RELEASE_DMANIFEST[];
-    extern uint32_t BUILTINS_RELEASE_DMANIFEST_SIZE;
-
-#else
+#if !defined(DM_RELEASE)
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
@@ -175,6 +167,7 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
+        params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
         event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
@@ -193,6 +186,7 @@ namespace dmEngine
 
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
+        params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
         event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
@@ -285,8 +279,6 @@ namespace dmEngine
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
         dmHttpClient::ShutdownConnectionPool();
-
-        dmLiveUpdate::Finalize();
 
         // Reregister the types before the rest of the contexts are deleted
         if (engine->m_Factory) {
@@ -610,7 +602,7 @@ namespace dmEngine
                 }
                 if (dmSys::ResourceExists(tmp))
                 {
-                    dmStrlCpy(project_file_uri, "dmanif:", sizeof(project_file_uri));
+                    dmStrlCpy(project_file_uri, "archive:", sizeof(project_file_uri));
                     dmStrlCat(project_file_uri, tmp, sizeof(project_file_uri));
                 }
             }
@@ -886,9 +878,6 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
 
-        dmResourceArchive::ClearArchiveLoaders(); // in case we've rebooted
-        dmResourceArchive::RegisterDefaultArchiveLoader();
-
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -902,18 +891,9 @@ namespace dmEngine
         if (liveupdate_enable)
         {
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
-
-            dmLiveUpdate::RegisterArchiveLoaders();
         }
 
-#if defined(DM_RELEASE)
-        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
-        params.m_ArchiveIndex.m_Size = BUILTINS_RELEASE_ARCI_SIZE;
-        params.m_ArchiveData.m_Data = (const void*) BUILTINS_RELEASE_ARCD;
-        params.m_ArchiveData.m_Size = BUILTINS_RELEASE_ARCD_SIZE;
-        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_RELEASE_DMANIFEST;
-        params.m_ArchiveManifest.m_Size = BUILTINS_RELEASE_DMANIFEST_SIZE;
-#else
+#if !defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
@@ -982,14 +962,18 @@ namespace dmEngine
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
+        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
+        render_params.m_CommandBufferSize = 1024;
+        render_params.m_ScriptContext = engine->m_RenderScriptContext;
+#if !defined(DM_RELEASE)
         render_params.m_VertexShaderDesc = ::DEBUG_VPC;
         render_params.m_VertexShaderDescSize = ::DEBUG_VPC_SIZE;
         render_params.m_FragmentShaderDesc = ::DEBUG_FPC;
         render_params.m_FragmentShaderDescSize = ::DEBUG_FPC_SIZE;
-        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);;
-        render_params.m_CommandBufferSize = 1024;
-        render_params.m_ScriptContext = engine->m_RenderScriptContext;
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+#else
+        render_params.m_MaxDebugVertexCount = 0;
+#endif
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
@@ -1236,7 +1220,6 @@ namespace dmEngine
         }
 #endif
 
-        dmGui::SetDefaultFont(engine->m_GuiContext, engine->m_SystemFontMap);
         dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
@@ -1277,8 +1260,6 @@ namespace dmEngine
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
-
-        dmLiveUpdate::Initialize(engine->m_Factory);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)
@@ -1496,8 +1477,6 @@ bail:
             {
                 DM_PROFILE("Sim");
 
-                dmLiveUpdate::Update();
-
                 {
                     DM_PROFILE("Resource");
                     dmResource::UpdateFactory(engine->m_Factory);
@@ -1589,6 +1568,7 @@ bail:
                     // if any extension wants to render on under of the game.
                     dmExtension::Params ext_params;
                     ext_params.m_ConfigFile = engine->m_Config;
+                    ext_params.m_ResourceFactory = engine->m_Factory;
                     if (engine->m_SharedScriptContext) {
                         ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
                     } else {
@@ -1653,8 +1633,9 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
+#if !defined(DM_RELEASE)
             dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
-
+#endif
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
             // in case any extension wants to render just before the Flip().
@@ -1663,6 +1644,7 @@ bail:
             {
                 dmExtension::Params ext_params;
                 ext_params.m_ConfigFile = engine->m_Config;
+                ext_params.m_ResourceFactory = engine->m_Factory;
                 if (engine->m_SharedScriptContext) {
                     ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
                 } else {
@@ -1743,7 +1725,6 @@ bail:
 
     void Step(HEngine engine)
     {
-        DM_PROFILE("Step");
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
@@ -1755,6 +1736,7 @@ bail:
 
         for (uint32_t i = 0; i < num_steps; ++i)
         {
+            DM_PROFILE("Step");
             // We currently cannot separate the update from the render,
             // since some of the update is done in the render updates (e.g. sprite transforms)
             StepFrame(engine, step_dt);
@@ -1939,7 +1921,7 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         dmResource::Result fact_error;
-
+#if !defined(DM_RELEASE)
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
@@ -1948,7 +1930,7 @@ bail:
             return false;
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
-
+#endif
         // The system font is currently the only resource we need from the connection app
         // After this point, the rest of the resources should be loaded the ordinary way
         if (!engine->m_ConnectionAppMode)
@@ -1956,7 +1938,7 @@ bail:
             int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
             if (unload)
             {
-                dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+                dmResource::ReleaseBuiltinsArchive(engine->m_Factory);
             }
         }
 

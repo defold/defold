@@ -537,7 +537,7 @@ namespace dmScript
     }
 
     /*# create a timer
-     * Adds a timer and returns a unique handle
+     * Adds a timer and returns a unique handle.
      *
      * You may create more timers from inside a timer callback.
      *
@@ -576,7 +576,7 @@ namespace dmScript
      *   self.counter = self.counter + 1
      *   print("Call #", self.counter)
      *   if self.counter == 10 then
-     *     timer.cancel(handle) -- cancel timer after 100 calls
+     *     timer.cancel(handle) -- cancel timer after 10 calls
      *   end
      * end
      *
@@ -724,7 +724,7 @@ namespace dmScript
      *
      * @name  timer.get_info
      * @param handle [type:hash] the timer handle returned by timer.delay()
-     * @return data [type:table] or nil if timer is cancelled/completed. table with data in the following fields:
+     * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
      *
      * `time_remaining`
      * : [type:number] Time remaining until the next time a timer.delay() fires.

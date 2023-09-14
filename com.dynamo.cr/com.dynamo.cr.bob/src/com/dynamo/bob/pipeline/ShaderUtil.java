@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -29,13 +30,18 @@ import org.codehaus.jackson.map.ObjectMapper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.TokenStreamRewriter;
+import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
+
 public class ShaderUtil {
     public static class Common {
         public static final int     MAX_ARRAY_SAMPLERS             = 8;
         public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
         public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
-        public static final Pattern regexLineBreakPattern          = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
-        public static final String  regexCommentRemovePattern      = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
         public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
         public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
         public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
@@ -48,8 +54,27 @@ public class ShaderUtil {
         }
 
         public static String stripComments(String source)
-        {
-            return source.replaceAll(regexCommentRemovePattern,"");
+        {  
+            CharStream stream = CharStreams.fromString(source);
+            GLSLLexer lexer = new GLSLLexer(stream);
+            CommonTokenStream tokens = new CommonTokenStream(lexer, GLSLLexer.COMMENTS);
+            // Get all tokens from lexer until EOF 
+            tokens.fill();
+            TokenStreamRewriter rewriter = new TokenStreamRewriter(tokens);
+            // Iterate over the tokens and remove comments
+            for (Token token : tokens.getTokens()) {
+                if (token.getChannel() == GLSLLexer.COMMENTS) {
+                    if (token.getType() == GLSLLexer.BLOCK_COMMENT) {
+                        // Insert a new line instead of each line of the multiline comment
+                        int linesInComment = token.getText().split("\r\n|\r|\n").length - 1;
+                        rewriter.replace(token, System.lineSeparator().repeat(linesInComment));
+                    }
+                    else {
+                        rewriter.delete(token);
+                    }
+                }
+            }
+            return rewriter.getText();
         }
 
         public static boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
@@ -355,23 +380,23 @@ public class ShaderUtil {
             VERTEX_SHADER, FRAGMENT_SHADER
         };
 
-        private static final String[] opaqueUniformTypesPrefix = { "sampler", "image", "atomic_uint" };
-        private static final Pattern regexVersionStringPattern = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
+        private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
+        private static final Pattern regexVersionStringPattern    = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
-        private static final Pattern regexFragDataArrayPattern = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
+        private static final Pattern regexFragDataArrayPattern    = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
         private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
         private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
 
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
 
-        private static final String glUBRep = dmEngineGeneratedRep + "UB_";
-        private static final String glFragColorKeyword = "gl_FragColor";
-        private static final String glFragDataKeyword = "gl_FragData";
-        private static final String glFragColorRep = dmEngineGeneratedRep + glFragColorKeyword;
-        private static final String glFragColorAttrRep = "\n%sout vec4 " + glFragColorRep + "%s;\n";
+        private static final String glUBRep                     = dmEngineGeneratedRep + "UB_";
+        private static final String glFragColorKeyword          = "gl_FragColor";
+        private static final String glFragDataKeyword           = "gl_FragData";
+        private static final String glFragColorRep              = dmEngineGeneratedRep + glFragColorKeyword;
+        private static final String glFragColorAttrRep          = "\n%sout vec4 " + glFragColorRep + "%s;\n";
         private static final String glFragColorAttrLayoutPrefix = "layout(location = %d) ";
-        private static final String floatPrecisionAttrRep = "precision mediump float;\n";
+        private static final String floatPrecisionAttrRep       = "precision mediump float;\n";
 
         public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
@@ -436,9 +461,7 @@ public class ShaderUtil {
                 input = input.replaceAll("\\b" + glFragDataKeyword + "\\[(\\d+)\\]", glFragColorRep + "_$1");
             }
 
-            // Split into slices separated by semicolon, curly bracket scopes and preprocessor definition lines: ";", "{", "}" and "#..<\n>"
-            // This to reduce parsing complexity
-            String[] inputLines = Common.regexLineBreakPattern.split(input);
+            String[] inputLines = input.split("\\r?\\n");
 
             // Find the first non directive line
             Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
@@ -505,7 +528,7 @@ public class ShaderUtil {
                         }
                     }
                 }
-                output.add(line);
+                output.add(line + System.lineSeparator());
             }
 
             // Post patching

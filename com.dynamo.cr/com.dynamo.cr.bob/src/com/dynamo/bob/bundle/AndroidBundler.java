@@ -40,8 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.security.KeyStore;
 
 import org.apache.commons.io.FileUtils;
@@ -66,9 +64,11 @@ import com.defold.extender.client.ExtenderResource;
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
+    private static String stripToolName = "strip_android";
+
     private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
     static {
-        platformToStripToolMap.put(Platform.Armv7Android, "strip_android");
+        platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
         platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
     }
 
@@ -103,10 +103,10 @@ public class AndroidBundler implements IBundler {
         FileUtils.writeStringToFile(new File(path), content);
     }
 
-    private static String getJavaBinFile(String file) {
-        String javaHome = System.getProperty("java.home");
+    private static String getJavaBinFile(Project project, String file) {
+        String javaHome = project.getSystemProperty("java.home");
         if (javaHome == null) {
-            javaHome = System.getenv("JAVA_HOME");
+            javaHome = project.getSystemEnv("JAVA_HOME");
         }
         if (javaHome != null) {
             file = Paths.get(javaHome, "bin", file).toString();
@@ -117,7 +117,7 @@ public class AndroidBundler implements IBundler {
     private static void extractFile(File zipFile, String fileName, File outputFile) throws IOException {
         // Wrap the file system in a try-with-resources statement
         // to auto-close it when finished and prevent a memory leak
-        try (FileSystem fileSystem = FileSystems.newFileSystem(zipFile.toPath(), null)) {
+        try (FileSystem fileSystem = FileSystems.newFileSystem(zipFile.toPath(), new HashMap<>())) {
             Path fileToExtract = fileSystem.getPath(fileName);
             Files.copy(fileToExtract, outputFile.toPath());
         }
@@ -215,7 +215,7 @@ public class AndroidBundler implements IBundler {
             String keystorePassword = "android";
             String keystorePasswordFile = new File(project.getRootDirectory(), "debug.keystore.pass.txt").getAbsolutePath();
             if (!keystoreFile.exists()) {
-                Result r = exec(getJavaBinFile("keytool"),
+                Result r = exec(getJavaBinFile(project, "keytool"),
                     "-genkey",
                     "-v",
                     "-noprompt",
@@ -338,7 +338,11 @@ public class AndroidBundler implements IBundler {
         // possibly also strip it
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), platformToStripToolMap.get(architecture));
+            String stripToolExe = platformToStripToolMap.get(architecture);
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
+                stripToolExe = stripToolName;
+            }
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
             List<String> args = new ArrayList<String>();
             args.add(stripTool);
             args.add(dest.getAbsolutePath());
@@ -694,7 +698,7 @@ public class AndroidBundler implements IBundler {
             }
 
             List<String> args = new ArrayList<String>();
-            args.add(getJavaBinFile("java")); args.add("-jar");
+            args.add(getJavaBinFile(project, "java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-bundle");
             args.add("--modules"); args.add(baseZip.getAbsolutePath());
@@ -725,7 +729,7 @@ public class AndroidBundler implements IBundler {
         String keystoreAlias = getKeystoreAlias(project);
         String keyPassword = getKeyPassword(project);
 
-        Result r = exec(getJavaBinFile("jarsigner"),
+        Result r = exec(getJavaBinFile(project, "jarsigner"),
             "-verbose",
             "-keystore", keystore,
             "-storepass", keystorePassword,
@@ -847,7 +851,7 @@ public class AndroidBundler implements IBundler {
         Result res = null;
         try {
             List<String> args = new ArrayList<String>();
-            args.add(getJavaBinFile("java")); args.add("-jar");
+            args.add(getJavaBinFile(project, "java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
             args.add("build-apks");
             args.add("--mode"); args.add("UNIVERSAL");
