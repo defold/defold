@@ -23,6 +23,7 @@
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -34,7 +35,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
@@ -243,12 +245,19 @@
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ diameter 2)])))
 
+(defn- scale-by-absolute-value-and-round [value ^double scale]
+  (let [scaled-value (* (double value) (Math/abs scale))]
+    (if (math/float32? value)
+      (properties/round-scalar-float scaled-value)
+      (properties/round-scalar scaled-value))))
+
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::SphereShape
   [evaluation-context node-id ^Vector3d delta]
-  (let [diameter (g/node-value node-id :diameter evaluation-context)]
-    (g/set-property node-id :diameter (properties/round-scalar (* diameter (Math/abs (.getX delta)))))))
+  (let [old-diameter (g/node-value node-id :diameter evaluation-context)
+        new-diameter (scale-by-absolute-value-and-round old-diameter (.getX delta))]
+    (g/set-property node-id :diameter new-diameter)))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
   [node-id]
@@ -277,10 +286,12 @@
 
 (defmethod scene-tools/manip-scale ::BoxShape
   [evaluation-context node-id ^Vector3d delta]
-  (let [[w h d] (g/node-value node-id :dimensions evaluation-context)]
-    (g/set-property node-id :dimensions [(properties/round-scalar (Math/abs (* w (.getX delta))))
-                                         (properties/round-scalar (Math/abs (* h (.getY delta))))
-                                         (properties/round-scalar (Math/abs (* d (.getZ delta))))])))
+  (let [[old-x old-y old-z :as old-dimensions] (g/node-value node-id :dimensions evaluation-context)
+        new-dimensions (-> (coll/empty-with-meta old-dimensions)
+                           (conj (scale-by-absolute-value-and-round old-x (.getX delta)))
+                           (conj (scale-by-absolute-value-and-round old-y (.getY delta)))
+                           (conj (scale-by-absolute-value-and-round old-z (.getZ delta))))]
+    (g/set-property node-id :dimensions new-dimensions)))
 
 (g/defnode CapsuleShape
   (inherits Shape)
@@ -301,10 +312,11 @@
 
 (defmethod scene-tools/manip-scale ::CapsuleShape
   [evaluation-context node-id ^Vector3d delta]
-  (let [[d h] (mapv #(g/node-value node-id % evaluation-context) [:diameter :height])]
-    (g/set-property node-id
-                    :diameter (properties/round-scalar (Math/abs (* d (.getX delta))))
-                    :height (properties/round-scalar (Math/abs (* h (.getY delta)))))))
+  (let [old-diameter (g/node-value node-id :diameter evaluation-context)
+        old-height (g/node-value node-id :height evaluation-context)
+        new-diameter (scale-by-absolute-value-and-round old-diameter (.getX delta))
+        new-height (scale-by-absolute-value-and-round old-height (.getY delta))]
+    (g/set-property node-id :diameter new-diameter :height new-height)))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]

@@ -19,13 +19,13 @@
             [editor.camera :as camera]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.math :as math]
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
-            [editor.math :as math]
             [integration.test-util :as test-util])
   (:import [editor.types AABB]
-           [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (defn- apply-scene-transforms-to-aabbs
   ([scene] (apply-scene-transforms-to-aabbs geom/Identity4d scene))
