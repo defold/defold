@@ -250,9 +250,7 @@
       (scene-tools/manip-scale evaluation-context embedded-resource-id delta)
 
       (contains? (g/node-value node-id :transform-properties evaluation-context) :scale)
-      (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
-            new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
-        (g/set-property node-id :scale (properties/round-vec new-scale)))
+      (scene/manip-scale-scene-node evaluation-context node-id delta)
 
       :else
       nil)))

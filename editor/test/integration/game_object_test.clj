@@ -78,3 +78,23 @@
                 (println "When comparing" (:label resource-type))
                 (prn 'disk only-in-loaded)
                 (prn 'save only-in-saved)))))))))
+
+(deftest manip-scale-preserves-types
+  (test-util/with-loaded-project
+    (let [project-graph (g/node-id->graph-id project)
+          game-object-path "/game_object/embedded_components.go"
+          game-object (project/get-resource-node project game-object-path)
+          embedded-component (ffirst (g/sources-of game-object :child-scenes))]
+      (doseq [original-scale
+              (mapv #(with-meta % {:version "original"})
+                    [[(float 1.0) (float 1.0) (float 1.0)]
+                     [(double 1.0) (double 1.0) (double 1.0)]
+                     (vector-of :float 1.0 1.0 1.0)
+                     (vector-of :double 1.0 1.0 1.0)])]
+        (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (g/set-property! embedded-component :scale original-scale)
+          (test-util/manip-scale! embedded-component [2.0 2.0 2.0])
+          (let [modified-scale (g/node-value embedded-component :scale)]
+            (is (not= original-scale modified-scale))
+            (is (= (count original-scale) (count modified-scale)))
+            (test-util/ensure-float-type-preserving! original-scale modified-scale)))))))
