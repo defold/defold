@@ -235,7 +235,7 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 
 #if defined(DM_NO_ERRNO)
     #define DM_STRERROR_USE_POSIX
-    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "Unknown error %d", errval) == -1 ? 0 : 1
+    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "Unknown error %d", errval) == -1 ? 1 : 0
 #else
     #if !(defined(DM_STRERROR_USE_POSIX) || defined(DM_STRERROR_USE_GNU))
         #if defined(ANDROID)

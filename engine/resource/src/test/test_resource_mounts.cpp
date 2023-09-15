@@ -29,6 +29,11 @@
 
 const char* MOUNTFILE_PATH = "liveupdate.mounts";
 
+#define DM_SUPPORT_MUTABLE_ARCHIVE
+#if defined(DM_PLATFORM_VENDOR) // Let's deprecated it now, starting with consoles
+    #undef DM_SUPPORT_MUTABLE_ARCHIVE
+#endif
+
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -214,10 +219,12 @@ protected:
         entry.m_Priority = 20;
         entries.Push(entry);
 
+#if defined(DM_SUPPORT_MUTABLE_ARCHIVE)
         entry.m_Name = strdup("d");
         entry.m_Uri = strdup("archive:build/src/test/luresources");
         entry.m_Priority = 5;
         entries.Push(entry);
+#endif
 
         char path[1024];
         dmTestUtil::MakeHostPath(path, sizeof(path), MOUNTFILE_PATH);
@@ -259,7 +266,11 @@ TEST_F(ArchiveProvidersMounts, LoadMounts)
     dmResourceMounts::SGetMountResult info;
     dmResource::Result result;
 
+#if defined(DM_SUPPORT_MUTABLE_ARCHIVE)
     ASSERT_EQ(3, dmResourceMounts::GetNumMounts(m_Mounts));
+#else
+    ASSERT_EQ(2, dmResourceMounts::GetNumMounts(m_Mounts));
+#endif
 
     result = dmResourceMounts::GetMountByIndex(m_Mounts, 0, &info);
     ASSERT_EQ(dmResource::RESULT_OK, result);
@@ -271,10 +282,12 @@ TEST_F(ArchiveProvidersMounts, LoadMounts)
     ASSERT_EQ(20, info.m_Priority);
     ASSERT_STREQ("c", info.m_Name);
 
+#if defined(DM_SUPPORT_MUTABLE_ARCHIVE)
     result = dmResourceMounts::GetMountByIndex(m_Mounts, 2, &info);
     ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(5, info.m_Priority);
     ASSERT_STREQ("d", info.m_Name);
+#endif
 }
 
 TEST_F(ArchiveProvidersMounts, SaveAndLoad)
@@ -288,9 +301,16 @@ TEST_F(ArchiveProvidersMounts, SaveAndLoad)
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     result = dmResourceMounts::RemoveMount(m_Mounts, mount_info.m_Archive);
+    dmResourceProvider::Unmount(mount_info.m_Archive);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(2, dmResourceMounts::GetNumMounts(m_Mounts));
+#if defined(DM_SUPPORT_MUTABLE_ARCHIVE)
+    int expected_num_mounts = 2;
+#else
+    int expected_num_mounts = 1;
+#endif
+
+    ASSERT_EQ(expected_num_mounts, dmResourceMounts::GetNumMounts(m_Mounts));
 
     result = dmResourceMounts::SaveMounts(m_Mounts, path);
     ASSERT_EQ(dmResource::RESULT_OK, result);
@@ -303,7 +323,7 @@ TEST_F(ArchiveProvidersMounts, SaveAndLoad)
     result = dmResourceMounts::LoadMounts(m_Mounts, path);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(2, dmResourceMounts::GetNumMounts(m_Mounts));
+    ASSERT_EQ(expected_num_mounts, dmResourceMounts::GetNumMounts(m_Mounts));
 }
 
 int main(int argc, char **argv)

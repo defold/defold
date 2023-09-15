@@ -28,7 +28,7 @@
 
 #if defined(DM_PLATFORM_VENDOR)
     #define TMP_DIR ""
-    #define MOUNT_DIR DM_HOSTFS
+    #define MOUNT_DIR "file:"
 #else
     #define TMP_DIR "."
     #define MOUNT_DIR "."
@@ -231,12 +231,14 @@ protected:
         params.m_MaxResources = 16;
 
         const char* original_mount_path = GetParam();
+#if defined(DM_TEST_HTTP_SUPPORTED)
         char mountpath[512];
         if (strstr(original_mount_path, "http") == original_mount_path)
         {
             dmSnPrintf(mountpath, sizeof(mountpath), original_mount_path, g_HttpAddress, g_HttpPort);
             original_mount_path = mountpath;
         }
+#endif
 
         m_Factory = dmResource::NewFactory(&params, original_mount_path);
 
@@ -556,7 +558,7 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
 }
 
 const char* params_resource_paths[] = {
-    "build/src/test/",
+    "build/src/test",
 #if defined(DM_TEST_HTTP_SUPPORTED)
     "http://%s:%d",
 #endif
@@ -1609,4 +1611,3 @@ int main(int argc, char **argv)
 #endif
     return ret;
 }
-
