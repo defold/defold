@@ -201,26 +201,42 @@
     r/separator
     (r/stream (resource/proj-path resource))))
 
-(r/defstream Cursor [{:keys [row col]}]
-  (r/horizontal
-    (r/raw-string "#code/cursor [" {:fill :object})
+(defn- stream-cursor-contents [{:keys [row col] :as cursor}]
+  (apply
+    r/horizontal
     (r/stream row)
     r/separator
     (r/stream col)
+    (when-let [other (seq (dissoc cursor :row :col))]
+      [r/separator
+       (->> other
+            (eduction (map r/horizontally))
+            (r/horizontally))])))
+
+(r/defstream Cursor [{:keys [row col] :as cursor}]
+  (r/horizontal
+    (r/raw-string "#code/cursor [" {:fill :object})
+    (stream-cursor-contents cursor)
     (r/raw-string "]" {:fill :object})))
 
 (r/defstream CursorRange [{:keys [from to] :as range}]
   (r/horizontal
     (r/raw-string "#code/range [" {:fill :object})
     (apply
-      r/vertical
-      (r/horizontal
-        (r/stream ((juxt :row :col) from))
-        r/separator
-        (r/stream ((juxt :row :col) to)))
-      (let [rest (dissoc range :from :to)]
-        (when (seq rest)
-          [(r/vertically (map r/horizontally rest))])))
+      r/horizontal
+      (r/as from
+        (r/horizontal
+          (r/raw-string "[" {:fill :object})
+          (stream-cursor-contents from)
+          (r/raw-string "]" {:fill :object})))
+      r/separator
+      (r/as to
+        (r/horizontal
+          (r/raw-string "[" {:fill :object})
+          (stream-cursor-contents to)
+          (r/raw-string "]" {:fill :object})))
+      (when-let [rest (seq (dissoc range :from :to))]
+        [r/separator (->> rest (eduction (map r/horizontally)) (r/horizontally))]))
     (r/raw-string "]" {:fill :object})))
 
 (r/defaction ::javafx:children [x]

@@ -55,6 +55,10 @@
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
+   :commit-characters {:method #{"("}
+                       :function #{"("}
+                       :field #{"."}
+                       :module #{"."}}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -575,7 +579,7 @@
                               preprocessed-module-build-targets)})])))))))
 
 (g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
-  (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
+  (lua/combine-completions completion-info module-completion-infos script-intelligence-completions))
 
 (g/defnk produce-breakpoints [resource regions]
   (into []
