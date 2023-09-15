@@ -1,4 +1,4 @@
-(ns integration.float-properties-test
+(ns integration.property-type-preservation-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.field-expression :as field-expression]
