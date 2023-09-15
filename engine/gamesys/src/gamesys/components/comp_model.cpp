@@ -481,9 +481,19 @@ namespace dmGameSystem
         create_params.m_EventCBUserData2 = 0;
 
         create_params.m_BindPose         = &rig_resource->m_BindPose;
-        create_params.m_BoneIndices      = &rig_resource->m_SkeletonRes->m_BoneIndices;
-        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
+        if (create_params.m_Skeleton)
+        {
+            create_params.m_BoneIndices      = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : &rig_resource->m_SkeletonRes->m_BoneIndices;
+            create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+        }
+        else
+        {
+            if (rig_resource->m_AnimationSetRes)
+            {
+                dmLogWarning("Model has animations but no skeleton set");
+            }
+        }
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
 
         dmRigDDF::MeshSet* mesh_set      = rig_resource->m_MeshSetRes->m_MeshSet;

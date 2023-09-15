@@ -31,6 +31,7 @@
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
+#include <dmsdk/dlib/log.h>
 
 // Terminology:
 // Defold: Model, GLTF: Mesh
@@ -765,14 +766,20 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 
             // Cannot translate the bones here, since they're not created yet
             // bone->m_Node = ...
-
-            float matrix[16];
-            if (ReadAccessorMatrix4(accessor, j, matrix))
+            if (accessor)
             {
-                bone->m_InvBindPose = ToTransform(matrix);
-            } else
+                float matrix[16];
+                if (ReadAccessorMatrix4(accessor, j, matrix))
+                {
+                    bone->m_InvBindPose = ToTransform(matrix);
+                } else
+                {
+                    assert(false);
+                }
+            }
+            else
             {
-                assert(false);
+                bone->m_InvBindPose.SetIdentity();
             }
         }
 
