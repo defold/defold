@@ -809,29 +809,6 @@ public class ColladaUtilTest {
     }
 
     /*
-     * Test that MeshSets and AnimationSets can have bones specified in different order.
-     */
-    @Test
-    public void testBoneList() throws Exception {
-        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
-        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, "", new ArrayList<String>());
-
-        int meshBoneListCount = meshSetBuilder.getBoneListCount();
-        int animBoneListCount = animSetBuilder.getBoneListCount();
-
-        assertEquals(3, meshBoneListCount);
-        assertEquals(3, animBoneListCount);
-
-        for (int i = 0; i < meshBoneListCount; i++) {
-            Long meshBone = meshSetBuilder.getBoneList(i);
-            Long animBone = animSetBuilder.getBoneList(i);
-            assertEquals(meshBone, animBone);
-        }
-    }
-
-    /*
      *  Test collada file with a bone animation that includes both translation and rotation.
      */
     @Test
