@@ -25,6 +25,7 @@
             [editor.util :as util]
             [editor.workspace :as workspace]
             [schema.core :as s]
+            [util.coll :as coll]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
@@ -571,23 +572,32 @@
                (:node-ids property)
                (:prop-kws property)))))))
 
-(definline round-scalar [n]
-  `(math/round-with-precision ~n math/precision-general))
+(definline round-scalar [num]
+  `(math/round-with-precision ~num math/precision-general))
 
-(definline round-scalar-float [n]
-  `(float (round-scalar ~n)))
+(definline round-scalar-float [num]
+  `(float (round-scalar ~num)))
 
-(definline round-scalar-coarse [n]
-  `(math/round-with-precision ~n math/precision-coarse))
+(definline round-scalar-coarse [num]
+  `(math/round-with-precision ~num math/precision-coarse))
 
-(definline round-scalar-coarse-float [n]
-  `(float (round-scalar-coarse ~n)))
+(definline round-scalar-coarse-float [num]
+  `(float (round-scalar-coarse ~num)))
 
-(definline round-vec [v]
-  `(mapv round-scalar ~v))
+(definline round-vec [vec]
+  `(mapv round-scalar ~vec))
 
-(definline round-vec-coarse [v]
-  `(mapv round-scalar-coarse ~v))
+(definline round-vec-coarse [vec]
+  `(mapv round-scalar-coarse ~vec))
+
+(defn scale-and-round [num ^double scale]
+  (let [scaled-num (* (double num) scale)]
+    (if (math/float32? num)
+      (round-scalar-float scaled-num)
+      (round-scalar scaled-num))))
+
+(definline scale-and-round-vec [vec scale]
+  `(math/zip-clj-v3 ~vec ~scale scale-and-round))
 
 ;; SDK api
 (defn ->choicebox [vals]
@@ -615,13 +625,13 @@
    :from-type (fn [euler]
                 (let [quat (math/euler->quat euler)]
                   (if-not (math/float32? (first euler))
-                    (math/vecmath-into-clj quat (empty euler))
-                    (into (empty euler)
+                    (math/vecmath-into-clj quat (coll/empty-with-meta euler))
+                    (into (coll/empty-with-meta euler)
                           (map float)
                           (math/vecmath->clj quat)))))
    :to-type (fn [clj-quat]
               (let [euler (math/clj-quat->euler clj-quat)]
-                (into (empty clj-quat)
+                (into (coll/empty-with-meta clj-quat)
                       (map (if (math/float32? (first clj-quat))
                              round-scalar-coarse-float
                              round-scalar-coarse))

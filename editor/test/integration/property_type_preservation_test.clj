@@ -121,25 +121,33 @@
         [widget _update-ui-fn] (properties-view/create-property-control! edit-type context coalesced-prop-info-fn)]
     widget))
 
-(def ensure-type-preserving! test-util/ensure-float-type-preserving!)
-
 (defmulti test-property-widget! (fn [edit-type _node-id _prop-kw]
                                   (properties-view/edit-type->type edit-type)))
 
 (defmethod test-property-widget! g/Num [edit-type node-id prop-kw]
-  (let [original-value (g/node-value node-id prop-kw)
+  (let [graph-id (g/node-id->graph-id node-id)
+        original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
         [num-field] (property-widget-controls widget)]
-    (set-control-value! num-field 0.11)
-    (ensure-type-preserving! original-value (g/node-value node-id prop-kw))))
+    (with-open [_ (test-util/make-graph-reverter graph-id)]
+      (set-control-value! num-field 0.11)
+      (let [modified-value (g/node-value node-id prop-kw)]
+        (is (not= original-value modified-value))
+        (test-util/ensure-float-type-preserving! original-value modified-value)))))
 
 (defn- test-vector-property-widget! [edit-type node-id prop-kw]
-  (let [original-value (g/node-value node-id prop-kw)
-        widget (make-property-widget edit-type node-id prop-kw)]
+  (let [graph-id (g/node-id->graph-id node-id)
+        original-value (g/node-value node-id prop-kw)
+        widget (make-property-widget edit-type node-id prop-kw)
+        check! (fn check! [num-field num-value]
+                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                   (set-control-value! num-field num-value)
+                   (let [modified-value (g/node-value node-id prop-kw)]
+                     (is (not= original-value modified-value))
+                     (is (= (count original-value) (count modified-value)))
+                     (test-util/ensure-float-type-preserving! original-value modified-value))))]
     (doall
-      (map (fn [num-field num-value]
-             (set-control-value! num-field num-value)
-             (ensure-type-preserving! original-value (g/node-value node-id prop-kw)))
+      (map check!
            (property-widget-controls widget)
            (range 0.11 0.99 0.11)))))
 
@@ -153,50 +161,76 @@
   (test-vector-property-widget! edit-type node-id prop-kw))
 
 (defmethod test-property-widget! t/Color [edit-type node-id prop-kw]
-  (let [original-value (g/node-value node-id prop-kw)
+  (let [graph-id (g/node-id->graph-id node-id)
+        original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
         [color-picker] (property-widget-controls widget)]
-    (set-control-value! color-picker 0.11)
-    (ensure-type-preserving! original-value (g/node-value node-id prop-kw))))
+    (with-open [_ (test-util/make-graph-reverter graph-id)]
+      (set-control-value! color-picker 0.11)
+      (let [modified-value (g/node-value node-id prop-kw)]
+        (is (not= original-value modified-value))
+        (is (= (count original-value) (count modified-value)))
+        (test-util/ensure-float-type-preserving! original-value modified-value)))))
 
 (defmethod test-property-widget! :slider [edit-type node-id prop-kw]
-  (let [original-value (g/node-value node-id prop-kw)
+  (let [graph-id (g/node-id->graph-id node-id)
+        original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
-        [value-field slider] (property-widget-controls widget)]
-    (set-control-value! value-field 0.11)
-    (ensure-type-preserving! original-value (g/node-value node-id prop-kw))
-    (set-control-value! slider 0.22)
-    (ensure-type-preserving! original-value (g/node-value node-id prop-kw))))
+        [value-field slider] (property-widget-controls widget)
+        check! (fn check! [perform-edit!]
+                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                   (perform-edit!)
+                   (let [modified-value (g/node-value node-id prop-kw)]
+                     (is (not= original-value modified-value))
+                     (test-util/ensure-float-type-preserving! original-value modified-value))))]
+    (check! #(set-control-value! value-field 0.11))
+    (check! #(set-control-value! slider 0.22))))
 
 (defmethod test-property-widget! Curve [edit-type node-id prop-kw]
-  (let [original-value (g/node-value node-id prop-kw)
+  (let [graph-id (g/node-id->graph-id node-id)
+        original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
-        [edit-curve-button value-field] (property-widget-controls widget)]
-    (set-control-value! edit-curve-button 0.0)
-    (ensure-type-preserving! (properties/curve-vals original-value) (properties/curve-vals (g/node-value node-id prop-kw)))
-    (set-control-value! value-field 0.11)
-    (ensure-type-preserving! (properties/curve-vals original-value) (properties/curve-vals (g/node-value node-id prop-kw)))))
+        [edit-curve-button value-field] (property-widget-controls widget)
+        check! (fn check! [perform-edit!]
+                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                   (perform-edit!)
+                   (let [modified-value (g/node-value node-id prop-kw)]
+                     (is (not= original-value modified-value))
+                     (test-util/ensure-float-type-preserving! (properties/curve-vals original-value) (properties/curve-vals modified-value)))))]
+    (check! #(set-control-value! edit-curve-button 0.0))
+    (check! #(set-control-value! value-field 0.11))))
 
 (defmethod test-property-widget! CurveSpread [edit-type node-id prop-kw]
-  (let [original-value (g/node-value node-id prop-kw)
+  (let [graph-id (g/node-id->graph-id node-id)
+        original-value (g/node-value node-id prop-kw)
         widget (make-property-widget edit-type node-id prop-kw)
         [edit-curve-button value-field spread-field] (property-widget-controls widget)
-        check! (fn check! []
-                 (let [value (g/node-value node-id prop-kw)]
-                   (ensure-type-preserving! (properties/curve-vals original-value)
-                                            (properties/curve-vals value))
-                   (ensure-type-preserving! (:spread original-value)
-                                            (:spread value))))]
-    (set-control-value! edit-curve-button 0.0)
-    (check!)
-    (set-control-value! value-field 0.11)
-    (check!)
-    (set-control-value! spread-field 0.22)
-    (check!)))
+        check! (fn check! [perform-edit!]
+                 (with-open [_ (test-util/make-graph-reverter graph-id)]
+                   (perform-edit!)
+                   (let [modified-value (g/node-value node-id prop-kw)]
+                     (is (not= original-value modified-value))
+                     (test-util/ensure-float-type-preserving! (properties/curve-vals original-value) (properties/curve-vals modified-value))
+                     (test-util/ensure-float-type-preserving! (:spread original-value) (:spread modified-value)))))]
+    (check! #(set-control-value! edit-curve-button 0.0))
+    (check! #(set-control-value! value-field 0.11))
+    (check! #(set-control-value! spread-field 0.22))))
 
 (defn- ensure-float-properties-preserve-type! [original-property-values]
   (with-clean-system
-    (let [node-id (apply g/make-node! world FloatTypePropertiesNode (mapcat identity original-property-values))]
+    (let [original-meta {:version "original"}
+
+          property-values
+          (into (sorted-map)
+                (map (fn [[prop-kw prop-value]]
+                       (let [decorated-value (if (vector? prop-value)
+                                               (with-meta prop-value original-meta)
+                                               prop-value)]
+                         [prop-kw decorated-value])))
+                original-property-values)
+
+          graph-id (g/make-graph! :history true)
+          node-id (apply g/make-node! graph-id FloatTypePropertiesNode (mapcat identity property-values))]
       (let [edit-type-by-prop-kw
             (into (sorted-map)
                   (map (fn [[prop-kw prop-info]]

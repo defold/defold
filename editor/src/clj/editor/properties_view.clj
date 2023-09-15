@@ -27,7 +27,7 @@
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
@@ -370,7 +370,7 @@
                        properties/round-scalar-coarse-float
                        properties/round-scalar-coarse)
               ^Color c (.getValue color-picker)
-              new-value (-> (empty old-value)
+              new-value (-> (coll/empty-with-meta old-value)
                             (conj (num-fn (.getRed c)))
                             (conj (num-fn (.getGreen c)))
                             (conj (num-fn (.getBlue c)))

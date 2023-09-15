@@ -59,6 +59,39 @@
                             (int (- (Math/log10 precision)))
                             rounding-mode))))
 
+(defn zip-clj-v3
+  "Takes a three-element Clojure vector and returns a new three-element Clojure
+  vector whose components are the result of applying component-fn to both
+  components of a and b. Supports a Clojure vector, a javax.vecmath.Tuple3d, or
+  a number for the second argument. If the second argument is a number, it will
+  be combined with every component from the first vector."
+  [a b component-fn]
+  {:pre [(vector? a)
+         (= 3 (count a))]}
+  (cond
+    (instance? Tuple3d b)
+    (-> (coll/empty-with-meta a)
+        (conj (component-fn (a 0) (.getX ^Tuple3d b)))
+        (conj (component-fn (a 1) (.getY ^Tuple3d b)))
+        (conj (component-fn (a 2) (.getZ ^Tuple3d b))))
+
+    (vector? b)
+    (-> (coll/empty-with-meta a)
+        (conj (component-fn (a 0) (b 0)))
+        (conj (component-fn (a 1) (b 1)))
+        (conj (component-fn (a 2) (b 2))))
+
+    (number? b)
+    (-> (coll/empty-with-meta a)
+        (conj (component-fn (a 0) b))
+        (conj (component-fn (a 1) b))
+        (conj (component-fn (a 2) b)))
+
+    :else
+    (throw (ex-info "Second argument must be a number or a vector type."
+                    {:b b
+                     :type (type b)}))))
+
 (defn project [^Vector3d from ^Vector3d onto] ^Double
   (let [onto-dot (.dot onto onto)]
     (assert (> (.dot onto onto) 0.0))

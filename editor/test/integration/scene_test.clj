@@ -219,7 +219,10 @@
             (with-open [_ (test-util/make-graph-reverter project-graph)]
               (g/set-property! go-node :position original-position)
               (test-util/mouse-drag! view 64 64 68 64)
-              (test-util/ensure-float-type-preserving! original-position (g/node-value go-node :position)))))
+              (let [modified-position (g/node-value go-node :position)]
+                (is (not= original-position modified-position))
+                (is (= (count original-position) (count modified-position)))
+                (test-util/ensure-float-type-preserving! original-position modified-position)))))
 
         (testing "Rotate tool"
           (test-util/set-active-tool! app-view :rotate)
@@ -232,7 +235,10 @@
             (with-open [_ (test-util/make-graph-reverter project-graph)]
               (g/set-property! go-node :rotation original-rotation)
               (test-util/mouse-drag! view 64 80 64 84)
-              (test-util/ensure-float-type-preserving! original-rotation (g/node-value go-node :rotation)))))
+              (let [modified-rotation (g/node-value go-node :rotation)]
+                (is (not= original-rotation modified-rotation))
+                (is (= (count original-rotation) (count modified-rotation)))
+                (test-util/ensure-float-type-preserving! original-rotation modified-rotation)))))
 
         (testing "Scale tool"
           (test-util/set-active-tool! app-view :scale)
@@ -245,7 +251,10 @@
             (with-open [_ (test-util/make-graph-reverter project-graph)]
               (g/set-property! go-node :scale original-scale)
               (test-util/mouse-drag! view 64 64 68 64)
-              (test-util/ensure-float-type-preserving! original-scale (g/node-value go-node :scale)))))))))
+              (let [modified-scale (g/node-value go-node :scale)]
+                (is (not= original-scale modified-scale))
+                (is (= (count original-scale) (count modified-scale)))
+                (test-util/ensure-float-type-preserving! original-scale modified-scale)))))))))
 
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"

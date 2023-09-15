@@ -245,11 +245,8 @@
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ diameter 2)])))
 
-(defn- scale-by-absolute-value-and-round [value ^double scale]
-  (let [scaled-value (* (double value) (Math/abs scale))]
-    (if (math/float32? value)
-      (properties/round-scalar-float scaled-value)
-      (properties/round-scalar scaled-value))))
+(definline scale-by-absolute-value-and-round [num scale]
+  `(properties/scale-and-round ~num (Math/abs (double ~scale))))
 
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
@@ -286,11 +283,8 @@
 
 (defmethod scene-tools/manip-scale ::BoxShape
   [evaluation-context node-id ^Vector3d delta]
-  (let [[old-x old-y old-z :as old-dimensions] (g/node-value node-id :dimensions evaluation-context)
-        new-dimensions (-> (coll/empty-with-meta old-dimensions)
-                           (conj (scale-by-absolute-value-and-round old-x (.getX delta)))
-                           (conj (scale-by-absolute-value-and-round old-y (.getY delta)))
-                           (conj (scale-by-absolute-value-and-round old-z (.getZ delta))))]
+  (let [old-dimensions (g/node-value node-id :dimensions evaluation-context)
+        new-dimensions (math/zip-clj-v3 old-dimensions delta scale-by-absolute-value-and-round)]
     (g/set-property node-id :dimensions new-dimensions)))
 
 (g/defnode CapsuleShape

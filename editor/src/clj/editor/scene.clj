@@ -1611,17 +1611,13 @@
                                  (coll/empty-with-meta old-clj-rotation)))]
     (g/set-property node-id :rotation new-clj-rotation)))
 
+(defn manip-scale-scene-node [evaluation-context node-id delta]
+  (let [old-scale (g/node-value node-id :scale evaluation-context)
+        new-scale (properties/scale-and-round-vec old-scale delta)]
+    (g/set-property node-id :scale new-scale)))
+
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
-  (let [old-clj-scale (g/node-value node-id :scale evaluation-context)
-        old-vecmath-scale (doto (Vector3d.) (math/clj->vecmath old-clj-scale))
-        new-vecmath-scale (math/multiply-vector old-vecmath-scale delta)
-        num-fn (if (math/float32? (first old-clj-scale))
-                 properties/round-scalar-float
-                 properties/round-scalar)
-        new-clj-scale (into (coll/empty-with-meta old-clj-scale)
-                            (map num-fn)
-                            (math/vecmath->clj new-vecmath-scale))]
-    (g/set-property node-id :scale new-clj-scale)))
+  (manip-scale-scene-node evaluation-context node-id delta))
 
 (defn selection->movable [selection]
   (handler/selection->node-ids selection scene-tools/manip-movable?))
