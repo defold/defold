@@ -599,6 +599,9 @@
 (definline scale-and-round-vec [vec scale]
   `(math/zip-clj-v3 ~vec ~scale scale-and-round))
 
+(definline scale-by-absolute-value-and-round [num scale]
+  `(scale-and-round ~num (Math/abs (double ~scale))))
+
 ;; SDK api
 (defn ->choicebox [vals]
   {:type :choicebox

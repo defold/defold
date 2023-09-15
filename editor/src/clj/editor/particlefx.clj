@@ -1115,25 +1115,24 @@
 
 (defmethod scene-tools/manip-scale ::ModifierNode
   [evaluation-context node-id ^Vector3d delta]
-  (let [mag (g/node-value node-id :magnitude evaluation-context)]
-    (concat
-      (g/set-property node-id :magnitude
-                      (update-curve-spread-start-value mag #(props/round-scalar (* % (.getX delta))))))))
+  (let [old-magnitude (g/node-value node-id :magnitude evaluation-context)
+        new-magnitude (update-curve-spread-start-value old-magnitude #(props/scale-and-round % (.getX delta)))]
+    (g/set-property node-id :magnitude new-magnitude)))
 
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::EmitterNode
   [evaluation-context node-id ^Vector3d delta]
-  (let [x (g/node-value node-id :emitter-key-size-x evaluation-context)
-        y (g/node-value node-id :emitter-key-size-y evaluation-context)
-        z (g/node-value node-id :emitter-key-size-z evaluation-context)]
-    (concat
-      (g/set-property node-id :emitter-key-size-x
-                      (update-curve-spread-start-value x #(props/round-scalar (Math/abs (* % (.getX delta))))))
-      (g/set-property node-id :emitter-key-size-y
-                      (update-curve-spread-start-value y #(props/round-scalar (Math/abs (* % (.getY delta))))))
-      (g/set-property node-id :emitter-key-size-z
-                      (update-curve-spread-start-value z #(props/round-scalar (Math/abs (* % (.getZ delta)))))))))
+  (let [old-x (g/node-value node-id :emitter-key-size-x evaluation-context)
+        old-y (g/node-value node-id :emitter-key-size-y evaluation-context)
+        old-z (g/node-value node-id :emitter-key-size-z evaluation-context)
+        new-x (update-curve-spread-start-value old-x #(props/scale-by-absolute-value-and-round % (.getX delta)))
+        new-y (update-curve-spread-start-value old-y #(props/scale-by-absolute-value-and-round % (.getY delta)))
+        new-z (update-curve-spread-start-value old-z #(props/scale-by-absolute-value-and-round % (.getZ delta)))]
+    (g/set-property node-id
+      :emitter-key-size-x new-x
+      :emitter-key-size-y new-y
+      :emitter-key-size-z new-z)))
 
 
 (defn load-particle-fx [project self _resource pb]

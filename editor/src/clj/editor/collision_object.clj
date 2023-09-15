@@ -245,15 +245,12 @@
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ diameter 2)])))
 
-(definline scale-by-absolute-value-and-round [num scale]
-  `(properties/scale-and-round ~num (Math/abs (double ~scale))))
-
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::SphereShape
   [evaluation-context node-id ^Vector3d delta]
   (let [old-diameter (g/node-value node-id :diameter evaluation-context)
-        new-diameter (scale-by-absolute-value-and-round old-diameter (.getX delta))]
+        new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))]
     (g/set-property node-id :diameter new-diameter)))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
@@ -284,7 +281,7 @@
 (defmethod scene-tools/manip-scale ::BoxShape
   [evaluation-context node-id ^Vector3d delta]
   (let [old-dimensions (g/node-value node-id :dimensions evaluation-context)
-        new-dimensions (math/zip-clj-v3 old-dimensions delta scale-by-absolute-value-and-round)]
+        new-dimensions (math/zip-clj-v3 old-dimensions delta properties/scale-by-absolute-value-and-round)]
     (g/set-property node-id :dimensions new-dimensions)))
 
 (g/defnode CapsuleShape
@@ -308,8 +305,8 @@
   [evaluation-context node-id ^Vector3d delta]
   (let [old-diameter (g/node-value node-id :diameter evaluation-context)
         old-height (g/node-value node-id :height evaluation-context)
-        new-diameter (scale-by-absolute-value-and-round old-diameter (.getX delta))
-        new-height (scale-by-absolute-value-and-round old-height (.getY delta))]
+        new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
+        new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
     (g/set-property node-id :diameter new-diameter :height new-height)))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
