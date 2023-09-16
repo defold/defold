@@ -332,8 +332,8 @@ public class ModelUtilTest {
     @Test
     public void testSkeleton() throws Exception {
 
-        String[] boneIds   = {"Bottom", "Middle", "Top"};
-        String[] parentIds = {null,     "Bottom", "Middle"};
+        String[] boneIds   = {"root", "Middle", "Top"};
+        String[] parentIds = {null,   "root", "Middle"};
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);

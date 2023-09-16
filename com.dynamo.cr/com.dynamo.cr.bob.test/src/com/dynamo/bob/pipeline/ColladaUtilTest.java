@@ -412,8 +412,8 @@ public class ColladaUtilTest {
     @Test
     public void testSkeleton() throws Exception {
 
-        String[] boneIds   = {"Bone", "Bone_001", "Bone_002", "Bone_003", "Bone_004"};
-        String[] parentIds =  {null, "Bone", "Bone", "Bone", "Bone"};
+        String[] boneIds   = {"root", "Bone_001", "Bone_002", "Bone_003", "Bone_004"};
+        String[] parentIds =  {null, "root", "root", "root", "root"};
 
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(load("bone_influences.dae"), skeleton, new ArrayList<String>());

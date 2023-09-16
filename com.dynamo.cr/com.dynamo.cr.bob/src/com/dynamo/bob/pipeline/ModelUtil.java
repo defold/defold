@@ -286,6 +286,12 @@ public class ModelUtil {
             System.out.printf("Scene contains more than one animation. Picking the the longest one ('%s')\n", scene.animations[0].name);
         }
 
+        ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        String prevRootName = null;
+        if (!bones.isEmpty()) {
+            prevRootName = bones.get(0).node.name;
+        }
+
         for (ModelImporter.Animation animation : scene.animations) {
 
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
@@ -328,7 +334,12 @@ public class ModelUtil {
             animBuilder.setDuration(animation.duration);
 
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
-                createAnimationTracks(animBuilder, nodeAnimation, nodeAnimation.node.name, animation.duration, startTime, sampleRate);
+                String nodeName = nodeAnimation.node.name;
+                if (prevRootName != null && prevRootName.equals(nodeName)) {
+                    nodeName = "root";
+                }
+
+                createAnimationTracks(animBuilder, nodeAnimation, nodeName, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
