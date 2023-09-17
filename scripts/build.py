@@ -93,7 +93,7 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
@@ -254,8 +254,12 @@ class Configuration(object):
                  github_sha1 = None,
                  version = None,
                  codesigning_identity = None,
-                 windows_cert = None,
-                 windows_cert_pass = None,
+                 gcloud_projectid = None,
+                 gcloud_location = None,
+                 gcloud_keyringname = None,
+                 gcloud_keyname = None,
+                 gcloud_certfile = None,
+                 gcloud_keyfile = None,
                  verbose = False):
 
         if sys.platform == 'win32':
@@ -296,8 +300,12 @@ class Configuration(object):
         self.github_sha1 = github_sha1
         self.version = version
         self.codesigning_identity = codesigning_identity
-        self.windows_cert = windows_cert
-        self.windows_cert_pass = windows_cert_pass
+        self.gcloud_projectid = gcloud_projectid
+        self.gcloud_location = gcloud_location
+        self.gcloud_keyringname = gcloud_keyringname
+        self.gcloud_keyname = gcloud_keyname
+        self.gcloud_certfile = gcloud_certfile
+        self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
 
         if self.github_token is None:
@@ -1377,10 +1385,18 @@ class Configuration(object):
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:
-            if self.windows_cert:
-                cmd.append('--windows-cert=%s' % self.windows_cert)
-            if self.windows_cert_pass:
-                cmd.append("--windows-cert-pass=%s" % self.windows_cert_pass)
+            if self.gcloud_keyname:
+                cmd.append('--gcloud-keyname=%s' % self.gcloud_keyname)
+            if self.gcloud_certfile:
+                cmd.append("--gcloud-certfile=%s" % self.gcloud_certfile)
+            if self.gcloud_keyfile:
+                cmd.append("--gcloud-keyfile=%s" % self.gcloud_keyfile)
+            if self.gcloud_location:
+                cmd.append("--gcloud-location=%s" % self.gcloud_location)
+            if self.gcloud_projectid:
+                cmd.append("--gcloud-projectid=%s" % self.gcloud_projectid)
+            if self.gcloud_keyringname:
+                cmd.append("--gcloud-keyringname=%s" % self.gcloud_keyringname)
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
@@ -2259,13 +2275,29 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
 
-    parser.add_option('--windows-cert', dest='windows_cert',
+    parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,
-                      help = 'Path to codesigning certificate for Windows version of the editor')
+                      help = 'Google Cloud project id where key ring is stored')
 
-    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+    parser.add_option('--gcloud-location', dest='gcloud_location',
                       default = None,
-                      help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
+                      help = 'Google cloud region where key ring is located')
+
+    parser.add_option('--gcloud-keyringname', dest='gcloud_keyringname',
+                      default = None,
+                      help = 'Google Cloud key ring name')
+
+    parser.add_option('--gcloud-keyname', dest='gcloud_keyname',
+                      default = None,
+                      help = 'Google Cloud key name')
+
+    parser.add_option('--gcloud-certfile', dest='gcloud_certfile',
+                      default = None,
+                      help = 'Google Cloud certificate chain file')
+
+    parser.add_option('--gcloud-keyfile', dest='gcloud_keyfile',
+                      default = None,
+                      help = 'Google Cloud service account key file')
 
     parser.add_option('--verbose', dest='verbose',
                       action = 'store_true',
@@ -2308,8 +2340,12 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       github_sha1 = options.github_sha1,
                       version = options.version,
                       codesigning_identity = options.codesigning_identity,
-                      windows_cert = options.windows_cert,
-                      windows_cert_pass = options.windows_cert_pass,
+                      gcloud_projectid = options.gcloud_projectid,
+                      gcloud_location = options.gcloud_location,
+                      gcloud_keyringname = options.gcloud_keyringname,
+                      gcloud_keyname = options.gcloud_keyname,
+                      gcloud_certfile = options.gcloud_certfile,
+                      gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
     for cmd in args:
