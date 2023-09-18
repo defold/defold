@@ -413,7 +413,7 @@ namespace dmGameSystem
      *
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
-     * @param id hash name hash of the animation to play
+     * @param id [type:string|hash] hashed id of the animation to play
      * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
      *
      * `self`

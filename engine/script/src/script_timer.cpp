@@ -724,7 +724,7 @@ namespace dmScript
      *
      * @name  timer.get_info
      * @param handle [type:hash] the timer handle returned by timer.delay()
-     * @return data [type:table] or nil if timer is cancelled/completed. table with data in the following fields:
+     * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
      *
      * `time_remaining`
      * : [type:number] Time remaining until the next time a timer.delay() fires.

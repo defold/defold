@@ -20,23 +20,15 @@
             [clojure.tools.namespace.find :as find]
             [clojure.tools.namespace.track :as track]))
 
-(def excluded-sources-by-build-type
-  {"release" ["src/clj/dev.clj"
-              "src/clj/prof.clj"]})
-
 (defn all-sources-tracker
   [build-type srcdirs]
-  (let [excluded-files (into #{}
-                             (map io/file)
-                             (excluded-sources-by-build-type build-type))]
-    (reduce
-      (fn [tracker dir]
-        (->> dir
-             find/find-clojure-sources-in-dir
-             (remove excluded-files)
-             (file/add-files tracker)))
-      (track/tracker)
-      srcdirs)))
+  (reduce
+    (fn [tracker dir]
+      (->> dir
+           (find/find-clojure-sources-in-dir)
+           (file/add-files tracker)))
+    (track/tracker)
+    srcdirs))
 
 (defn sorted-deps
   [tracker]
@@ -93,16 +85,16 @@
 (defn compile-clj
   [namespaces]
   (binding [*compiler-options* (build->compiler-options build-type default-compiler-options)]
-    (println "Using build profile " build-type)
-    (println "Compiler options: " *compiler-options*)
+    (println "Using build profile:" build-type)
+    (println "Compiler options:" *compiler-options*)
     (doseq [n namespaces]
-      (println "Compiling " n)
+      (println "Compiling" n)
       (compile n))))
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))
   (let [order (compile-order srcdirs build-type)]
-    (println "Compiling in order " order)
+    (println "Compiling in order" order)
     (compile-clj order))
   (println "Done compiling")
   (System/exit 0))

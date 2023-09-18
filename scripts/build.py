@@ -93,7 +93,7 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
@@ -131,7 +131,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib texc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc ddf glfw graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
@@ -254,8 +254,12 @@ class Configuration(object):
                  github_sha1 = None,
                  version = None,
                  codesigning_identity = None,
-                 windows_cert = None,
-                 windows_cert_pass = None,
+                 gcloud_projectid = None,
+                 gcloud_location = None,
+                 gcloud_keyringname = None,
+                 gcloud_keyname = None,
+                 gcloud_certfile = None,
+                 gcloud_keyfile = None,
                  verbose = False):
 
         if sys.platform == 'win32':
@@ -296,8 +300,12 @@ class Configuration(object):
         self.github_sha1 = github_sha1
         self.version = version
         self.codesigning_identity = codesigning_identity
-        self.windows_cert = windows_cert
-        self.windows_cert_pass = windows_cert_pass
+        self.gcloud_projectid = gcloud_projectid
+        self.gcloud_location = gcloud_location
+        self.gcloud_keyringname = gcloud_keyringname
+        self.gcloud_keyname = gcloud_keyname
+        self.gcloud_certfile = gcloud_certfile
+        self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
 
         if self.github_token is None:
@@ -711,6 +719,30 @@ class Configuration(object):
 
     def is_desktop_target(self):
         return self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']
+
+    def _package_platform_sdk_headers(self, path):
+        with open(path, 'wb') as outfile:
+            zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+
+            basedir = self.dynamo_home
+            topfolder = 'defoldsdk'
+
+            # Includes
+            includes = []
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
+                for file in files:
+                    if file.endswith('.h'):
+                        includes.append(os.path.join(root, file))
+
+            # proto _ddf.h + "res_*.h"
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
+                for file in files:
+                    if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
+                        includes.append(os.path.join(root, file))
+
+            self._add_files_to_zip(zip, includes, basedir, topfolder)
+
+            zip.close()
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
@@ -1241,6 +1273,19 @@ class Configuration(object):
             args = [ant, 'test-clean', 'test'] + ant_args
             run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
+    def build_sdk_headers(self):
+        # Used to provide a small sized bundle with the headers for any C++ auto completion tools
+
+        # Step 1: Generate the package
+        filename = 'defoldsdk_headers.zip'
+        headers_path = join(self.dynamo_home, filename)
+        self._package_platform_sdk_headers(headers_path)
+
+        # Step 2: Upload the package
+        sha1 = self._git_sha1()
+
+        sdkurl = join(sha1, 'engine').replace('\\', '/')
+        self.upload_to_archive(headers_path, f'{sdkurl}/{filename}')
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1377,10 +1422,18 @@ class Configuration(object):
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:
-            if self.windows_cert:
-                cmd.append('--windows-cert=%s' % self.windows_cert)
-            if self.windows_cert_pass:
-                cmd.append("--windows-cert-pass=%s" % self.windows_cert_pass)
+            if self.gcloud_keyname:
+                cmd.append('--gcloud-keyname=%s' % self.gcloud_keyname)
+            if self.gcloud_certfile:
+                cmd.append("--gcloud-certfile=%s" % self.gcloud_certfile)
+            if self.gcloud_keyfile:
+                cmd.append("--gcloud-keyfile=%s" % self.gcloud_keyfile)
+            if self.gcloud_location:
+                cmd.append("--gcloud-location=%s" % self.gcloud_location)
+            if self.gcloud_projectid:
+                cmd.append("--gcloud-projectid=%s" % self.gcloud_projectid)
+            if self.gcloud_keyringname:
+                cmd.append("--gcloud-keyringname=%s" % self.gcloud_keyringname)
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
@@ -1565,7 +1618,7 @@ class Configuration(object):
         # Used by www.defold.com/download
         # For example;
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
-        for name in ['Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
+        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -1772,6 +1825,7 @@ class Configuration(object):
 #
     def _download_editor2(self, channel, sha1):
         bundles = {
+            'arm64-macos': 'Defold-arm64-macos.dmg',
             'x86_64-macos': 'Defold-x86_64-macos.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
             'x86_64-win32' : 'Defold-x86_64-win32.zip'
@@ -2144,6 +2198,7 @@ archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation
 build_builtins   - Build builtin content archive
@@ -2258,13 +2313,29 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
 
-    parser.add_option('--windows-cert', dest='windows_cert',
+    parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,
-                      help = 'Path to codesigning certificate for Windows version of the editor')
+                      help = 'Google Cloud project id where key ring is stored')
 
-    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+    parser.add_option('--gcloud-location', dest='gcloud_location',
                       default = None,
-                      help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
+                      help = 'Google cloud region where key ring is located')
+
+    parser.add_option('--gcloud-keyringname', dest='gcloud_keyringname',
+                      default = None,
+                      help = 'Google Cloud key ring name')
+
+    parser.add_option('--gcloud-keyname', dest='gcloud_keyname',
+                      default = None,
+                      help = 'Google Cloud key name')
+
+    parser.add_option('--gcloud-certfile', dest='gcloud_certfile',
+                      default = None,
+                      help = 'Google Cloud certificate chain file')
+
+    parser.add_option('--gcloud-keyfile', dest='gcloud_keyfile',
+                      default = None,
+                      help = 'Google Cloud service account key file')
 
     parser.add_option('--verbose', dest='verbose',
                       action = 'store_true',
@@ -2307,8 +2378,12 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       github_sha1 = options.github_sha1,
                       version = options.version,
                       codesigning_identity = options.codesigning_identity,
-                      windows_cert = options.windows_cert,
-                      windows_cert_pass = options.windows_cert_pass,
+                      gcloud_projectid = options.gcloud_projectid,
+                      gcloud_location = options.gcloud_location,
+                      gcloud_keyringname = options.gcloud_keyringname,
+                      gcloud_keyname = options.gcloud_keyname,
+                      gcloud_certfile = options.gcloud_certfile,
+                      gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
     for cmd in args:

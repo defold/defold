@@ -1007,11 +1007,8 @@ namespace dmSys
             callback(ctx, dirpath, true);
 
         Result res = RESULT_OK;
-        while(entry = readdir(dir))
+        while((entry = readdir(dir)))
         {
-            DIR* sub_dir = NULL;
-            FILE* file = NULL;
-
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
 

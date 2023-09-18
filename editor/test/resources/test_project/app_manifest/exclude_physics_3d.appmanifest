@@ -1,6 +1,15 @@
 # App manifest generated Fri Sep 02 2022 16:15:35 GMT+0200 (Central European Summer Time)
 # Settings: Physics3D,OpenGL
 platforms:
+    arm64-osx:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            frameworks: []
+            linkFlags: []
+
     x86_64-osx:
         context:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]

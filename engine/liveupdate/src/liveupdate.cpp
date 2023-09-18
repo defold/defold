@@ -797,6 +797,29 @@ namespace dmLiveUpdate
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
+    Result RemoveMountSync(const char* name)
+    {
+        dmResourceMounts::HContext mounts = g_LiveUpdate.m_ResourceMounts;
+        dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
+        DM_MUTEX_SCOPED_LOCK(mutex);
+
+        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByName(mounts, name);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmLogError("Failed to remove mount '%s': %s (%d)", name, dmResource::ResultToString(result), result);
+            return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
+        }
+
+        result = dmResourceMounts::SaveMounts(mounts, g_LiveUpdate.m_AppSupportPath);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmLogError("Failed to save mounts file");
+            return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
+        }
+
+        return RESULT_OK;
+    }
+
     // ******************************************************************
     // ** LiveUpdate utility functions
     // ******************************************************************
@@ -866,16 +889,12 @@ namespace dmLiveUpdate
     {
         dmResource::HFactory factory = params->m_ResourceFactory;
 
-        if (params->m_L) // TODO: until unit tests have been updated with a Lua context
-            ScriptInit(params->m_L, factory);
-
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
         g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
 
         if (!g_LiveUpdate.m_ResourceBaseArchive)
         {
-            dmLogInfo("Could not find base .arci/.arcd. Liveupdate disabled");
             return dmExtension::RESULT_OK;
         }
 
@@ -897,6 +916,12 @@ namespace dmLiveUpdate
         dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
         g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
+
+        if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
+        {
+            if (params->m_L) // TODO: until unit tests have been updated with a Lua context
+                ScriptInit(params->m_L, factory);
+        }
 
         // initialize legacy mode
         InitializeLegacy(params);

@@ -31,8 +31,11 @@ extern uint32_t FOO_ZIP_SIZE;
 
 TEST(dmZip, NotExist)
 {
+    char path[128];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "NOTEEXIST");
+
     dmZip::HZip zip;
-    dmZip::Result zr = dmZip::Open("FOOBAR", &zip);
+    dmZip::Result zr = dmZip::Open(path, &zip);
     ASSERT_NE(dmZip::RESULT_OK, zr);
 }
 

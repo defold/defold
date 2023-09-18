@@ -66,12 +66,16 @@
 {
     [_glfwWin.context update];
 
-    NSRect contentRect =
-        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    NSRect contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    NSRect contentBackingRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
 
-    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
-    _glfwWin.width = contentRect.size.width;
-    _glfwWin.height = contentRect.size.height;
+    if (contentBackingRect.size.width == 0 && contentBackingRect.size.height == 0)
+    {
+        contentBackingRect = contentRect;
+    }
+
+    _glfwWin.width = contentBackingRect.size.width;
+    _glfwWin.height = contentBackingRect.size.height;
 
     if( _glfwWin.windowSizeCallback )
     {
@@ -123,8 +127,29 @@
     return NSTerminateCancel;
 }
 
-- (void)applicationDidFinishLaunching:(NSNotification *)notification
+- (void)applicationDidUpdate:(NSNotification *)notification
 {
+    // Wait for the first update to make window inactive and then activate it again
+    // It helps to avoid issue when the window opens inactive
+    // https://github.com/defold/defold/issues/6709
+    if( !_glfwLibrary.Unbundled ) {
+        ProcessSerialNumber psn = { 0, kCurrentProcess };
+        TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
+        [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
+        _glfwLibrary.Unbundled = GL_TRUE;
+    }
+}
+
+- (void)activateProcess
+{
+    ProcessSerialNumber psn = { 0, kCurrentProcess }; 
+    (void) TransformProcessType(&psn, kProcessTransformToForegroundApplication);
+    [self performSelector:@selector(activateWindow) withObject:nil afterDelay:0.1];
+}
+
+- (void)activateWindow
+{
+    [_glfwWin.window makeKeyAndOrderFront:nil];
     [[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
 }
 
@@ -723,8 +748,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
         CGDisplaySetDisplayMode( CGMainDisplayID(), fullscreenMode, NULL );
     }
 
-    [_glfwWin.window makeKeyAndOrderFront:nil];
-
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         unsigned int attribute_count = 0;
@@ -806,14 +829,17 @@ int  _glfwPlatformOpenWindow( int width, int height,
         }
         _glfwWin.aux_context = [[NSOpenGLContext alloc] initWithFormat:_glfwWin.pixelFormat shareContext:_glfwWin.context];
 
-        [_glfwWin.window makeKeyAndOrderFront:nil];
         [_glfwWin.context setView:[_glfwWin.window contentView]];
 
         // Fetch the resulting width and height for backing buffer
         // will differ from the input params on retina enabled windows.
-        NSRect contentRect =
-            [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
-        contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+        NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+        NSRect contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRectFrame];
+        if (contentRect.size.width == 0 && contentRect.size.height == 0)
+        {
+            contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+        }
+
         _glfwWin.width = contentRect.size.width;
         _glfwWin.height = contentRect.size.height;
 
@@ -822,6 +848,12 @@ int  _glfwPlatformOpenWindow( int width, int height,
             // TODO: Make this work on pre-Leopard systems
             [[_glfwWin.window contentView] enterFullScreenMode:[NSScreen mainScreen]
                                                    withOptions:nil];
+        }
+
+        contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+        if (contentRect.size.width == 0 && contentRect.size.height == 0)
+        {
+            contentRect = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
         }
 
         [_glfwWin.context makeCurrentContext];
@@ -901,6 +933,8 @@ void _glfwPlatformCloseWindow( void )
 
     [_glfwWin.window close];
     _glfwWin.window = nil;
+
+    _glfwLibrary.Unbundled = 0;
 
     // TODO: Probably more cleanup
 }
@@ -1082,17 +1116,20 @@ void _glfwPlatformRefreshWindowParams( void )
 
     NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
     NSRect contentRectBacking = [[_glfwWin.window contentView] convertRectToBacking:contentRectFrame];
+
+    if (contentRectBacking.size.width == 0 && contentRectBacking.size.height == 0)
+    {
+        contentRectBacking = contentRectFrame;
+    }
+
     _glfwWin.highDPI = 0;
     if (contentRectBacking.size.width > contentRectFrame.size.width ||
         contentRectBacking.size.height > contentRectFrame.size.height) {
         _glfwWin.highDPI = 1;
     }
 
-    NSRect contentRect =
-        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
-    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
-    _glfwWin.width = contentRect.size.width;
-    _glfwWin.height = contentRect.size.height;
+    _glfwWin.width = contentRectBacking.size.width;
+    _glfwWin.height = contentRectBacking.size.height;
 }
 
 //========================================================================
@@ -1297,4 +1334,3 @@ float _glfwPlatformGetDisplayScaleFactor()
     CGDisplayModeRelease(mode);
     return scaling_factor;
 }
-

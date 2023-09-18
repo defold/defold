@@ -168,7 +168,7 @@
 (def custom-engine-pref-key "dev-custom-engine")
 
 (defn current-platform []
-  (.getPair (Platform/getJavaPlatform)))
+  (.getPair (Platform/getHostPlatform)))
 
 (defn- dev-custom-engine
   [prefs platform]
@@ -189,7 +189,7 @@
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (let [build-server-url (native-extensions/get-build-server-url prefs)
+        (let [build-server-url (native-extensions/get-build-server-url prefs project evaluation-context)
               build-server-headers (native-extensions/get-build-server-headers prefs)]
           (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
         (bundled-engine platform))))

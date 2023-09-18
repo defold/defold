@@ -3,6 +3,7 @@ package dmParticleDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.particle.proto";
 option java_outer_classname = "Particle";
@@ -174,6 +175,8 @@ message Emitter
 
     optional float                  start_offset           = 23 [default = 0.0];
     optional dmMath.Point3          pivot                  = 24;
+
+    repeated dmGraphics.VertexAttribute attributes         = 25;
 }
 
 message ParticleFX

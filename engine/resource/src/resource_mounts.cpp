@@ -175,7 +175,7 @@ dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archiv
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
-dmResource::Result RemoveMountByName(HContext ctx, const char* name)
+dmResource::Result RemoveAndUnmountByName(HContext ctx, const char* name)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
 
@@ -185,6 +185,7 @@ dmResource::Result RemoveMountByName(HContext ctx, const char* name)
         ArchiveMount& mount = ctx->m_Mounts[i];
         if (strcmp(mount.m_Name, name) == 0)
         {
+            dmResourceProvider::Unmount(mount.m_Archive);
             return RemoveMountByIndexInternal(ctx, i);
         }
     }

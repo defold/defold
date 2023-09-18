@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -244,7 +244,7 @@ namespace dmRender
 
                 if (RenderScriptSetNamedValueFromLua(L, -1, cb, name_hash, table_index_lua - 1) != RESULT_OK)
                 {
-                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);
                 }
                 lua_pop(L, 1);
             }
@@ -301,7 +301,7 @@ namespace dmRender
 
         if (RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, table_index_lua - 1) != RESULT_OK)
         {
-            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);
         }
         assert(top == lua_gettop(L));
 
@@ -401,7 +401,7 @@ namespace dmRender
      *      vmath.vector4(0, 1, 0, 1)
      *      vmath.vector4(0, 0, 1, 1)
      * }
-     * 
+     *
      * -- Add more constant to the array
      * constants.light_colors[4] = vmath.vector4(1, 1, 1, 1)
      * ```
@@ -1762,7 +1762,13 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
      *
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
@@ -1789,11 +1795,18 @@ namespace dmRender
      * render.draw(self.my_pred, {constants = constants})
      * ```
 
-     * Draw with predicate and frustum culling:
+     * Draw with predicate and frustum culling (without near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
-     * render.draw(self.my_pred, {frustum = frustum, constants = constants})
+     * render.draw(self.my_pred, {frustum = frustum})
+     * ```
+
+     * Draw with predicate and frustum culling (with near+far planes):
+     *
+     * ```lua
+     * local frustum = self.proj * self.view
+     * render.draw(self.my_pred, {frustum = frustum, frustum_planes = render.FRUSTUM_PLANES_ALL})
      * ```
 
      */
@@ -1812,6 +1825,7 @@ namespace dmRender
         }
 
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
         HNamedConstantBuffer constant_buffer = 0;
 
         if (lua_istable(L, 2))
@@ -1821,6 +1835,10 @@ namespace dmRender
 
             lua_getfield(L, -1, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "constants");
@@ -1836,15 +1854,16 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1857,6 +1876,12 @@ namespace dmRender
      *
      * `frustum`
      * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
      *
      * @replaces render.draw_debug2d
      * @examples
@@ -1872,6 +1897,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
 
         if (lua_istable(L, 1))
         {
@@ -1882,18 +1908,23 @@ namespace dmRender
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1982,6 +2013,16 @@ namespace dmRender
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+
+    /*#
+     * @name render.FRUSTUM_PLANES_SIDES
+     * @variable
+     */
+
+    /*#
+     * @name render.FRUSTUM_PLANES_ALL
+     * @variable
+     */
 
     /*#
      * @name render.BLEND_ZERO
@@ -3070,6 +3111,15 @@ namespace dmRender
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 #undef REGISTER_BUFFER_CONSTANT
+
+#define REGISTER_FRUSTUM_PLANES_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmRender::FRUSTUM_PLANES_##name); \
+        lua_setfield(L, -2, "FRUSTUM_PLANES_"#name);
+
+        REGISTER_FRUSTUM_PLANES_CONSTANT(SIDES);
+        REGISTER_FRUSTUM_PLANES_CONSTANT(ALL);
+
+#undef REGISTER_FRUSTUM_PLANES_CONSTANT
 
         // Flags (only flag here currently, so no need for an enum)
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);

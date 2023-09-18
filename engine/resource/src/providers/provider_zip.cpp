@@ -27,8 +27,9 @@
 #include <dlib/log.h>
 #include <dlib/lz4.h>
 #include <dlib/math.h>
-#include <dlib/zip.h>
 #include <dlib/memory.h>
+#include <dlib/sys.h>
+#include <dlib/zip.h>
 
 namespace dmResourceProviderZip
 {
@@ -198,10 +199,18 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     dmSnPrintf(path, sizeof(path), "%s", uri->m_Path);
     dmPath::Normalize(path, path, sizeof(path));
 
-    dmZip::Result zr = dmZip::Open(path, &archive->m_Zip);
+    char mount_path[1024];
+    if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_path, sizeof(mount_path), path))
+    {
+        dmLogError("Could not resolve a mount path '%s'", path);
+        DeleteZipArchiveInternal(archive);
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
+
+    dmZip::Result zr = dmZip::Open(mount_path, &archive->m_Zip);
     if (dmZip::RESULT_OK != zr)
     {
-        dmLogError("Could not open zip file '%s'", path);
+        dmLogError("Could not open zip file '%s'", mount_path);
         DeleteZipArchiveInternal(archive);
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
