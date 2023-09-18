@@ -382,12 +382,12 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_11}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_11}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_11}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_11}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_11}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_11}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_45}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_45}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_45}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_45}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_45}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_45}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs:   ["sys", "script", "sound"]
@@ -397,7 +397,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
+        emscriptenFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
         libs:       []
 
     exePrefix:      ''
@@ -419,12 +419,12 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_11}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_11}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_11}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_11}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_11}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_11}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_45}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_45}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_45}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_45}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_45}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_45}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs:   ["sys", "script", "sound"]
@@ -434,7 +434,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "INITIAL_MEMORY=33554432", "IMPORTED_MEMORY=1", "ALLOW_MEMORY_GROWTH=1", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
+        emscriptenFlags: ["INITIAL_MEMORY=33554432", "IMPORTED_MEMORY=1", "ALLOW_MEMORY_GROWTH=1", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
         libs:       []
 
     exePrefix:      ''
