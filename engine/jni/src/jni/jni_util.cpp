@@ -24,13 +24,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <cxxabi.h>
-
 #if defined(_WIN32)
     #include <Windows.h>
     #include <Dbghelp.h>
 
 #else
+    #include <cxxabi.h>
     #include <execinfo.h>
 #endif
 
@@ -864,9 +863,13 @@ char* GenerateCallstack(char* output, uint32_t output_size)
         {
             int status;
             char* name = symbol;
+#if defined(_WIN32)
+            char* demangled = 0;
+#else
             char* demangled = abi::__cxa_demangle(symbol, 0, 0, &status);
             if (status == 0 && demangled)
                 name = demangled;
+#endif
             APPEND_STRING("    %p: %.2s %20s %s %s\n", buffer[i], frame, module, address, name);
 
             free((void*)demangled);
