@@ -583,7 +583,7 @@
                                                                         :alpha (:alpha pb-msg)
                                                                         :outline-alpha (:outline-alpha pb-msg)
                                                                         :shadow-alpha (:shadow-alpha pb-msg)
-                                                                        :layer-mask (fontc/calculate-ttf-layer-mask pb-msg)}
+                                                                        :layer-mask (fontc/font-desc->layer-mask pb-msg)}
                                                                        nil)]
         [(assoc protobuf-build-target :node-id _node-id)])))
 
