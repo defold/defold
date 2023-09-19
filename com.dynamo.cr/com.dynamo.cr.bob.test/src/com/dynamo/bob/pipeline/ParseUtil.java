@@ -181,6 +181,12 @@ public class ParseUtil {
                 return Font.FontMap.parseFrom(content);
             }
         });
+        parseMap.put("glyph_bankc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Font.GlyphBank.parseFrom(content);
+            }
+        });
         parseMap.put("guic", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

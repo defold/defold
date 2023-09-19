@@ -26,7 +26,7 @@ def build(bld):
 
     platform_main_cpp = ''
     if 'arm64-nx64' in bld.env.PLATFORM:
-        platform_main_cpp = 'nx64/main.cpp'
+        platform_main_cpp = 'nx64/main_nx64.cpp nx64/engine_nx64.cpp'
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         platform_main_cpp = 'engine_ps4.cpp'
 
@@ -42,13 +42,12 @@ def build(bld):
 
     bld.add_group()
 
-    bld.stlib(features = 'cxx ddf embed',
+    bld.stlib(features = 'cxx ddf',
                     includes = '../proto . ..',
                     target = 'engine_release',
                     defines = 'DM_RELEASE=1',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                    embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins_release.arci ../content/builtins_release.arcd ../content/builtins_release.dmanifest', # for draw_line/draw_text
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     install_path = platform_lib_install_path,
                     use = 'engine_service_null')
