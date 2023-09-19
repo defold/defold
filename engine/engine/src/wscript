@@ -126,7 +126,7 @@ def build(bld):
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home)]
 
-    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_sound.js']
+    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js']
 
     main_cpp = 'common/main.cpp'
 

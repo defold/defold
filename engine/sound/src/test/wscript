@@ -59,12 +59,7 @@ def gen_dc(task):
 def build(bld):
     platform = bld.env['PLATFORM']
 
-    if 'web' in platform:
-        lib_dirs = {}
-        lib_dirs['library_sound.js'] = '../src/js'
-        bld.env['JS_LIB_PATHS'] = lib_dirs
-
-    elif 'win32' in platform:
+    if 'win32' in platform:
         src_dir = "%s/ext/lib/%s" % (bld.env['PREFIX'], platform)
         if not waflib.Options.options.skip_build_tests:
           copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
@@ -147,7 +142,6 @@ def build(bld):
         bld.program(features = 'cxx embed test',
                     includes = '../../src .',
                     use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
-                    web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_perf',
                     source = 'test_sound_perf.cpp')
@@ -160,7 +154,6 @@ def build(bld):
     foo = bld.program(features = 'cxx embed test'.split() + extra_features,
                 includes = '../../src .',
                 use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
-                web_libs = ['library_sound.js'],
                 exported_symbols = exported_symbols,
                 target = 'test_sound',
                 source = 'test_sound.cpp')
@@ -170,7 +163,6 @@ def build(bld):
     bld.program(features = 'cxx embed test',
                     includes = '../../src .',
                     use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound_null embedded_wavs embedded_oggs',
-                    web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_null',
                     source = 'test_sound_null.cpp')
