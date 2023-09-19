@@ -1468,6 +1468,27 @@ public class ColladaUtil {
         return loadDAE(is);
     }
 
+    private static void flattenBoneTree(Bone colladaBone, ModelImporter.Bone parent, ArrayList<ModelImporter.Bone> out) {
+        String originalName = colladaBone.getSourceId();
+        String newName = originalName;
+        if (parent == null)
+            newName = "root";
+
+        ModelImporter.Bone bone = new ModelImporter.Bone();
+        bone.name           = newName;
+        bone.parent         = parent;
+        bone.node           = null;
+        bone.index          = out.size();
+        bone.invBindPose    = null;
+
+        out.add(bone);
+
+        for (int i = 0 ; i < colladaBone.numChildren(); ++i) {
+            Bone child = colladaBone.getChild(i);
+            flattenBoneTree(child, bone, out);
+        }
+    }
+
     public static ArrayList<ModelImporter.Bone> loadSkeleton(XMLCOLLADA scene) throws IOException, XMLStreamException, LoaderException  {
         ArrayList<String> boneIds = new ArrayList<>();
         ArrayList<Bone> colladaBones = loadSkeleton(scene, boneIds);
@@ -1476,17 +1497,7 @@ public class ColladaUtil {
             return null;
 
         ArrayList<ModelImporter.Bone> bones = new ArrayList<>();
-        for (Bone colladaBone : colladaBones)
-        {
-            ModelImporter.Bone bone = new ModelImporter.Bone();
-            bone.name           = colladaBone.getSourceId();
-            bone.parent         = null; // Do we need it in the editor?
-            bone.node           = null;
-            bone.index          = bones.size();
-            bone.invBindPose    = null;
-
-            bones.add(bone);
-        }
+        flattenBoneTree(colladaBones.get(0), null, bones);
         return bones;
     }
 
