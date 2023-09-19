@@ -397,7 +397,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
+        emscriptenFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
         libs:       []
 
     exePrefix:      ''
@@ -434,7 +434,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["INITIAL_MEMORY=33554432", "IMPORTED_MEMORY=1", "ALLOW_MEMORY_GROWTH=1", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
+        emscriptenFlags: ["INITIAL_MEMORY=33554432", "IMPORTED_MEMORY=1", "ALLOW_MEMORY_GROWTH=1", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
         libs:       []
 
     exePrefix:      ''
