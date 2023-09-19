@@ -171,11 +171,11 @@ public class ResourceGraph {
 
     /**
      * Set hex digests for all resource nodes in the graph
-     * @param hexDigests Map with hex digests, keyed on absolute resource paths
+     * @param hexDigests Map with hex digests, keyed on relative resource paths
      */
     public void setHexDigests(Map<String, String> hexDigests) {
         for (ResourceNode resourceNode : resourceNodes) {
-            String hexDigest = hexDigests.get(resourceNode.getAbsolutePath());
+            String hexDigest = hexDigests.get(resourceNode.getRelativePath());
             resourceNode.setHexDigest(hexDigest);
         }
     }

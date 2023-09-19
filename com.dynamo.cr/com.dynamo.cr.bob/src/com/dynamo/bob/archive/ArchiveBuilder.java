@@ -248,7 +248,7 @@ public class ArchiveBuilder {
             }
 
             entry.setHexDigest(hexDigest);
-            hexDigestCache.put(entry.getFilename(), hexDigest);
+            hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
 
             // Write resource to resource pack or data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
