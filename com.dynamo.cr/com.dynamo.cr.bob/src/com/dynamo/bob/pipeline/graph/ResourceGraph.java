@@ -138,7 +138,7 @@ public class ResourceGraph {
                     if (desc.getExclude()) {
                         ResourceNode lastNode = resourceNodes.get(resourceNodes.size() - 1);
                         lastNode.setExcluded(true);
-                        excludedResources.add(lastNode.getRelativePath());
+                        excludedResources.add(lastNode.getPath());
                     }
                 }
             }
@@ -175,7 +175,7 @@ public class ResourceGraph {
      */
     public void setHexDigests(Map<String, String> hexDigests) {
         for (ResourceNode resourceNode : resourceNodes) {
-            String hexDigest = hexDigests.get(resourceNode.getRelativePath());
+            String hexDigest = hexDigests.get(resourceNode.getPath());
             resourceNode.setHexDigest(hexDigest);
         }
     }

@@ -74,7 +74,7 @@ public class ResourceNode {
         return this.resource;
     }
 
-    public String getRelativePath() {
+    public String getPath() {
         return relativeFilepath;
     }
 
@@ -135,14 +135,14 @@ public class ResourceNode {
 
     @Override
     public int hashCode() {
-        return absoluteFilepath.hashCode();
+        return relativeFilepath.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof ResourceNode) {
             ResourceNode r = (ResourceNode) obj;
-            return this.absoluteFilepath.equals(r.absoluteFilepath);
+            return this.relativeFilepath.equals(r.relativeFilepath);
         } else {
             return super.equals(obj);
         }

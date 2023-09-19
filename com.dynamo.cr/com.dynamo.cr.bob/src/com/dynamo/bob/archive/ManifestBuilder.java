@@ -422,7 +422,7 @@ public class ManifestBuilder {
         // The resource may occur at many instances in the tree
         // This map contains the mapping url -> occurrances (i.e. nodes)
 
-        String key = node.getRelativePath();
+        String key = node.getPath();
         if (!pathToOccurrances.containsKey(key)) {
             pathToOccurrances.put(key, new ArrayList<ResourceNode>());
         }
@@ -457,9 +457,9 @@ public class ManifestBuilder {
             ResourceNode current = candidates.remove(0).getParent();
             result.add(new ArrayList<String>());
             while (current != null) {
-                if (current.getRelativePath().endsWith("collectionproxyc") ||
-                    current.getRelativePath().endsWith("collectionc")) {
-                    result.get(i).add(current.getRelativePath());
+                if (current.getPath().endsWith("collectionproxyc") ||
+                    current.getPath().endsWith("collectionc")) {
+                    result.get(i).add(current.getPath());
                 }
 
                 current = current.getParent();
@@ -495,10 +495,10 @@ public class ManifestBuilder {
         dependants = new ArrayList<String>();
 
         for (ResourceNode child : candidate.getChildren()) {
-            dependants.add(child.getRelativePath());
+            dependants.add(child.getPath());
 
-            if (!child.getRelativePath().endsWith("collectionproxyc")) {
-                dependants.addAll(getDependants(child.getRelativePath()));
+            if (!child.getPath().endsWith("collectionproxyc")) {
+                dependants.addAll(getDependants(child.getPath()));
             }
         }
 
@@ -524,7 +524,7 @@ public class ManifestBuilder {
     }
 
     private void buildPathToNodeMap(ResourceNode node) {
-        pathToNode.put(node.getRelativePath(), node);
+        pathToNode.put(node.getPath(), node);
         for (ResourceNode child : node.getChildren()) {
             buildPathToNodeMap(child);
         }
