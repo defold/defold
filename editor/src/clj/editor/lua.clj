@@ -56,6 +56,7 @@
   (let [sections (cond-> []
                          (pos? (count description))
                          (conj description)
+
                          (= :function type)
                          (into (let [{:keys [returnvalues parameters]} el]
                                  (cond-> []
@@ -66,6 +67,7 @@
                                          (pos? (count returnvalues))
                                          (conj (str "**Returns:**\n"
                                                     (make-doc-args-table returnvalues))))))
+
                          (pos? (count examples))
                          (conj (str "**Examples:**\n" examples)))]
     (when (pos? (count sections))
@@ -125,7 +127,7 @@
 (s/def ::documentation
   (s/map-of string? (s/coll-of ::code-completion/completion)))
 
-(defn defold-documentation []
+(defn- defold-documentation []
   {:post [(s/assert ::documentation %)]}
   (make-completion-map
     (eduction
@@ -137,7 +139,7 @@
                [ns-path (code-completion/make name
                                               :type type
                                               :display-string (make-display-string el)
-                                              :snippet (make-snippet el)
+                                              :insert-snippet (make-snippet el)
                                               :doc (make-markdown-doc el))])))
       docs)))
 
@@ -184,7 +186,7 @@
 (def defined-globals
   (extract-globals-from-completions defold-docs))
 
-(defn lua-base-documentation []
+(defn- lua-base-documentation []
   {:post [(s/assert ::documentation %)]}
   {"" (into []
             (util/distinct-by :display-string)
@@ -229,12 +231,12 @@
                            name
                            :type :function
                            :display-string (str name "(" (string/join ", " params) ")")
-                           :snippet (str name
-                                         "("
-                                         (->> params
-                                              (map-indexed #(format "${%s:%s}" (inc %1) %2))
-                                              (string/join ", "))
-                                         ")"))])))
+                           :insert-snippet (str name
+                                                "("
+                                                (->> params
+                                                     (map-indexed #(format "${%s:%s}" (inc %1) %2))
+                                                     (string/join ", "))
+                                                ")"))])))
        functions)]))
 
 (defn- make-ast-completions [local-completion-info required-completion-infos]

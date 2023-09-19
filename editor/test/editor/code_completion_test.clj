@@ -72,4 +72,6 @@
     "${1|a\\,b,b\\,c,c\\,d|}" "a,b"
 
     ;; newlines
-    "1\r2\n3\r\n4" "1\n2\n3\n4"))
+    "1\r2\n3\r\n4" "1\n2\n3\n4"
+    "foo\n\r\n\r" "foo\n\n\n"
+    "foo\r\n\n\n\n" "foo\n\n\n\n"))

@@ -54,6 +54,7 @@
                 (into [[ns-path (code-completion/make name :type :module :doc desc)]]
                       (mapcat #(make-completions child-path %))
                       (:members el)))
+
               "function"
               (let [{:keys [parameters]} el]
                 [[ns-path (code-completion/make
@@ -61,7 +62,8 @@
                             :type :function
                             :doc desc
                             :display-string (str name (build-param-string parameters :display-string))
-                            :snippet (str name (build-param-string parameters :snippet)))]])
+                            :insert-snippet (str name (build-param-string parameters :snippet)))]])
+
               (when name
                 [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
     (->> (yaml/load (data/lines-reader lines) keyword)

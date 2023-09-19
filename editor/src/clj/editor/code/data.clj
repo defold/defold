@@ -1562,47 +1562,53 @@
           col-offset' (+ col-offset col-difference)]
       (->SpliceInfo start end row-offset' col-offset'))))
 
-(defn- splice-local-offset-cursor->code-lines-local-cursor
-  ^Cursor [^Cursor splice-lines-local-cursor ^Cursor code-lines-local-cursor]
-  (let [row (.-row code-lines-local-cursor)
-        col (.-col code-lines-local-cursor)
-        same-line (zero? (.-row splice-lines-local-cursor))]
-    (-> splice-lines-local-cursor
+(defn- splice-relative-cursor->absolute-cursor
+  "Adjust splice-relative cursor given an absolute cursor the defines the
+  beginning of the splice"
+  ^Cursor [^Cursor splice-relative-cursor ^Cursor absolute-cursor]
+  (let [row (.-row absolute-cursor)
+        col (.-col absolute-cursor)
+        same-line (zero? (.-row splice-relative-cursor))]
+    (-> splice-relative-cursor
         (update :row + row)
         (cond-> same-line (update :col + col)))))
 
-(defn- splice-local-offset-cursor-range->code-lines-local-cursor-range
-  ^CursorRange [^CursorRange splice-lines-local-cursor-range ^Cursor code-lines-local-cursor]
-  (-> splice-lines-local-cursor-range
-      (update :from splice-local-offset-cursor->code-lines-local-cursor code-lines-local-cursor)
-      (update :to splice-local-offset-cursor->code-lines-local-cursor code-lines-local-cursor)))
+(defn- splice-relative-cursor-range->absolute-cursor-range
+  "Adjust splice-relative cursor range given an absolute cursor that defines the
+  beginning of the splice"
+  ^CursorRange [^CursorRange splice-relative-cursor-range ^Cursor absolute-cursor]
+  (-> splice-relative-cursor-range
+      (update :from splice-relative-cursor->absolute-cursor absolute-cursor)
+      (update :to splice-relative-cursor->absolute-cursor absolute-cursor)))
 
 (defn- introduce-replacement-ranges [ascending-cursor-ranges-and-replacements]
   (loop [splice-info nil
          splices (seq ascending-cursor-ranges-and-replacements)
          acc (transient [])]
     (if-let [splice (first splices)]
-      (let [[cursor-range _ splice-lines-local-regions] splice]
+      (let [[cursor-range _ splice-relative-regions] splice]
         (recur (accumulate-splice splice-info splice)
                (next splices)
-               (if splice-lines-local-regions
+               (if splice-relative-regions
                  (let [start-cursor (offset-cursor-on-row
                                       (cursor-range-start cursor-range)
                                       (col-affected-row splice-info)
                                       (row-offset splice-info)
                                       (col-offset splice-info))]
                    (transduce
-                     (map #(splice-local-offset-cursor-range->code-lines-local-cursor-range
+                     (map #(splice-relative-cursor-range->absolute-cursor-range
                              % start-cursor))
                      conj!
                      acc
-                     splice-lines-local-regions))
+                     splice-relative-regions))
                  acc)))
       (persistent! acc))))
 
-;; given cursors and ranges+replacements, return a vector of the same length with
-;; adjusted cursors. Result may contain nils, which means the cursor is deleted
-(defn- splice-cursors [ascending-cursors ascending-cursor-ranges-and-replacements]
+(defn- splice-cursors
+  "Given cursors and ranges+replacements, return a vector of the same length
+  with adjusted cursors. Result may contain nils, which means the cursor is
+  deleted"
+  [ascending-cursors ascending-cursor-ranges-and-replacements]
   (loop [prev-splice-info nil
          splice-info (accumulate-splice prev-splice-info (first ascending-cursor-ranges-and-replacements))
          rest-splices (next ascending-cursor-ranges-and-replacements)
@@ -2199,13 +2205,7 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [indent-level-pattern
-                           indent-string
-                           grammar
-                           lines
-                           regions
-                           ^LayoutInfo layout
-                           splices]
+(defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
   (-> (splice lines regions splices)
       (fix-indentation-after-splice indent-level-pattern indent-string grammar)
       (update-document-width-after-splice layout)))

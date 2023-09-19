@@ -57,7 +57,7 @@
     name    code completion identifier
 
   Optional kv-args:
-    :snippet              LSP-style snippet string for the code completion,
+    :insert-snippet       LSP-style snippet string for the code completion,
                           mutually exclusive with :insert-string
     :insert-string        literal snippet string for the code completion,
                           mutually exclusive with :snippet
@@ -73,13 +73,13 @@
                           documentation, otherwise, it can be either:
                           - {:type :plaintext :value \"literal doc\"}
                           - {:type :markdown  :value \"markdown doc\"}"
-  [name & {:keys [snippet insert-string display-string type commit-characters detail doc]}]
-  {:pre [(not (and insert-string snippet))]
+  [name & {:keys [insert-snippet insert-string display-string type commit-characters detail doc]}]
+  {:pre [(not (and insert-string insert-snippet))]
    :post [(s/assert ::completion %)]}
   (cond-> {:name name
            :display-string (or display-string name)
            :insert (cond
-                     snippet {:type :snippet :value snippet}
+                     insert-snippet {:type :snippet :value insert-snippet}
                      insert-string {:type :plaintext :value insert-string}
                      :else {:type :plaintext :value name})}
           type
@@ -154,7 +154,7 @@
     ;;    string
     ;;
     ;; Additionally, we don't support nested placeholders like ${1:aa ${2:bb}},
-    ;; but we still want to build meaning default strings (equivalent to
+    ;; but we still want to build meaningful default strings (equivalent to
     ;; ${1:aa bb}), we do this processing during the "collect tab trigger info"
     ;; step.
     (letfn [;; Part of step 1: convert ast of placeholder contents to string
@@ -165,7 +165,7 @@
                (case token
                  ;; :snippet, :text, :text_esc and :err are unreachable because
                  ;; they only exist on the top level, while content-string is
-                 ;; used to build string for choices,variables and placeholders
+                 ;; used to build string for choices, variables and placeholders
                  :rule (content-string sb (first children))
                  :newline (.append sb \newline)
                  ;; tab stop is LSP term, so we use it in the snippet

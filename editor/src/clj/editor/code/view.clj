@@ -1274,14 +1274,14 @@
           cursor-ranges (get-property view-node :cursor-ranges)
           new-cursor-ranges+exits (mapv find-closest-tab-trigger-regions cursor-ranges)
           removed-regions (into #{} (mapcat :exit) new-cursor-ranges+exits)
-          new-cursors (vec (sort (into #{} (mapcat :regions) new-cursor-ranges+exits)))]
-      (let [regions (get-property view-node :regions)
-            new-regions (into [] (remove removed-regions) regions)]
-        (set-properties! view-node :selection
-                         (cond-> {:cursor-ranges new-cursors}
+          new-cursor-ranges (vec (sort (into #{} (mapcat :regions) new-cursor-ranges+exits)))
+          regions (get-property view-node :regions)
+          new-regions (into [] (remove removed-regions) regions)]
+      (set-properties! view-node :selection
+                       (cond-> {:cursor-ranges new-cursor-ranges}
 
-                                 (not= (count regions) (count new-regions))
-                                 (assoc :regions new-regions)))))))
+                               (not= (count regions) (count new-regions))
+                               (assoc :regions new-regions))))))
 
 (def ^:private prev-tab-trigger! #(select-closest-tab-trigger-region! :prev %))
 (def ^:private next-tab-trigger! #(select-closest-tab-trigger-region! :next %))
@@ -1536,26 +1536,28 @@
                      (contains? commit-characters typed))))
           (let [insertion (code-completion/insertion selected-suggestion)]
             (do (accept-suggestion! view-node insertion)
-                [#_insert-typed (not
-                                  ;; exclude typed when...
-                                  (or (= typed "\r")
-                                      ;; At this point, we know we typed a commit character.
-                                      ;; If there are tab stops, and we typed a character
-                                      ;; before the tab stop, we assume the commit character
-                                      ;; is a shortcut for accepting a completion and jumping
-                                      ;; into the tab stop, e.g. foo($1) + "(" => don't
-                                      ;; insert. Otherwise, we insert typed, e.g.:
-                                      ;; - foo($1) + "{" => the typed character is expected
-                                      ;;   to be inside the tab stop, for example, when foo
-                                      ;;   expects a hash map
-                                      ;; - vmath + "." => the typed character is expected
-                                      ;;   to be after the snippet.
-                                      (when-let [^long i (->> insertion :tab-triggers first :ranges first first)]
-                                        (when (pos? i)
-                                          (= typed (subs (:insert-string insertion) (dec i) i))))))
-                 #_show-suggestions (not
-                                      ;; hide suggestions when entering new scope
-                                      (#{"[" "(" "{"} typed))]))
+                [;; insert-typed
+                 (not
+                   ;; exclude typed when...
+                   (or (= typed "\r")
+                       ;; At this point, we know we typed a commit character.
+                       ;; If there are tab stops, and we typed a character
+                       ;; before the tab stop, we assume the commit character
+                       ;; is a shortcut for accepting a completion and jumping
+                       ;; into the tab stop, e.g. foo($1) + "(" => don't
+                       ;; insert. Otherwise, we insert typed, e.g.:
+                       ;; - foo($1) + "{" => the typed character is expected
+                       ;;   to be inside the tab stop, for example, when foo
+                       ;;   expects a hash map
+                       ;; - vmath + "." => the typed character is expected
+                       ;;   to be after the snippet.
+                       (when-let [^long i (->> insertion :tab-triggers first :ranges first first)]
+                         (when (pos? i)
+                           (= typed (subs (:insert-string insertion) (dec i) i))))))
+                 ;; show-suggestions
+                 (not
+                   ;; hide suggestions when entering new scope
+                   (#{"[" "(" "{"} typed))]))
 
           (data/typing-deindents-line? grammar (get-property view-node :lines) (get-property view-node :cursor-ranges) typed)
           [true false]

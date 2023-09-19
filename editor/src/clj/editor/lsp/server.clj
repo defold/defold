@@ -263,15 +263,15 @@
             nil))
         items))))
 
-(def ^:private completion-item-tag-deprecated 1)
+(def ^:private ^:const completion-item-tag-deprecated 1)
 (def ^:private completion-item-tag:lsp->editor
   {completion-item-tag-deprecated :deprecated})
 
-(def ^:private insert-text-mode-as-is 1)
+(def ^:private ^:const insert-text-mode-as-is 1)
 (def ^:private insert-text-mode-adjust-indentation 2)
 
-(def ^:private insert-text-format-plaintext 1)
-(def ^:private insert-text-format-snippet 2)
+(def ^:private ^:const insert-text-format-plaintext 1)
+(def ^:private ^:const insert-text-format-snippet 2)
 (def ^:private insert-text-format:lsp->editor
   {insert-text-format-plaintext :plaintext
    insert-text-format-snippet :snippet})
@@ -501,9 +501,10 @@
                   result)))))))
 
 (defn- markup-content:lsp->editor [{:keys [kind value]}]
-  {:pre [(#{"plaintext" "markdown"} kind)
-         (string? value)]}
-  {:type (keyword kind)
+  {:pre [(string? value)]}
+  {:type (case kind
+           "plaintext" :plaintext
+           "markdown" :markdown)
    :value value})
 
 (defn- text-edit:lsp->editor [{:keys [range newText]}]
@@ -519,7 +520,7 @@
     :as source}]
   (let [text-format-key (case (insert-text-format:lsp->editor insertTextFormat)
                           :plaintext :insert-string
-                          :snippet :snippet)]
+                          :snippet :insert-snippet)]
     {:completion (code-completion/make
                    (or filterText label)
                    :display-string label
@@ -548,11 +549,10 @@
       {:textDocument {:uri (resource-uri resource)}
        :position (editor-cursor->lsp-position cursor)})
     (bound-fn [result _]
-      (let [{:keys [isIncomplete items]} (if (map? result)
-                                           result
-                                           {:isIncomplete false
-                                            :items result})]
-        {:complete (not isIncomplete)
+      (let [is-map (map? result)
+            incomplete (if is-map (:isIncomplete result) false)
+            items (if is-map (:items result) result)]
+        {:complete (not incomplete)
          :items (mapv (comp item-converter completion-item:lsp->editor) items)}))))
 
 (defn resolve-completion
