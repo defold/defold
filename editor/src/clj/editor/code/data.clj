@@ -92,7 +92,9 @@
   (print-method (cursor-print-data c) w))
 
 (defn read-cursor [[row col & {:as kvs}]]
-  (map->Cursor (assoc kvs :row row :col col)))
+  (if kvs
+    `(Cursor. ~row ~col nil ~kvs)
+    `(Cursor. ~row ~col)))
 
 (defn compare-cursor-position
   ^long [^Cursor a ^Cursor b]
@@ -129,8 +131,15 @@
                       (dissoc cr :from :to))
                 w))
 
+(defn- read-cursor-range-cursor [cursor-form]
+  (if (vector? cursor-form)
+    (read-cursor cursor-form)
+    cursor-form))
+
 (defn read-cursor-range [[from to & {:as kvs}]]
-  (map->CursorRange (assoc kvs :from (read-cursor from) :to (read-cursor to))))
+  (if kvs
+    `(CursorRange. ~(read-cursor-range-cursor from) ~(read-cursor-range-cursor to) nil ~kvs)
+    `(CursorRange. ~(read-cursor-range-cursor from) ~(read-cursor-range-cursor to))))
 
 (def document-start-cursor (->Cursor 0 0))
 (def document-start-cursor-range (->CursorRange document-start-cursor document-start-cursor))
@@ -1553,7 +1562,53 @@
           col-offset' (+ col-offset col-difference)]
       (->SpliceInfo start end row-offset' col-offset'))))
 
-(defn- splice-cursors [ascending-cursors ascending-cursor-ranges-and-replacements]
+(defn- splice-relative-cursor->absolute-cursor
+  "Adjust splice-relative cursor given an absolute cursor the defines the
+  beginning of the splice"
+  ^Cursor [^Cursor splice-relative-cursor ^Cursor absolute-cursor]
+  (let [row (.-row absolute-cursor)
+        col (.-col absolute-cursor)
+        same-line (zero? (.-row splice-relative-cursor))]
+    (-> splice-relative-cursor
+        (update :row + row)
+        (cond-> same-line (update :col + col)))))
+
+(defn- splice-relative-cursor-range->absolute-cursor-range
+  "Adjust splice-relative cursor range given an absolute cursor that defines the
+  beginning of the splice"
+  ^CursorRange [^CursorRange splice-relative-cursor-range ^Cursor absolute-cursor]
+  (-> splice-relative-cursor-range
+      (update :from splice-relative-cursor->absolute-cursor absolute-cursor)
+      (update :to splice-relative-cursor->absolute-cursor absolute-cursor)))
+
+(defn- introduce-replacement-ranges [ascending-cursor-ranges-and-replacements]
+  (loop [splice-info nil
+         splices (seq ascending-cursor-ranges-and-replacements)
+         acc (transient [])]
+    (if-let [splice (first splices)]
+      (let [[cursor-range _ splice-relative-regions] splice]
+        (recur (accumulate-splice splice-info splice)
+               (next splices)
+               (if splice-relative-regions
+                 (let [start-cursor (offset-cursor-on-row
+                                      (cursor-range-start cursor-range)
+                                      (col-affected-row splice-info)
+                                      (row-offset splice-info)
+                                      (col-offset splice-info))]
+                   (transduce
+                     (map #(splice-relative-cursor-range->absolute-cursor-range
+                             % start-cursor))
+                     conj!
+                     acc
+                     splice-relative-regions))
+                 acc)))
+      (persistent! acc))))
+
+(defn- splice-cursors
+  "Given cursors and ranges+replacements, return a vector of the same length
+  with adjusted cursors. Result may contain nils, which means the cursor is
+  deleted"
+  [ascending-cursors ascending-cursor-ranges-and-replacements]
   (loop [prev-splice-info nil
          splice-info (accumulate-splice prev-splice-info (first ascending-cursor-ranges-and-replacements))
          rest-splices (next ascending-cursor-ranges-and-replacements)
@@ -1629,14 +1684,27 @@
                    spliced-cursors)))))))
 
 (defn- splice-cursor-ranges [ascending-cursor-ranges ascending-cursor-ranges-and-replacements]
-  (let [cursors (sequence (mapcat unpack-cursor-range) ascending-cursor-ranges)
+  (let [;; ranges -> cursors
+        cursors (sequence (mapcat unpack-cursor-range) ascending-cursor-ranges)
+        ;; [[i cursor] ...]
         indexed-cursors (map-indexed vector cursors)
+        ;; [[i cursor] ...], but sorted by cursor
         ascending-indexed-cursors (sort-by second compare-cursor-position indexed-cursors)
+        ;; ascending cursors
         ascending-cursors (map second ascending-indexed-cursors)
-        ascending-spliced-cursors (splice-cursors ascending-cursors ascending-cursor-ranges-and-replacements)
-        index-lookup (into {} (map-indexed (fn [i [oi]] [oi i])) ascending-indexed-cursors)
-        spliced-cursors (mapv (comp ascending-spliced-cursors index-lookup) (range (count ascending-spliced-cursors)))]
+
+        ;; [cursor|nil ...] after splice
+        ascending-spliced-cursors (splice-cursors ascending-cursors
+                                                  ascending-cursor-ranges-and-replacements)
+        ;; original index before sorting to new index after sorting
+        index-lookup (into {}
+                           (map-indexed (fn [i [oi]] [oi i]))
+                           ascending-indexed-cursors)
+        ;; spliced cursors in the original unpacked order
+        spliced-cursors (mapv (comp ascending-spliced-cursors index-lookup)
+                              (range (count ascending-spliced-cursors)))]
     (assert (even? (count spliced-cursors)))
+    ;; convert ranges + their new spliced cursors to spliced ranges
     (loop [cursor-range-index 0
            cursor-ranges ascending-cursor-ranges
            spliced-cursor-ranges (transient [])]
@@ -1660,11 +1728,25 @@
           lines' (splice-lines lines ascending-cursor-ranges-and-replacements)
           adjust-cursor-range (partial adjust-cursor-range lines')
           splice-cursor-ranges (fn [ascending-cursor-ranges]
-                                 (merge-cursor-ranges (map adjust-cursor-range
-                                                           (splice-cursor-ranges ascending-cursor-ranges ascending-cursor-ranges-and-replacements))))
+                                 (->> (splice-cursor-ranges ascending-cursor-ranges
+                                                            ascending-cursor-ranges-and-replacements)
+                                      (map adjust-cursor-range)
+                                      merge-cursor-ranges))
           cursor-ranges (map first ascending-cursor-ranges-and-replacements)
           cursor-ranges' (splice-cursor-ranges cursor-ranges)
-          regions' (some-> regions splice-cursor-ranges)]
+          replacement-regions (->> (introduce-replacement-ranges ascending-cursor-ranges-and-replacements)
+                                   (eduction (map adjust-cursor-range))
+                                   merge-cursor-ranges)
+          replacement-regions-exist (pos? (count replacement-regions))
+          regions' (cond
+                     (and regions replacement-regions-exist)
+                     (vec (sort (into replacement-regions (splice-cursor-ranges regions))))
+
+                     regions
+                     (splice-cursor-ranges regions)
+
+                     replacement-regions-exist
+                     replacement-regions)]
       (cond-> {:lines lines'
                :cursor-ranges cursor-ranges'
                :invalidated-row invalidated-row}
@@ -2123,20 +2205,10 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout replaced-char-count replacement-lines]
-  (assert (not (neg? ^long replaced-char-count)))
-  (let [splices (mapv (fn [^CursorRange cursor-range]
-                        (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
-                              start (cursor-range-start adjusted-cursor-range)
-                              new-start-col (- (.col start) ^long replaced-char-count)
-                              new-start (->Cursor (.row start) new-start-col)
-                              end (cursor-range-end adjusted-cursor-range)]
-                          (assert (not (neg? new-start-col)))
-                          [(->CursorRange new-start end) replacement-lines]))
-                      cursor-ranges)]
-    (-> (splice lines regions splices)
-        (fix-indentation-after-splice indent-level-pattern indent-string grammar)
-        (update-document-width-after-splice layout))))
+(defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
+  (-> (splice lines regions splices)
+      (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+      (update-document-width-after-splice layout)))
 
 ;; -----------------------------------------------------------------------------
 

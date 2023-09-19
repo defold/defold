@@ -20,6 +20,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.lsp.async :as lsp.async]
+            [editor.code-completion :as code-completion]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lua :as lua]
@@ -29,7 +30,7 @@
             [service.log :as log])
   (:import [editor.code.data Cursor CursorRange]
            [java.io File InputStream]
-           [java.lang ProcessHandle ProcessBuilder$Redirect]
+           [java.lang ProcessBuilder$Redirect ProcessHandle]
            [java.net URI]
            [java.util Map]
            [java.util.concurrent TimeUnit]
@@ -145,10 +146,14 @@
 (s/def ::pull-diagnostics #{:none :text-document :workspace})
 (s/def ::goto-definition boolean?)
 (s/def ::find-references boolean?)
+(s/def ::resolve boolean?) ;; if completion item can be resolved to add e.g. documentation
+(s/def ::trigger-characters (s/coll-of string? :kind set?))
+(s/def ::completion (s/keys :req-un [::resolve ::trigger-characters]))
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
-                                       ::find-references]))
+                                       ::find-references]
+                              :opt-un [::completion]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
   (data/->Cursor line character))
@@ -199,33 +204,37 @@
 (defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync
                                                       diagnosticProvider
                                                       definitionProvider
-                                                      referencesProvider]}]
-  {:text-document-sync (cond
-                         (nil? textDocumentSync)
-                         {:change :none :open-close false}
+                                                      referencesProvider
+                                                      completionProvider]}]
+  (cond-> {:text-document-sync (cond
+                                 (nil? textDocumentSync)
+                                 {:change :none :open-close false}
 
-                         (number? textDocumentSync)
-                         {:open-close true
-                          :change (lsp-text-document-sync-kind->editor-sync-kind textDocumentSync)}
+                                 (number? textDocumentSync)
+                                 {:open-close true
+                                  :change (lsp-text-document-sync-kind->editor-sync-kind textDocumentSync)}
 
-                         (map? textDocumentSync)
-                         {:open-close (:openClose textDocumentSync false)
-                          :change (lsp-text-document-sync-kind->editor-sync-kind (:change textDocumentSync 0))}
+                                 (map? textDocumentSync)
+                                 {:open-close (:openClose textDocumentSync false)
+                                  :change (lsp-text-document-sync-kind->editor-sync-kind (:change textDocumentSync 0))}
 
-                         :else
-                         (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))
-   :pull-diagnostics (cond
-                       (nil? diagnosticProvider) :none
-                       (:workspaceDiagnostics diagnosticProvider) :workspace
-                       :else :text-document)
-   :goto-definition (cond
-                      (boolean? definitionProvider) definitionProvider
-                      (map? definitionProvider) true
-                      :else false)
-   :find-references (cond
-                      (boolean? referencesProvider) referencesProvider
-                      (map? referencesProvider) true
-                      :else false)})
+                                 :else
+                                 (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))
+           :pull-diagnostics (cond
+                               (nil? diagnosticProvider) :none
+                               (:workspaceDiagnostics diagnosticProvider) :workspace
+                               :else :text-document)
+           :goto-definition (cond
+                              (boolean? definitionProvider) definitionProvider
+                              (map? definitionProvider) true
+                              :else false)
+           :find-references (cond
+                              (boolean? referencesProvider) referencesProvider
+                              (map? referencesProvider) true
+                              :else false)}
+          completionProvider
+          (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
+                              :trigger-characters (set (:triggerCharacters completionProvider))})))
 
 (defn- configuration-handler [project]
   (fn [{:keys [items]}]
@@ -254,6 +263,46 @@
             nil))
         items))))
 
+(def ^:private ^:const completion-item-tag-deprecated 1)
+(def ^:private completion-item-tag:lsp->editor
+  {completion-item-tag-deprecated :deprecated})
+
+(def ^:private ^:const insert-text-mode-as-is 1)
+(def ^:private insert-text-mode-adjust-indentation 2)
+
+(def ^:private ^:const insert-text-format-plaintext 1)
+(def ^:private ^:const insert-text-format-snippet 2)
+(def ^:private insert-text-format:lsp->editor
+  {insert-text-format-plaintext :plaintext
+   insert-text-format-snippet :snippet})
+
+(def ^:private completion-item-kind:lsp->editor
+  {1 :text
+   2 :method
+   3 :function
+   4 :constructor
+   5 :field
+   6 :variable
+   7 :class
+   8 :interface
+   9 :module
+   10 :property
+   11 :unit
+   12 :value
+   13 :enum
+   14 :keyword
+   15 :snippet
+   16 :color
+   17 :file
+   18 :reference
+   19 :folder
+   20 :enum-member
+   21 :constant
+   22 :struct
+   23 :event
+   24 :operator
+   25 :type-parameter})
+
 (defn- initialize [jsonrpc project]
   (lsp.jsonrpc/request!
     jsonrpc
@@ -266,7 +315,23 @@
          :capabilities {:workspace {:diagnostics {}}
                         :textDocument {:definition {:dynamicRegistration false
                                                     :linkSupport true}
-                                       :references {:dynamicRegistration false}}}
+                                       :references {:dynamicRegistration false}}
+                        :completion {:dynamicRegistration false
+                                     :completionItem {:snippetSupport true
+                                                      :commitCharactersSupport true
+                                                      :documentationFormat ["markdown" "plaintext"]
+                                                      :deprecatedSupport true
+                                                      :preselectSupport false
+                                                      :tagSupport {:valueSet [completion-item-tag-deprecated]}
+                                                      :insertReplaceSupport false
+                                                      :resolveSupport {:properties ["detail"
+                                                                                    "documentation"
+                                                                                    "additionalTextEdits"]}
+                                                      :insertTextModeSupport {:valueSet [insert-text-mode-as-is
+                                                                                         insert-text-mode-adjust-indentation]}
+                                                      :labelDetailsSupport false}
+                                     :completionItemKind {:valueSet (vec (sort (keys completion-item-kind:lsp->editor)))}
+                                     :insertTextMode insert-text-mode-adjust-indentation}}
          :workspaceFolders [{:uri uri :name title}]}))
     (* 60 1000)))
 
@@ -434,6 +499,72 @@
             (into []
                   (keep #(lsp-location-or-location-link->editor-location % project evaluation-context))
                   result)))))))
+
+(defn- markup-content:lsp->editor [{:keys [kind value]}]
+  {:pre [(string? value)]}
+  {:type (case kind
+           "plaintext" :plaintext
+           "markdown" :markdown)
+   :value value})
+
+(defn- text-edit:lsp->editor [{:keys [range newText]}]
+  {:range (lsp-range->editor-cursor-range range)
+   :new-text newText})
+
+(defn- completion-item:lsp->editor
+  [{:keys [label filterText insertText tags deprecated kind
+           insertTextMode insertTextFormat commitCharacters
+           detail documentation additionalTextEdits]
+    :or {insertTextMode insert-text-mode-adjust-indentation
+         insertTextFormat insert-text-format-plaintext}
+    :as source}]
+  (let [text-format-key (case (insert-text-format:lsp->editor insertTextFormat)
+                          :plaintext :insert-string
+                          :snippet :insert-snippet)]
+    {:completion (code-completion/make
+                   (or filterText label)
+                   :display-string label
+                   text-format-key (or insertText label)
+                   :commit-characters (set commitCharacters)
+                   :type (some-> kind completion-item-kind:lsp->editor)
+                   :detail detail
+                   :doc (cond
+                          (string? documentation) {:type :plaintext :value documentation}
+                          documentation (markup-content:lsp->editor documentation)))
+     ;; Not currently present in completions
+     :tags (into (if deprecated #{:deprecated} #{})
+                 (map completion-item-tag:lsp->editor)
+                 tags)
+     :additional-text-edits (mapv text-edit:lsp->editor additionalTextEdits)
+     ;; source item to use for detail/doc resolution
+     :raw-completion-item source}))
+
+(defn completion
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_completion"
+  [resource cursor item-converter]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/completion"
+      {:textDocument {:uri (resource-uri resource)}
+       :position (editor-cursor->lsp-position cursor)})
+    (bound-fn [result _]
+      (let [is-map (map? result)
+            incomplete (if is-map (:isIncomplete result) false)
+            items (if is-map (:items result) result)]
+        {:complete (not incomplete)
+         :items (mapv (comp item-converter completion-item:lsp->editor) items)}))))
+
+(defn resolve-completion
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#completionItem_resolve"
+  [completion-item item-converter]
+  (raw-request
+    (lsp.jsonrpc/notification "completionItem/resolve" (:raw-completion-item completion-item))
+    (bound-fn [result _]
+      (item-converter
+        (update completion-item :completion conj (select-keys (:completion (completion-item:lsp->editor result))
+                                                              [:detail :doc :additional-text-edits]))))))
 
 (defn find-references
   "See also:
