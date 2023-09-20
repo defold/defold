@@ -989,10 +989,10 @@ public class ColladaUtil {
         meshSetBuilder.addModels(modelBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
 
-        List<String> boneRefArray = createBoneReferenceList(collada);
-        if (boneRefArray != null && !boneRefArray.isEmpty()) {
-            for (int i = 0; i < boneRefArray.size(); i++) {
-                meshSetBuilder.addBoneList(MurmurHash.hash64(boneRefArray.get(i)));
+        ArrayList<ModelImporter.Bone> bones = loadSkeleton(collada);
+        if (bones != null) {
+            for (ModelImporter.Bone bone : bones) {
+                meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
             }
         }
     }
