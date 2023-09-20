@@ -185,12 +185,16 @@
     (g/set-property self
                     :animations animation-resources)))
 
+(defn- sanitize-animation-set [animation-set-desc]
+  (dissoc animation-set-desc :skeleton)) ; Deprecated field.
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "animationset"
     :icon animation-set-icon
     :label "Animation Set"
     :load-fn load-animation-set
+    :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
     :view-types [:cljfx-form-view]))
