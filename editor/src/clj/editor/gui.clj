@@ -92,7 +92,8 @@
 (vtx2/defvertex uv-color-vtx
   (vec3 position)
   (vec2 texcoord0)
-  (vec4 color))
+  (vec4 color)
+  (vec1 page_index))
 
 (shader/defshader vertex-shader
   (attribute vec4 position)
@@ -155,11 +156,6 @@
         vs (mapv (comp vec concat) vs colors)]
     (persistent! (reduce conj! vb vs))))
 
-(defn- ->uv-color-vtx-vb [vs uvs colors vcount]
-  (let [vb (->uv-color-vtx vcount)
-        vs (mapv (comp vec concat) vs uvs colors)]
-    (persistent! (reduce conj! vb vs))))
-
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
@@ -192,12 +188,13 @@
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
                             (if-let [geom-data (seq (:geom-data user-data))]
-                              (let [[r g b a] (premul (:color user-data))]
+                              (let [[r g b a] (premul (:color user-data))
+                                    page-index (:page-index user-data)]
                                 (loop [vb vb
                                        [[x y z :as vtx] & vs] (geom/transf-p world-transform geom-data)
                                        [[u v :as uv] & uvs] (:uv-data user-data)]
                                   (if vtx
-                                    (recur (uv-color-vtx-put! vb x y z u v r g b a) vs uvs)
+                                    (recur (uv-color-vtx-put! vb x y z u v r g b a page-index) vs uvs)
                                     vb)))
                               vb))
                           (->uv-color-vtx vcount)
@@ -229,7 +226,7 @@
       (contains? user-data :gen-vb)
       ((:gen-vb user-data) user-data renderables))))
 
-(defn render-tris [^GL2 gl render-args renderables rcount]
+(defn render-tris [^GL2 gl render-args renderables _rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
@@ -245,6 +242,7 @@
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
           (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -256,6 +254,7 @@
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
           (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (clipping/restore-gl gl clipping-state)))))))
@@ -785,7 +784,8 @@
   (property material g/Str
             (default "")
             (dynamic edit-type (g/fnk [material-names] (optional-gui-resource-choicebox material-names)))
-            (dynamic error (g/fnk [_node-id material-names material] (validate-material _node-id material-names material))))
+            (dynamic error (g/fnk [_node-id material-names material]
+                             (validate-material _node-id material-names material))))
 
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
   (output gui-scene g/Any (g/fnk [_node-id]
@@ -799,6 +799,7 @@
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
+                       page-index (or (:page-index scene-renderable-user-data) 0)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                        material-shader (or (:override-material-shader scene-renderable-user-data)
                                            material-shader)]
@@ -809,7 +810,8 @@
                                       :blend-mode blend-mode
                                       :gpu-texture gpu-texture
                                       :inherit-alpha inherit-alpha
-                                      :material-shader material-shader)
+                                      :material-shader material-shader
+                                      :page-index page-index)
                     :batch-key {:clipping-state clipping-state
                                 :blend-mode blend-mode
                                 :gpu-texture gpu-texture
@@ -922,7 +924,8 @@
   (property texture g/Str
             (default "")
             (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
-            (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
+            (dynamic error (g/fnk [_node-id texture-names texture]
+                             (validate-texture _node-id texture-names texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -990,6 +993,7 @@
                              :line-data (:line-data slice9-data)
                              :uv-data (:uv-data slice9-data)
                              :color color+alpha
+                             :page-index (:page-index frame)
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
                       (not= :clipping-mode-none clipping-mode)
@@ -1036,6 +1040,7 @@
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha pie-data anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
+                       anim-frame (get-in anim-data [:frames 0])
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])
                        {:keys [outer-bounds inner-radius perimeter-vertices ^double pie-fill-angle]} pie-data
                        outer-rect? (= :piebounds-rectangle outer-bounds)
@@ -1079,6 +1084,7 @@
                                   :line-data lines
                                   :uv-data uvs
                                   :color color+alpha
+                                  :page-index (:page-index anim-frame)
                                   :renderable-tags #{:gui-shape}}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
@@ -1509,22 +1515,20 @@
           (map (fn [id] (if id (format "%s/%s" name id) name)))
           (keys anim-data))))
 
-(defn- paged-atlas-not-supported-error-message [texture-page-count]
+(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
   (when (and (some? texture-page-count)
-             (pos? texture-page-count))
-    "Guis do not support paged Atlases, but the selected Texture is paged"))
+             (some? material-max-page-count))
+    (cond
+      (and is-paged-material
+           (zero? texture-page-count))
+      "The Material expects a paged Atlas, but the selected Image is not paged"
 
-(defn- paged-material-not-supported-error-message [is-paged-material]
-  (when is-paged-material
-    "Guis do not support paged Materials, but the selected Material is paged"))
+      (and (not is-paged-material)
+           (pos? texture-page-count))
+      "The Material does not support paged Atlases, but the selected Image is paged"
 
-(defn- validate-material-resource [_node-id material material-shader]
-  (or (prop-resource-error _node-id :material material "Material")
-      (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
-
-(defn- validate-texture-resource [_node-id texture texture-page-count]
-  (or (prop-resource-error _node-id :texture texture "Texture")
-      (validation/prop-error :fatal _node-id :texture paged-atlas-not-supported-error-message texture-page-count)))
+      (< material-max-page-count texture-page-count)
+      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -1542,8 +1546,8 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id texture texture-page-count]
-                             (validate-texture-resource _node-id texture texture-page-count)))
+            (dynamic error (g/fnk [_node-id texture]
+                             (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
@@ -1574,10 +1578,10 @@
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-names GuiResourceNames :cached produce-texture-names)
-  (output build-errors g/Any (g/fnk [_node-id name name-counts texture texture-page-count]
+  (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (validate-texture-resource _node-id texture texture-page-count)))))
+                                                 (prop-resource-error _node-id :texture texture "Texture")))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -1647,9 +1651,10 @@
                      evaluation-context self old-value new-value
                      [:resource :material-resource]
                      [:shader :material-shader]
+                     [:max-page-count :material-max-page-count]
                      [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id material material-shader]
-                             (validate-material-resource _node-id material material-shader)))
+            (dynamic error (g/fnk [_node-id material]
+                             (prop-resource-error _node-id :material material "Material")))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
@@ -1657,8 +1662,8 @@
   (input name-counts NameCounts)
 
   (input material-resource resource/Resource)
-
   (input material-shader ShaderLifecycle :substitute (constantly nil))
+  (input material-max-page-count g/Int)
 
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
@@ -1683,7 +1688,7 @@
   (output build-errors g/Any (g/fnk [_node-id name name-counts material material-shader]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (validate-material-resource _node-id material material-shader)))))
+                                                 (prop-resource-error _node-id :material material "Material")))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -2449,10 +2454,10 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script]
+(g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
-                    (validate-material-resource _node-id material material-shader)
+                    (prop-resource-error _node-id :material material "Material")
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors ^:try template-build-targets]
@@ -2494,8 +2499,8 @@
              [:shader :material-shader]
              [:samplers :samplers]
              [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id material material-shader]
-                     (validate-material-resource _node-id material material-shader)))
+    (dynamic error (g/fnk [_node-id material]
+                     (prop-resource-error _node-id :material material "Material")))
     (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
