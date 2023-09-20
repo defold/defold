@@ -76,7 +76,6 @@ message RigAnimation
 message AnimationSet
 {
     repeated RigAnimation animations = 1;
-    repeated uint64 bone_list = 2;
 }
 
 message AnimationInstanceDesc
