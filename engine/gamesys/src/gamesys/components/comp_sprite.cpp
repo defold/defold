@@ -455,7 +455,7 @@ namespace dmGameSystem
     }
 
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
-        const Point3& p, const Matrix4& w, const float* uv, float page_index, SpriteAttributeInfo* sprite_infos)
+        const Point3& p, const Point3& p_local, const Matrix4& w, const float* uv, float page_index, SpriteAttributeInfo* sprite_infos)
     {
         for (int i = 0; i < sprite_infos->m_NumInfos; ++i)
         {
@@ -472,7 +472,7 @@ namespace dmGameSystem
                     }
                     else if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
                     {
-                        memcpy(vertices_write_ptr, &p, info->m_ValueByteSize);
+                        memcpy(vertices_write_ptr, &p_local, info->m_ValueByteSize);
                     }
                     else assert(0);
                 } break;
@@ -496,7 +496,7 @@ namespace dmGameSystem
 
     static void CreateVertexDataSlice9(dmRender::HMaterial material, uint8_t* vertices, uint8_t* indices, bool is_indices_16_bit,
         const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset, uint32_t vertex_stride,
-        const float* tc, float texture_width, float texture_height, uint8_t page_index, bool flip_u, bool flip_v,
+        const float* tc, float texture_width, float texture_height, uint8_t page_index, bool flip_u, bool flip_v, bool use_local_position,
         SpriteAttributeInfo* sprite_infos)
     {
         // render 9-sliced node
@@ -567,15 +567,24 @@ namespace dmGameSystem
                 Point3 p = Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
                 float uv[2];
 
-                if (uv_rotated) {
+                if (uv_rotated)
+                {
                     uv[0] = us[y];
                     uv[1] = vs[x];
-                } else {
+                }
+                else
+                {
                     uv[0] = us[x];
                     uv[1] = vs[y];
                 }
 
-                WriteSpriteVertex(material, vertices + vertex_stride * vx_index, p, transform, uv, page_index, sprite_infos);
+                Point3 p_local;
+                if (use_local_position)
+                {
+                    p_local = Point3(p.getX() * sprite_size.getX(), p.getY() * sprite_size.getY(), 0.0f);
+                }
+
+                WriteSpriteVertex(material, vertices + vertex_stride * vx_index, p, p_local, transform, uv, page_index, sprite_infos);
                 vx_index++;
             }
         }
@@ -618,6 +627,21 @@ namespace dmGameSystem
         }
     }
 
+    static inline bool HasLocalPositionAttribute(const SpriteAttributeInfo* attribute_infos)
+    {
+        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
+        {
+            const SpriteAttributeInfo::Info& info = attribute_infos->m_Infos[i];
+
+            if (info.m_Attribute->m_SemanticType    == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
+                info.m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteAttributeInfo* material_attribute_info, uint32_t vertex_stride, uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("CreateVertexData");
@@ -653,6 +677,9 @@ namespace dmGameSystem
             uint32_t* page_indices                              = texture_set_ddf->m_PageIndices.m_Data;
             uint32_t sprite_attribute_count                     = component->m_Resource->m_DDF->m_Attributes.m_Count;
 
+            float sp_width  = component->m_Size.getX();
+            float sp_height = component->m_Size.getY();
+
             // Fill in the custom sprite attributes (if specified), otherwise fallck to use the material attributes
             SpriteAttributeInfo* sprite_attribute_info_ptr = material_attribute_info;
             if (sprite_attribute_count > 0)
@@ -660,6 +687,8 @@ namespace dmGameSystem
                 FillSpriteAttributeInfos(material_attribute_info, component->m_Resource->m_DDF->m_Attributes.m_Data, sprite_attribute_count, &sprite_attribute_info);
                 sprite_attribute_info_ptr = &sprite_attribute_info;
             }
+
+            bool use_local_position = HasLocalPositionAttribute(sprite_attribute_info_ptr);
 
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             const uint32_t vb_buffer_offset = vertices - sprite_world->m_VertexBufferData;
@@ -701,7 +730,14 @@ namespace dmGameSystem
                     float x  = points[0] * scaleX; // range -0.5,+0.5
                     float y  = points[1] * scaleY;
                     Point3 p = Point3(x, y, 0.0f);
-                    WriteSpriteVertex(material, vertices + vert * vertex_stride, p, w, uvs, page_index, sprite_attribute_info_ptr);
+                    Point3 p_local;
+
+                    if (use_local_position)
+                    {
+                        p_local = Point3(x * sp_width, y * sp_height, 0.0f);
+                    }
+
+                    WriteSpriteVertex(material, vertices + vert * vertex_stride, p, p_local, w, uvs, page_index, sprite_attribute_info_ptr);
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -770,7 +806,7 @@ namespace dmGameSystem
                         w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, vertex_stride, tc,
                         dmGraphics::GetTextureWidth(texture_set->m_Texture->m_Texture),
                         dmGraphics::GetTextureHeight(texture_set->m_Texture->m_Texture),
-                        page_index, flipx, flipy, sprite_attribute_info_ptr);
+                        page_index, flipx, flipy, use_local_position, sprite_attribute_info_ptr);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
                     vertices      += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
@@ -783,10 +819,23 @@ namespace dmGameSystem
                     Point3 p2 = Point3( 0.5f,  0.5f, 0.0f);
                     Point3 p3 = Point3( 0.5f, -0.5f, 0.0f);
 
-                    WriteSpriteVertex(material, vertices                    , p0, w, &tc[tex_lookup[0] * 2], page_index, sprite_attribute_info_ptr);
-                    WriteSpriteVertex(material, vertices + vertex_stride    , p1, w, &tc[tex_lookup[1] * 2], page_index, sprite_attribute_info_ptr);
-                    WriteSpriteVertex(material, vertices + vertex_stride * 2, p2, w, &tc[tex_lookup[2] * 2], page_index, sprite_attribute_info_ptr);
-                    WriteSpriteVertex(material, vertices + vertex_stride * 3, p3, w, &tc[tex_lookup[4] * 2], page_index, sprite_attribute_info_ptr);
+                    Point3 p0_local;
+                    Point3 p1_local;
+                    Point3 p2_local;
+                    Point3 p3_local;
+
+                    if (use_local_position)
+                    {
+                        p0_local = Point3(-0.5f * sp_width, -0.5f * sp_height, 0.0f);
+                        p1_local = Point3(-0.5f * sp_width,  0.5f * sp_height, 0.0f);
+                        p2_local = Point3( 0.5f * sp_width,  0.5f * sp_height, 0.0f);
+                        p3_local = Point3( 0.5f * sp_width, -0.5f * sp_height, 0.0f);
+                    }
+
+                    WriteSpriteVertex(material, vertices                    , p0, p0_local, w, &tc[tex_lookup[0] * 2], page_index, sprite_attribute_info_ptr);
+                    WriteSpriteVertex(material, vertices + vertex_stride    , p1, p1_local, w, &tc[tex_lookup[1] * 2], page_index, sprite_attribute_info_ptr);
+                    WriteSpriteVertex(material, vertices + vertex_stride * 2, p2, p2_local, w, &tc[tex_lookup[2] * 2], page_index, sprite_attribute_info_ptr);
+                    WriteSpriteVertex(material, vertices + vertex_stride * 3, p3, p3_local, w, &tc[tex_lookup[4] * 2], page_index, sprite_attribute_info_ptr);
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
