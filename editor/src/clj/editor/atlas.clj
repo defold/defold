@@ -730,7 +730,7 @@
   (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
                                                  (if (every? pos? max-page-size)
                                                    (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
-                                                   0))) ; Not a paged atlas. Built as TYPE_2D, not TYPE_2D_ARRAY.
+                                                   texture/non-paged-page-count)))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 
