@@ -51,7 +51,7 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -344,7 +344,6 @@
 (def gui-node-parent-attachments
   [[:id :parent]
    [:texture-gpu-textures :texture-gpu-textures]
-   [:texture-anim-datas :texture-anim-datas]
    [:texture-infos :texture-infos]
    [:material-infos :material-infos]
    [:material-shaders :material-shaders]
@@ -429,19 +428,20 @@
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
 ;; SDK api
-(g/deftype GuiResourceNames s/Any #_(sorted-set s/Str))
+(g/deftype GuiResourceNames s/Any #_(s/constrained #{s/Str} sorted?))
 
 (s/def ^:private MaterialInfo {(s/optional-key :max-page-count) s/Int})
-(s/def ^:private TextureInfo {(s/optional-key :page-count) s/Int})
+
+(s/def ^:private TextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}
+                              (s/optional-key :page-count) s/Int})
 
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (g/deftype ^:private GuiResourceMaterialInfos s/Any #_{s/Str MaterialInfo})
 (g/deftype ^:private GuiResourceTextureInfos s/Any #_{s/Str TextureInfo})
-(g/deftype ^:private TextureAnimDatas s/Any #_{s/Str (s/maybe {s/Keyword s/Any})})
 (g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
-(g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (sorted-set s/Str)
-                                                          :spine-skin-ids (sorted-set s/Str)}})
+(g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (s/constrained #{s/Str} sorted?)
+                                                          :spine-skin-ids (s/constrained #{s/Str} sorted?)}})
 (g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-data-handle (s/maybe {s/Int s/Any})
                                                      :spine-bones (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-scene (s/maybe {s/Keyword s/Any})
@@ -620,8 +620,6 @@
 
   (input texture-gpu-textures GuiResourceTextures)
   (output texture-gpu-textures GuiResourceTextures (gu/passthrough texture-gpu-textures))
-  (input texture-anim-datas TextureAnimDatas)
-  (output texture-anim-datas TextureAnimDatas (gu/passthrough texture-anim-datas))
   (input texture-infos GuiResourceTextureInfos)
   (output texture-infos GuiResourceTextureInfos (gu/passthrough texture-infos))
   (input material-infos GuiResourceMaterialInfos)
@@ -934,8 +932,8 @@
                               (= :size-mode-manual new-value)
                               (properties/user-edit? self :size-mode evaluation-context))
                      (when-some [texture (not-empty (g/node-value self :texture evaluation-context))]
-                       (when-some [texture-anim-datas (not-empty (g/node-value self :texture-anim-datas evaluation-context))]
-                         (when-some [anim-data (texture-anim-datas texture)]
+                       (when-some [texture-infos (not-empty (g/node-value self :texture-infos evaluation-context))]
+                         (when-some [anim-data (:anim-data (texture-infos texture))]
                            (let [texture-size [(double (:width anim-data)) (double (:height anim-data)) 0.0]]
                              (g/set-property self :manual-size texture-size))))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
@@ -958,9 +956,10 @@
 
   (output shape-base-node-msg g/Any produce-shape-base-node-msg)
   (output aabb g/Any :cached (g/fnk [pivot size] (calc-aabb pivot size)))
-  (output anim-data g/Any (g/fnk [texture-anim-datas texture]
-                            (or (texture-anim-datas texture)
-                                (texture-anim-datas ""))))
+  (output anim-data g/Any (g/fnk [texture-infos texture]
+                            (let [texture-info (or (texture-infos texture)
+                                                   (texture-infos ""))]
+                              (:anim-data texture-info))))
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
@@ -1018,7 +1017,7 @@
                              :line-data (:line-data slice9-data)
                              :uv-data (:uv-data slice9-data)
                              :color color+alpha
-                             :page-index (:page-index frame)
+                             :page-index (:page-index frame 0)
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
                       (not= :clipping-mode-none clipping-mode)
@@ -1109,7 +1108,7 @@
                                   :line-data lines
                                   :uv-data uvs
                                   :color color+alpha
-                                  :page-index (:page-index anim-frame)
+                                  :page-index (:page-index anim-frame 0)
                                   :renderable-tags #{:gui-shape}}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
@@ -1341,7 +1340,6 @@
                                                    (g/connect or-scene from self to))
                                                  (for [[from to] [[:layer-names :layer-names]
                                                                   [:texture-gpu-textures :aux-texture-gpu-textures]
-                                                                  [:texture-anim-datas :aux-texture-anim-datas]
                                                                   [:texture-infos :aux-texture-infos]
                                                                   [:material-infos :aux-material-infos]
                                                                   [:material-shaders :aux-material-shaders]
@@ -1504,22 +1502,7 @@
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
   (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {:page-count texture/non-paged-page-count})))
-  (output texture-anim-datas TextureAnimDatas (g/fnk [name] {name nil}))
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
-
-(g/defnk produce-texture-anim-datas [_node-id anim-data name]
-  ;; TODO: Can this be merged into the texture-infos output?
-  ;; If the referenced texture-resource is missing, we don't return an entry.
-  ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (some? anim-data)
-    ;; Input anim-data is a map of anim-ids to anim-data.
-    ;; The produced anim-data prefixes the anim-id with the texture name like so: "texture/anim".
-    ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-    (if (empty? anim-data)
-      {name nil}
-      (into {}
-            (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]))
-            anim-data))))
 
 (g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
@@ -1535,16 +1518,20 @@
               (keys anim-data))))))
 
 (g/defnk produce-texture-infos [anim-data name texture-page-count]
-  ;; The texture-page-count will be nil if the referenced texture is missing or defective.
-  (let [texture-info (if texture-page-count
-                       {:page-count texture-page-count}
-                       {})]
-    ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-    (if (empty? anim-data)
+  ;; The anim-data and the texture-page-count will be nil if the referenced
+  ;; texture is missing or defective.
+  (let [has-animations (not (coll/empty? anim-data))
+        texture-info (cond-> {}
+                             (some? texture-page-count) (assoc :page-count texture-page-count)
+                             has-animations (assoc :anim-data anim-data))]
+    ;; If the texture does not contain animations, we emit an entry for the
+    ;; "texture" name only.
+    (if-not has-animations
       (sorted-map name texture-info)
       (into (sorted-map)
-            (map (fn [[anim-id]]
-                   (let [texture-id (if anim-id (format "%s/%s" name anim-id) name)]
+            (map (fn [[anim-id anim-data]]
+                   (let [texture-id (if anim-id (format "%s/%s" name anim-id) name)
+                         texture-info (assoc texture-info :anim-data anim-data)]
                      (pair texture-id texture-info))))
             anim-data))))
 
@@ -1593,7 +1580,6 @@
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (resource/resource->proj-path texture-resource)}))
-  (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-infos GuiResourceTextureInfos :cached produce-texture-infos)
   (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
@@ -1815,8 +1801,8 @@
                               {:name name
                                :particlefx (resource/resource->proj-path particlefx)}))
   (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output particlefx-infos g/Any (g/fnk [name particlefx-scene]
-                                   {name {:particlefx-scene particlefx-scene}}))
+  (output particlefx-infos ParticleFXInfos (g/fnk [name particlefx-scene]
+                                             {name {:particlefx-scene particlefx-scene}}))
   (output build-errors g/Any (g/fnk [_node-id name name-counts particlefx]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
@@ -1938,8 +1924,6 @@
   (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge node-ids)))
   (input texture-gpu-textures GuiResourceTextures)
   (output texture-gpu-textures GuiResourceTextures (gu/passthrough texture-gpu-textures))
-  (input texture-anim-datas TextureAnimDatas)
-  (output texture-anim-datas TextureAnimDatas (gu/passthrough texture-anim-datas))
   (input texture-infos GuiResourceTextureInfos)
   (output texture-infos GuiResourceTextureInfos (gu/passthrough texture-infos))
   (input material-infos GuiResourceMaterialInfos)
@@ -2017,10 +2001,9 @@
    (concat
     (g/connect texture :_node-id self :nodes)
     (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
-    (g/connect texture :texture-anim-datas self :texture-anim-datas)
+    (g/connect texture :texture-infos self :texture-infos)
     (when (not internal?)
       (concat
-       (g/connect texture :texture-infos self :texture-infos)
        (g/connect texture :dep-build-targets self :dep-build-targets)
        (g/connect texture :pb-msg self :texture-msgs)
        (g/connect texture :build-errors textures-node :build-errors)
@@ -2577,9 +2560,7 @@
   (input aux-texture-gpu-textures GuiResourceTextures :array)
   (input texture-gpu-textures GuiResourceTextures :array)
   (output texture-gpu-textures GuiResourceTextures :cached (g/fnk [aux-texture-gpu-textures texture-gpu-textures] (into {} (concat aux-texture-gpu-textures texture-gpu-textures))))
-  (input aux-texture-anim-datas TextureAnimDatas :array)
-  (input texture-anim-datas TextureAnimDatas :array)
-  (output texture-anim-datas TextureAnimDatas :cached (g/fnk [aux-texture-anim-datas texture-anim-datas] (into {} (concat aux-texture-anim-datas texture-anim-datas))))
+
   (input aux-texture-infos GuiResourceTextureInfos :array)
   (input texture-infos GuiResourceTextureInfos :array)
   (output texture-infos GuiResourceTextureInfos :cached (g/fnk [aux-texture-infos texture-infos] (into (sorted-map) (concat aux-texture-infos texture-infos))))
@@ -2952,7 +2933,6 @@
                                      [:template-build-targets :template-build-targets]]]
                       (g/connect node-tree from self to))
                     (for [[from to] [[:texture-gpu-textures :texture-gpu-textures]
-                                     [:texture-anim-datas :texture-anim-datas]
                                      [:texture-infos :texture-infos]
                                      [:material-infos :material-infos]
                                      [:material-shaders :material-shaders]
