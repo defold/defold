@@ -362,7 +362,7 @@ public class ModelUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
-        assertEquals(1, animSetBuilder.getAnimationsCount());
+        assertEquals(2, animSetBuilder.getAnimationsCount());
 
         /*
          *  The file includes two bones with a matrix animation on each.
