@@ -184,6 +184,7 @@ public class ModelImporter {
         public String   name;
         public Mesh[]   meshes;
         public int      index;
+        public String   boneParentName; // If set, this is a child of a bone
     }
 
     public static class Bone {
@@ -374,7 +375,10 @@ public class ModelImporter {
 
     private static void DebugPrintModel(Model model, int indent) {
         PrintIndent(indent);
-        System.out.printf("Model: %s\n", model.name);
+        System.out.printf("Model: %s", model.name);
+            if (!model.boneParentName.isEmpty())
+                System.out.printf("  bone: %s", model.boneParentName);
+        System.out.printf("\n");
 
         for (Mesh mesh : model.meshes) {
             DebugPrintMesh(mesh, indent+1);

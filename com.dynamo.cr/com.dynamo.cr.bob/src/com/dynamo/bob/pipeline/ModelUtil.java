@@ -282,10 +282,6 @@ public class ModelUtil {
 
         Arrays.sort(scene.animations, new SortAnimations());
 
-        if (scene.animations.length > 1) {
-            System.out.printf("Scene contains more than one animation. Picking the the longest one ('%s')\n", scene.animations[0].name);
-        }
-
         ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
         String prevRootName = null;
         if (!bones.isEmpty()) {
@@ -343,8 +339,6 @@ public class ModelUtil {
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
-
-            break; // we only support one animation per file
         }
     }
 
@@ -627,8 +621,9 @@ public class ModelUtil {
             modelBuilder.addMeshes(loadMesh(mesh));
         }
 
-        modelBuilder.setId(MurmurHash.hash64(model.name));
+        modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
         modelBuilder.setLocal(toDDFTransform(node.local));
+        modelBuilder.setBoneId(MurmurHash.hash64(model.boneParentName));
 
         return modelBuilder.build();
     }
@@ -645,34 +640,28 @@ public class ModelUtil {
         }
     }
 
-    private static Node findFirstModelNode(Node node) {
+    private static void findModelNodes(Node node, List<Node> modelNodes) {
         if (node.model != null) {
-            return node;
+            modelNodes.add(node);
         }
-
         for (Node child : node.children) {
-            Node modelNode = findFirstModelNode(child);
-            if (modelNode != null) {
-                return modelNode;
-            }
+            findModelNodes(child, modelNodes);
         }
-
-        return null;
     }
 
     private static ModelImporter.Vec4 calcCenter(Scene scene) {
         ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
         float count = 0.0f;
         for (Node root : scene.rootNodes) {
-            Node modelNode = findFirstModelNode(root);
-            if (modelNode == null) {
-                continue;
+            ArrayList<Node> modelNodes = new ArrayList<>();
+            findModelNodes(root, modelNodes);
+
+            for (Node modelNode : modelNodes) {
+                center.x += modelNode.local.translation.x;
+                center.y += modelNode.local.translation.y;
+                center.z += modelNode.local.translation.z;
+                count++;
             }
-            center.x += modelNode.local.translation.x;
-            center.y += modelNode.local.translation.y;
-            center.z += modelNode.local.translation.z;
-            count++;
-            break; // TODO: Support more than one root node
         }
         center.x /= (float)count;
         center.z /= (float)count;
@@ -682,21 +671,23 @@ public class ModelUtil {
 
     private static void shiftModels(Scene scene, ModelImporter.Vec4 center) {
         for (Node root : scene.rootNodes) {
-            Node modelNode = findFirstModelNode(root);
-            if (modelNode == null)
-                continue;
-            modelNode.local.translation.x -= center.x;
-            modelNode.local.translation.y -= center.y;
-            modelNode.local.translation.z -= center.z;
-            modelNode.world.translation.x -= center.x;
-            modelNode.world.translation.y -= center.y;
-            modelNode.world.translation.z -= center.z;
+            ArrayList<Node> modelNodes = new ArrayList<>();
+            findModelNodes(root, modelNodes);
+
+            for (Node modelNode : modelNodes) {
+                modelNode.local.translation.x -= center.x;
+                modelNode.local.translation.y -= center.y;
+                modelNode.local.translation.z -= center.z;
+                modelNode.world.translation.x -= center.x;
+                modelNode.world.translation.y -= center.y;
+                modelNode.world.translation.z -= center.z;
+            }
         }
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
-        ModelImporter.Vec4 center = calcCenter(scene);
-        shiftModels(scene, center); // We might make this optional
+        //ModelImporter.Vec4 center = calcCenter(scene);
+        //shiftModels(scene, center); // We might make this optional
         return scene;
     }
 
@@ -707,13 +698,12 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            Node modelNode = findFirstModelNode(root);
-            if (modelNode == null) {
-                continue;
-            }
+            ArrayList<Node> modelNodes = new ArrayList<>();
+            findModelNodes(root, modelNodes);
 
-            loadModelInstances(modelNode, skeleton, models);
-            break; // TODO: Support more than one root node
+            for (Node modelNode : modelNodes) {
+                loadModelInstances(modelNode, skeleton, models);
+            }
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());

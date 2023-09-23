@@ -38,6 +38,7 @@ namespace dmModelImporter
     {
         const char* m_Name;
         uint32_t    m_Index;        // The index into the scene.materials array
+        uint8_t     m_IsSkinned;    // If a skinned mesh is using this
     };
 
     struct Mesh
@@ -50,7 +51,7 @@ namespace dmModelImporter
         float*      m_Tangents;     // 3 floats per vertex
         float*      m_Color;        // 4 floats per vertex
         float*      m_Weights;      // 4 weights per vertex
-        uint32_t*   m_Bones;        // 4 bones per vertex
+        uint32_t*   m_Bones;        // 4 bones per vertex, or a single bone if it isn't skinned, or 0 if not part of a skeleton hierarchy
         uint32_t    m_TexCoord0NumComponents; // e.g 2 or 3
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3
@@ -65,10 +66,11 @@ namespace dmModelImporter
 
     struct Model
     {
-        const char* m_Name;
-        Mesh*       m_Meshes;
-        uint32_t    m_MeshesCount;
-        uint32_t    m_Index;        // The index into the scene.models array
+        const char*     m_Name;
+        Mesh*           m_Meshes;
+        uint32_t        m_MeshesCount;
+        uint32_t        m_Index;        // The index into the scene.models array
+        struct Bone*    m_ParentBone;   // If the model is not skinned, but a child of a bone
     };
 
     struct DM_ALIGNED(16) Bone
@@ -174,6 +176,10 @@ namespace dmModelImporter
 
         Buffer*     m_Buffers;
         uint32_t    m_BuffersCount;
+
+        // When we need to dynamically create materials
+        Material**  m_DynamicMaterials;
+        uint32_t    m_DynamicMaterialsCount;
     };
 
     struct Options
