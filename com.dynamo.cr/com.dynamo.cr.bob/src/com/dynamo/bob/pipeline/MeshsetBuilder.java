@@ -189,7 +189,7 @@ public class MeshsetBuilder extends Builder<Void>  {
         {
             AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
             if (ModelUtil.getNumAnimations(scene) > 0) {
-                ModelUtil.loadAnimations(scene, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+                ModelUtil.loadAnimations(scene, animationSetBuilder, "", new ArrayList<String>());
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

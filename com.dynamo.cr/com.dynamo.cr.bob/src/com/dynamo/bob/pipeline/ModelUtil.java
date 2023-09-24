@@ -255,7 +255,8 @@ public class ModelUtil {
     }
 
     public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ModelImporter.DataResolver dataResolver,
-                                        Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
+                                        Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, boolean selectLongest,
+                                        ArrayList<String> animationIds) throws IOException {
         Scene scene = loadScene(content, suffix, options, dataResolver);
         loadAnimations(scene, animationSetBuilder, parentAnimationId, animationIds);
     }
@@ -280,6 +281,7 @@ public class ModelUtil {
     public static void loadAnimations(Scene scene, Rig.AnimationSet.Builder animationSetBuilder,
                                       String parentAnimationId, ArrayList<String> animationIds) {
 
+        // Sorted on duration
         Arrays.sort(scene.animations, new SortAnimations());
 
         ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
@@ -287,6 +289,9 @@ public class ModelUtil {
         if (!bones.isEmpty()) {
             prevRootName = bones.get(0).node.name;
         }
+
+        boolean topLevel = parentAnimationId.isEmpty();
+        boolean selectLongest = !topLevel;
 
         for (ModelImporter.Animation animation : scene.animations) {
 
@@ -299,15 +304,20 @@ public class ModelUtil {
 
             animBuilder.setSampleRate(sampleRate);
 
-            // Each file is supposed to only have one animation
-            // And the animation name is created from outside of this function, depending on the source
-            // E.g. if the animation is from within nested .animationset files
-            // So we _dont_ do this:
-            //   animationName = animation.name;
-            // but instead do this:
-            String animationName = parentAnimationId;
-            animBuilder.setId(MurmurHash.hash64(animationName));
-            animationIds.add(animationName);
+            // If the model file was selected directly
+            if (topLevel) {
+                animBuilder.setId(MurmurHash.hash64(animation.name));
+                animationIds.add(animation.name);
+            }
+            else {
+                // For animation sets, each model file should be named after the model file itself
+                // Each file is supposed to only have one animation
+                // And the animation name is created from outside of this function, depending on the source
+                // E.g. if the animation is from within nested .animationset files
+                animBuilder.setId(MurmurHash.hash64(parentAnimationId));
+                animationIds.add(parentAnimationId);
+                selectLongest = true;
+            }
 
             // TODO: add the start time to the Animation struct!
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
@@ -339,7 +349,21 @@ public class ModelUtil {
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
+
+            if (selectLongest)
+            {
+                break;
+            }
         }
+    }
+
+    // For editor
+    public static ArrayList<String> getAnimationlNames(Scene scene) {
+        ArrayList<String> names = new ArrayList<>();
+        for (ModelImporter.Animation animation : scene.animations) {
+            names.add(animation.name);
+        }
+        return names;
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
@@ -906,7 +930,7 @@ public class ModelUtil {
 
         Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
         ArrayList<String> animationIds = new ArrayList<>();
-        loadAnimations(scene, animationSetBuilder, file.getName(), animationIds);
+        loadAnimations(scene, animationSetBuilder, "", animationIds);
 
         for (ModelImporter.Animation animation : scene.animations) {
             System.out.printf("  Animation: %s\n", animation.name);
