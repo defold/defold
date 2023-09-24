@@ -1,0 +1,19 @@
+uniform highp mat4 view_proj;
+
+// positions are in world space
+attribute mediump vec3 position;
+attribute mediump vec2 texcoord0;
+attribute lowp vec4 color;
+attribute lowp float page_index;
+
+varying mediump vec2 var_texcoord0;
+varying lowp vec4 var_color;
+varying lowp float var_page_index;
+
+void main()
+{
+    var_texcoord0 = texcoord0;
+    var_color = vec4(color.rgb * color.a, color.a);
+    var_page_index = page_index;
+    gl_Position = view_proj * vec4(position.xyz, 1.0);
+}
