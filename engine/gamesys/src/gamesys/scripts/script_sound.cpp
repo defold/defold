@@ -457,7 +457,7 @@ namespace dmGameSystem
      * `speed`
      * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. The final speed of the sound will be a multiplication of this speed and the sound speed.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
+     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
      * : [type:object] The current object.
