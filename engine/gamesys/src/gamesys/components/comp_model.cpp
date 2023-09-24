@@ -472,6 +472,8 @@ namespace dmGameSystem
             item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
+
+            // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
             {
                 uint32_t* idx = bone_id_to_indices->Get(item.m_Model->m_BoneId);
@@ -808,6 +810,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
         {
             MeshRenderItem& item = component->m_RenderItems[i];
+            if (!item.m_Enabled)
+                continue;
             dmRigDDF::Model* model = item.m_Model;
             if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
             {
@@ -1002,6 +1006,8 @@ namespace dmGameSystem
             for (uint32_t j = 0; j < item_count; ++j)
             {
                 MeshRenderItem& render_item = component.m_RenderItems[j];
+                if (!render_item.m_Enabled)
+                    continue;
 
                 uint32_t vertex_count = render_item.m_Buffers->m_VertexCount;
                 if(vertex_count_total + vertex_count >= max_elements_vertices)
@@ -1338,6 +1344,36 @@ namespace dmGameSystem
     ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data)
     {
         return world->m_Components.Get(user_data);;
+    }
+
+    bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)
+    {
+        bool found = false;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& item = component->m_RenderItems[i];
+            if (item.m_Model->m_Id == mesh_id)
+            {
+                item.m_Enabled = enabled?1:0;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    bool CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out)
+    {
+        bool found = false;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& item = component->m_RenderItems[i];
+            if (item.m_Model->m_Id == mesh_id)
+            {
+                *out = item.m_Enabled != 0;
+                return true;
+            }
+        }
+        return found;
     }
 
     static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

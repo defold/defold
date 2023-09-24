@@ -175,6 +175,7 @@ namespace dmRig
             if (model->m_Id == model_id)
             {
                 instance->m_Model = model;
+                instance->m_NumModels = 1;
                 instance->m_ModelId = model_id;
                 instance->m_DoRender = 1;
                 return dmRig::RESULT_OK;
@@ -183,6 +184,7 @@ namespace dmRig
         instance->m_Model = 0;
         instance->m_ModelId = 0;
         instance->m_DoRender = 0;
+        instance->m_NumModels = 0;
         return dmRig::RESULT_ERROR;
     }
 
