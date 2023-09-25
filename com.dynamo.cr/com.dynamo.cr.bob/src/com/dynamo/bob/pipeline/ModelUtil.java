@@ -710,8 +710,6 @@ public class ModelUtil {
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
-        //ModelImporter.Vec4 center = calcCenter(scene);
-        //shiftModels(scene, center); // We might make this optional
         return scene;
     }
 
