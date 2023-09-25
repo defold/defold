@@ -135,8 +135,7 @@
                        (test-util/manip-scale! node-id [2.0 2.0 2.0])
                        (let [modified-curve-spread (g/node-value node-id prop-kw)]
                          (is (not= original-curve-spread modified-curve-spread))
-                         (test-util/ensure-float-type-preserving! (properties/curve-vals original-curve-spread) (properties/curve-vals modified-curve-spread))
-                         (test-util/ensure-float-type-preserving! (:spread original-curve-spread) (:spread modified-curve-spread))))))]
+                         (test-util/ensure-float-type-preserving! original-curve-spread modified-curve-spread)))))]
 
       (testing "Emitter"
         (check! emitter :emitter-key-size-x)

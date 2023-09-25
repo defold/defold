@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
+            [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.sprite :as sprite]
@@ -68,7 +69,39 @@
     (is (true? (float-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] original-meta))))
     (is (false? (float-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] altered-meta))))
     (is (true? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) original-meta))))
-    (is (false? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) altered-meta))))))
+    (is (false? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) altered-meta))))
+
+    (letfn [(->control-points [empty-point num-fn]
+              (mapv (fn [control-point]
+                      (into empty-point
+                            (map num-fn)
+                            control-point))
+                    [[0.0 0.0 1.0 0.0] [1.0 0.0 1.0 0.0]]))]
+      (doseq [->curve [(fn make-curve [empty-point num-fn]
+                         (properties/->curve (->control-points empty-point num-fn)))
+                       (fn make-curve [empty-point num-fn]
+                         (properties/->curve-spread (->control-points empty-point num-fn)
+                                                    (num-fn 0.0)))]]
+
+        (is (true? (float-type-preserving? (->curve [] float) (->curve [] float))))
+        (is (true? (float-type-preserving? (->curve [] double) (->curve [] double))))
+        (is (false? (float-type-preserving? (->curve [] float) (->curve [] double))))
+        (is (false? (float-type-preserving? (->curve [] double) (->curve [] float))))
+
+        (is (true? (float-type-preserving? (->curve (vector-of :float) float) (->curve (vector-of :float) float))))
+        (is (true? (float-type-preserving? (->curve (vector-of :double) double) (->curve (vector-of :double) double))))
+        (is (false? (float-type-preserving? (->curve (vector-of :float) float) (->curve (vector-of :double) double))))
+        (is (false? (float-type-preserving? (->curve (vector-of :double) double) (->curve (vector-of :float) float))))
+
+        (is (true? (float-type-preserving? (->curve (with-meta [] original-meta) float) (->curve (with-meta [] original-meta) float))))
+        (is (false? (float-type-preserving? (->curve (with-meta [] original-meta) float) (->curve (with-meta [] altered-meta) float))))
+        (is (true? (float-type-preserving? (->curve (with-meta (vector-of :float) original-meta) float) (->curve (with-meta (vector-of :float) original-meta) float))))
+        (is (false? (float-type-preserving? (->curve (with-meta (vector-of :float) original-meta) float) (->curve (with-meta (vector-of :float) altered-meta) float))))
+
+        (is (true? (float-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) original-meta))))
+        (is (false? (float-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) altered-meta))))
+        (is (true? (float-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) original-meta))))
+        (is (false? (float-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) altered-meta))))))))
 
 (deftest run-event-loop-test
 

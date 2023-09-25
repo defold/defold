@@ -54,6 +54,7 @@
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [clojure.core Vec]
+           [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
            [java.net URI URL]
@@ -73,16 +74,25 @@
 (def ^:private ^:const system-cache-size 1000)
 
 (defn float-type-preserving? [a b]
-  (assert (or (number? a) (vector? a)))
-  (assert (or (number? b) (vector? b)))
+  (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
+  (assert (or (number? b) (vector? b) (instance? Curve b) (instance? CurveSpread b)))
   (and (is (= (type a) (type b)))
        (or (number? a)
            (and (is (identical? (meta a) (meta b)))
-                (or (not (instance? Vec a))
-                    (is (= (type (.am ^Vec a))
-                           (type (.am ^Vec b)))))
-                (is (every? true? (map float-type-preserving? a (cycle b))))
-                (is (every? true? (map float-type-preserving? b (cycle a))))))))
+                (cond
+                  (vector? a)
+                  (and (or (not (instance? Vec a))
+                           (is (= (type (.am ^Vec a))
+                                  (type (.am ^Vec b)))))
+                       (is (every? true? (map float-type-preserving? a (cycle b))))
+                       (is (every? true? (map float-type-preserving? b (cycle a)))))
+
+                  (instance? Curve a)
+                  (is (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))
+
+                  (instance? CurveSpread a)
+                  (and (is (true? (float-type-preserving? (:spread a) (:spread b))))
+                       (is (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))))))))
 
 (def ensure-float-type-preserving! float-type-preserving?)
 

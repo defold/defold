@@ -196,7 +196,7 @@
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
-                     (test-util/ensure-float-type-preserving! (properties/curve-vals original-value) (properties/curve-vals modified-value)))))]
+                     (test-util/ensure-float-type-preserving! original-value modified-value))))]
     (check! #(set-control-value! edit-curve-button 0.0))
     (check! #(set-control-value! value-field 0.11))))
 
@@ -210,8 +210,7 @@
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
-                     (test-util/ensure-float-type-preserving! (properties/curve-vals original-value) (properties/curve-vals modified-value))
-                     (test-util/ensure-float-type-preserving! (:spread original-value) (:spread modified-value)))))]
+                     (test-util/ensure-float-type-preserving! original-value modified-value))))]
     (check! #(set-control-value! edit-curve-button 0.0))
     (check! #(set-control-value! value-field 0.11))
     (check! #(set-control-value! spread-field 0.22))))
