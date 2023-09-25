@@ -432,7 +432,7 @@ void LogInitialize(const LogParams* params)
         return;
     }
 
-    dmSpinlock::Init(&g_LogServerLock);
+    dmSpinlock::Create(&g_LogServerLock);
 
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
     uint16_t port = 0;
@@ -473,7 +473,7 @@ void LogInitialize(const LogParams* params)
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     dmAtomicStore32(&g_ListenersCount, 0);
-    dmSpinlock::Init(&g_ListenerLock);
+    dmSpinlock::Create(&g_ListenerLock);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
@@ -514,31 +514,36 @@ void LogFinalize()
     if (self->m_Thread)
         dmThread::Join(self->m_Thread);
 
-    DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
-
-    uint32_t n = self->m_Connections.Size();
-    for (uint32_t i = 0; i < n; ++i)
     {
-        dmLogConnection* c = &self->m_Connections[i];
-        dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
-        dmSocket::Delete(c->m_Socket);
-        c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
+
+        uint32_t n = self->m_Connections.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            dmLogConnection* c = &self->m_Connections[i];
+            dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+            dmSocket::Delete(c->m_Socket);
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(self->m_ServerSocket);
+            self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (self->m_MessageSocket != 0)
+        {
+            dmMessage::DeleteSocket(self->m_MessageSocket);
+        }
+
+        delete self;
+        g_dmLogServer = 0;
+        CloseLogFile();
     }
 
-    if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
-    {
-        dmSocket::Delete(self->m_ServerSocket);
-        self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
-    }
-
-    if (self->m_MessageSocket != 0)
-    {
-        dmMessage::DeleteSocket(self->m_MessageSocket);
-    }
-
-    delete self;
-    g_dmLogServer = 0;
-    CloseLogFile();
+    dmSpinlock::Destroy(&g_ListenerLock);
+    dmSpinlock::Destroy(&g_LogServerLock);
 }
 
 uint16_t GetPort()

@@ -220,7 +220,11 @@ Scene* LoadFromPath(Options* options, const char* path)
     }
 
     Scene* scene = LoadFromBuffer(options, suffix, data, file_size);
-
+    if (!scene)
+    {
+        dmLogError("Failed to create scene from path '%s'", path);
+        return 0;
+    }
 
     char dirname[512];
     dmStrlCpy(dirname, path, sizeof(dirname));
