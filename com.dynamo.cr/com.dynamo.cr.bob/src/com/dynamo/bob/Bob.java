@@ -31,10 +31,11 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -61,6 +62,7 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 
 public class Bob {
     private static Logger logger = Logger.getLogger(Bob.class.getName());
@@ -461,7 +463,7 @@ public class Bob {
         addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
         addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
-        addOption(options, null, "exclude-build-folder", true, "Comma separated list of folders to exclude from the build", true);
+        addOption(options, null, "exclude-build-folder", true, "DEPRECATED! Use '.defignore' file instead", true);
 
         addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
         addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
@@ -500,6 +502,7 @@ public class Bob {
 
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
+        addOption(options, null, "debug-output-spirv", true, "Force build SPIR-V shaders", false);
 
         return options;
     }
@@ -550,6 +553,49 @@ public class Bob {
         else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
             strSeverity = "WARNING";
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
+    }
+
+    private static boolean getSpirvRequired(Project project) throws IOException, CompileExceptionError {
+        IResource appManifestResource = project.getResource("native_extension", "app_manifest", false);
+        if (appManifestResource != null && appManifestResource.exists()) {
+            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
+            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
+
+            if (yamlPlatforms != null) {
+                String targetPlatform = project.getPlatform().toString();
+                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
+
+                if (yamlPlatform != null) {
+                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
+
+                    if (yamlPlatformContext != null) {
+                        boolean vulkanSymbolFound = false;
+                        boolean vulkanLibraryFound = false;
+
+                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
+                        List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
+
+                        for (String symbol : symbols) {
+                            if (symbol.equals("GraphicsAdapterVulkan")) {
+                                vulkanSymbolFound = true;
+                                break;
+                            }
+                        }
+
+                        for (String lib : libs) {
+                            if (lib.equals("graphics_vulkan")) {
+                                vulkanLibraryFound = true;
+                                break;
+                            }
+                        }
+
+                        return vulkanLibraryFound && vulkanSymbolFound;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
@@ -662,6 +708,11 @@ public class Bob {
             System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
             System.exit(1);
             return;
+        }
+
+        if (cmd.hasOption("exclude-build-folder")) {
+            // Deprecated in 1.5.1. Just a message for now.
+            System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
         }
 
         String[] commands = cmd.getArgs();
@@ -823,6 +874,15 @@ public class Bob {
         if (project.hasOption("build-artifacts")) {
             String[] validArtifacts = {"engine", "plugins"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
+        }
+
+        // Build spir-v either if:
+        //   1. If the user has specified explicitly to build or not to build with spir-v
+        //   2. The project has an app manifest with vulkan enabled
+        if (project.hasOption("debug-output-spirv")) {
+            project.setOption("output-spirv", project.option("debug-output-spirv", "false"));
+        } else {
+            project.setOption("output-spirv", getSpirvRequired(project) ? "true" : "false");
         }
 
         boolean ret = true;

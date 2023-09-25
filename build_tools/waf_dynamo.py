@@ -1725,7 +1725,7 @@ def detect(conf):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LIB_OPENAL'] = ['OpenAL32']
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','js-web','wasm-web'):
         conf.env['LIB_OPENAL'] = ['openal']
 
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']

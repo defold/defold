@@ -1507,7 +1507,8 @@
 (defn- schema-check-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if *check-schemas*
     `(do
-       (schema-check-result ~node-id-sym ~label-sym ~evaluation-context-sym ~(deduce-output-type-form description label) ~result-sym)
+       (when ~`*check-schemas* ; Inner check to support disabling the schema check post compile-time.
+         (schema-check-result ~node-id-sym ~label-sym ~evaluation-context-sym ~(deduce-output-type-form description label) ~result-sym))
        ~forms)
     forms))
 

@@ -235,7 +235,10 @@
   (output form-data g/Any (gu/passthrough form-data))
 
   (input save-value g/Any)
-  (output save-value g/Any (gu/passthrough save-value)))
+  (output save-value g/Any (gu/passthrough save-value))
+
+  (input settings-map g/Any)
+  (output settings-map g/Any (gu/passthrough settings-map)))
 
 (defn- load-simple-settings-resource-node [meta-info project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)]
@@ -244,6 +247,7 @@
         (g/connect settings-node :_node-id self :nodes)
         (g/connect settings-node :save-value self :save-value)
         (g/connect settings-node :form-data self :form-data)
+        (g/connect settings-node :settings-map self :settings-map)
         (load-settings-node settings-node resource source-value meta-info nil)))))
 
 (defn register-simple-settings-resource-type [workspace & {:keys [ext label icon meta-info]}]

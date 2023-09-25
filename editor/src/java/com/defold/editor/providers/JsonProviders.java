@@ -127,15 +127,15 @@ public class JsonProviders {
 
             case VALUE_NUMBER_FLOAT:
                 if (type == FieldDescriptor.JavaType.FLOAT)
-                    return (float) node.getValueAsDouble();
+                    return (float) node.asDouble();
                 else if (type == FieldDescriptor.JavaType.DOUBLE)
-                    return node.getValueAsDouble();
+                    return node.asDouble();
 
             case VALUE_NUMBER_INT:
                 if (type == FieldDescriptor.JavaType.INT)
-                    return node.getValueAsInt();
+                    return node.asInt();
                 else if (type == FieldDescriptor.JavaType.LONG)
-                    return node.getValueAsLong();
+                    return node.asLong();
 
             case START_OBJECT:
                 return JsonToMessage(node, builder.newBuilderForField(fieldDescriptor));

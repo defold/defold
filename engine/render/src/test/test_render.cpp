@@ -115,32 +115,6 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
     dmRender::DeleteFontMap(bitmap_font_map);
 }
 
-TEST_F(dmRenderTest, TestContextNewDelete)
-{
-
-}
-
-TEST_F(dmRenderTest, TestRenderTarget)
-{
-    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-
-    creation_params[0].m_Width = WIDTH;
-    creation_params[0].m_Height = HEIGHT;
-    creation_params[1].m_Width = WIDTH;
-    creation_params[1].m_Height = HEIGHT;
-
-    params[0].m_Width = WIDTH;
-    params[0].m_Height = HEIGHT;
-    params[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    params[1].m_Width = WIDTH;
-    params[1].m_Height = HEIGHT;
-    params[1].m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, flags, creation_params, params);
-    dmGraphics::DeleteRenderTarget(target);
-}
-
 TEST_F(dmRenderTest, TestGraphicsContext)
 {
     ASSERT_NE((void*)0x0, dmRender::GetGraphicsContext(m_Context));
@@ -526,7 +500,7 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
     {
         dmRender::RenderListEntry* entry = &params.m_Entries[i];
-        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition, true);
+        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition);
         entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
     }
 }
@@ -597,7 +571,17 @@ TEST_F(dmRenderTest, TestRenderListCulling)
         dmRender::RenderListSubmit(m_Context, out, out + n);
         dmRender::RenderListEnd(m_Context);
 
-        dmRender::DrawRenderList(m_Context, 0, 0, frustum_matrices[c]);
+        if (frustum_matrices[c])
+        {
+            dmRender::FrustumOptions frustum_options;
+            frustum_options.m_Matrix = *frustum_matrices[c];
+            frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
+        }
+        else
+        {
+            dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        }
 
         ASSERT_EQ(ctx.m_BeginCalls, 2);
         ASSERT_GT(ctx.m_BatchCalls, 2);

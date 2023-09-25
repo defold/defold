@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -64,12 +64,15 @@ namespace dmRender
     #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
+    #define RENDER_SCRIPT_FLAGS_NAME "flags"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_PREDICATE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = 0;
+
+    static uint32_t RENDER_SCRIPT_FLAG_TEXTURE_BIT = 1;
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -241,7 +244,7 @@ namespace dmRender
 
                 if (RenderScriptSetNamedValueFromLua(L, -1, cb, name_hash, table_index_lua - 1) != RESULT_OK)
                 {
-                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);
                 }
                 lua_pop(L, 1);
             }
@@ -298,7 +301,7 @@ namespace dmRender
 
         if (RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, table_index_lua - 1) != RESULT_OK)
         {
-            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);
         }
         assert(top == lua_gettop(L));
 
@@ -398,7 +401,7 @@ namespace dmRender
      *      vmath.vector4(0, 1, 0, 1)
      *      vmath.vector4(0, 0, 1, 1)
      * }
-     * 
+     *
      * -- Add more constant to the array
      * constants.light_colors[4] = vmath.vector4(1, 1, 1, 1)
      * ```
@@ -581,6 +584,23 @@ namespace dmRender
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    RenderScriptGetInstanceDataTableRef},
         {0, 0}
     };
+
+    static inline dmGraphics::BufferType CheckBufferType(lua_State* L, int index)
+    {
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, index);
+
+        if (!(buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR1_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR2_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR3_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT  ||
+              buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT))
+        {
+            return (dmGraphics::BufferType) luaL_error(L, "Unknown buffer type supplied (%d).", (int) buffer_type);
+        }
+
+        return buffer_type;
+    }
 
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
@@ -851,15 +871,16 @@ namespace dmRender
      * with what parameters. Each buffer key should have a table value consisting
      * of parameters. The following parameter keys are available:
      *
-     * Key          | Values
-     * ------------ | ----------------------------
-     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
-     * `width`      | number
-     * `height`     | number
-     * `min_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
-     * `mag_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
-     * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
-     * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
+     * Key                     | Values
+     * ----------------------- | ----------------------------
+     * `format`                |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
+     * `width`                 | number
+     * `height`                | number
+     * `min_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
+     * `mag_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
+     * `u_wrap`     (optional) | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
+     * `v_wrap`     (optional) | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
+     * `flags`      (optional) | `render.TEXTURE_BIT` (only applicable to depth and stencil buffers)
      *
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
@@ -967,18 +988,39 @@ namespace dmRender
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, table_index, LUA_TTABLE);
-        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-        dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+
+        dmGraphics::RenderTargetCreationParams params = {};
+
         lua_pushnil(L);
         while (lua_next(L, table_index))
         {
-            bool required_found[]  = { false, false, false };
-            uint32_t buffer_type   = (uint32_t) luaL_checkinteger(L, -2);
-            buffer_type_flags     |= buffer_type;
+            bool required_found[]                 = { false, false, false };
+            dmGraphics::BufferType buffer_type    = CheckBufferType(L, -2);
+            buffer_type_flags                    |= (uint32_t) buffer_type;
+            dmGraphics::TextureParams* p          = 0;
+            dmGraphics::TextureCreationParams* cp = 0;
 
-            uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
-            dmGraphics::TextureParams* p          = &params[index];
-            dmGraphics::TextureCreationParams* cp = &creation_params[index];
+            if (dmGraphics::IsColorBufferType(buffer_type))
+            {
+                uint32_t color_index = dmGraphics::GetBufferTypeIndex(buffer_type);
+                p  = &params.m_ColorBufferParams[color_index];
+                cp = &params.m_ColorBufferCreationParams[color_index];
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+            {
+                p  = &params.m_DepthBufferParams;
+                cp = &params.m_DepthBufferCreationParams;
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+            {
+                p  = &params.m_StencilBufferParams;
+                cp = &params.m_StencilBufferCreationParams;
+            }
+            else
+            {
+                return luaL_error(L, "Invalid buffer type supplied to %s.render_target: (%d)", RENDER_SCRIPT_LIB_NAME, (uint32_t) buffer_type);
+            }
+
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
 
@@ -1056,11 +1098,23 @@ namespace dmRender
                 {
                     p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
                 }
+                else if (strncmp(key, RENDER_SCRIPT_FLAGS_NAME, strlen(RENDER_SCRIPT_FLAGS_NAME)) == 0)
+                {
+                    int flags = luaL_checkinteger(L, -1);
+                    if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                    {
+                        params.m_DepthTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
+                    }
+                    else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT && flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT)
+                    {
+                        dmLogWarning("Creating a render target with a stencil texture attachment is currently not supported, defaulting to render buffer.");
+                    }
+                }
                 else
                 {
                     lua_pop(L, 2);
                     assert(top == lua_gettop(L));
-                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s.",
+                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
                         RENDER_SCRIPT_LIB_NAME, key,
                         RENDER_SCRIPT_FORMAT_NAME,
                         RENDER_SCRIPT_WIDTH_NAME,
@@ -1068,27 +1122,28 @@ namespace dmRender
                         RENDER_SCRIPT_MIN_FILTER_NAME,
                         RENDER_SCRIPT_MAG_FILTER_NAME,
                         RENDER_SCRIPT_U_WRAP_NAME,
-                        RENDER_SCRIPT_V_WRAP_NAME);
+                        RENDER_SCRIPT_V_WRAP_NAME,
+                        RENDER_SCRIPT_FLAGS_NAME);
                 }
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
 
-            if (creation_params[index].m_Width > max_tex_size || creation_params[index].m_Height > max_tex_size)
+            if (cp->m_Width > max_tex_size || cp->m_Height > max_tex_size)
             {
                 lua_pop(L, 1);
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
-                    dmGraphics::GetBufferTypeLiteral((dmGraphics::BufferType)buffer_type), creation_params[index].m_Width, creation_params[index].m_Height, max_tex_size);
+                    dmGraphics::GetBufferTypeLiteral(buffer_type), cp->m_Width, cp->m_Height, max_tex_size);
             }
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
         assert(dmGraphics::GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
 
         if (render_target == 0)
         {
-            luaL_error(L, "Unable to create render target.");
+            return luaL_error(L, "Unable to create render target.");
         }
 
         lua_pushnumber(L, render_target);
@@ -1372,9 +1427,12 @@ namespace dmRender
      * @name render.enable_texture
      * @param unit [type:number] texture unit to enable texture for
      * @param render_target [type:handle] render target or texture from which to enable the specified texture unit
-     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to render.BUFFER_COLOR_BIT
+     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
+     *
+     * If The render target has been created as depth and/or stencil textures, these buffer types can be used:
+     *
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
@@ -1428,7 +1486,7 @@ namespace dmRender
                 dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
                 if (lua_isnumber(L, 3))
                 {
-                    buffer_type = (dmGraphics::BufferType) lua_tointeger(L, 3);
+                    buffer_type = CheckBufferType(L, 3);
                 }
 
                 texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
@@ -1436,7 +1494,8 @@ namespace dmRender
                 if (texture == 0)
                 {
                     char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type (type=%s).",
+                        AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
                 }
             }
             else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
@@ -1504,6 +1563,7 @@ namespace dmRender
      * @param buffer_type [type:constant] which type of buffer to retrieve the width from
      *
      * - `render.BUFFER_COLOR_BIT`
+     * - `render.BUFFER_COLOR[x]_BIT` (x: [0..3], if supported!)
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
@@ -1529,15 +1589,10 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-        {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
-        }
+        dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
+
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType) buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, width);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1577,15 +1632,9 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-        {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
-        }
+        dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, height);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1713,7 +1762,13 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
      *
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
@@ -1740,11 +1795,18 @@ namespace dmRender
      * render.draw(self.my_pred, {constants = constants})
      * ```
 
-     * Draw with predicate and frustum culling:
+     * Draw with predicate and frustum culling (without near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
-     * render.draw(self.my_pred, {frustum = frustum, constants = constants})
+     * render.draw(self.my_pred, {frustum = frustum})
+     * ```
+
+     * Draw with predicate and frustum culling (with near+far planes):
+     *
+     * ```lua
+     * local frustum = self.proj * self.view
+     * render.draw(self.my_pred, {frustum = frustum, frustum_planes = render.FRUSTUM_PLANES_ALL})
      * ```
 
      */
@@ -1763,6 +1825,7 @@ namespace dmRender
         }
 
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
         HNamedConstantBuffer constant_buffer = 0;
 
         if (lua_istable(L, 2))
@@ -1772,6 +1835,10 @@ namespace dmRender
 
             lua_getfield(L, -1, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "constants");
@@ -1787,15 +1854,16 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1808,6 +1876,12 @@ namespace dmRender
      *
      * `frustum`
      * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
      *
      * @replaces render.draw_debug2d
      * @examples
@@ -1823,6 +1897,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
 
         if (lua_istable(L, 1))
         {
@@ -1833,18 +1908,23 @@ namespace dmRender
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1933,6 +2013,16 @@ namespace dmRender
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+
+    /*#
+     * @name render.FRUSTUM_PLANES_SIDES
+     * @variable
+     */
+
+    /*#
+     * @name render.FRUSTUM_PLANES_ALL
+     * @variable
+     */
 
     /*#
      * @name render.BLEND_ZERO
@@ -3020,8 +3110,20 @@ namespace dmRender
         }
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
-
 #undef REGISTER_BUFFER_CONSTANT
+
+#define REGISTER_FRUSTUM_PLANES_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmRender::FRUSTUM_PLANES_##name); \
+        lua_setfield(L, -2, "FRUSTUM_PLANES_"#name);
+
+        REGISTER_FRUSTUM_PLANES_CONSTANT(SIDES);
+        REGISTER_FRUSTUM_PLANES_CONSTANT(ALL);
+
+#undef REGISTER_FRUSTUM_PLANES_CONSTANT
+
+        // Flags (only flag here currently, so no need for an enum)
+        lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
+        lua_setfield(L, -2, "TEXTURE_BIT");
 
         lua_pop(L, 1);
 

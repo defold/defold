@@ -101,6 +101,9 @@ namespace dmGameSystem
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
+        memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
+        memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
+
         dmResource::Result factory_e;
         factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
         if ( factory_e != dmResource::RESULT_OK)
@@ -115,9 +118,6 @@ namespace dmGameSystem
             ReleaseResources(factory, resources);
             return factory_e;
         }
-
-        memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
-        memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
 
         // Later, in the render.cpp, we do a mapping between the sampler's location and the texture unit.
         // We assume that the textures[8] are always sorted in the sampler appearance.
