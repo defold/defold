@@ -24,18 +24,14 @@
 (deftest animation-set-test
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/treasure_chest.animationset")
-          {:keys [animations bone-list]} (g/node-value node-id :animation-set)]
-      
-      (is (= 3 (count bone-list)))
+          {:keys [animations]} (g/node-value node-id :animation-set)]
+
       (is (= 3 (count animations)))
       (is (= #{(murmur/hash64 "treasure_chest")
                (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
                (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
-             (set (map :id animations)))) 
-      (let [animation (first animations)
-            bone-count (count bone-list)]
-        (testing "All bones are animated"
-          (is (<= bone-count (count (:tracks animation)))))
+             (set (map :id animations))))
+      (let [animation (first animations)]
         (testing "No events present"
           (is (= 0 (count (:event-tracks animation)))))
 
@@ -50,8 +46,6 @@
                                                                           (map #(dissoc % :bone-id))
                                                                           (map remove-empty-channels)
                                                                           (apply merge-with (constantly ::conflicting-data)))])))]
-          (testing "Bone exists in skeleton"
-            (is (some #(= bone-id %) bone-list)))
 
           (testing "Channels are not animated by multiple tracks"
             (doseq [[channel data] data-by-channel]

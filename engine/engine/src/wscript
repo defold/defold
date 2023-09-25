@@ -26,7 +26,7 @@ def build(bld):
 
     platform_main_cpp = ''
     if 'arm64-nx64' in bld.env.PLATFORM:
-        platform_main_cpp = 'nx64/main.cpp'
+        platform_main_cpp = 'nx64/main_nx64.cpp nx64/engine_nx64.cpp'
     if bld.env.PLATFORM in ('x86_64-ps4', 'x86_64-ps5'):
         platform_main_cpp = 'engine_ps4.cpp'
 
@@ -126,7 +126,7 @@ def build(bld):
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home)]
 
-    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_sound.js']
+    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js']
 
     main_cpp = 'common/main.cpp'
 

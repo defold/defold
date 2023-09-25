@@ -590,7 +590,7 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5','nx64'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
@@ -1725,7 +1725,7 @@ def detect(conf):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LIB_OPENAL'] = ['OpenAL32']
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','js-web','wasm-web'):
         conf.env['LIB_OPENAL'] = ['openal']
 
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']

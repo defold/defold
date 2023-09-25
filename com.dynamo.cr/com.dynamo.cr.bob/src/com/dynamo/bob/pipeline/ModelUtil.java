@@ -224,11 +224,11 @@ public class ModelUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation,
-                                                    Bone bone, double duration, double startTime, double sampleRate) {
+                                                    String bone_name, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.name));
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone_name));
 
         {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
@@ -254,16 +254,10 @@ public class ModelUtil {
         animBuilder.addTracks(animTrackBuilder.build());
     }
 
-    public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> bones) {
-        for (Bone bone : bones) {
-            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
-        }
-    }
-
     public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ModelImporter.DataResolver dataResolver,
-                                        ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
+                                        Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
         Scene scene = loadScene(content, suffix, options, dataResolver);
-        loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
+        loadAnimations(scene, animationSetBuilder, parentAnimationId, animationIds);
     }
 
     private static Bone findBoneByName(ArrayList<ModelImporter.Bone> bones, String name) {
@@ -283,21 +277,7 @@ public class ModelUtil {
         }
     }
 
-    private static class SortOnNodeIndex implements Comparator<ModelImporter.NodeAnimation> {
-        public SortOnNodeIndex(ArrayList<ModelImporter.Bone> bones) {
-            this.bones = bones;
-        }
-        public int compare(ModelImporter.NodeAnimation a, ModelImporter.NodeAnimation b) {
-            Bone bonea = findBoneByName(this.bones, a.node.name);
-            Bone boneb = findBoneByName(this.bones, b.node.name);
-            int indexa = bonea == null ? 0xffffffff : bonea.index;
-            int indexb = boneb == null ? 0xffffffff : boneb.index;
-            return indexa - indexb;
-        }
-        private ArrayList<ModelImporter.Bone> bones;
-    }
-
-    public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> fullSetBones, Rig.AnimationSet.Builder animationSetBuilder,
+    public static void loadAnimations(Scene scene, Rig.AnimationSet.Builder animationSetBuilder,
                                       String parentAnimationId, ArrayList<String> animationIds) {
 
         Arrays.sort(scene.animations, new SortAnimations());
@@ -306,9 +286,11 @@ public class ModelUtil {
             System.out.printf("Scene contains more than one animation. Picking the the longest one ('%s')\n", scene.animations[0].name);
         }
 
-        // We want to use the internal skeleton from this scene to calculate the relative
-        // animation keys
-        ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(scene);
+        ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        String prevRootName = null;
+        if (!bones.isEmpty()) {
+            prevRootName = bones.get(0).node.name;
+        }
 
         for (ModelImporter.Animation animation : scene.animations) {
 
@@ -351,30 +333,19 @@ public class ModelUtil {
 
             animBuilder.setDuration(animation.duration);
 
-            Arrays.sort(animation.nodeAnimations, new SortOnNodeIndex(fullSetBones));
-
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
-
-                Bone skeleton_bone = findBoneByName(fullSetBones, nodeAnimation.node.name);
-                Bone anim_bone = findBoneByName(bones, nodeAnimation.node.name);
-                if (skeleton_bone == null) {
-                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the skeleton!\n", nodeAnimation.node.name);
-                    continue;
-                }
-                if (anim_bone == null) {
-                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the animation file!\n", nodeAnimation.node.name);
-                    continue;
+                String nodeName = nodeAnimation.node.name;
+                if (prevRootName != null && prevRootName.equals(nodeName)) {
+                    nodeName = "root";
                 }
 
-                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone, animation.duration, startTime, sampleRate);
+                createAnimationTracks(animBuilder, nodeAnimation, nodeName, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
 
             break; // we only support one animation per file
         }
-
-        ModelUtil.setBoneList(animationSetBuilder, bones);
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
@@ -756,6 +727,10 @@ public class ModelUtil {
         return scene.skins.length;
     }
 
+    public static int getNumAnimations(Scene scene) {
+        return scene.animations.length;
+    }
+
     public static ArrayList<ModelImporter.Bone> loadSkeleton(Scene scene) {
         ArrayList<ModelImporter.Bone> skeleton = new ArrayList<>();
 
@@ -814,6 +789,10 @@ public class ModelUtil {
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<Rig.Bone>();
         for (Bone bone : boneList) {
+            if (bone.index == 0) {
+                bone.name = "root";
+            }
+
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);
@@ -928,16 +907,16 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        loadModels(scene, meshSetBuilder);
+        loadModels(scene, meshSetBuilder); // testing the function
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        loadSkeleton(scene, skeletonBuilder);
+        loadSkeleton(scene, skeletonBuilder); // testing the function
 
         System.out.printf("Animations:\n");
 
         Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
         ArrayList<String> animationIds = new ArrayList<>();
-        loadAnimations(scene, bones, animationSetBuilder, file.getName(), animationIds);
+        loadAnimations(scene, animationSetBuilder, file.getName(), animationIds);
 
         for (ModelImporter.Animation animation : scene.animations) {
             System.out.printf("  Animation: %s\n", animation.name);

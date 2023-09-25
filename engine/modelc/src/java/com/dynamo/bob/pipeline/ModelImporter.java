@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 
 public class ModelImporter {
 
+    static final String ROOT_BONE_NAME = "root";
     static final String LIBRARY_NAME = "modelc_shared";
 
     static {

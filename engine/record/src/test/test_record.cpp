@@ -27,7 +27,11 @@ TEST(dmRecord, InvalidWidth1)
     params.m_Filename = "tmp/test.ivf";
     dmRecord::HRecorder recorder = 0;
     dmRecord::Result r = dmRecord::New(&params, &recorder);
+#if defined(DM_RECORD_NULL)
+    ASSERT_EQ(dmRecord::RESULT_RECORD_NOT_SUPPORTED, r);
+#else
     ASSERT_EQ(dmRecord::RESULT_INVAL_ERROR, r);
+#endif
     ASSERT_EQ(0, recorder);
 }
 
@@ -39,7 +43,11 @@ TEST(dmRecord, InvalidWidth2)
     params.m_Filename = "tmp/test.ivf";
     dmRecord::HRecorder recorder = 0;
     dmRecord::Result r = dmRecord::New(&params, &recorder);
+#if defined(DM_RECORD_NULL)
+    ASSERT_EQ(dmRecord::RESULT_RECORD_NOT_SUPPORTED, r);
+#else
     ASSERT_EQ(dmRecord::RESULT_INVAL_ERROR, r);
+#endif
     ASSERT_EQ(0, recorder);
 }
 
@@ -51,7 +59,11 @@ TEST(dmRecord, InvalidHeight1)
     params.m_Filename = "tmp/test.ivf";
     dmRecord::HRecorder recorder = 0;
     dmRecord::Result r = dmRecord::New(&params, &recorder);
+#if defined(DM_RECORD_NULL)
+    ASSERT_EQ(dmRecord::RESULT_RECORD_NOT_SUPPORTED, r);
+#else
     ASSERT_EQ(dmRecord::RESULT_INVAL_ERROR, r);
+#endif
     ASSERT_EQ(0, recorder);
 }
 
@@ -63,7 +75,11 @@ TEST(dmRecord, InvalidHeight2)
     params.m_Filename = "tmp/test.ivf";
     dmRecord::HRecorder recorder = 0;
     dmRecord::Result r = dmRecord::New(&params, &recorder);
+#if defined(DM_RECORD_NULL)
+    ASSERT_EQ(dmRecord::RESULT_RECORD_NOT_SUPPORTED, r);
+#else
     ASSERT_EQ(dmRecord::RESULT_INVAL_ERROR, r);
+#endif
     ASSERT_EQ(0, recorder);
 }
 
@@ -75,12 +91,17 @@ TEST(dmRecord, EmptyRecording)
     params.m_Filename = "tmp/test.ivf";
     dmRecord::HRecorder recorder = 0;
     dmRecord::Result r = dmRecord::New(&params, &recorder);
+#if defined(DM_RECORD_NULL)
+    ASSERT_EQ(dmRecord::RESULT_RECORD_NOT_SUPPORTED, r);
+#else
     ASSERT_EQ(dmRecord::RESULT_OK, r);
+#endif
 
     r = dmRecord::Delete(recorder);
     ASSERT_EQ(dmRecord::RESULT_OK, r);
 }
 
+#if !defined(DM_RECORD_NULL)
 TEST(dmRecord, Simple)
 {
     dmRecord::NewParams params;
@@ -120,6 +141,7 @@ TEST(dmRecord, Simple)
     r = dmRecord::Delete(recorder);
     ASSERT_EQ(dmRecord::RESULT_OK, r);
 }
+#endif
 
 int main(int argc, char **argv)
 {

@@ -394,7 +394,7 @@
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
 
-(defn calculate-ttf-layer-mask [font-desc]
+(defn font-desc->layer-mask [font-desc]
   (let [^double alpha (:alpha font-desc)
         ^double shadow-alpha (:shadow-alpha font-desc)
         ^double outline-alpha (:outline-alpha font-desc)
@@ -438,7 +438,7 @@
                               (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
-        layer-mask (calculate-ttf-layer-mask font-desc)]
+        layer-mask (font-desc->layer-mask font-desc)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [^BufferedImage glyph-image (let [face-color (Color. ^double (:alpha font-desc) 0.0 0.0)
@@ -640,7 +640,7 @@
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
-        layer-mask (calculate-ttf-layer-mask font-desc)]
+        layer-mask (font-desc->layer-mask font-desc)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)

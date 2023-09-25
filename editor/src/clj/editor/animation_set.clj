@@ -35,14 +35,13 @@
 (def ^:private animation-set-icon "icons/32/Icons_24-AT-Animation.png")
 
 (defn is-animation-set? [resource]
-  (= (:ext resource) "animationset")) 
+  (= (:ext resource) "animationset"))
 
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
 
-(g/defnk produce-desc-pb-msg [skeleton animation-resources]
-  (let [pb {:skeleton (resource/resource->proj-path skeleton)
-            :animations (mapv animation-instance-desc-pb-msg animation-resources)}]
+(g/defnk produce-desc-pb-msg [animation-resources]
+  (let [pb {:animations (mapv animation-instance-desc-pb-msg animation-resources)}]
     pb))
 
 (defn- update-animation-info [resource animations-resource info]
@@ -56,7 +55,7 @@
     (-> info
         (assoc :parent-id parent-id)
         (assoc :parent-resource (or parent-resource resource)))))
-  
+
 ;; Also used by model.clj
 (g/defnk produce-animation-info [resource animations-resource animation-infos]
   (into []
@@ -64,7 +63,7 @@
               (map (partial update-animation-info resource animations-resource)))
         animation-infos))
 
-(defn- load-and-validate-animation-set [resource animations-resource bones animation-info]
+(defn- load-and-validate-animation-set [resource animations-resource animation-info]
   (let [animations-resource (if (nil? animations-resource) resource animations-resource)
         paths (map (fn [x] (:path x)) animation-info)
         streams (map (fn [x] (io/input-stream (:resource x))) animation-info)
@@ -78,19 +77,18 @@
         project-path (workspace/project-path workspace)
         data-resolver (ModelUtil/createFileDataResolver project-path)]
 
-    (AnimationSetBuilder/buildAnimations paths bones streams data-resolver parent-ids animation-set-builder animation-ids)
+    (AnimationSetBuilder/buildAnimations paths streams data-resolver parent-ids animation-set-builder animation-ids)
     (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
       {:animation-set animation-set
        :animation-ids (vec animation-ids)})))
 
 ;; Also used by model.clj
-(g/defnk produce-animation-set-info [_node-id bones resource animations-resource skeleton-resource animation-info]
+(g/defnk produce-animation-set-info [_node-id resource animations-resource animation-info]
   (try
-    (if (or (empty? animation-info)
-            (nil? bones))
+    (if (empty? animation-info)
       {:animation-set []
        :animation-ids []}
-      (load-and-validate-animation-set resource animations-resource bones animation-info))
+      (load-and-validate-animation-set resource animations-resource animation-info))
     (catch LoaderException e
       (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
       (g/->error _node-id :animations :fatal resource
@@ -111,9 +109,8 @@
   {:resource resource
    :content (protobuf/map->bytes Rig$AnimationSet (:animation-set user-data))})
 
-(g/defnk produce-animation-set-build-target [_node-id resource bones animation-set]
-  (when (not (or (nil? bones)
-                (empty? animation-set)))
+(g/defnk produce-animation-set-build-target [_node-id resource animation-set]
+  (when (not (empty? animation-set))
     (bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
@@ -124,12 +121,7 @@
   {:navigation false
    :sections
    [{:title "Animation Set"
-     :fields [{:path [:skeleton]
-               :type :resource
-               :filter model-scene/model-file-types
-               :label "Skeleton"
-               :default nil}
-              {:path [:animations]
+     :fields [{:path [:animations]
                :type :list
                :label "Animations"
                :element {:type :resource
@@ -142,9 +134,8 @@
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(g/defnk produce-form-data [_node-id skeleton animation-resources]
-  (let [values {[:skeleton] skeleton
-                [:animations] animation-resources}]
+(g/defnk produce-form-data [_node-id animation-resources]
+  (let [values {[:animations] animation-resources}]
     (-> form-sections
         (assoc :form-ops {:user-data {:node-id _node-id}
                           :set set-form-op
@@ -154,26 +145,11 @@
 (g/defnode AnimationSetNode
   (inherits resource-node/ResourceNode)
 
-  (input skeleton-resource resource/Resource)
   (input animations-resource resource/Resource)
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
   (input animation-infos g/Any :array)
   (output animation-info g/Any :cached produce-animation-info)
-           
-  (input bones g/Any)
-  (output bones g/Any (gu/passthrough bones))
-
-  (property skeleton resource/Resource
-            (value (gu/passthrough skeleton-resource))
-            (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :skeleton-resource]
-                                            [:bones :bones])))
-            (dynamic error (g/fnk [_node-id skeleton]
-                                  (or (validation/prop-error :info _node-id :skeleton validation/prop-nil? skeleton "Skeleton")
-                                      (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton"))))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext model-scene/model-file-types})))
 
   (property animations resource/ResourceVec
             (value (gu/passthrough animation-resources))
@@ -205,11 +181,12 @@
 (defn- load-animation-set [_project self resource pb]
   (let [proj-path->resource (partial workspace/resolve-resource resource)
         animation-proj-paths (map :animation (:animations pb))
-        animation-resources (mapv proj-path->resource animation-proj-paths)
-        skeleton (workspace/resolve-resource resource (:skeleton pb))]
+        animation-resources (mapv proj-path->resource animation-proj-paths)]
     (g/set-property self
-                    :skeleton skeleton
                     :animations animation-resources)))
+
+(defn- sanitize-animation-set [animation-set-desc]
+  (dissoc animation-set-desc :skeleton)) ; Deprecated field.
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -217,6 +194,7 @@
     :icon animation-set-icon
     :label "Animation Set"
     :load-fn load-animation-set
+    :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
     :view-types [:cljfx-form-view]))

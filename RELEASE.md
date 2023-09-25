@@ -176,5 +176,13 @@ When the build has been uploaded it needs to be set live:
 
 1. Find your upload in the list and change the value in the `Set build live on branch` to `default`
 
+1. Update the Steam Community page with the release notes. Create a new post with the relase notes [using this link](https://steamcommunity.com/games/1365760/partnerevents/edit/). Write something like:
 
+```
+Defold 1.4.1 has been released
+This new version can be downloaded by opening Defold and allowing the editor to self-update.
+
+All releases can be downloaded at: https://github.com/defold/defold/releases
+Official forum thread with complete update notes: https://forum.defold.com/t/defold-1-4-1-has-been-released/72246
+```
 
