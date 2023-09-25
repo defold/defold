@@ -281,9 +281,6 @@ public class ModelUtil {
     public static void loadAnimations(Scene scene, Rig.AnimationSet.Builder animationSetBuilder,
                                       String parentAnimationId, ArrayList<String> animationIds) {
 
-        // Sorted on duration
-        Arrays.sort(scene.animations, new SortAnimations());
-
         ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
         String prevRootName = null;
         if (!bones.isEmpty()) {
@@ -358,7 +355,7 @@ public class ModelUtil {
     }
 
     // For editor
-    public static ArrayList<String> getAnimationlNames(Scene scene) {
+    public static ArrayList<String> getAnimationNames(Scene scene) {
         ArrayList<String> names = new ArrayList<>();
         for (ModelImporter.Animation animation : scene.animations) {
             names.add(animation.name);
@@ -710,6 +707,8 @@ public class ModelUtil {
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
+        // Sort on duration. This allows us to return a list of sorted animation names
+        Arrays.sort(scene.animations, new SortAnimations());
         return scene;
     }
 
