@@ -691,13 +691,7 @@ static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmArray<job
     SET_FARRAY(obj, texCoords0, vcount * mesh->m_TexCoord0NumComponents, mesh->m_TexCoord0);
     SET_FARRAY(obj, texCoords1, vcount * mesh->m_TexCoord1NumComponents, mesh->m_TexCoord1);
 
-    if (mesh->m_Bones != 0)
-    {
-        uint32_t count = vcount * 4;
-        if (!mesh->m_Material->m_IsSkinned)
-            count = 1;
-        SET_IARRAY(obj, bones, count, mesh->m_Bones);
-    }
+    SET_IARRAY(obj, bones, vcount * 4, mesh->m_Bones);
 
     SET_IARRAY(obj, indices, icount, mesh->m_Indices);
 
