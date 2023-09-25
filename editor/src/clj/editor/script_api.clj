@@ -15,10 +15,12 @@
 (ns editor.script-api
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
+            [editor.lua :as lua]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.yaml :as yaml]))
@@ -26,115 +28,47 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defmulti convert
-  "Converts YAML documentation input to the internal auto-complete format defined
-  in `editor.lua` namespace."
-  :type)
-
-(defn- name-with-ns
-  [ns name]
-  (if (nil? ns)
-    name
-    (str ns \. name)))
-
-(defmethod convert "table"
-  [{:keys [ns name members desc]}]
-  (let [name (name-with-ns ns name)]
-    (into [{:type :namespace
-            :name name
-            :doc desc
-            :display-string name
-            :insert-string name}]
-          (comp
-            (filter map?)
-            (map #(convert (assoc % :ns name))))
-          members)))
-
 (defn- bracketname?
   [x]
   (= \[ (first (:name x))))
 
-(defn- optional-param?
-  [x]
-  (or (:optional x) (bracketname? x)))
+(defn- build-param-string [params mode]
+  (str "("
+       (->> params
+            (keep-indexed
+              (fn [i {:keys [name optional] :as param}]
+                (case mode
+                  :display-string (if (and optional (not (bracketname? param)))
+                                    (str "[" name "]")
+                                    name)
+                  :snippet (when (and (not optional) (not (bracketname? param)))
+                             (format "${%s:%s}" (inc ^long i) name)))))
+            (string/join ", "))
+       ")"))
 
-(defn- param-names
-  [params remove-optional?]
-  (let [filter-optionals (if remove-optional?
-                           (filter #(not (optional-param? %)))
-                           (map #(if (and (:optional %) (not (bracketname? %)))
-                                   (assoc % :name (str "[" (:name %) "]"))
-                                   %)))]
-    (into [] (comp filter-optionals (map :name)) params)))
+(defn lines->completion-info [lines]
+  (letfn [(make-completions [ns-path {:keys [type name desc] :as el}]
+            (case type
+              "table"
+              (let [child-path (conj ns-path name)]
+                (into [[ns-path (code-completion/make name :type :module :doc desc)]]
+                      (mapcat #(make-completions child-path %))
+                      (:members el)))
 
-(defn- build-param-string
-  ([params]
-   (build-param-string params false))
-  ([params remove-optional?]
-   (str "(" (string/join ", " (param-names params remove-optional?)) ")")))
+              "function"
+              (let [{:keys [parameters]} el]
+                [[ns-path (code-completion/make
+                            name
+                            :type :function
+                            :doc desc
+                            :display-string (str name (build-param-string parameters :display-string))
+                            :insert-snippet (str name (build-param-string parameters :snippet)))]])
 
-(defmethod convert "function"
-  [{:keys [ns name desc parameters]}]
-  (let [name (name-with-ns ns name)]
-    {:type :function
-     :name name
-     :doc desc
-     :display-string (str name (build-param-string parameters))
-     :insert-string (str name (build-param-string parameters true))
-     :tab-triggers {:select (param-names parameters true) :exit (when parameters ")")}}))
-
-(defmethod convert :default
-  [{:keys [ns name desc]}]
-  (when name
-    (let [name (name-with-ns ns name)]
-      {:type :variable
-       :name name
-       :doc desc
-       :display-string name
-       :insert-string name})))
-
-(defn convert-lines
-  [lines]
-  (into []
-        (comp (map convert) (remove nil?))
-        (-> (data/lines-reader lines) (yaml/load keyword))))
-
-(defn combine-conversions
-  "This function combines the individual hierarchical conversions into a map where
-  all the namespaces are keys at the top level mapping to a vector of their
-  respective contents. A global namespace is also added with the empty string as
-  a name, which contains a vector of namespace entries to enable auto completion
-  of namespace names."
-  [conversions]
-  (first (reduce
-           (fn [[m ns] x]
-             (cond
-               ;; Recurse into sublevels and merge the current map with the
-               ;; result. Any key collisions will have vector values so we
-               ;; can merge them with into.
-               (vector? x) [(merge-with into m (combine-conversions x)) ns]
-
-               (= :namespace (:type x)) [(let [m (assoc m (:name x) [])
-                                               m (if-not (= "" ns)
-                                                   (update m ns conj x)
-                                                   m)]
-                                           ;; Always add namespaces as members
-                                           ;; of the global namespace.
-                                           (update m "" conj x))
-                                         (:name x)]
-
-               x [(update m ns conj x) ns]
-
-               ;; Don't add empty parse results. They are probably
-               ;; from syntactically valid but incomplete yaml
-               ;; records.
-               :else [m ns]))
-           [{"" []} ""]
-           conversions)))
-
-(defn lines->completion-info
-  [lines]
-  (combine-conversions (convert-lines lines)))
+              (when name
+                [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
+    (->> (yaml/load (data/lines-reader lines) keyword)
+         (eduction (mapcat #(make-completions [] %)))
+         lua/make-completion-map)))
 
 (g/defnk produce-completions
   [parse-result]
