@@ -1821,6 +1821,7 @@ void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::B
     EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], test_epsilon);
     EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], test_epsilon);
     EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], test_epsilon);
+    EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, test_epsilon);
 }
 
 TEST_P(BoxRenderTest, BoxRender)
@@ -2931,6 +2932,18 @@ BoxRenderParams box_render_params[] =
         },
         6,
         {0, 1, 3, 0, 3, 2}
+    },
+    // 9-slice params: off | Use geometries: 4 | Flip uv: na | Texture: paged atlas (64x64 texture)
+    {
+        "/gui/render_box_test11.goc",
+        {
+            dmGameSystem::BoxVertex(Vector4(-32.000000, -32.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 1),
+            dmGameSystem::BoxVertex(Vector4(-32.000000, 32.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0),  1),
+            dmGameSystem::BoxVertex(Vector4(32.000000, 32.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0),   1),
+            dmGameSystem::BoxVertex(Vector4(32.000000, -32.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0),  1)
+        },
+        6,
+        {0, 1, 2, 0, 2, 3}
     }
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));

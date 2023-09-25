@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -165,7 +166,7 @@ public class AtlasUtil {
         return images;
     }
 
-    private interface PathTransformer {
+    public interface PathTransformer {
         String transform(String path);
     }
 
@@ -242,6 +243,54 @@ public class AtlasUtil {
         catch (java.lang.NegativeArraySizeException e) {
             String message = String.format("The generated texture for resource '%s' is too large.", atlasResource.getPath());
             throw new CompileExceptionError(message, e);
+        }
+    }
+
+    // For tests
+    private static List<BufferedImage> loadImagesFromPaths(List<String> resourcePaths) throws IOException, CompileExceptionError {
+        List<BufferedImage> images = new ArrayList<BufferedImage>(resourcePaths.size());
+
+        for (String path : resourcePaths) {
+
+            BufferedImage image = ImageIO.read(new FileInputStream(path));
+
+            if (image == null) {
+                throw new CompileExceptionError("Unable to load image from path: " + path);
+            }
+            images.add(image);
+        }
+        return images;
+    }
+
+    public static TextureSetResult generateTextureSet(Atlas atlas, PathTransformer transformer) throws IOException, CompileExceptionError {
+        List<AtlasImage> atlasImages = collectImages(atlas);
+        List<String> imagePaths = new ArrayList<String>();
+        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        for (AtlasImage image : atlasImages) {
+            imagePaths.add(image.getImage());
+            imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
+        }
+
+        int imagePathCount = imagePaths.size();
+        for (int i = 0; i < imagePathCount; ++i) {
+            imagePaths.set(i, transformer.transform(imagePaths.get(i)));
+        }
+
+        List<BufferedImage> imageDatas = loadImagesFromPaths(imagePaths);
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
+        try {
+            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageHullSizes, imagePaths, iterator,
+                Math.max(0, atlas.getMargin()),
+                Math.max(0, atlas.getInnerPadding()),
+                Math.max(0, atlas.getExtrudeBorders()),
+                true, false, null,
+                atlas.getMaxPageWidth(), atlas.getMaxPageHeight());
+
+            return result;
+        }
+        catch (java.lang.NegativeArraySizeException e) {
+            throw new CompileExceptionError("The generated texture is too large.", e);
         }
     }
 }
