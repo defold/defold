@@ -35,19 +35,22 @@ def configure(conf):
                      java_outdir    = make_path('./java'),
                      jni_outdir     = make_path('./jni'))
 
+    if conf.env.PLATFORM in ('x86_64-win32','win32'):
+        conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib'] #['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib']
+
 def build(bld):
     bld.load('java')
 
     bld.program(features = 'c cxx test',
                includes = ['.', '..', './jni'],
                source   = bld.path.ant_glob('**/*.cpp'),
-               use      = 'jni DLIB PROFILE_NULL JDK',
+               use      = 'jni DLIB PROFILE_NULL JDK DEBUG',
                target   = 'test_jni')
 
     bld.shlib(features = 'c cxx skip_asan',
                includes = ['.', '..', './jni'],
                source   = bld.path.ant_glob('**/*.cpp'),
-               use      = 'jni_noasan DLIB_NOASAN PROFILE_NULL_NOASAN JDK',
+               use      = 'jni_noasan DLIB_NOASAN PROFILE_NULL_NOASAN JDK DEBUG',
                target   = 'test_jni_shared')
 
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
