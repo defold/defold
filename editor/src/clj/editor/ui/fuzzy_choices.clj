@@ -13,10 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui.fuzzy-choices
-  (:require [clojure.core.reducers :as r]
+  (:require [cljfx.fx.text :as fx.text]
+            [cljfx.fx.text-flow :as fx.text-flow]
+            [clojure.core.reducers :as r]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.util :as util])
-  (:import (javafx.scene.text Text TextFlow)))
+  (:import [javafx.scene.text Text TextFlow]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -89,3 +91,32 @@
 
 (defn matching-indices [fuzzy-matched-option]
   (:matching-indices (meta fuzzy-matched-option)))
+
+(defn- make-text-run-cljfx [text style-class]
+  (cond-> {:fx/type fx.text/lifecycle
+           :text text}
+          style-class
+          (assoc :style-class style-class)))
+
+(defn- matched-text-runs-cljfx [^String text matching-indices]
+  (let [/ (inc (.lastIndexOf text "/"))]
+    (into []
+          (mapcat (fn [[matched? start end]]
+                    (cond
+                      matched?
+                      [(make-text-run-cljfx (subs text start end) "matched")]
+
+                      (< start / end)
+                      [(make-text-run-cljfx (subs text start /) "diminished")
+                       (make-text-run-cljfx (subs text / end) nil)]
+
+                      (<= start end /)
+                      [(make-text-run-cljfx (subs text start end) "diminished")]
+
+                      :else
+                      [(make-text-run-cljfx (subs text start end) nil)])))
+          (fuzzy-text/runs (.length text) matching-indices))))
+
+(defn make-matched-text-flow-cljfx [text matching-indices]
+  {:fx/type fx.text-flow/lifecycle
+   :children (matched-text-runs-cljfx text matching-indices)})
