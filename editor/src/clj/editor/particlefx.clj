@@ -154,16 +154,17 @@
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
 (defn- get-curve-points [property-value]
-  (->> property-value
-       props/curve-vals
-       (sort-by first)
-       (mapv (fn [[x y t-x t-y]]
-               (protobuf/make-map-with-defaults Particle$SplinePoint
-                 :x x
-                 :y y
-                 :t-x t-x
-                 :t-y t-y)))
-       not-empty))
+  (when (props/curve? property-value)
+    (->> property-value
+         (props/curve-vals)
+         (sort-by first)
+         (mapv (fn [[x y t-x t-y]]
+                 (protobuf/make-map-with-defaults Particle$SplinePoint
+                   :x x
+                   :y y
+                   :t-x t-x
+                   :t-y t-y)))
+         (not-empty))))
 
 (g/defnk produce-modifier-pb
   [position rotation type magnitude max-distance use-direction]

@@ -48,6 +48,8 @@
     (sort-by first)
     vec))
 
+(declare round-scalar round-scalar-float)
+
 (defn spline-cp [spline x]
   (let [x (min (max x 0.0) 1.0)
         [cp0 cp1] (some (fn [cps] (and (<= (ffirst cps) x) (<= x (first (second cps))) cps)) (partition 2 1 spline))]
@@ -62,8 +64,15 @@
             ty (/ (math/hermite' y0 y1 d0 d1 t) dx)
             l (Math/sqrt (+ 1.0 (* ty ty)))
             ty (/ ty l)
-            tx (/ 1.0 l)]
-        [x y tx ty]))))
+            tx (/ 1.0 l)
+            num-fn (if (math/float32? x0)
+                     round-scalar-float
+                     round-scalar)]
+        (-> (empty cp0)
+            (conj (num-fn x))
+            (conj (num-fn y))
+            (conj (num-fn tx))
+            (conj (num-fn ty)))))))
 
 (defprotocol Sampler
   (sample [this])
@@ -73,20 +82,26 @@
   ([curve]
    (curve-aabbs curve nil))
   ([curve ids]
-   (->> (if ids
-          (iv/iv-filter-ids (:points curve) ids)
-          (:points curve))
-        (iv/iv-entries)
-        (into {}
-              (map (fn [[id v]]
-                     (let [[x y] v
-                           v [x y 0.0]]
-                       [id [v v]])))))))
+   (let [points (if ids
+                  (iv/iv-filter-ids (:points curve) ids)
+                  (:points curve))
+         id-vec-entries (iv/iv-entries points)
+         [_id [cp-x]] (first id-vec-entries)
+         zero (if (math/float32? cp-x)
+                (float 0.0)
+                0.0)]
+     (into {}
+           (map (fn [[id v]]
+                  (let [[x y] v
+                        v [x y zero]]
+                    [id [v v]])))
+           id-vec-entries))))
 
 (defn- curve-insert [curve positions]
-  (let [spline (->> (:points curve) iv/iv-vals ->spline)
-        points (mapv (fn [[x]] (-> spline
-                                 (spline-cp x))) positions)]
+  (let [spline (-> curve :points iv/iv-vals ->spline)
+        points (mapv (fn [[x]]
+                       (spline-cp spline x))
+                     positions)]
     (update curve :points iv/iv-into points)))
 
 (defn- curve-delete [curve ids]
@@ -115,13 +130,18 @@
                  (assoc (first cps) [0.0 0.0]
                         (last cps) [1.0 1.0]))]
     (curve-update curve ids (fn [v]
-                              (let [[x y] v]
+                              (let [[x y] v
+                                    num-fn (if (math/float32? x)
+                                             round-scalar-float
+                                             round-scalar)]
                                 (.set p x y 0.0)
                                 (.transform transform p)
                                 (let [[min-x max-x] (limits x)
                                       x (max min-x (min max-x (.getX p)))
                                       y (.getY p)]
-                                  (assoc v 0 x 1 y)))))))
+                                  (assoc v
+                                    0 (num-fn x)
+                                    1 (num-fn y))))))))
 
 (defn curve-point-count
   ^long [curve]
@@ -174,6 +194,10 @@
   (t/geom-delete [this ids] (curve-delete this ids))
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
+
+(defn curve? [value]
+  (or (instance? Curve value)
+      (instance? CurveSpread value)))
 
 (defn ->curve [control-points]
   (Curve. (iv/iv-vec control-points)))

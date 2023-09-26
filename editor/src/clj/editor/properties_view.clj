@@ -323,7 +323,7 @@
 (defn- make-curve-update-ui-fn [^ToggleButton editor-toggle-button ^TextField value-text-field update-ui-fn]
   (fn curve-update-ui-fn [values message is-read-only]
     (update-ui-fn values message is-read-only)
-    (let [is-curved (boolean (< 1 (count (properties/curve-vals (first values)))))]
+    (let [is-curved (< 1 (properties/curve-point-count (first values)))]
       (.setSelected editor-toggle-button is-curved)
       (ui/editable! editor-toggle-button (some? (first values)))
       (ui/disable! value-text-field is-curved))))

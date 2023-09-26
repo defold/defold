@@ -51,6 +51,10 @@
   ^long [^IdVec id-vec]
   (count (.-entries id-vec)))
 
+(defn iv-added-id
+  ^long [^IdVec id-vec]
+  (key (peek (.-entries id-vec))))
+
 (defn iv-entries [^IdVec id-vec]
   (.-entries id-vec))
 

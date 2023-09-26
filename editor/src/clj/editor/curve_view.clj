@@ -88,7 +88,7 @@
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
-(defn- curve? [[_ prop-info]]
+(defn- has-control-points? [[_ prop-info]]
   (let [value (:value prop-info)]
     (and (some? value)
          (let [type (g/value-type-dispatch-value (:type prop-info))]
@@ -211,7 +211,7 @@
 
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
-                                 (filter curve?)
+                                 (filter has-control-points?)
                                  (map (fn [[k p]] {:node-id (:node-id p)
                                                    :property k
                                                    :curve (iv/iv-entries (:points (:value p)))}))))
@@ -265,7 +265,7 @@
                                                       p [(.x p) (.y p) (.z p)]
                                                       new-curve (-> (g/node-value nid property)
                                                                   (types/geom-insert [p]))
-                                                      id (last (iv/iv-ids (:points new-curve)))
+                                                      id (iv/iv-added-id (:points new-curve))
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
                                                   (g/set-property nid property new-curve)))))

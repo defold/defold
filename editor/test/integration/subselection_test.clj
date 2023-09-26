@@ -22,7 +22,7 @@
             [integration.test-util :as test-util]
             [support.test-support :refer [tx-nodes]]
             [util.id-vec :as iv])
-  (:import [javax.vecmath Matrix4d Point3d]))
+  (:import [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (defn- select! [app-view selection]
   (let [opseq (gensym)]

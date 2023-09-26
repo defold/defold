@@ -15,21 +15,14 @@
 (ns integration.particlefx-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.graphics :as graphics]
             [editor.material :as material]
+            [editor.particle-lib :as plib]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.particle-lib :as plib]
             [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+  (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
   {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
@@ -126,10 +119,10 @@
           [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
           check! (fn check! [node-id prop-kw]
                    (doseq [original-curve-spread
-                           [(properties/->curve-spread [[(float 0.0) (float 0.0) (float 1.0) (float 0.0)]] (float 0.0))
-                            (properties/->curve-spread [[(double 0.0) (double 0.0) (double 1.0) (double 0.0)]] (double 0.0))
-                            (properties/->curve-spread [(vector-of :float 0.0 0.0 1.0 0.0)] (float 0.0))
-                            (properties/->curve-spread [(vector-of :double 0.0 0.0 1.0 0.0)] (double 0.0))]]
+                           [(properties/->curve-spread [[(float 0.0) (float 1.0) (float 1.0) (float 0.0)]] (float 0.0))
+                            (properties/->curve-spread [[(double 0.0) (double 1.0) (double 1.0) (double 0.0)]] (double 0.0))
+                            (properties/->curve-spread [(vector-of :float 0.0 1.0 1.0 0.0)] (float 0.0))
+                            (properties/->curve-spread [(vector-of :double 0.0 1.0 1.0 0.0)] (double 0.0))]]
                      (with-open [_ (test-util/make-graph-reverter project-graph)]
                        (g/set-property! node-id prop-kw original-curve-spread)
                        (test-util/manip-scale! node-id [2.0 2.0 2.0])

@@ -84,15 +84,19 @@
                   (and (or (not (instance? Vec a))
                            (is (= (type (.am ^Vec a))
                                   (type (.am ^Vec b)))))
-                       (is (every? true? (map float-type-preserving? a (cycle b))))
-                       (is (every? true? (map float-type-preserving? b (cycle a)))))
+                       (testing "Vector elements"
+                         (every? true? (map float-type-preserving? a (cycle b)))
+                         (every? true? (map float-type-preserving? b (cycle a)))))
 
                   (instance? Curve a)
-                  (is (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))
+                  (testing "Curve points"
+                    (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))
 
                   (instance? CurveSpread a)
-                  (and (is (true? (float-type-preserving? (:spread a) (:spread b))))
-                       (is (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))))))))
+                  (and (testing "CurveSpread spread"
+                         (true? (float-type-preserving? (:spread a) (:spread b))))
+                       (testing "CurveSpread points"
+                         (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))))))))
 
 (def ensure-float-type-preserving! float-type-preserving?)
 
