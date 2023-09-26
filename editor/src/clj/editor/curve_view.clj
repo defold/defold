@@ -88,11 +88,13 @@
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
-(defn- curve? [[_ p]]
-  (let [t (g/value-type-dispatch-value (:type p))
-        v (:value p)]
-    (when (or (= t Curve) (= t CurveSpread))
-      (< 1 (count (properties/curve-vals v))))))
+(defn- curve? [[_ prop-info]]
+  (let [value (:value prop-info)]
+    (and (some? value)
+         (let [type (g/value-type-dispatch-value (:type prop-info))]
+           (if (or (= type Curve) (= type CurveSpread))
+             (< 1 (properties/curve-point-count value))
+             false)))))
 
 (def ^:private x-steps 100)
 (def ^:private xs (reduce (fn [res s] (conj res (double (/ s (- x-steps 1))))) [] (range x-steps)))
@@ -212,7 +214,7 @@
                                  (filter curve?)
                                  (map (fn [[k p]] {:node-id (:node-id p)
                                                    :property k
-                                                   :curve (iv/iv-mapv identity (:points (:value p)))}))))
+                                                   :curve (iv/iv-entries (:points (:value p)))}))))
                        selected-node-properties)
         ccount (count curves)
         hue-f (/ 360.0 ccount)

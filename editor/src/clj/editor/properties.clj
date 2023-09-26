@@ -73,27 +73,30 @@
   ([curve]
    (curve-aabbs curve nil))
   ([curve ids]
-   (->> (iv/iv-filter-ids (:points curve) ids)
-        (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                       v [x y 0.0]]
-                                   [id [v v]])))
-        (into {}))))
+   (->> (if ids
+          (iv/iv-filter-ids (:points curve) ids)
+          (:points curve))
+        (iv/iv-entries)
+        (into {}
+              (map (fn [[id v]]
+                     (let [[x y] v
+                           v [x y 0.0]]
+                       [id [v v]])))))))
 
 (defn- curve-insert [curve positions]
-  (let [spline (->> (:points curve)
-                 (iv/iv-mapv second)
-                 ->spline)
+  (let [spline (->> (:points curve) iv/iv-vals ->spline)
         points (mapv (fn [[x]] (-> spline
                                  (spline-cp x))) positions)]
     (update curve :points iv/iv-into points)))
 
 (defn- curve-delete [curve ids]
-  (let [include (->> (iv/iv-mapv identity (:points curve))
-                  (sort-by (comp first second))
-                  (map first)
-                  (drop 1)
-                  (butlast)
-                  (into #{}))]
+  (let [include (->> (:points curve)
+                     (iv/iv-entries)
+                     (sort-by (comp first second))
+                     (map first)
+                     (drop 1)
+                     (butlast)
+                     (into #{}))]
     (update curve :points iv/iv-remove-ids (filter include ids))))
 
 (defn- curve-update [curve ids f]
@@ -119,6 +122,10 @@
                                       x (max min-x (min max-x (.getX p)))
                                       y (.getY p)]
                                   (assoc v 0 x 1 y)))))))
+
+(defn curve-point-count
+  ^long [curve]
+  (iv/iv-count (:points curve)))
 
 (defn curve-vals [curve]
   (iv/iv-vals (:points curve)))
