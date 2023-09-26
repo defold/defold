@@ -1548,7 +1548,8 @@
               :anchor-location :window-top-left
               :showing showing
               :auto-fix false
-              :auto-hide false
+              :auto-hide true
+              :on-auto-hide {:event :auto-hide}
               :hide-on-escape false
               :content [{:fx/type fx/ext-get-ref :ref :content}]}]
             show-doc
@@ -1613,6 +1614,9 @@
                     .getFocusOwner)
             e)
           (.consume e))))
+
+    :auto-hide
+    (hide-suggestions! view-node)
 
     :completion-list-view-event-filter
     (let [e (:fx/event e)]
