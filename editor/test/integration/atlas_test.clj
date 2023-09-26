@@ -47,6 +47,18 @@
               "pow_anim"]
              animation-ids-in-ddf)))))
 
+(deftest rename-anim
+  (test-util/with-loaded-project
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+          project (test-util/setup-project! workspace)
+          atlas (project/get-resource-node project "/main/rename.atlas")
+          ddf-texture-set (g/node-value atlas :texture-set)
+          animation-ids-in-ddf (mapv :id (:animations ddf-texture-set))]
+      (is (= (set ["ball"
+                   "diamond_dogs"
+                   "test_anim"])
+             (set animation-ids-in-ddf))))))
+
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
