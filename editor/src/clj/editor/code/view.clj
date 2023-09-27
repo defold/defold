@@ -1606,9 +1606,9 @@
         (let [^KeyEvent e e]
           (ui/send-event!
             (some-> e
-                    ^Node .getSource
+                    ^Node (.getSource)
                     .getScene
-                    ^PopupWindow .getWindow
+                    ^PopupWindow (.getWindow)
                     ^Parent .getOwnerWindow
                     .getScene
                     .getFocusOwner)
