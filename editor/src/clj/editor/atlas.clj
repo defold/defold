@@ -52,7 +52,7 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
-           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
+           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback AtlasUtil]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
@@ -213,17 +213,6 @@
 (defn- validate-image-resource [node-id image-resource]
   (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
 
-(defn- replace-string [s replace-pattern] 
-  (let [tokens (take 2 (map str/trim (str/split replace-pattern #"=")))
-        src (or (first tokens) "")
-        replace (or (second tokens) "")] ; At this point, both src+replace may be empty strings
-    (str/replace s src replace)))
-
-; Public only for testing  
-(defn rename-image [rename-patterns path]
-  (let [patterns (map str/trim (str/split rename-patterns #","))]
-    (reduce replace-string path patterns)))
-
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
 
@@ -233,8 +222,7 @@
                                 id (some-> maybe-image-resource resource/proj-path path->id)]
                             (if (nil? id)
                               ""
-                              (rename-image rename-patterns id)))
-                          ))
+                              (AtlasUtil/replaceStrings rename-patterns id)))))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 

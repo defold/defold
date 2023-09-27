@@ -169,6 +169,38 @@ public class AtlasUtil {
         String transform(String path);
     }
 
+    private static String[] getReplaceTokens(String pattern) {
+        // "=" -> 0 tokens
+        // "abc=" -> 1 token:  ["abc"]
+        // "=abc" -> 2 tokens: ["", "abc"]
+        // "abc==" -> 1 token: ["abc"]
+        // "abc=def=" -> 2 tokens: ["abc", "def"]
+        String tokens[] = pattern.split("=");
+        String out[] = new String[]{ "", "" };
+
+        for (int i = 0; i < 2 && i < tokens.length; ++i) {
+            out[i] = tokens[i];
+        }
+        return out;
+    }
+
+    // Pattern is a "=" separated list. We only use the first two tokens
+    private static String replaceString(String pattern, String s) {
+        String tokens[] = getReplaceTokens(pattern);
+        if (tokens[0].isEmpty())
+            return s; // we cannot match an empty string
+        return s.replace(tokens[0], tokens[1]);
+    }
+
+    // Pattern is a "," separated list list of subpatterns.
+    public static String replaceStrings(String pattern, String s) {
+        String subPatterns[] = pattern.split(",");
+        for (String subPattern : subPatterns) {
+            s = replaceString(subPattern, s);
+        }
+        return s;
+    }
+
     private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) {
         List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount()
                 + atlas.getImagesCount());
