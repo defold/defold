@@ -21,11 +21,12 @@
   ([name type]
    (std name type nil))
   ([name type doc]
-   {:type type
-    :name name
-    :doc doc
-    :display-string name
-    :insert-string name}))
+   (cond-> {:type type
+            :name name
+            :display-string name
+            :insert {:type :plaintext :value name}}
+           doc
+           (assoc :doc {:type :markdown :value doc}))))
 
 (def just-a-variable
   "
@@ -41,8 +42,7 @@
   type: table")
 
 (def empty-table-expected-result
-  {"" [(std "table" :namespace)]
-   "table" []})
+  {"" [(std "table" :module)]})
 
 (def table-with-members
   "
@@ -54,8 +54,8 @@
       type: number")
 
 (def table-with-members-expected-result
-  {"" [(std "other" :namespace "Another table")]
-   "other" [(std "other.Hello" :variable)]})
+  {"" [(std "other" :module "Another table")]
+   "other" [(std "Hello" :variable)]})
 
 (def function-with-one-parameter
   "
@@ -70,17 +70,15 @@
   {""
    [{:type :function
      :name "fun"
-     :doc "This is super great function!"
+     :doc {:type :markdown :value "This is super great function!"}
      :display-string "fun(plopp)"
-     :insert-string "fun(plopp)"
-     :tab-triggers {:select ["plopp"]
-                    :exit ")"}}]})
+     :insert {:type :snippet :value "fun(${1:plopp})"}}]})
 
 (def empty-top-level-definition
   "- ")
 
 (def empty-top-level-definition-expected-result
-  {"" []})
+  {})
 
 (def broken-table-member-list
   "
@@ -91,8 +89,7 @@
     - nam")
 
 (def broken-table-member-list-expected-result
-  {"" [(std "other" :namespace "Another table")]
-   "other" []})
+  {"" [(std "other" :module "Another table")]})
 
 (def no-type-means-variable
   "
@@ -114,15 +111,31 @@
   {""
    [{:type :function
      :name "fun"
-     :doc nil
      :display-string "fun([optopt])"
-     :insert-string "fun()"
-     :tab-triggers {:select []
-                    :exit ")"}}]})
+     :insert {:type :snippet
+              :value "fun()"}}]})
 
 (defn convert
   [source]
-  (sapi/combine-conversions (sapi/convert-lines (string/split-lines source))))
+  (sapi/lines->completion-info (string/split-lines source)))
+
+(def table-with-nested-members
+  "
+- name: other
+  type: table
+  desc: 'Another table'
+  members:
+    - name: Hello
+      type: table
+      members:
+      - name: opt
+        type: integer
+        optional: true")
+
+(def table-with-nested-members-expected-result
+  {"" [(std "other" :module "Another table")]
+   "other" [(std "Hello" :module)]
+   "other.Hello" [(std "opt" :variable)]})
 
 (deftest conversions
   (are [x y] (= x (convert y))
@@ -133,5 +146,6 @@
     empty-top-level-definition-expected-result empty-top-level-definition
     broken-table-member-list-expected-result broken-table-member-list
     function-with-optional-parameter-expected-result function-with-optional-parameter
-    no-type-means-variable-expected-result no-type-means-variable))
+    no-type-means-variable-expected-result no-type-means-variable
+    table-with-nested-members-expected-result table-with-nested-members))
 
