@@ -140,10 +140,6 @@ public class AtlasUtil {
         return images;
     }
 
-    private static String pathToId(String path) {
-        return FilenameUtils.removeExtension(FilenameUtils.getName(path));
-    }
-
     private static List<IResource> toResources(IResource baseResource, List<String> paths) {
         List<IResource> resources = new ArrayList<IResource>(paths.size());
         for (String path : paths) {
@@ -201,19 +197,26 @@ public class AtlasUtil {
         return s;
     }
 
+    private static String pathToId(String renamePatterns, String path) {
+        String baseName = FilenameUtils.removeExtension(FilenameUtils.getName(path));
+        return replaceStrings(renamePatterns, baseName);
+    }
+
+    // These are for the Atlas animation (i.e. not for the single frames)
     private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) {
-        List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount()
-                + atlas.getImagesCount());
+        List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount() + atlas.getImagesCount());
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             List<String> frameIds = new ArrayList<String>();
             for (AtlasImage image : anim.getImagesList()) {
                 frameIds.add(transformer.transform(image.getImage()));
             }
-            animDescs.add(new MappedAnimDesc(anim.getId(), frameIds, anim.getPlayback(), anim.getFps(), anim
-                    .getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
+
+            animDescs.add(new MappedAnimDesc(anim.getId(), frameIds, anim.getPlayback(), anim.getFps(),
+                    anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
+        String renamePatterns = atlas.getRenamePatterns();
         for (AtlasImage image : atlas.getImagesList()) {
-            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
+            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(renamePatterns, image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
             animDescs.add(animDesc);
         }
 
