@@ -1203,10 +1203,6 @@ public class Project {
         return str.equals("") || shouldBuildArtifact("engine");
     }
 
-    private boolean shouldBuildPlugins() {
-        return shouldBuildArtifact("plugins");
-    }
-
     public void scanJavaClasses() throws IOException, CompileExceptionError {
         createClassLoaderScanner();
         registerPipelinePlugins();
@@ -1419,7 +1415,7 @@ public class Project {
                         }
                     }
 
-                    if (shouldBuildEngine()) {
+                    if (shouldBuildEngine() && BundleHelper.isArchiveIncluded(this)) {
                         result = createAndRunTasks(monitor);
                     }
 
