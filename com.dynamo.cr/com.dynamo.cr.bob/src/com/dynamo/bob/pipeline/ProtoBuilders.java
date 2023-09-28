@@ -107,16 +107,6 @@ public class ProtoBuilders {
         return materialBuilder;
     }
 
-    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
-    {
-        for (VertexAttribute attr : attributes) {
-            if (attr.getName().equals(attributeName)) {
-                return attr;
-            }
-        }
-        return null;
-    }
-
     // TODO: Should we move this to a build resource?
     static Set<String> materialAtlasCompatabilityCache = new HashSet<String>();
 
@@ -342,7 +332,7 @@ public class ProtoBuilders {
 
                 for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
                     VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
                         spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
@@ -451,7 +441,7 @@ public class ProtoBuilders {
 
                 for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
                     VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, emitterAttribute.getName());
 
                     if (materialAttribute != null) {
                         emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));

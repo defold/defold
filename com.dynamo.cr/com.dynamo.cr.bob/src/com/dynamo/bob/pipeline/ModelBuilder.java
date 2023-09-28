@@ -33,6 +33,8 @@ import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.gamesys.proto.ModelProto.Texture;
+import com.dynamo.graphics.proto.Graphics.VertexAttribute;
+import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.google.protobuf.TextFormat;
 
@@ -76,6 +78,10 @@ public class ModelBuilder extends Builder<Void> {
                                                 String.format("Failed to create build task for component '%s'", res.getPath()));
             }
         }
+
+        IResource materialOutput = this.project.getResource(modelDescBuilder.getMaterial()).changeExt(".materialc");
+        taskBuilder.addInput(materialOutput);
+
         return taskBuilder.build();
     }
 
@@ -175,6 +181,28 @@ public class ModelBuilder extends Builder<Void> {
         }
 
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
+
+        // Attributes
+        IResource materialSourceResource     = this.project.getResource(modelDescBuilder.getMaterial());
+        IResource materialBuildResource      = materialSourceResource.changeExt(".materialc");
+        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+        materialBuilder.mergeFrom(materialBuildResource.getContent());
+
+        if (materialBuilder != null) {
+            List<VertexAttribute> materialAttributes      = materialBuilder.getAttributesList();
+            List<VertexAttribute> modelAttributeOverrides = new ArrayList<VertexAttribute>();
+
+            for (int i=0; i < modelDescBuilder.getAttributesCount(); i++) {
+                VertexAttribute modelAttribute    = modelDescBuilder.getAttributes(i);
+                VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, modelAttribute.getName());
+
+                if (materialAttribute != null) {
+                    modelAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(modelAttribute, materialAttribute));
+                }
+            }
+
+            model.addAllAttributes(modelAttributeOverrides);
+        }
 
         out = new ByteArrayOutputStream(64 * 1024);
         model.build().writeTo(out);

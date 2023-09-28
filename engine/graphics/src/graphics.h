@@ -80,6 +80,14 @@ namespace dmGraphics
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
+    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_NORMAL     = dmHashString64("normal");
+    static const dmhash_t VERTEX_STREAM_TANGENT    = dmHashString64("tangent");
+    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD1  = dmHashString64("texcoord1");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
+
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,
