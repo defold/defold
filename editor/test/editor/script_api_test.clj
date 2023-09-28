@@ -70,7 +70,7 @@
   {""
    [{:type :function
      :name "fun"
-     :doc {:type :markdown :value "This is super great function!"}
+     :doc {:type :markdown :value "This is super great function!\n\n**Parameters:**<br><dl><dt><code>plopp <small>plupp</small></code></dt></dl>"}
      :display-string "fun(plopp)"
      :insert {:type :snippet :value "fun(${1:plopp})"}}]})
 
@@ -113,7 +113,9 @@
      :name "fun"
      :display-string "fun([optopt])"
      :insert {:type :snippet
-              :value "fun()"}}]})
+              :value "fun()"}
+     :doc {:type :markdown
+           :value "\n\n**Parameters:**<br><dl><dt><code>optopt <small>integer</small></code></dt></dl>"}}]})
 
 (defn convert
   [source]
