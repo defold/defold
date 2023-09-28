@@ -51,7 +51,7 @@ namespace dmModelImporter
         float*      m_Tangents;     // 3 floats per vertex
         float*      m_Color;        // 4 floats per vertex
         float*      m_Weights;      // 4 weights per vertex
-        uint32_t*   m_Bones;        // 4 bones per vertex, or a single bone if it isn't skinned, or 0 if not part of a skeleton hierarchy
+        uint32_t*   m_Bones;        // 4 bones per vertex
         uint32_t    m_TexCoord0NumComponents; // e.g 2 or 3
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3

@@ -667,24 +667,26 @@ namespace dmGameSystem
         }
     }
 
-    // static void OutputVector4(const dmVMath::Vector4& v)
-    // {
-    //     printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
-    // }
+    #if 0
+    static void OutputVector4(const dmVMath::Vector4& v)
+    {
+        printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    }
 
-    // static void OutputMatrix(dmVMath::Matrix4 mat)
-    // {
-    //     printf("    "); OutputVector4(mat.getRow(0));
-    //     printf("    "); OutputVector4(mat.getRow(1));
-    //     printf("    "); OutputVector4(mat.getRow(2));
-    //     printf("    "); OutputVector4(mat.getRow(3));
-    // }
-    // static void OutputTransform(const dmTransform::Transform& transform)
-    // {
-    //     printf("t: %f, %f, %f  \n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
-    //     printf("r: %f, %f, %f, %f  \n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
-    //     printf("s: %f, %f, %f  \n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
-    // }
+    static void OutputMatrix(dmVMath::Matrix4 mat)
+    {
+        printf("    "); OutputVector4(mat.getRow(0));
+        printf("    "); OutputVector4(mat.getRow(1));
+        printf("    "); OutputVector4(mat.getRow(2));
+        printf("    "); OutputVector4(mat.getRow(3));
+    }
+    static void OutputTransform(const dmTransform::Transform& transform)
+    {
+        printf("t: %f, %f, %f  \n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+        printf("r: %f, %f, %f, %f  \n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+        printf("s: %f, %f, %f  \n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+    }
+    #endif
 
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
