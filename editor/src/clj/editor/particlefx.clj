@@ -145,9 +145,6 @@
 
 (def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
 
-(def color colors/outline-color)
-(def selected-color colors/selected-outline-color)
-
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
                            :modifier-type-radial [:modifier-key-magnitude :modifier-key-max-distance]
@@ -212,7 +209,7 @@
             :when (> vcount 0)]
       (let [^Matrix4d world-transform (:world-transform renderable)
             world-transform-no-scale (orthonormalize world-transform)
-            color (if (:selected renderable) selected-color color)
+            color (colors/renderable-outline-color renderable)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
