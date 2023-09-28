@@ -353,8 +353,8 @@
                       (.setMaxWidth pane max-width)
                       (.applyCss pane)
                       (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width))
-                        ;; this is needed in some rare cases T_T
-                        ;; e.g. type "vmath", then type "."
+                      ;; this is needed in some rare cases T_T
+                      ;; e.g. type "vmath", then type "."
                       (ui/run-later
                         (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width)))))
                   fx.lifecycle/scalar)}))

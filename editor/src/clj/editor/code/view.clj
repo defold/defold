@@ -1492,20 +1492,20 @@
                                             (/ cell-height)
                                             Math/floor
                                             (* cell-height)))
+            display-string-widths (eduction
+                                    (take 512)
+                                    (map #(-> text
+                                              (doto (.setText (:display-string %)))
+                                              .getLayoutBounds
+                                              .getWidth))
+                                    completions)
+            ^double max-display-string-width (reduce max 0.0 display-string-widths)
             completions-width (-> (+ 12.0                      ;; paddings
                                      (if (< max-visible-completions-count item-count)
                                        10.0                    ;; scroll bar
                                        0.0)
-                                     (->> completions
-                                          (eduction
-                                            (take 512)
-                                            (map #(-> text
-                                                      (doto (.setText (:display-string %)))
-                                                      .getLayoutBounds
-                                                      .getWidth)))
-                                          ^double (reduce max 0.0)
-                                          ;; clamp
-                                          (max min-completions-width)))
+                                     ;; clamp
+                                     (max min-completions-width max-display-string-width))
                                   (min max-completions-width))
             refresh-key [query completions]
             selected-completion (completions (or selected-index 0))]
@@ -1554,7 +1554,7 @@
               :content [{:fx/type fx/ext-get-ref :ref :content}]}]
             show-doc
             (conj
-              (let [doc-width 300.0
+              (let [doc-width 350.0
                     doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
                     spacing 6.0
                     align-right (< (+ doc-width spacing)
@@ -1603,16 +1603,11 @@
     :doc-event-filter
     (let [e (:fx/event e)]
       (when (instance? KeyEvent e)
-        (let [^KeyEvent e e]
-          (ui/send-event!
-            (some-> e
-                    ^Node (.getSource)
-                    .getScene
-                    ^PopupWindow (.getWindow)
-                    ^Parent .getOwnerWindow
-                    .getScene
-                    .getFocusOwner)
-            e)
+        (let [^KeyEvent e e
+              ^Node source (.getSource e)
+              ^PopupWindow window (.getWindow (.getScene source))
+              target (.getFocusOwner (.getScene (.getOwnerWindow window)))]
+          (ui/send-event! target e)
           (.consume e))))
 
     :auto-hide
@@ -2736,43 +2731,45 @@
       (set-properties! view-node nil props)))
 
   ;; Repaint the view.
-  (g/with-auto-evaluation-context evaluation-context
-    (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
-          prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-          existing-completion-popup-renderer (g/user-data view-node :completion-popup-renderer)
+  (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
+        prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
+        existing-completion-popup-renderer (g/user-data view-node :completion-popup-renderer)
 
-          resource-node (g/node-value view-node :resource-node evaluation-context)
-          canvas-repaint-info (g/node-value view-node :canvas-repaint-info evaluation-context)
-          cursor-repaint-info (g/node-value view-node :cursor-repaint-info evaluation-context)
-          completion-state (g/node-value view-node :completion-state evaluation-context)]
+        [resource-node canvas-repaint-info cursor-repaint-info completion-state]
+        (g/with-auto-evaluation-context evaluation-context
+          [(g/node-value view-node :resource-node evaluation-context)
+           (g/node-value view-node :canvas-repaint-info evaluation-context)
+           (g/node-value view-node :cursor-repaint-info evaluation-context)
+           (g/node-value view-node :completion-state evaluation-context)])]
 
-      ;; Repaint canvas if needed.
-      (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
-        (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
-        (let [{:keys [grammar layout lines]} canvas-repaint-info
-              syntax-info (if (nil? grammar)
-                            []
-                            (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
-                              (let [invalidated-syntax-info (if-some [invalidated-row (invalidated-row (:invalidated-rows prev-canvas-repaint-info) (:invalidated-rows canvas-repaint-info))]
-                                                              (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
-                                                              prev-syntax-info)]
-                                (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar))
-                              (data/highlight-visible-syntax lines [] layout grammar)))]
-          (g/user-data! resource-node :syntax-info syntax-info)
-          (repaint-canvas! canvas-repaint-info syntax-info)))
+    ;; Repaint canvas if needed.
+    (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
+      (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
+      (let [{:keys [grammar layout lines]} canvas-repaint-info
+            syntax-info (if (nil? grammar)
+                          []
+                          (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                            (let [invalidated-syntax-info (if-some [invalidated-row (invalidated-row (:invalidated-rows prev-canvas-repaint-info) (:invalidated-rows canvas-repaint-info))]
+                                                            (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                                                            prev-syntax-info)]
+                              (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar))
+                            (data/highlight-visible-syntax lines [] layout grammar)))]
+        (g/user-data! resource-node :syntax-info syntax-info)
+        (repaint-canvas! canvas-repaint-info syntax-info)))
 
-      (when (:enabled completion-state)
-        (let [renderer (or existing-completion-popup-renderer
-                           (g/user-data!
-                             view-node
-                             :completion-popup-renderer
-                             (fx/create-renderer
-                               :error-handler error-reporting/report-exception!
-                               :middleware (comp
-                                             fxui/wrap-dedupe-desc
-                                             (fx/wrap-map-desc #'completion-popup-view))
-                               :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
-              ^Canvas canvas (:canvas canvas-repaint-info)]
+    (when (:enabled completion-state)
+      (let [renderer (or existing-completion-popup-renderer
+                         (g/user-data!
+                           view-node
+                           :completion-popup-renderer
+                           (fx/create-renderer
+                             :error-handler error-reporting/report-exception!
+                             :middleware (comp
+                                           fxui/wrap-dedupe-desc
+                                           (fx/wrap-map-desc #'completion-popup-view))
+                             :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
+            ^Canvas canvas (:canvas canvas-repaint-info)]
+        (g/with-auto-evaluation-context evaluation-context
           (renderer {:completion-state completion-state
                      :canvas-repaint-info canvas-repaint-info
                      :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
@@ -2782,20 +2779,20 @@
                      :font-size (g/node-value view-node :font-size evaluation-context)
                      :window-x (some-> (.getScene canvas) .getWindow .getX)
                      :window-y (some-> (.getScene canvas) .getWindow .getY)
-                     :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))})))
+                     :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))}))))
 
-      ;; Repaint cursors if needed.
-      (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
-        (g/user-data! view-node :cursor-repaint-info cursor-repaint-info)
-        (repaint-cursors! cursor-repaint-info))
+    ;; Repaint cursors if needed.
+    (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
+      (g/user-data! view-node :cursor-repaint-info cursor-repaint-info)
+      (repaint-cursors! cursor-repaint-info))
 
-      ;; Draw average fps indicator if enabled.
-      (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
-        (let [{:keys [^Canvas canvas ^long repaint-trigger]} canvas-repaint-info]
-          (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
-          (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
-          (when (= 0 (mod repaint-trigger 10))
-            (.resetAverageFPS performance-tracker)))))))
+    ;; Draw average fps indicator if enabled.
+    (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
+      (let [{:keys [^Canvas canvas ^long repaint-trigger]} canvas-repaint-info]
+        (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+        (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
+        (when (= 0 (mod repaint-trigger 10))
+          (.resetAverageFPS performance-tracker))))))
 
 (defn- make-execution-marker-arrow
   ([x y w h]
