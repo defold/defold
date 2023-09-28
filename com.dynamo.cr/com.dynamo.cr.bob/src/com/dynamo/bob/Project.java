@@ -1415,7 +1415,7 @@ public class Project {
                         }
                     }
 
-                    if (shouldBuildEngine()) {
+                    if (shouldBuildEngine() && BundleHelper.isArchiveIncluded(this)) {
                         result = createAndRunTasks(monitor);
                     }
 
