@@ -683,7 +683,7 @@
                                         clear (assoc :cursor-ranges [data/document-start-cursor-range])
                                         clear (assoc :invalidated-row 0)
                                         clear (data/frame-cursor prev-layout)))))))
-  (view/repaint-view! view-node elapsed-time {:cursor-visible? false}))
+  (view/repaint-view! view-node elapsed-time {:cursor-visible false}))
 
 (def ^:private console-grammar
   {:name "Console"
