@@ -1554,12 +1554,17 @@
               :content [{:fx/type fx/ext-get-ref :ref :content}]}]
             show-doc
             (conj
-              (let [doc-width 350.0
+              (let [pref-doc-width 350.0
                     doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
                     spacing 6.0
-                    align-right (< (+ doc-width spacing)
-                                   (- (.getMaxX screen-bounds)
-                                      (+ (.getX anchor) completions-width)))
+                    left-space (- (.getX anchor) spacing)
+                    right-space (- (.getMaxX screen-bounds)
+                                   (+ (.getX anchor) completions-width spacing))
+                    align-right (or (<= pref-doc-width right-space)
+                                    (<= left-space right-space))
+                    doc-width (if align-right
+                                (min pref-doc-width right-space)
+                                (min pref-doc-width left-space))
                     {:keys [detail doc type]} selected-completion
                     small-string (when-let [small-text (or detail (some-> type name (string/replace "-" " ")))]
                                    (format "<small>%s</small>" small-text))
