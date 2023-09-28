@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -48,16 +48,16 @@
              animation-ids-in-ddf)))))
 
 (deftest rename-anim
-  (test-util/with-loaded-project
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
-          project (test-util/setup-project! workspace)
-          atlas (project/get-resource-node project "/main/rename.atlas")
+  (test-util/with-loaded-project "test/resources/image_project"
+    (let [atlas (project/get-resource-node project "/main/rename.atlas")
           ddf-texture-set (g/node-value atlas :texture-set)
-          animation-ids-in-ddf (mapv :id (:animations ddf-texture-set))]
-      (is (= (set ["ball"
-                   "diamond_dogs"
-                   "test_anim"])
-             (set animation-ids-in-ddf))))))
+          animation-ids-in-ddf (into #{}
+                                     (map :id)
+                                     (:animations ddf-texture-set))]
+      (is (= #{"ball"
+               "diamond_dogs"
+               "test_anim"}
+             animation-ids-in-ddf)))))
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
