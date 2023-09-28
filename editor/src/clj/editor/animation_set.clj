@@ -65,6 +65,7 @@
 
 (defn- load-and-validate-animation-set [resource animations-resource animation-info]
   (let [animations-resource (if (nil? animations-resource) resource animations-resource)
+        is-animation-set (is-animation-set? animations-resource)
         paths (map (fn [x] (:path x)) animation-info)
         streams (map (fn [x] (io/input-stream (:resource x))) animation-info)
         ;; clean up the parent-id if it's the current resource
@@ -77,7 +78,7 @@
         project-path (workspace/project-path workspace)
         data-resolver (ModelUtil/createFileDataResolver project-path)]
 
-    (AnimationSetBuilder/buildAnimations paths streams data-resolver parent-ids animation-set-builder animation-ids)
+    (AnimationSetBuilder/buildAnimations is-animation-set paths streams data-resolver parent-ids animation-set-builder animation-ids)
     (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
       {:animation-set animation-set
        :animation-ids (vec animation-ids)})))
