@@ -111,7 +111,7 @@
 
 (defn- renderable->aabb-box!
   [vbuf renderable]
-  (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
+  (let [color (colors/renderable-outline-color renderable)
         [cr cg cb _] color
         aabb (:aabb renderable)]
     (conj-aabb-lines! vbuf aabb cr cg cb)))

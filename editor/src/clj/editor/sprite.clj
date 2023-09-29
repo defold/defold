@@ -241,7 +241,7 @@
         ^VertexBuffer vbuf (->color-vtx (* count 8))
         ^ByteBuffer buf (.buf vbuf)]
     (doseq [renderable renderables]
-      (let [[cr cg cb] (if (:selected renderable) colors/selected-outline-color colors/outline-color)
+      (let [[cr cg cb] (colors/renderable-outline-color renderable)
             world-transform (:world-transform renderable)
             {:keys [animation size size-mode slice9]} (:user-data renderable)
             [quad-width quad-height] size
