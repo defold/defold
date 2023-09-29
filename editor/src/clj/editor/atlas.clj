@@ -218,14 +218,14 @@
 
   (property id g/Str
             (value (g/fnk [maybe-image-resource rename-patterns]
-                          (let [rename-patterns (if (nil? rename-patterns) "" rename-patterns)
-                                id (some-> maybe-image-resource resource/proj-path path->id)]
-                            (if (nil? id)
-                              nil
-                              (try
-                                (AtlasUtil/replaceStrings rename-patterns id)
-                                (catch Exception _
-                                   id))))))
+                     (let [rename-patterns (if (nil? rename-patterns) "" rename-patterns)
+                           id (some-> maybe-image-resource resource/proj-path path->id)]
+                       (if (nil? id)
+                         nil
+                         (try
+                           (AtlasUtil/replaceStrings rename-patterns id)
+                           (catch Exception _
+                             id))))))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
@@ -491,10 +491,10 @@
     (g/error-aggregate errors)))
 
 (defn- validate-rename-patterns [node-id rename-patterns]
-    (try
-     (AtlasUtil/validatePatterns rename-patterns)
-     (catch Exception error
-       (validation/prop-error :fatal node-id :rename-patterns (fn [msg] msg) (.getMessage error)))))))
+  (try
+    (AtlasUtil/validatePatterns rename-patterns)
+    (catch Exception error
+      (validation/prop-error :fatal node-id :rename-patterns identity (.getMessage error)))))
 
 (g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
