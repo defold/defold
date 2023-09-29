@@ -222,7 +222,10 @@
                                 id (some-> maybe-image-resource resource/proj-path path->id)]
                             (if (nil? id)
                               nil
-                              (AtlasUtil/replaceStrings rename-patterns id)))))
+                              (try
+                                (AtlasUtil/replaceStrings rename-patterns id)
+                                (catch Exception _
+                                   id))))))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
@@ -487,6 +490,12 @@
                           (not-empty))]
     (g/error-aggregate errors)))
 
+(defn- validate-rename-patterns [node-id rename-patterns]
+    (try
+     (AtlasUtil/validatePatterns rename-patterns)
+     (catch Exception error
+       (validation/prop-error :fatal node-id :rename-patterns (fn [msg] msg) (.getMessage error)))))))
+
 (g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
     (let [project           (project/get-project _node-id)
@@ -712,7 +721,8 @@
   (property max-page-size types/Vec2
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
-  (property rename-patterns g/Str)
+  (property rename-patterns g/Str
+            (dynamic error (g/fnk [_node-id rename-patterns] (validate-rename-patterns _node-id rename-patterns))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -787,12 +797,13 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
                                                               (validate-extrude-borders _node-id extrude-borders)
-                                                              (validate-max-page-size _node-id max-page-size))))
+                                                              (validate-max-page-size _node-id max-page-size)
+                                                              (validate-rename-patterns _node-id rename-patterns))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
                                                               child-build-errors
