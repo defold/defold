@@ -180,13 +180,25 @@ public class AtlasUtil {
         return out;
     }
 
+    private static char PATTERN_SEPARATOR = '=';
+
     public static void validatePattern(String pattern) throws CompileExceptionError  {
-        if (!pattern.contains("=")) {
-            throw new CompileExceptionError(String.format("Rename pattern doesn't contain the '=' separator: '%s'", pattern)); // we cannot match a malformed string
+        String trimmed = pattern.trim();
+
+        int separatorCount = 0;
+        for (int i = 0; i < trimmed.length(); ++i) {
+            if (trimmed.charAt(i) == PATTERN_SEPARATOR)
+                separatorCount++;
         }
 
-        String trimmed = pattern.trim();
-        if (trimmed.length() > 0 && trimmed.charAt(0) == '=') {
+        if (separatorCount == 0) {
+            throw new CompileExceptionError(String.format("Rename pattern doesn't contain the '=' separator: '%s'", pattern)); // we cannot match a malformed string
+        }
+        if (separatorCount > 1) {
+            throw new CompileExceptionError(String.format("Rename pattern contains '=' separator more than once: '%s'", pattern)); // we cannot match a malformed string
+        }
+
+        if (trimmed.charAt(0) == PATTERN_SEPARATOR) {
             throw new CompileExceptionError(String.format("Rename pattern cannot start with the '=' separator: '%s'", pattern)); // Nothing to replace with
         }
     }
