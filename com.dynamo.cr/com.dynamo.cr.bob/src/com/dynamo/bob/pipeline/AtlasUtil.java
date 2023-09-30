@@ -141,10 +141,6 @@ public class AtlasUtil {
         return images;
     }
 
-    private static String pathToId(String path) {
-        return FilenameUtils.removeExtension(FilenameUtils.getName(path));
-    }
-
     private static List<IResource> toResources(IResource baseResource, List<String> paths) {
         List<IResource> resources = new ArrayList<IResource>(paths.size());
         for (String path : paths) {
@@ -170,19 +166,94 @@ public class AtlasUtil {
         String transform(String path);
     }
 
-    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) {
-        List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount()
-                + atlas.getImagesCount());
+    private static String[] getReplaceTokens(String pattern) {
+        // "=" -> 0 tokens
+        // "abc=" -> 1 token:  ["abc"]
+        // "=abc" -> 2 tokens: ["", "abc"]
+        // "abc==" -> 1 token: ["abc"]
+        // "abc=def=" -> 2 tokens: ["abc", "def"]
+        String tokens[] = pattern.split("=");
+        String out[] = new String[]{ "", "" };
+
+        for (int i = 0; i < 2 && i < tokens.length; ++i) {
+            out[i] = tokens[i];
+        }
+        return out;
+    }
+
+    private static char PATTERN_SEPARATOR = '=';
+
+    public static void validatePattern(String pattern) throws CompileExceptionError  {
+        String trimmed = pattern.trim();
+
+        int separatorCount = 0;
+        for (int i = 0; i < trimmed.length(); ++i) {
+            if (trimmed.charAt(i) == PATTERN_SEPARATOR)
+                separatorCount++;
+        }
+
+        if (separatorCount == 0) {
+            throw new CompileExceptionError(String.format("Rename pattern doesn't contain the '=' separator: '%s'", pattern)); // we cannot match a malformed string
+        }
+        if (separatorCount > 1) {
+            throw new CompileExceptionError(String.format("Rename pattern contains '=' separator more than once: '%s'", pattern)); // we cannot match a malformed string
+        }
+
+        if (trimmed.charAt(0) == PATTERN_SEPARATOR) {
+            throw new CompileExceptionError(String.format("Rename pattern cannot start with the '=' separator: '%s'", pattern)); // Nothing to replace with
+        }
+    }
+
+    public static void validatePatterns(String patterns) throws CompileExceptionError  {
+        String subPatterns[] = patterns.split(",");
+        for (String subPattern : subPatterns) {
+            if (subPattern.isEmpty())
+                continue;
+            validatePattern(subPattern);
+        }
+    }
+
+    // Pattern is a "=" separated list. We only use the first two tokens
+    private static String replaceString(String pattern, String s) throws CompileExceptionError  {
+        String tokens[] = getReplaceTokens(pattern);
+        return s.replace(tokens[0], tokens[1]);
+    }
+
+    // Pattern is a "," separated list list of subpatterns.
+    public static String replaceStrings(String patterns, String s) throws CompileExceptionError  {
+        if (s.isEmpty())
+            return s;
+        String subPatterns[] = patterns.split(",");
+        for (String subPattern : subPatterns) {
+            if (subPattern.isEmpty())
+                continue;
+
+            validatePattern(subPattern);
+            s = replaceString(subPattern, s);
+        }
+        return s;
+    }
+
+    private static String pathToId(String renamePatterns, String path) throws CompileExceptionError {
+        String baseName = FilenameUtils.removeExtension(FilenameUtils.getName(path));
+        return replaceStrings(renamePatterns, baseName);
+    }
+
+    // These are for the Atlas animation (i.e. not for the single frames)
+    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) throws CompileExceptionError {
+        List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount() + atlas.getImagesCount());
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             List<String> frameIds = new ArrayList<String>();
             for (AtlasImage image : anim.getImagesList()) {
                 frameIds.add(transformer.transform(image.getImage()));
             }
-            animDescs.add(new MappedAnimDesc(anim.getId(), frameIds, anim.getPlayback(), anim.getFps(), anim
-                    .getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
+
+            animDescs.add(new MappedAnimDesc(anim.getId(), frameIds, anim.getPlayback(), anim.getFps(),
+                    anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
+        String renamePatterns = atlas.getRenamePatterns();
         for (AtlasImage image : atlas.getImagesList()) {
-            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
+            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(renamePatterns, image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
             animDescs.add(animDesc);
         }
 
@@ -222,12 +293,19 @@ public class AtlasUtil {
                 return project.getResource(path).getPath();
             }
         };
-        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
+
+        try {
+            validatePatterns(atlas.getRenamePatterns());
+        } catch(CompileExceptionError e) {
+            throw new CompileExceptionError(atlasResource, -1, e.getMessage());
+        }
+
         int imagePathCount = imagePaths.size();
         for (int i = 0; i < imagePathCount; ++i) {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
 
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);;
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         try {
             TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
