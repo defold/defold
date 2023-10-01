@@ -76,7 +76,12 @@ public class ShaderCompilers {
     public static class MacOSShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+
+            // Compute shaders not supported on osx for OpenGL
+            if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+            }
+
             if (outputSpirv)
             {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
