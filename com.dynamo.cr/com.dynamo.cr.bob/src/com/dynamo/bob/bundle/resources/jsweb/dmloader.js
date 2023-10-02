@@ -482,7 +482,7 @@ var Progress = {
 
     updateProgress: function(percentage) {
         if (Progress.bar) {
-            Progress.bar.style.width = percentage + "%";
+            Progress.bar.style.width = Math.min(percentage, 100) + "%";
         }
         Progress.notifyListeners(percentage);
     },
