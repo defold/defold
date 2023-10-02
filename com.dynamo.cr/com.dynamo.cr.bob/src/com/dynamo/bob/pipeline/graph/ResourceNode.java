@@ -21,8 +21,11 @@ import org.codehaus.jackson.JsonGenerator;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
+import java.io.Writer;
 import java.io.StringWriter;
 import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -110,9 +113,7 @@ public class ResourceNode {
         generator.writeEndObject();
     }
 
-    public String toJSON() throws IOException {
-        StringWriter stringWriter = new StringWriter();
-        BufferedWriter writer = new BufferedWriter(stringWriter);
+    private void writeJSON(Writer writer) throws IOException {
         JsonGenerator generator = null;
         try {
             generator = (new JsonFactory()).createJsonGenerator(writer);
@@ -124,7 +125,20 @@ public class ResourceNode {
                 generator.close();
             }
             IOUtils.closeQuietly(writer);
+
         }
+    }
+
+    public void writeJSON(OutputStream os) throws IOException {
+        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os);
+        BufferedWriter writer = new BufferedWriter(outputStreamWriter);
+        writeJSON(writer);
+    }
+
+    public String toJSON() throws IOException {
+        StringWriter stringWriter = new StringWriter();
+        BufferedWriter writer = new BufferedWriter(stringWriter);
+        writeJSON(writer);
         return stringWriter.toString();
     }
 
