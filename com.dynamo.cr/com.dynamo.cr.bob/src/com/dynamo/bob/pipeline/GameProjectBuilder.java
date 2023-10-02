@@ -422,9 +422,13 @@ public class GameProjectBuilder extends Builder<Void> {
                 // create the resource graphs
                 // the full graph contains all resources in the project
                 // the live update graph contains each resource only once per collection proxy
+                logger.info("Generating the resource graph");
+                long tstart = System.currentTimeMillis();
                 ResourceGraphs resourceGraphs = createResourceGraphs(project);
                 ResourceGraph fullGraph = resourceGraphs.getFullGraph();
                 ResourceGraph liveUpdateGraph = resourceGraphs.getLiveUpdateGraph();
+                long tend = System.currentTimeMillis();
+                logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
 
                 // create full list of resources including the custom resources
                 // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
@@ -478,8 +482,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 // game.graph.json
                 fullGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
+                logger.info("Writing the resource graph to json");
+                tstart = System.currentTimeMillis();
                 String fullGraphJSON = fullGraph.getRootNode().toJSON();
                 task.getOutputs().get(5).setContent(fullGraphJSON.getBytes());
+                tend = System.currentTimeMillis();
+                logger.info("Writing the resource graph to json took %f s", (tend-tstart)/1000.0);
 
                 // Add copy of game.dmanifest to be published with liveupdate resources
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
