@@ -61,11 +61,6 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
-
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
@@ -170,18 +165,18 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_POSITION,   3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_TEXCOORD0,  2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_COLOR,      4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_PAGE_INDEX, 1, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, dmGraphics::VERTEX_STREAM_POSITION,   3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, dmGraphics::VERTEX_STREAM_TEXCOORD0,  2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, dmGraphics::VERTEX_STREAM_COLOR,      4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, dmGraphics::VERTEX_STREAM_PAGE_INDEX, 1, dmGraphics::TYPE_FLOAT, false);
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], dmGraphics::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   3);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], dmGraphics::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   2);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmGraphics::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmGraphics::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
