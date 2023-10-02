@@ -3873,13 +3873,18 @@ TEST_F(ShaderTest, Compute)
             ddf->m_Shaders[i].m_Language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430)
         {
             compute_shader = &ddf->m_Shaders[i];
-            break;
         }
     }
     ASSERT_NE((void*)0, compute_shader);
-    ASSERT_EQ(1,   compute_shader->m_Uniforms.m_Count);
-    ASSERT_EQ(dmHashString64("color"),                  compute_shader->m_Uniforms[0].m_NameHash);
-    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, compute_shader->m_Uniforms[0].m_Type);
+
+    // Note: We cannot get this informtion from our shader pipeline for other languages than SPIR-V at the momemnt.
+    //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
+    if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+    {
+        ASSERT_EQ(1,   compute_shader->m_Uniforms.m_Count);
+        ASSERT_EQ(dmHashString64("color"),                  compute_shader->m_Uniforms[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, compute_shader->m_Uniforms[0].m_Type);
+    }
 }
 
 #endif
