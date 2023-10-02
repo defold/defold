@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -160,12 +160,22 @@ namespace dmRig
 
     Result SetModel(HRigInstance instance, dmhash_t model_id)
     {
+        if (model_id == 0)
+        {
+            instance->m_ModelId = model_id;
+            instance->m_Model = instance->m_MeshSet->m_Models.m_Data;
+            instance->m_NumModels = instance->m_MeshSet->m_Models.m_Count;
+            instance->m_DoRender = 1;
+            return dmRig::RESULT_OK;
+        }
+
         for (uint32_t i = 0; i < instance->m_MeshSet->m_Models.m_Count; ++i)
         {
             const dmRigDDF::Model* model = &instance->m_MeshSet->m_Models[i];
             if (model->m_Id == model_id)
             {
                 instance->m_Model = model;
+                instance->m_NumModels = 1;
                 instance->m_ModelId = model_id;
                 instance->m_DoRender = 1;
                 return dmRig::RESULT_OK;
@@ -174,6 +184,7 @@ namespace dmRig
         instance->m_Model = 0;
         instance->m_ModelId = 0;
         instance->m_DoRender = 0;
+        instance->m_NumModels = 0;
         return dmRig::RESULT_ERROR;
     }
 
@@ -750,11 +761,15 @@ namespace dmRig
         }
 
         uint32_t vertex_count = 0;
-        for (uint32_t i = 0; i < instance->m_Model->m_Meshes.m_Count; ++i)
+        for (uint32_t m = 0; m < instance->m_NumModels; ++m)
         {
-            const dmRigDDF::Mesh& mesh = instance->m_Model->m_Meshes[i];
+            const dmRigDDF::Model* model = &instance->m_Model[m];
+            for (uint32_t i = 0; i < model->m_Meshes.m_Count; ++i)
+            {
+                const dmRigDDF::Mesh& mesh = model->m_Meshes[i];
 
-            vertex_count += mesh.m_Positions.m_Count/3;
+                vertex_count += mesh.m_Positions.m_Count/3;
+            }
         }
 
         return vertex_count;

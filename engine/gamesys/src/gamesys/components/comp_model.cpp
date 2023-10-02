@@ -75,6 +75,7 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
+        uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
         uint32_t                    m_Enabled : 1;
         uint32_t                    m_AttributeRenderDataIndex : 16;
@@ -547,6 +548,10 @@ namespace dmGameSystem
 
         uint32_t num_custom_attributes = 0;
 
+        dmHashTable64<uint32_t>* bone_id_to_indices = 0;
+        if (resource->m_RigScene->m_SkeletonRes)
+            bone_id_to_indices = &resource->m_RigScene->m_SkeletonRes->m_BoneIndices;
+
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshRenderItem item;
@@ -558,6 +563,17 @@ namespace dmGameSystem
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
             item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
+            item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
+
+            // This model is a child under a bone, but isn't actually skinned
+            if (item.m_Model->m_BoneId && bone_id_to_indices)
+            {
+                uint32_t* idx = bone_id_to_indices->Get(item.m_Model->m_BoneId);
+                if (idx)
+                {
+                    item.m_BoneIndex = *idx;
+                }
+            }
 
             if (HasCustomVertexAttributes(GetMaterial(component, component->m_Resource, item.m_MaterialIndex)))
             {
@@ -602,8 +618,7 @@ namespace dmGameSystem
 
         dmRigDDF::MeshSet* mesh_set      = rig_resource->m_MeshSetRes->m_MeshSet;
         // Let's choose the first model for the animation
-        dmRigDDF::Model* model           = mesh_set->m_Models.m_Count > 0 ? &mesh_set->m_Models[0] : 0;
-        create_params.m_ModelId          = model ? model->m_Id : 0;
+        create_params.m_ModelId          = 0; // Let's use all models
         create_params.m_DefaultAnimation = animation;
 
         dmRig::Result res = dmRig::InstanceCreate(rig_context, create_params, &component->m_RigInstance);
@@ -814,6 +829,27 @@ namespace dmGameSystem
         }
     }
 
+    #if 0
+    static void OutputVector4(const dmVMath::Vector4& v)
+    {
+        printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    }
+
+    static void OutputMatrix(dmVMath::Matrix4 mat)
+    {
+        printf("    "); OutputVector4(mat.getRow(0));
+        printf("    "); OutputVector4(mat.getRow(1));
+        printf("    "); OutputVector4(mat.getRow(2));
+        printf("    "); OutputVector4(mat.getRow(3));
+    }
+    static void OutputTransform(const dmTransform::Transform& transform)
+    {
+        printf("t: %f, %f, %f  \n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+        printf("r: %f, %f, %f, %f  \n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+        printf("s: %f, %f, %f  \n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+    }
+    #endif
+
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("RenderBatchWorld");
@@ -869,10 +905,21 @@ namespace dmGameSystem
         {
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
             const ModelComponent* c = render_item->m_Component;
-            dmRig::HRigContext rig_context = world->m_RigContext;
             if (c->m_RigInstance)
             {
-                dmVMath::Matrix4 model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(c->m_RigInstance);
+
+                dmVMath::Matrix4 model_matrix;
+                if (render_item->m_BoneIndex != dmRig::INVALID_BONE_INDEX)
+                {
+                    dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
+                    model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                }
+                else
+                {
+                    model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                }
+
                 dmVMath::Matrix4 world_matrix = c->m_World * model_matrix;
 
                 dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
@@ -880,6 +927,8 @@ namespace dmGameSystem
                     c->m_Resource->m_Model->m_Attributes.m_Data,
                     c->m_Resource->m_Model->m_Attributes.m_Count,
                     attributes);
+
+                dmRig::HRigContext rig_context = world->m_RigContext;
 
                 vb_end = dmRig::GenerateVertexDataFromAttributes(rig_context, c->m_RigInstance, render_item->m_Mesh, world_matrix, attributes, material_attributes_count, vertex_stride, vb_end);
             }
@@ -942,11 +991,23 @@ namespace dmGameSystem
     static void UpdateMeshTransforms(ModelComponent* component)
     {
         dmVMath::Matrix4 world = component->m_World;
+        dmArray<dmRig::BonePose>* pose = component->m_RigInstance ? dmRig::GetPose(component->m_RigInstance) : 0;
+
         for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
         {
             MeshRenderItem& item = component->m_RenderItems[i];
+            if (!item.m_Enabled)
+                continue;
             dmRigDDF::Model* model = item.m_Model;
-            item.m_World = world * dmTransform::ToMatrix4(model->m_Local);
+            if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
+            {
+                dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
+                item.m_World = world * (dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(model->m_Local));
+            }
+            else
+            {
+                item.m_World = world * dmTransform::ToMatrix4(model->m_Local);
+            }
         }
     }
 
@@ -1100,6 +1161,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = (ModelWorld*)params.m_World;
 
+        // This is currently called after the rig update
         UpdateTransforms(world); // TODO: Why can't we move this to the CompModelUpdate()?
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
@@ -1132,6 +1194,8 @@ namespace dmGameSystem
             for (uint32_t j = 0; j < item_count; ++j)
             {
                 MeshRenderItem& render_item = component.m_RenderItems[j];
+                if (!render_item.m_Enabled)
+                    continue;
 
                 uint32_t vertex_count = render_item.m_Buffers->m_VertexCount;
                 if(vertex_count_total + vertex_count >= max_elements_vertices)
@@ -1468,6 +1532,36 @@ namespace dmGameSystem
     ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data)
     {
         return world->m_Components.Get(user_data);;
+    }
+
+    bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)
+    {
+        bool found = false;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& item = component->m_RenderItems[i];
+            if (item.m_Model->m_Id == mesh_id)
+            {
+                item.m_Enabled = enabled?1:0;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    bool CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out)
+    {
+        bool found = false;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& item = component->m_RenderItems[i];
+            if (item.m_Model->m_Id == mesh_id)
+            {
+                *out = item.m_Enabled != 0;
+                return true;
+            }
+        }
+        return found;
     }
 
     static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

@@ -34,4 +34,6 @@ message Atlas
     optional uint32 inner_padding        = 5 [default = 0];
     optional uint32 max_page_width       = 6 [default = 0];
     optional uint32 max_page_height      = 7 [default = 0];
+    // A list of comma separated patterns to rename animations: E.g. "_nrm=,_normal="
+    optional string rename_patterns      = 8;
 }

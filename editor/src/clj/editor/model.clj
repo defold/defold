@@ -46,12 +46,12 @@
     (when is-single-anim
       (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set))))
 
-(g/defnk produce-animation-ids [_node-id resource animations-resource animation-set-info animation-set]
+(g/defnk produce-animation-ids [_node-id resource animations-resource animation-set-info animation-set animation-ids]
   (let [is-single-anim (or (empty? animation-set)
                            (not (animation-set/is-animation-set? animations-resource)))]
     (if is-single-anim
       (if animations-resource
-        [(resource/base-name animations-resource)] ; single animation file
+        animation-ids
         [])
       (:animation-ids animation-set-info))))
 

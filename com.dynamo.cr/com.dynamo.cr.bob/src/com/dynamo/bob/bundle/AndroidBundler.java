@@ -601,7 +601,7 @@ public class AndroidBundler implements IBundler {
                 ExtenderUtil.writeResourceToFile(resource, file);
                 BundleHelper.throwIfCanceled(canceled);
             }
-            if (BundleHelper.isArchiveExcluded(project)) {
+            if (BundleHelper.isArchiveIncluded(project)) {
             // copy Defold archive files to the assets/ dir
                 File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
                 for (String name : BundleHelper.getArchiveFilenames(buildDir)) {

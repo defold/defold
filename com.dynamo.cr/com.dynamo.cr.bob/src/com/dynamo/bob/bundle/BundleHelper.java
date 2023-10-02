@@ -905,7 +905,7 @@ public class BundleHelper {
         ExtenderUtil.storeResources(new File(pluginsDir), sources);
     }
 
-    public static boolean isArchiveExcluded(Project project) {
+    public static boolean isArchiveIncluded(Project project) {
         return project.option("exclude-archive", "false").equals("false");
     }
 
