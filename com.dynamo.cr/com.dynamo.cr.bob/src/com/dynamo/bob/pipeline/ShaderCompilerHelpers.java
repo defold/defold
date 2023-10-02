@@ -56,11 +56,6 @@ import com.google.protobuf.ByteString;
 public class ShaderCompilerHelpers {
 	public static String compileGLSL(String shaderSource, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug) throws IOException, CompileExceptionError {
 
-        if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
-            System.out.println("Compute shaders may not be supported for OpenGL on this platform.");
-            return shaderSource;
-        }
-
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(os);
 
@@ -87,25 +82,37 @@ public class ShaderCompilerHelpers {
             writer.println();
         }
 
-        boolean gles =  shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+        int version;
+        boolean gles3Standard;
+        boolean gles;
 
-        boolean gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
-                                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430) {
+            version       = 430;
+            gles          = false;
+            gles3Standard = true;
+        } else {
+            gles = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
-        // Write our directives.
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
-            // Normally, the ES2ToES3Converter would do this
-            writer.println("precision mediump float;");
-        }
+            gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
+                            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
-        if (!gles) {
-            writer.println("#ifndef GL_ES");
-            writer.println("#define lowp");
-            writer.println("#define mediump");
-            writer.println("#define highp");
-            writer.println("#endif");
-            writer.println();
+            version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
+
+            // Write our directives.
+            if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
+                // Normally, the ES2ToES3Converter would do this
+                writer.println("precision mediump float;");
+            }
+
+            if (!gles) {
+                writer.println("#ifndef GL_ES");
+                writer.println("#define lowp");
+                writer.println("#define mediump");
+                writer.println("#define highp");
+                writer.println("#endif");
+                writer.println();
+            }
         }
 
         // We want "correct" line numbers from the GLSL compiler.
@@ -135,7 +142,6 @@ public class ShaderCompilerHelpers {
         String source = source = os.toString().replace("\r", "");
 
         if (gles3Standard) {
-            int version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
             source = es3Result.output;
         }

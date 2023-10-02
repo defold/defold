@@ -350,4 +350,41 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         testOutput(expected, res.output);
     }
+
+    static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
+        for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
+            if (shader.getLanguage() == language) {
+                return shader;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void testCompute() throws Exception {
+        String source_no_version =
+            "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
+            "void main() {}";
+
+        String expected =
+            "#version 430\n" +
+            source_no_version +
+            "\n";
+
+        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+
+        List<Message> outputs = build("/test_compute.compute", source_no_version);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+        assert(shaderDesc.getShadersCount() > 0);
+        assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
+        assertEquals(ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE, shaderDesc.getShaderClass());
+
+        // Compute not supported for OSX on GL contexts
+        if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {
+            ShaderDesc.Shader glslShader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            assertNotNull(glslShader);
+            testOutput(expected, glslShader.getSource().toStringUtf8());
+        }
+    }
 }
