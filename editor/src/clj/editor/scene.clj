@@ -1093,12 +1093,10 @@
    {:label "Toggle Grid"
     :command :toggle-grid}
    {:label :separator}
-   {:label "Hide Selected Objects"
-    :command :hide-selected}
+   {:label "Show/Hide Selected Objects"
+    :command :toggle-selected}
    {:label "Hide Unselected Objects"
     :command :hide-unselected}
-   {:label "Show Selected Objects"
-    :command :show-selected}
    {:label "Show Last Hidden Objects"
     :command :show-last-hidden}
    {:label "Show All Hidden Objects"
