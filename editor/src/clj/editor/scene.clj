@@ -1088,7 +1088,7 @@
     :command :toggle-grid}
    {:label :separator}
    {:label "Show/Hide Selected Objects"
-    :command :toggle-selected}
+    :command :hide-toggle-selected}
    {:label "Hide Unselected Objects"
     :command :hide-unselected}
    {:label "Show Last Hidden Objects"
