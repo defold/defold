@@ -86,6 +86,13 @@ namespace dmGraphics
     typedef uintptr_t HIndexBuffer;
 
     /*#
+     * Uniform location handle
+     * @typedef
+     * @name HUniformLocation
+     */
+    typedef int64_t HUniformLocation;
+
+    /*#
      * Vertex declaration handle
      * @typedef
      * @name HVertexDeclaration

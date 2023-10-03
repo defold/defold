@@ -234,14 +234,25 @@ namespace dmGraphics
         VkCommandPool m_CommandPool;
     };
 
-    struct ShaderResourceBinding
+    struct UniformBlockMember
     {
         char*                      m_Name;
         uint64_t                   m_NameHash;
         ShaderDesc::ShaderDataType m_Type;
+        uint32_t                   m_Offset;
         uint16_t                   m_ElementCount;
-        uint16_t                   m_Set;
-        uint16_t                   m_Binding;
+    };
+
+    struct ShaderResourceBinding
+    {
+        char*                       m_Name;
+        uint64_t                    m_NameHash;
+        ShaderDesc::ShaderDataType  m_Type;
+        dmArray<UniformBlockMember> m_BlockMembers;
+        uint32_t                    m_DataSize;
+        uint16_t                    m_ElementCount;
+        uint16_t                    m_Set;
+        uint16_t                    m_Binding;
         union
         {
             uint16_t               m_UniformDataIndex;
@@ -251,15 +262,14 @@ namespace dmGraphics
 
     struct ShaderModule
     {
-        uint64_t               m_Hash;
-        VkShaderModule         m_Module;
-        ShaderResourceBinding* m_Uniforms;
-        ShaderResourceBinding* m_Inputs;
-        uint32_t               m_UniformDataSizeAligned;
-        uint16_t               m_UniformCount;
-        uint16_t               m_UniformBufferCount;
-        uint16_t               m_InputCount;
-        uint16_t               m_TextureSamplerCount;
+        uint64_t                       m_Hash;
+        VkShaderModule                 m_Module;
+        dmArray<ShaderResourceBinding> m_Uniforms;
+        dmArray<ShaderResourceBinding> m_Inputs;
+        uint32_t                       m_UniformDataSizeAligned;
+        uint16_t                       m_UniformBufferCount;
+        uint16_t                       m_TextureSamplerCount;
+        uint16_t                       m_TotalUniformCount;
     };
 
     struct Program

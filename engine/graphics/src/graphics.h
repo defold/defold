@@ -79,6 +79,7 @@ namespace dmGraphics
 
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0u;
 
     enum AssetType
     {
@@ -364,6 +365,31 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
+    /*
+    static const uint64_t INVALID_UNIFORM_LOCATION = -1;
+
+    union UniformLocation
+    {
+        UniformLocation()
+        : m_LocationKey(INVALID_UNIFORM_LOCATION)
+        {}
+        inline bool Valid()
+        {
+            return m_LocationKey != INVALID_UNIFORM_LOCATION;
+        }
+
+        struct
+        {
+            uint16_t m_LocationVs;
+            uint16_t m_LocationVsMember;
+            uint16_t m_LocationFs;
+            uint16_t m_LocationFsMember;
+        };
+
+        uint64_t m_LocationKey;
+    };
+    */
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
@@ -569,13 +595,13 @@ namespace dmGraphics
     void             GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type);
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
-    uint32_t GetUniformCount(HProgram prog);
-    int32_t  GetUniformLocation(HProgram prog, const char* name);
+    uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
+    uint32_t         GetUniformCount(HProgram prog);
+    HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
-    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    void SetSampler(HContext context, int32_t location, int32_t unit);
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);

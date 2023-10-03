@@ -42,6 +42,7 @@ public class ShaderUtil {
         public static final int     MAX_ARRAY_SAMPLERS             = 8;
         public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
         public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
+        public static final Pattern regexUniformBlockBeginKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)\\s*");
         public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
         public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
         public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
@@ -54,11 +55,11 @@ public class ShaderUtil {
         }
 
         public static String stripComments(String source)
-        {  
+        {
             CharStream stream = CharStreams.fromString(source);
             GLSLLexer lexer = new GLSLLexer(stream);
             CommonTokenStream tokens = new CommonTokenStream(lexer, GLSLLexer.COMMENTS);
-            // Get all tokens from lexer until EOF 
+            // Get all tokens from lexer until EOF
             tokens.fill();
             TokenStreamRewriter rewriter = new TokenStreamRewriter(tokens);
             // Iterate over the tokens and remove comments
@@ -107,7 +108,8 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
                 new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
                 new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
-                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)
+                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
+                new ShaderDataTypeConversionEntry("ubo", ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -221,7 +223,7 @@ public class ShaderUtil {
 
         public static class UniformBlock extends Resource
         {
-            public ArrayList<Resource> uniforms;
+            public ArrayList<Resource> uniforms = new ArrayList<Resource>();
         }
 
         public static ArrayList<UniformBlock> getUniformBlocks()
@@ -243,7 +245,7 @@ public class ShaderUtil {
                 ubo.name         = uniformBlockNode.get("name").asText();
                 ubo.set          = uniformBlockNode.get("set").asInt();
                 ubo.binding      = uniformBlockNode.get("binding").asInt();
-                ubo.uniforms     = new ArrayList<Resource>();
+                ubo.type         = "ubo";
 
                 JsonNode typeNode    = typesNode.get(uniformBlockNode.get("type").asText());
                 JsonNode membersNode = typeNode.get("members");
@@ -391,6 +393,8 @@ public class ShaderUtil {
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
 
         private static final String glUBRep                     = dmEngineGeneratedRep + "UB_";
+        private static final String glUBRepVs                   = glUBRep + "VS_";
+        private static final String glUBRepFs                   = glUBRep + "FS_";
         private static final String glFragColorKeyword          = "gl_FragColor";
         private static final String glFragDataKeyword           = "gl_FragData";
         private static final String glFragColorRep              = dmEngineGeneratedRep + glFragColorKeyword;
@@ -481,22 +485,24 @@ public class ShaderUtil {
             // Preallocate array of resulting slices. This makes patching in specific positions less complex
             ArrayList<String> output = new ArrayList<String>(input.length());
 
+            String ubBase = shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? glUBRepVs : glUBRepFs;
+
             // Multi-instance patching
             int ubIndex = 0;
             for(String line : inputLines) {
 
-                if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
+                if(line.contains("uniform") && useLatestFeatures)
                 {
-                    // Transform non-opaque uniforms into uniform blocks (UB's). Do not process existing UB's
                     Matcher uniformMatcher = Common.regexUniformKeywordPattern.matcher(line);
-                    if(uniformMatcher.find()) {
+
+                    if (uniformMatcher.find()) {
                         String keyword = uniformMatcher.group("keyword");
                         if(keyword != null) {
-                            String layout = uniformMatcher.group("layout");
-                            String precision = uniformMatcher.group("precision");
-                            String type = uniformMatcher.group("type");
+                            String layout     = uniformMatcher.group("layout");
+                            String precision  = uniformMatcher.group("precision");
+                            String type       = uniformMatcher.group("type");
                             String identifier = uniformMatcher.group("identifier");
-                            String any = uniformMatcher.group("any");
+                            String any        = uniformMatcher.group("any");
 
                             boolean isOpaque = false;
                             for( String opaqueTypePrefix : opaqueUniformTypesPrefix) {
@@ -510,11 +516,28 @@ public class ShaderUtil {
                                 layout = "layout(set=" + layoutSet + ")";
                             }
 
-                            if (isOpaque){
+                            if (isOpaque) {
                                 line = layout + " " + line;
                             } else {
-                                line = "\n" + layout + " " + keyword + " " + glUBRep + ubIndex++ + " { " +
+                                line = "\n" + layout + " " + keyword + " " + ubBase + ubIndex++ + " { " +
                                 (precision == null ? "" : (precision + " ")) + type + " " + identifier + " " + (any == null ? "" : (any + " ")) + "; };";
+                            }
+                        }
+                    } else {
+                        Matcher uniformHeaderMatcher = Common.regexUniformBlockBeginKeywordPattern.matcher(line);
+                        if (uniformHeaderMatcher.find()) {
+                            String keyword = uniformHeaderMatcher.group("keyword");
+                            if(keyword != null) {
+                                String layout = uniformHeaderMatcher.group("layout");
+                                String type   = uniformHeaderMatcher.group("type");
+
+                                boolean blockScopeBegin = line.contains("{");
+
+                                if (layout == null) {
+                                    layout = "layout(set=" + layoutSet + ")";
+                                }
+
+                                line = "\n" + layout + " " + keyword + " " + type + (blockScopeBegin ? "{" : "");
                             }
                         }
                     }

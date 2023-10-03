@@ -213,6 +213,10 @@ public class ShaderCompilerHelpers {
             es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
         }
 
+        System.out.println("-----------------");
+        System.out.println("COMPILED SOURCE:");
+        System.out.println(es3Result.output);
+
         // compile GLSL (ES3 or Desktop 140) to SPIR-V
         File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
         file_in_glsl.deleteOnExit();
@@ -279,50 +283,25 @@ public class ShaderCompilerHelpers {
         ArrayList<String> shaderIssues = new ArrayList<String>();
 
         // Put all shader resources on a separate list that will be sorted by binding number later
-        ArrayList<SPIRVReflector.Resource> resources = new ArrayList();
+        ArrayList<SPIRVReflector.UniformBlock> resources = new ArrayList();
 
-        // Generate a mapping of Uniform Set -> List of Bindings for that set
-        // so that we can check for duplicate bindings.
-        //
-        // Set (0) |- Binding(0) |- U1
-        //         |_ Binding(1) |- U2
-        //                       |_ U3
-        //
-        // Set (1) |- Binding(0) |_ U4
-        //                       |_ U5
-        //
         for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
-
-            // We only support a 1-1 mapping between uniform blocks and uniforms.
-            // I.e uniform blocks can't have more (or less) than one uniform in them.
-            if (ubo.uniforms.size() > 1) {
-                shaderIssues.add("More than one uniforms in uniform block '" + ubo.name + "'");
-            } else if (ubo.uniforms.size() == 0) {
+            if (ubo.uniforms.size() == 0) {
                 shaderIssues.add("No uniforms found in uniform block '" + ubo.name + "'");
-            } else {
-                SPIRVReflector.Resource firstUniform = ubo.uniforms.get(0);
-                SPIRVReflector.Resource uniform = new SPIRVReflector.Resource();
-                uniform.name         = firstUniform.name;
-                uniform.type         = firstUniform.type;
-                uniform.elementCount = firstUniform.elementCount;
-                uniform.binding      = ubo.binding;
-                uniform.set          = ubo.set;
+            }
 
-                ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(uniform.type);
+            for (SPIRVReflector.Resource uniformInBlock : ubo.uniforms) {
 
-                int issue_count = shaderIssues.size();
-                if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
-                    shaderIssues.add("Unsupported type for uniform '" + uniform.name + "'");
+                if (Common.stringTypeToShaderType(uniformInBlock.type) == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
+                    shaderIssues.add(String.format("Unsupported type '%s' for uniform '%s'", uniformInBlock.type, uniformInBlock.name));
                 }
 
-                if (uniform.set > 1) {
-                    shaderIssues.add("Unsupported set value for uniform '" + uniform.name + "', expected <= 1 but found " + uniform.set);
-                }
-
-                if (issue_count == shaderIssues.size()) {
-                    resources.add(uniform);
+                if (uniformInBlock.set > 1) {
+                    shaderIssues.add(String.format("Unsupported set value for uniform '%s', expected <= 1 but found %d", uniformInBlock.name, uniformInBlock.set));
                 }
             }
+
+            resources.add(ubo);
         }
 
         for (SPIRVReflector.Resource tex : reflector.getTextures()) {
@@ -330,9 +309,17 @@ public class ShaderCompilerHelpers {
 
             if (!Common.isShaderTypeTexture(type)) {
                 shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
-            } else {
-                resources.add(tex);
             }
+
+            SPIRVReflector.UniformBlock textureBlock = new SPIRVReflector.UniformBlock();
+
+            textureBlock.name    = tex.name;
+            textureBlock.binding = tex.binding;
+            textureBlock.set     = tex.set;
+            textureBlock.type    = tex.type;
+            textureBlock.uniforms.add(tex);
+
+            resources.add(textureBlock);
         }
 
         // This is a soft-fail mechanism just to notify that the shaders won't work in runtime.
@@ -342,14 +329,14 @@ public class ShaderCompilerHelpers {
             return res;
         }
 
-        res.inputs    = reflector.getInputs();
-        res.outputs   = reflector.getOutputs();
-        res.resources = resources;
-        res.source    = FileUtils.readFileToByteArray(file_out_spv);
+        res.inputs         = reflector.getInputs();
+        res.outputs        = reflector.getOutputs();
+        res.resourceBlocks = resources;
+        res.source         = FileUtils.readFileToByteArray(file_out_spv);
 
         Collections.sort(res.inputs, new SortBindingsComparator());
         Collections.sort(res.outputs, new SortBindingsComparator());
-        Collections.sort(res.resources, new SortBindingsComparator());
+        Collections.sort(res.resourceBlocks, new SortBindingsComparator());
 
         return res;
     }
@@ -363,10 +350,10 @@ public class ShaderCompilerHelpers {
     static public class SPIRVCompileResult
     {
         public byte[] source;
-        public ArrayList<String> compile_warnings           = new ArrayList<String>();
-        public ArrayList<SPIRVReflector.Resource> inputs    = new ArrayList<SPIRVReflector.Resource>();
-        public ArrayList<SPIRVReflector.Resource> outputs   = new ArrayList<SPIRVReflector.Resource>();
-        public ArrayList<SPIRVReflector.Resource> resources = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<String> compile_warnings                    = new ArrayList<String>();
+        public ArrayList<SPIRVReflector.Resource> inputs             = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.Resource> outputs            = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.UniformBlock> resourceBlocks = new ArrayList<SPIRVReflector.UniformBlock>();
     };
 
     static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
@@ -402,15 +389,27 @@ public class ShaderCompilerHelpers {
             builder.addOutputs(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource res : compile_res.resources) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-            resourceBindingBuilder.setName(res.name);
-            resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
-            resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
-            resourceBindingBuilder.setElementCount(res.elementCount);
-            resourceBindingBuilder.setSet(res.set);
-            resourceBindingBuilder.setBinding(res.binding);
-            builder.addUniforms(resourceBindingBuilder);
+        for (SPIRVReflector.UniformBlock block : compile_res.resourceBlocks) {
+
+            ShaderDesc.ResourceBlock.Builder resourceBlockBuilder = ShaderDesc.ResourceBlock.newBuilder();
+
+            resourceBlockBuilder.setName(block.name);
+            resourceBlockBuilder.setNameHash(MurmurHash.hash64(block.name));
+            resourceBlockBuilder.setType(Common.stringTypeToShaderType(block.type));
+            resourceBlockBuilder.setSet(block.set);
+            resourceBlockBuilder.setBinding(block.binding);
+            resourceBlockBuilder.setElementCount(block.elementCount);
+
+            for (SPIRVReflector.Resource res : block.uniforms) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                resourceBindingBuilder.setName(res.name);
+                resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
+                resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
+                resourceBindingBuilder.setElementCount(res.elementCount);
+                resourceBlockBuilder.addBindings(resourceBindingBuilder);
+            }
+
+            builder.addResources(resourceBlockBuilder);
         }
 
         return new ShaderProgramBuilder.ShaderBuildResult(builder);

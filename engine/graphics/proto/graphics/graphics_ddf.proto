@@ -250,6 +250,7 @@ message ShaderDesc
         SHADER_TYPE_SAMPLER3D       = 11;
         SHADER_TYPE_SAMPLER_CUBE    = 12;
         SHADER_TYPE_SAMPLER2D_ARRAY = 13;
+        SHADER_TYPE_UNIFORM_BUFFER  = 14;
     }
 
     message ResourceBinding
@@ -262,12 +263,23 @@ message ShaderDesc
         optional uint32         binding       = 6 [default=0];
     }
 
+    message ResourceBlock
+    {
+        required string          name          = 1;
+        required uint64          name_hash     = 2;
+        repeated ResourceBinding bindings      = 3;
+        required ShaderDataType  type          = 4;
+        optional uint32          element_count = 5 [default=1];
+        optional uint32          set           = 6 [default=0];
+        optional uint32          binding       = 7 [default=0];
+    }
+
     message Shader
     {
         required Language        language              = 1;
         optional bytes           source                = 2;
         optional string          name                  = 3;
-        repeated ResourceBinding uniforms              = 4;
+        repeated ResourceBlock   resources             = 4;
         repeated ResourceBinding inputs                = 5;
         repeated ResourceBinding outputs               = 6;
         optional bool            variant_texture_array = 7 [default = false];
