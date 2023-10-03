@@ -38,6 +38,7 @@ import rig.rig_ddf_pb2
 import render.material_ddf_pb2
 import render.font_ddf_pb2
 import particle.particle_ddf_pb2
+import gamesys.sprite_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -56,6 +57,7 @@ BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
 BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
 BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
 BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
+BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BYTES]   = 'TYPE_BYTES'
