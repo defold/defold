@@ -53,7 +53,7 @@ import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
-import com.dynamo.gamesys.proto.Sprite.SpriteImage;
+import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
@@ -292,24 +292,24 @@ public class ProtoBuilders {
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
     {
         List<String> getImageResources(SpriteDesc.Builder builder) {
-            List<String> images = new ArrayList<>();
+            List<String> textures = new ArrayList<>();
 
-            for (SpriteImage image : builder.getImagesList()) {
-                String a = image.getImage();
-                if (!a.isEmpty())
+            for (SpriteTexture texture : builder.getTexturesList()) {
+                String t = texture.getTexture();
+                if (!t.isEmpty())
                 {
-                    images.add(a);
+                    textures.add(t);
                 }
             }
 
             // Deprecated
-            if (images.isEmpty()) {
-                String atlas = builder.getTileSet();
-                if (!atlas.isEmpty()) {
-                    images.add(atlas);
+            if (textures.isEmpty()) {
+                String t = builder.getTileSet();
+                if (!t.isEmpty()) {
+                    textures.add(t);
                 }
             }
-            return images;
+            return textures;
         }
 
         @Override
@@ -350,33 +350,35 @@ public class ProtoBuilders {
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
-            if (messageBuilder.getImagesList().isEmpty()) {
-                String atlas = messageBuilder.getTileSet();
+            if (messageBuilder.getTexturesList().isEmpty()) {
+                String texture = messageBuilder.getTileSet();
 
-                SpriteImage.Builder imageBuilder = SpriteImage.newBuilder();
-                imageBuilder.setImage(atlas);
-                imageBuilder.setSampler("");
-                messageBuilder.addImages(imageBuilder.build());
+                SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
+                textureBuilder.setTexture(texture);
+                textureBuilder.setSampler("");
+                messageBuilder.clearTextures();
+                messageBuilder.addTextures(textureBuilder.build());
             }
 
             MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));
 
             validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), materialBuilder, messageBuilder.getTileSet());
 
-            List<SpriteImage> images = new ArrayList<>();
-            for (SpriteImage image : messageBuilder.getImagesList()) {
-                SpriteImage.Builder imageBuilder = SpriteImage.newBuilder();
-                imageBuilder.mergeFrom(image);
+            List<SpriteTexture> textures = new ArrayList<>();
+            for (SpriteTexture texture : messageBuilder.getTexturesList()) {
+                SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
+                textureBuilder.mergeFrom(texture);
 
-                BuilderUtil.checkResource(this.project, resource, "tile source", imageBuilder.getImage());
+                BuilderUtil.checkResource(this.project, resource, "tile source", textureBuilder.getTexture());
 
-                imageBuilder.setImage(BuilderUtil.replaceExt(imageBuilder.getImage(), "tileset", "t.texturesetc"));
-                imageBuilder.setImage(BuilderUtil.replaceExt(imageBuilder.getImage(), "tilesource", "t.texturesetc"));
-                imageBuilder.setImage(BuilderUtil.replaceExt(imageBuilder.getImage(), "atlas", "a.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tileset", "t.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tilesource", "t.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "atlas", "a.texturesetc"));
 
-                images.add(imageBuilder.build());
+                textures.add(textureBuilder.build());
             }
-            messageBuilder.addAllImages(images);
+            messageBuilder.clearTextures();
+            messageBuilder.addAllTextures(textures);
 
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
 
