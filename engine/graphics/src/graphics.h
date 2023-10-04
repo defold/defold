@@ -365,31 +365,6 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
-    /*
-    static const uint64_t INVALID_UNIFORM_LOCATION = -1;
-
-    union UniformLocation
-    {
-        UniformLocation()
-        : m_LocationKey(INVALID_UNIFORM_LOCATION)
-        {}
-        inline bool Valid()
-        {
-            return m_LocationKey != INVALID_UNIFORM_LOCATION;
-        }
-
-        struct
-        {
-            uint16_t m_LocationVs;
-            uint16_t m_LocationVsMember;
-            uint16_t m_LocationFs;
-            uint16_t m_LocationFsMember;
-        };
-
-        uint64_t m_LocationKey;
-    };
-    */
-
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context

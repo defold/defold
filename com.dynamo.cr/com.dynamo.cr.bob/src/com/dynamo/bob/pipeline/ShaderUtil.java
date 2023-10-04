@@ -39,14 +39,14 @@ import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
 
 public class ShaderUtil {
     public static class Common {
-        public static final int     MAX_ARRAY_SAMPLERS             = 8;
-        public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
-        public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
-        public static final Pattern regexUniformBlockBeginKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)\\s*");
-        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
-        public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
-        public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
-        public static final Pattern arrayArraySamplerPattern       = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+        public static final int     MAX_ARRAY_SAMPLERS                   = 8;
+        public static final String  glSampler2DArrayRegex                = "(.+)sampler2DArray\\s+(\\w+);";
+        public static final Pattern regexUniformKeywordPattern           = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
+        public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)\\s*");
+        public static String        includeDirectiveReplaceBaseStr       = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
+        public static String        includeDirectiveBaseStr              = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
+        public static final Pattern includeDirectivePattern              = Pattern.compile(includeDirectiveBaseStr);
+        public static final Pattern arrayArraySamplerPattern             = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
 
         public static class GLSLCompileResult
         {
@@ -524,12 +524,12 @@ public class ShaderUtil {
                             }
                         }
                     } else {
-                        Matcher uniformHeaderMatcher = Common.regexUniformBlockBeginKeywordPattern.matcher(line);
-                        if (uniformHeaderMatcher.find()) {
-                            String keyword = uniformHeaderMatcher.group("keyword");
+                        Matcher uniforBlockBeginMatcher = Common.regexUniformBlockBeginKeywordPattern.matcher(line);
+                        if (uniforBlockBeginMatcher.find()) {
+                            String keyword = uniforBlockBeginMatcher.group("keyword");
                             if(keyword != null) {
-                                String layout = uniformHeaderMatcher.group("layout");
-                                String type   = uniformHeaderMatcher.group("type");
+                                String layout = uniforBlockBeginMatcher.group("layout");
+                                String type   = uniforBlockBeginMatcher.group("type");
 
                                 boolean blockScopeBegin = line.contains("{");
 

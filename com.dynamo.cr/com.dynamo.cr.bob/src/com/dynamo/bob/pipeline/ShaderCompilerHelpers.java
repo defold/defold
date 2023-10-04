@@ -213,10 +213,6 @@ public class ShaderCompilerHelpers {
             es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
         }
 
-        System.out.println("-----------------");
-        System.out.println("COMPILED SOURCE:");
-        System.out.println(es3Result.output);
-
         // compile GLSL (ES3 or Desktop 140) to SPIR-V
         File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
         file_in_glsl.deleteOnExit();

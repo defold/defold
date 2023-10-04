@@ -1893,7 +1893,7 @@ bail:
             else
             {
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                const uint32_t uniform_size_nonalign    = res.m_DataSize; //GetShaderTypeSize(res.m_Type) * res.m_ElementCount;
+                const uint32_t uniform_size_nonalign    = res.m_DataSize;
                 const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                 assert(uniform_size_nonalign > 0);
@@ -2678,6 +2678,7 @@ bail:
             }
             else
             {
+                assert(uniforms[i].m_BlockMembers.Size() < UNIFORM_LOCATION_MAX);
                 for (uint32_t j = 0; j < uniforms[i].m_BlockMembers.Size(); ++j)
                 {
                     if (uniforms[i].m_BlockMembers[j].m_NameHash == name_hash)
