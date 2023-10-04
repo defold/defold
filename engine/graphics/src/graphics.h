@@ -79,7 +79,7 @@ namespace dmGraphics
 
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
-    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0u;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
 
     enum AssetType
     {

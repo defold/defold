@@ -485,13 +485,18 @@ namespace dmGraphics
         // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
-        RenderTarget* rt           = new RenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
+
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        if (rt == 0x0)
+        {
+            rt                          = new RenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
+            context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        }
+
         rt->m_RenderPass           = context->m_MainRenderPass;
         rt->m_Framebuffer          = context->m_MainFrameBuffers[0];
         rt->m_Extent               = context->m_SwapChain->m_ImageExtent;
         rt->m_ColorAttachmentCount = 1;
-
-        context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
 
         return VK_SUCCESS;
     }
@@ -1947,6 +1952,11 @@ bail:
         const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
         const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
 
+        if (num_descriptors == 0)
+        {
+            return VK_SUCCESS;
+        }
+
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
         VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, num_descriptors, &vk_descriptor_set_list);
         if (res != VK_SUCCESS)
@@ -2159,6 +2169,7 @@ bail:
         {
             shader->m_Uniforms.SetCapacity(ddf->m_Resources.m_Count);
             shader->m_Uniforms.SetSize(ddf->m_Resources.m_Count);
+            memset(shader->m_Uniforms.Begin(), 0, sizeof(ShaderResourceBinding) * ddf->m_Resources.m_Count);
 
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
@@ -2190,7 +2201,7 @@ bail:
                     for (uint32_t j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
                     {
                         ShaderDesc::ResourceBinding& member  = ddf->m_Resources[i].m_Bindings[j];
-                        res.m_BlockMembers[j].m_Name         = strdup(member.m_Name); // TODO: Free!
+                        res.m_BlockMembers[j].m_Name         = strdup(member.m_Name);
                         res.m_BlockMembers[j].m_NameHash     = member.m_NameHash;
                         res.m_BlockMembers[j].m_Type         = member.m_Type;
                         res.m_BlockMembers[j].m_ElementCount = member.m_ElementCount;
@@ -2309,14 +2320,8 @@ bail:
             else
             {
                 assert(num_uniform_buffers < byte_offset_list_size);
-                uint32_t uniform_size = 0;
-                for (uint32_t j = 0; j < res.m_BlockMembers.Size(); ++j)
-                {
-                    uniform_size += GetShaderTypeSize(res.m_BlockMembers[j].m_Type) * res.m_BlockMembers[j].m_ElementCount;
-                }
-
                 byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += uniform_size;
+                byte_offset                                 += res.m_DataSize;
                 vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                 num_uniform_buffers++;
             }
@@ -2421,6 +2426,15 @@ bail:
 
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
+        }
+        else
+        {
+            VkPipelineLayoutCreateInfo vk_layout_create_info = {};
+            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            vk_layout_create_info.setLayoutCount = 0;
+            vk_layout_create_info.pSetLayouts    = 0;
+
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
         }
 
         return true;
@@ -2723,7 +2737,7 @@ bail:
     static void VulkanSetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
         assert(g_VulkanContext->m_CurrentProgram);
-        assert(base_location >= 0);
+        assert(base_location != INVALID_UNIFORM_LOCATION);
         Program* program_ptr = (Program*) g_VulkanContext->m_CurrentProgram;
 
         uint32_t index_vs        = UNIFORM_LOCATION_GET_VS(base_location);
@@ -2759,6 +2773,7 @@ bail:
     static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
         Program* program_ptr = (Program*) g_VulkanContext->m_CurrentProgram;
+        assert(base_location != INVALID_UNIFORM_LOCATION);
 
         uint32_t index_vs        = UNIFORM_LOCATION_GET_VS(base_location);
         uint32_t index_vs_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
@@ -2790,6 +2805,7 @@ bail:
 
     static void VulkanSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
+        assert(location != INVALID_UNIFORM_LOCATION);
         assert(context && g_VulkanContext->m_CurrentProgram);
         Program* program_ptr = (Program*) g_VulkanContext->m_CurrentProgram;
 
