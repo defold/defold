@@ -279,8 +279,6 @@
                 (.getChildren)
                 (.clear))
 
-            (.setVgap box-items 5)
-
             (doseq [[row-index item] (map-indexed vector items)]
               (let [
                     font (Font. "Dejavu Sans Mono" 13)
