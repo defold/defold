@@ -132,7 +132,7 @@ if os.environ.get('TERM','') in ('cygwin',):
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
 ENGINE_LIBS = "testmain dlib texc modelc ddf glfw graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
-HOST_LIBS = "testmain dlib texc modelc".split()
+HOST_LIBS = "testmain dlib jni texc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
