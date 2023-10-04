@@ -237,13 +237,14 @@ namespace dmGameSystem
         }
 
         // Now we need to sort the textures based on sampler appearance
-        memset(resource->m_Textures, 0, sizeof(resource->m_Textures));
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             uint32_t unit = dmRender::GetMaterialSamplerUnit(material, resources->m_SamplerNames[i]);
             if (unit == 0xFFFFFFFF)
                 continue;
             resource->m_Textures[unit] = resources->m_Textures[i];
+            resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
+            resource->m_NumTextures++;
         }
     }
 
@@ -277,6 +278,8 @@ namespace dmGameSystem
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
 
             MaterialResource* resource = new MaterialResource;
+            memset(resource, 0, sizeof(MaterialResource));
+
             resource->m_Material = material;
             SetMaterial(params.m_Filename, resource, &resources, ddf);
 
