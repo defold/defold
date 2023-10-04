@@ -243,7 +243,6 @@
       escaped-resource-name)))
 
 (defn- create-key-info [label key-combo]
-  (clojure.pprint/pprint key-combo)
   (let [keys (remove nil? (list
                             (if (:meta-down? key-combo) "Meta")
                             (if (:control-down? key-combo) "Ctrl")
