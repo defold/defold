@@ -305,7 +305,6 @@
                                                     is-valid (and quick-help-box box-items)]
                                                 (if is-valid (.setVisible quick-help-box is-empty))
                                                 (if (and is-valid (zero? (.size (.getChildren box-items))))
-                                                ;(if (and is-valid)
                                                   (do
                                                     (.setVisible quick-help-box is-empty)
 
