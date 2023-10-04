@@ -693,10 +693,7 @@ namespace dmPhysics
         float object_scale = 1.0f;
         if (has_world_transform)
         {
-            if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
-            {
-                object_scale = world_transform.GetUniformScale();
-            }
+            object_scale = world_transform.GetUniformScale();
         }
 
         bool clone_shapes = world->m_AllowDynamicTransforms || object_scale != 1.0f;
