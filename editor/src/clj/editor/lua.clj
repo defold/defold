@@ -20,8 +20,10 @@
             [clojure.string :as string]
             [editor.code-completion :as code-completion]
             [editor.protobuf :as protobuf]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
+           [java.net URI]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -40,38 +42,54 @@
 (defn- load-sdoc [doc-name]
   (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
 
-(defn- make-doc-args-table [args]
-  (str "<table>"
+(defn- make-args-doc-html [args]
+  (str "<dl>"
        (->> args
             (map
               (fn [{:keys [name doc types]}]
-                (format "<tr><td><code>%s</code></td><td><code>%s</code></td><td>%s</td></tr>"
+                (format "<dt><code>%s%s</code></dt>%s"
                         name
-                        (string/join ", " types)
-                        (or doc ""))))
+                        (if (pos? (count types))
+                          (format " <small>%s</small>" (string/join ", " types))
+                          "")
+                        (if doc
+                          (format "<dd>%s</dd>" doc)
+                          ""))))
             string/join)
-       "</table>"))
+       "</dl>"))
 
-(defn- make-markdown-doc [{:keys [description type examples] :as el}]
-  (let [sections (cond-> []
+(defn- make-markdown-doc [raw-name ^URI base-url {:keys [description type examples parameters] :as el}]
+  (let [site-url (.resolve base-url
+                           (str "#"
+                                (string/replace
+                                  (str
+                                    raw-name
+                                    (when (= :function type)
+                                      (str ":" (string/join "-" (mapv :name parameters)))))
+                                  #"[\"#*]" "")))
+        sections (cond-> []
                          (pos? (count description))
                          (conj description)
 
                          (= :function type)
-                         (into (let [{:keys [returnvalues parameters]} el]
+                         (into (let [{:keys [returnvalues]} el]
                                  (cond-> []
                                          (pos? (count parameters))
                                          (conj (str
-                                                 "**Parameters:**\n"
-                                                 (make-doc-args-table parameters)))
+                                                 "**Parameters:**\n\n"
+                                                 (make-args-doc-html parameters)))
                                          (pos? (count returnvalues))
-                                         (conj (str "**Returns:**\n"
-                                                    (make-doc-args-table returnvalues))))))
+                                         (conj (str "**Returns:**\n\n"
+                                                    (make-args-doc-html returnvalues))))))
 
                          (pos? (count examples))
-                         (conj (str "**Examples:**\n" examples)))]
-    (when (pos? (count sections))
-      (string/join "\n\n" sections))))
+                         (conj (str "**Examples:**\n\n" examples))
+
+                         :always
+                         (conj (format "[Open in Browser](%s)" site-url)))]
+    {:type :markdown
+     :base-url base-url
+     :value (string/join "\n\n" sections)}))
 
 (defn- make-display-string [{:keys [name type parameters]}]
   (str name (when (= :function type)
@@ -131,16 +149,21 @@
   {:post [(s/assert ::documentation %)]}
   (make-completion-map
     (eduction
-      (mapcat load-sdoc)
-      (map (fn [raw-element]
-             (let [name-parts (string/split (:name raw-element) #"\.")
+      (mapcat (fn [doc-name]
+                (eduction
+                  (map #(pair doc-name %))
+                  (load-sdoc doc-name))))
+      (map (fn [[doc-name raw-element]]
+             (let [raw-name (:name raw-element)
+                   name-parts (string/split raw-name #"\.")
                    ns-path (pop name-parts)
-                   {:keys [name type] :as el} (assoc raw-element :name (peek name-parts))]
+                   {:keys [name type] :as el} (assoc raw-element :name (peek name-parts))
+                   base-url (URI. (str "https://defold.com/ref/" doc-name))]
                [ns-path (code-completion/make name
                                               :type type
                                               :display-string (make-display-string el)
                                               :insert-snippet (make-snippet el)
-                                              :doc (make-markdown-doc el))])))
+                                              :doc (make-markdown-doc raw-name base-url el))])))
       docs)))
 
 (def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"

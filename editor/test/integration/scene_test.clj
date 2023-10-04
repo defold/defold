@@ -337,7 +337,9 @@
   (is (instance? Matrix4d (:parent-world-transform renderable)))
   (is (some? (:render-fn renderable)))
   (is (instance? Comparable (:render-key renderable)))
-  (is (or (true? (:selected renderable)) (false? (:selected renderable))))
+  (is (or (nil? (:selected renderable))
+          (= :self-selected (:selected renderable))
+          (= :parent-selected (:selected renderable))))
   (is (instance? Matrix4d (:world-transform renderable))))
 
 (defn- output-renderable-vector? [coll]
@@ -489,28 +491,28 @@
         [:apple-node-id :apple-node-id]
 
         [:tree-node-id]
-        [:tree-node-id :apple-node-id :apple-node-id]
+        [:apple-node-id :apple-node-id :tree-node-id]
 
         [:door-node-id]
-        [:door-node-id :door-handle-node-id]
+        [:door-handle-node-id :door-node-id]
 
         [:house-node-id]
-        [:house-node-id :door-node-id :door-handle-node-id]
+        [:door-node-id :door-handle-node-id :house-node-id]
 
         [:house-node-id :door-handle-node-id]
-        [:house-node-id :door-node-id :door-handle-node-id]
+        [:door-node-id :house-node-id :door-handle-node-id]
 
         [:bucket-node-id]
         [:bucket-node-id]
 
         [:rope-node-id]
-        [:rope-node-id :bucket-node-id]
+        [:bucket-node-id :rope-node-id]
 
         [:well-node-id]
-        [:well-node-id :rope-node-id :bucket-node-id]
+        [:rope-node-id :bucket-node-id :well-node-id]
 
         [:well-node-id :rope-node-id]
-        [:well-node-id :rope-node-id :bucket-node-id]))
+        [:bucket-node-id :well-node-id :rope-node-id]))
 
     (testing "Selected renderables are ordered"
       (are [selection]
