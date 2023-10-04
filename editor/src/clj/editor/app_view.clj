@@ -241,78 +241,92 @@
     (if is-dirty
       (str "*" escaped-resource-name)
       escaped-resource-name)))
-(defn- update-quick-help-pane [^SplitPane editor-tabs-split]
+
+(defn- create-key-info [label key-combo]
+  (clojure.pprint/pprint key-combo)
+  (let [keys (remove nil? (list
+                            (if (:meta-down? key-combo) "Meta")
+                            (if (:control-down? key-combo) "Ctrl")
+                            (if (:alt-down? key-combo) "Alt")
+                            (if (:shift-down? key-combo) "Shift")
+                            (str (:key key-combo))))]
+    {:label label :keys (into [] keys)}))
+(defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
   (let [
         tab-panes (.getItems editor-tabs-split)
-        has-tabs (some (complement empty?) (map #(-> ^TabPane % (.getTabs)) tab-panes))
+        is-empty (not (some (complement empty?) (map #(-> ^TabPane % (.getTabs)) tab-panes)))
         quick-help-box (.lookup (.getParent editor-tabs-split) "#quick-help-box")
         ^GridPane box-items (.lookup (.getParent editor-tabs-split) "#quick-help-items")]
 
     ;Only make quick help visible when there is no-tabs.
-    (.setVisible quick-help-box (not has-tabs))
+    (.setVisible quick-help-box is-empty)
 
-    (if has-tabs
+    (if is-empty
       (do
-        ;TODO: Move the items to the other place where we can define shortcut for each OS
-        (let [items [{:label "Re-Open Closed File" :keys ["Ctrl" "Shift" "T"]}
-                     {:label "Go Assets" :keys ["Ctrl" "P"]}
-                     {:label "Search in Files" :keys ["Ctrl" "Shift" "F"]}
-                     {:label "Start/Attach" :keys ["F5"]}
-                     {:label "Show Preferences" :keys ["Ctrl" ","]}]]
+        (let [command->key-combo
+              (into {}
+                    (mapcat (fn [[key-combo command-infos]]
+                              (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
+                    keymap)]
+          (let [items [(create-key-info "Re-Open Closed File" (command->key-combo :reopen-recent-file))
+                       (create-key-info "Go Assets" (command->key-combo :open-asset))
+                       (create-key-info "Search in Files" (command->key-combo :search-in-files))
+                       (create-key-info "Start/Attach" (command->key-combo :start-debugger))
+                       (create-key-info "Show Preferences" (command->key-combo :preferences))
+                       ]]
 
-          (-> box-items
-              (.getChildren)
-              (.clear))
+            (-> box-items
+                (.getChildren)
+                (.clear))
 
+            (.setVgap box-items 5)
 
-          (.setVgap box-items 5)
+            (doseq [[row-index item] (map-indexed vector items)]
+              (let [
+                    font (Font. "Dejavu Sans Mono" 13)
+                    color (Color. 1.0 1.0 0.59765625 0.6)
+                    label (:label item)
+                    keys (:keys item)]
 
-          (doseq [[row-index item] (map-indexed vector items)]
-            (let [
-                  font (Font. "Dejavu Sans Mono" 13)
-                  color (Color. 1.0 1.0 0.59765625 0.6)
-                  label (:label item)
-                  keys (:keys item)]
+                ;Add label in the first column
+                (let [label-ui (Label. label)]
+                  (.setFont label-ui font)
+                  (.setTextFill label-ui color)
+                  (GridPane/setHalignment label-ui (HPos/RIGHT))
+                  (-> box-items
+                      (.add label-ui 0 row-index)))
 
-              ;Add label in the first column
-              (let [label-ui (Label. label)]
-                (.setFont label-ui font)
-                (.setTextFill label-ui color)
-                (GridPane/setHalignment label-ui (HPos/RIGHT))
-                (-> box-items
-                    (.add label-ui 0 row-index)))
+                ;Add keys (in the hbox) in the second column
+                (let [hbox (HBox.)]
+                  (.setAlignment hbox (Pos/CENTER_LEFT))
 
-              ;Add keys (in the hbox) in the second column
-              (let [hbox (HBox.)]
-                (.setAlignment hbox (Pos/CENTER_LEFT))
-
-                (let [spacer (Region.)]
-                  (.setPrefWidth spacer 10)
-                  (-> hbox
-                      (.getChildren)
-                      (.add spacer)))
-
-                (doseq [[index key] (map-indexed vector keys)]
-                  (if (pos? index)
-                    (let [plus-ui (Label. "+")]
-                      (.setPrefWidth plus-ui 10)
-                      (.setAlignment plus-ui (Pos/CENTER))
-                      (-> hbox
-                          (.getChildren)
-                          (.add plus-ui))))
-
-                  (let [key-ui (Label. key)]
-                    (.setFont key-ui font)
-                    (.setTextFill key-ui color)
-                    (-> key-ui
-                        (.getStyleClass)
-                        (.add "key-button"))
+                  (let [spacer (Region.)]
+                    (.setPrefWidth spacer 10)
                     (-> hbox
                         (.getChildren)
-                        (.add key-ui))))
+                        (.add spacer)))
 
-                (-> box-items
-                    (.add hbox 1 row-index))))))))))
+                  (doseq [[index key] (map-indexed vector keys)]
+                    (if (pos? index)
+                      (let [plus-ui (Label. "+")]
+                        (.setPrefWidth plus-ui 10)
+                        (.setAlignment plus-ui (Pos/CENTER))
+                        (-> hbox
+                            (.getChildren)
+                            (.add plus-ui))))
+
+                    (let [key-ui (Label. key)]
+                      (.setFont key-ui font)
+                      (.setTextFill key-ui color)
+                      (-> key-ui
+                          (.getStyleClass)
+                          (.add "key-button"))
+                      (-> hbox
+                          (.getChildren)
+                          (.add key-ui))))
+
+                  (-> box-items
+                      (.add hbox 1 row-index)))))))))))
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -365,9 +379,9 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views]
+  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views keymap]
                                             (let [tab-panes (.getItems editor-tabs-split)]
-                                              (update-quick-help-pane editor-tabs-split)
+                                              (update-quick-help-pane editor-tabs-split keymap)
 
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
