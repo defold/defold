@@ -96,12 +96,14 @@
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
-           [javafx.geometry Orientation]
+           [javafx.geometry HPos Orientation Pos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene.text Font]
+           [javafx.scene.paint Color]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip Label]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.layout AnchorPane StackPane]
+           [javafx.scene.layout AnchorPane GridPane HBox StackPane VBox Region]
            [javafx.scene.shape Ellipse SVGPath]
            [javafx.stage Screen Stage WindowEvent]))
 
@@ -294,6 +296,81 @@
                                 (get sub-selections-by-resource-node active-resource-node)))
   (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views]
                                             (let [tab-panes (.getItems editor-tabs-split)]
+
+                                              ;TODO: Extract this logic to another method.
+                                              (let [total-tabs (reduce + (map #(-> ^TabPane % (.getTabs) (.size)) tab-panes))
+                                                    is-empty (zero? total-tabs)
+                                                    quick-help-box (.lookup (.getParent editor-tabs-split) "#quick-help-box")
+                                                    ^GridPane box-items (.lookup (.getParent editor-tabs-split) "#quick-help-items")
+                                                    is-valid (and quick-help-box box-items)]
+                                                (if is-valid (.setVisible quick-help-box is-empty))
+                                                (if (and is-valid (zero? (.size (.getChildren box-items))))
+                                                ;(if (and is-valid)
+                                                  (do
+                                                    (.setVisible quick-help-box is-empty)
+
+                                                    ;TODO: Do nothing if the box-items has children
+                                                    ;TODO: Move the items to the other place where we can define shortcut for each OS
+                                                    (let [items [{:label "Re-Open Closed File" :keys ["Ctrl" "Shift" "T"]}
+                                                                 {:label "Go Assets" :keys ["Ctrl" "P"]}
+                                                                 {:label "Search in Files" :keys ["Ctrl" "Shift" "F"]}
+                                                                 {:label "Start/Attach" :keys ["F5"]}
+                                                                 {:label "Show Preferences" :keys ["Ctrl" ","]}]]
+
+                                                      (-> box-items
+                                                          (.getChildren)
+                                                          (.clear))
+
+
+                                                      (.setVgap box-items 5)
+
+                                                      (doseq [[row-index item] (map-indexed vector items)]
+                                                        (let [
+                                                              font (Font. "Dejavu Sans Mono" 13)
+                                                              color (Color. 1.0 1.0 0.59765625 0.6)
+                                                              label (:label item)
+                                                              keys (:keys item)]
+
+                                                          ;Add label in the first column
+                                                          (let [label-ui (Label. label)]
+                                                            (.setFont label-ui font)
+                                                            (.setTextFill label-ui color)
+                                                            (GridPane/setHalignment label-ui (HPos/RIGHT))
+                                                            (-> box-items
+                                                                (.add label-ui 0 row-index)))
+
+                                                          ;Add keys (in the hbox) in the second column
+                                                          (let [hbox (HBox.)]
+                                                            (.setAlignment hbox (Pos/CENTER_LEFT))
+
+                                                            (let [spacer (Region.)]
+                                                              (.setPrefWidth spacer 10)
+                                                              (-> hbox
+                                                                  (.getChildren)
+                                                                  (.add spacer)))
+
+                                                            (doseq [[index key] (map-indexed vector keys)]
+                                                              (if (pos? index)
+                                                                (let [plus-ui (Label. "+")]
+                                                                  (.setPrefWidth plus-ui 10)
+                                                                  (.setAlignment plus-ui (Pos/CENTER))
+                                                                  (-> hbox
+                                                                      (.getChildren)
+                                                                      (.add plus-ui))))
+
+                                                              (let [key-ui (Label. key)]
+                                                                (.setFont key-ui font)
+                                                                (.setTextFill key-ui color)
+                                                                (-> key-ui
+                                                                    (.getStyleClass)
+                                                                    (.add "key-button"))
+                                                                (-> hbox
+                                                                    (.getChildren)
+                                                                    (.add key-ui))))
+
+                                                            (-> box-items
+                                                                (.add hbox 1 row-index)))))))))
+
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
