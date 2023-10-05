@@ -202,21 +202,34 @@ public class ShaderCompilerHelpers {
             version = 310;
         }
 
-        // Convert to ES3 (or GL 140+)
-        ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+        Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
+        String shaderVersionStr = null;
+        String shaderProfileStr = "";
 
-        // Update version for SPIR-V (GLES >= 310, Core >= 140)
-        es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
-        if(es3Result.shaderProfile.equals("es")) {
-            es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 310 ? "310" : es3Result.shaderVersion;
+        // If the shader already has a version, we expect it to be already written in valid GLSL for that version
+        if (shaderInfo != null && shaderInfo.version >= version) {
+            shaderVersionStr = Integer.toString(shaderInfo.version);
+            shaderProfileStr = shaderInfo.profile;
         } else {
-            es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
+            // Convert to ES3 (or GL 140+)
+            ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+
+            // Update version for SPIR-V (GLES >= 310, Core >= 140)
+            es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
+            if(es3Result.shaderProfile.equals("es")) {
+                es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 310 ? "310" : es3Result.shaderVersion;
+            } else {
+                es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
+            }
+            shaderVersionStr = es3Result.shaderVersion;
+            shaderProfileStr = es3Result.shaderProfile;
+            shaderSource     = es3Result.output;
         }
 
         // compile GLSL (ES3 or Desktop 140) to SPIR-V
         File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
         file_in_glsl.deleteOnExit();
-        FileUtils.writeByteArrayToFile(file_in_glsl, es3Result.output.getBytes());
+        FileUtils.writeByteArrayToFile(file_in_glsl, shaderSource.getBytes());
 
         File file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         file_out_spv.deleteOnExit();
@@ -226,7 +239,7 @@ public class ShaderCompilerHelpers {
                 "-w",
                 "-fauto-bind-uniforms",
                 "-fauto-map-locations",
-                "-std=" + es3Result.shaderVersion + es3Result.shaderProfile,
+                "-std=" + shaderVersionStr + shaderProfileStr,
                 "-fshader-stage=" + spirvShaderStage,
                 "-o", file_out_spv.getAbsolutePath(),
                 file_in_glsl.getAbsolutePath()

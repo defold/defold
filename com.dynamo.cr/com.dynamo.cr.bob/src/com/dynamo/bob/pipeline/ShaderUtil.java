@@ -42,16 +42,37 @@ public class ShaderUtil {
         public static final int     MAX_ARRAY_SAMPLERS                   = 8;
         public static final String  glSampler2DArrayRegex                = "(.+)sampler2DArray\\s+(\\w+);";
         public static final Pattern regexUniformKeywordPattern           = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
-        public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)\\s*");
+        public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)(?<any>.*)");
         public static String        includeDirectiveReplaceBaseStr       = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
         public static String        includeDirectiveBaseStr              = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
         public static final Pattern includeDirectivePattern              = Pattern.compile(includeDirectiveBaseStr);
         public static final Pattern arrayArraySamplerPattern             = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+        public static final Pattern regexVersionStringPattern            = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
+
+        public static class GLSLShaderInfo
+        {
+            public int    version;
+            public String profile;
+        };
 
         public static class GLSLCompileResult
         {
             public String   source;
             public String[] arraySamplers = new String[0];
+        }
+
+        public static GLSLShaderInfo getShaderInfo(String source)
+        {
+            GLSLShaderInfo info = null;
+            Matcher versionMatcher = regexVersionStringPattern.matcher(source.substring(0, Math.min(source.length(), 128)));
+            if (versionMatcher.find()) {
+                info                 = new GLSLShaderInfo();
+                String shaderVersion = versionMatcher.group("version");
+                String shaderProfile = versionMatcher.group("profile");
+                info.version         = Integer.parseInt(shaderVersion);
+                info.profile         = shaderProfile == null ? "" : shaderProfile;
+            }
+            return info;
         }
 
         public static String stripComments(String source)
@@ -383,7 +404,6 @@ public class ShaderUtil {
         };
 
         private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
-        private static final Pattern regexVersionStringPattern    = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexFragDataArrayPattern    = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
@@ -417,25 +437,23 @@ public class ShaderUtil {
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
 
-            // Try get version and profile. Override targetProfile if version is set in shader
-            Matcher versionMatcher = regexVersionStringPattern.matcher(input.substring(0, Math.min(input.length(), 128)));
-            if (versionMatcher.find()) {
-                result.shaderVersion = versionMatcher.group("version");
-                result.shaderProfile = versionMatcher.group("profile");
-                result.shaderProfile = result.shaderProfile == null ? "" : result.shaderProfile;
-                // override targetProfile if version is set in shader
-                targetProfile = result.shaderProfile;
-            } else {
+            Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(input);
+
+            // If no version (and/or profile) was set in shader, append the target to the shader source.
+            if (shaderInfo == null) {
                 String versionPrefix = String.format("#version %d", targetVersion);
-                if (!targetProfile.isEmpty())
+                if (!targetProfile.isEmpty()) {
                     versionPrefix += String.format(" %s", targetProfile);
+                }
                 versionPrefix += "\n";
                 input = versionPrefix + input;
+            } else {
+                targetVersion = shaderInfo.version;
+                targetProfile = shaderInfo.profile;
             }
 
-            if (!result.shaderVersion.isEmpty()) {
-                targetVersion = Integer.parseInt(result.shaderVersion);
-            }
+            result.shaderVersion = Integer.toString(targetVersion);
+            result.shaderProfile = targetProfile;
 
             // Patch qualifiers (reserved keywords so word boundary replacement is safe)
             String[][] keywordReps = (shaderType == ShaderType.VERTEX_SHADER) ? vsKeywordReps : fsKeywordReps;
@@ -530,6 +548,7 @@ public class ShaderUtil {
                             if(keyword != null) {
                                 String layout = uniforBlockBeginMatcher.group("layout");
                                 String type   = uniforBlockBeginMatcher.group("type");
+                                String any    = uniforBlockBeginMatcher.group("any");
 
                                 boolean blockScopeBegin = line.contains("{");
 
@@ -537,7 +556,7 @@ public class ShaderUtil {
                                     layout = "layout(set=" + layoutSet + ")";
                                 }
 
-                                line = "\n" + layout + " " + keyword + " " + type + (blockScopeBegin ? "{" : "");
+                                line = layout + " " + keyword + " " + type + (blockScopeBegin ? "{" : "");
                             }
                         }
                     }
