@@ -1377,10 +1377,13 @@ class Configuration(object):
         full_archive_path = join(sha1, self.channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
+        gz_file = "Defold-%s.tar.gz" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
         zip_path = join(self.defold_root, 'editor', 'target', 'editor', zip_file)
+        gz_path = join(self.defold_root, 'editor', 'target', 'editor', gz_file)
         dmg_path = join(self.defold_root, 'editor', 'target', 'editor', dmg_file)
         if os.path.exists(zip_path): self.upload_to_archive(zip_path, '%s/%s' % (full_archive_path, zip_file))
+        if os.path.exists(gz_path): self.upload_to_archive(gz_path, '%s/%s' % (full_archive_path, gz_file))
         if os.path.exists(dmg_path): self.upload_to_archive(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
         self.wait_uploads()
 
@@ -1827,7 +1830,7 @@ class Configuration(object):
         bundles = {
             'arm64-macos': 'Defold-arm64-macos.dmg',
             'x86_64-macos': 'Defold-x86_64-macos.dmg',
-            'x86_64-linux' : 'Defold-x86_64-linux.zip',
+            'x86_64-linux' : 'Defold-x86_64-linux.tar.gz',
             'x86_64-win32' : 'Defold-x86_64-win32.zip'
         }
         host = get_host_platform()
