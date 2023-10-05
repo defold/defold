@@ -83,7 +83,7 @@ public class Splash {
     private static void randomGame(Scene scene) {
         String imagePath = "";
         String gameName = "";
-        switch(randomInt(8)) {
+        switch(randomInt(10)) {
             case 1:
                 imagePath = "/games/familyisland.jpg";
                 gameName = "Family Island";
@@ -114,6 +114,14 @@ public class Splash {
                 break;
             case 8:
                 imagePath = "/games/lookyourloot.jpg";
+                gameName = "Look Your Loot";
+                break;
+            case 9:
+                imagePath = "/games/warnament.jpg";
+                gameName = "Warnament";
+                break;
+            case 10:
+                imagePath = "/games/craftomation101.jpg";
                 gameName = "Look Your Loot";
                 break;
             default:
