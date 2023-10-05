@@ -122,38 +122,38 @@ public class ManifestTest {
         }
 
         private ResourceNode createDependencies() {
-            ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
-            ResourceNode main_collectionc = new ResourceNode("/main/main.collectionc", "test/main/main.collectionc");
-            ResourceNode main_goc = new ResourceNode("/main/main.goc", "test/main/main.goc");
+            ResourceNode root = new ResourceNode("<Anonymous Root>");
+            ResourceNode main_collectionc = new ResourceNode("/main/main.collectionc");
+            ResourceNode main_goc = new ResourceNode("/main/main.goc");
 
-            ResourceNode dynamic_collectionc = new ResourceNode("/main/dynamic.collectionc", "test/main/dynamic.collectionc");
+            ResourceNode dynamic_collectionc = new ResourceNode("/main/dynamic.collectionc");
 
-            ResourceNode level1_collectionproxyc = new ResourceNode("/main/level1.collectionproxyc", "test/main/level1.collectionproxyc");
-            ResourceNode level1_collectionc = new ResourceNode("/main/level1.collectionc", "test/main/level1.collectionc");
-            ResourceNode level1_goc = new ResourceNode("/main/level1.goc", "test/main/level1.goc");
-            ResourceNode level2_collectionproxyc = new ResourceNode("/main/level2.collectionproxyc", "test/main/level2.collectionproxyc");
-            ResourceNode level2_collectionc = new ResourceNode("/main/level2.collectionc", "test/main/level2.collectionc");
-            ResourceNode level2_goc = new ResourceNode("/main/level2.goc", "/test/main/level2.goc");
+            ResourceNode level1_collectionproxyc = new ResourceNode("/main/level1.collectionproxyc");
+            ResourceNode level1_collectionc = new ResourceNode("/main/level1.collectionc");
+            ResourceNode level1_goc = new ResourceNode("/main/level1.goc");
+            ResourceNode level2_collectionproxyc = new ResourceNode("/main/level2.collectionproxyc");
+            ResourceNode level2_collectionc = new ResourceNode("/main/level2.collectionc");
+            ResourceNode level2_goc = new ResourceNode("/main/level2.goc");
 
             root.addChild(main_collectionc);
             main_collectionc.addChild(main_goc);
-            main_goc.addChild(new ResourceNode("/main/main.scriptc", "/test/main/main.scriptc"));
+            main_goc.addChild(new ResourceNode("/main/main.scriptc"));
             main_goc.addChild(level1_collectionproxyc);
-            main_collectionc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
+            main_collectionc.addChild(new ResourceNode("/main/shared_go.goc"));
 
             main_collectionc.addChild(dynamic_collectionc);
-            dynamic_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
+            dynamic_collectionc.addChild(new ResourceNode("/main/dynamic.goc"));
 
             level1_collectionproxyc.addChild(level1_collectionc);
-            level1_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
+            level1_collectionc.addChild(new ResourceNode("/main/dynamic.goc"));
             level1_collectionc.addChild(level1_goc);
-            level1_goc.addChild(new ResourceNode("/main/level1.scriptc", "/test/main/level1.scriptc"));
+            level1_goc.addChild(new ResourceNode("/main/level1.scriptc"));
             level1_goc.addChild(level2_collectionproxyc);
-            level1_goc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
+            level1_goc.addChild(new ResourceNode("/main/shared_go.goc"));
             level2_collectionproxyc.addChild(level2_collectionc);
-            level2_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
+            level2_collectionc.addChild(new ResourceNode("/main/dynamic.goc"));
             level2_collectionc.addChild(level2_goc);
-            level2_goc.addChild(new ResourceNode("/main/level2.soundc", "/test/main/level2.soundc"));
+            level2_goc.addChild(new ResourceNode("/main/level2.soundc"));
 
             return root;
         }

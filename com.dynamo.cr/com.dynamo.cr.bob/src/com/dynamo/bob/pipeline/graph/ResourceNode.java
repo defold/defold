@@ -16,61 +16,53 @@ package com.dynamo.bob.pipeline.graph;
 
 import com.dynamo.bob.fs.IResource;
 
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.apache.commons.io.IOUtils;
-
-import java.io.IOException;
-import java.io.Writer;
-import java.io.StringWriter;
-import java.io.BufferedWriter;
-import java.io.OutputStreamWriter;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ResourceNode {
 
     private String relativeFilepath;
-    private String absoluteFilepath;
     private ResourceNode parent = null;
     private IResource resource;
     private String hexDigest = null;
     private boolean excluded = false;
+    protected int useCount = 0;
+    protected int excludeCount = 0;
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
 
     public ResourceNode(IResource resource) {
-        this(resource.getPath(), resource.output().getAbsPath());
+        this(resource.getPath());
         this.resource = resource;
 
     }
-    public ResourceNode(final String relativeFilepath, final String absoluteFilepath) {
+    public ResourceNode(final String relativeFilepath) {
         if (relativeFilepath.startsWith("/")) {
             this.relativeFilepath = relativeFilepath;
         } else {
             this.relativeFilepath = "/" + relativeFilepath;
         }
-        this.absoluteFilepath = absoluteFilepath;
+    }
+
+    public void increaseUseCount() {
+        useCount++;
+    }
+
+    public void increaseExcludeCount() {
+        excludeCount++;
     }
 
     public void addChild(ResourceNode childNode) {
-        childNode.parent = this;
         this.children.add(childNode);
     }
 
     public void addChildren(List<ResourceNode> childNodes) {
         for (ResourceNode childNode : childNodes) {
-            childNode.parent = this;
-            this.children.add(childNode);
+            addChild(childNode);
         }
     }
 
     public List<ResourceNode> getChildren() {
         return this.children;
-    }
-
-    public ResourceNode getParent() {
-        return this.parent;
     }
 
     public IResource getResource() {
@@ -81,65 +73,32 @@ public class ResourceNode {
         return relativeFilepath;
     }
 
-    public String getAbsolutePath() {
-        return absoluteFilepath;
+    public String getHexDigest() {
+        return hexDigest;
     }
 
     public void setHexDigest(String hexDigest) {
         this.hexDigest = hexDigest;
     }
 
-    public void setExcluded(boolean excluded) {
+    public boolean isFullyExcluded() {
+        return useCount == excludeCount;
+    }
+
+    public boolean getExcludedFlag() {
+        return excluded;
+    }
+
+    public void setExcludedFlag(boolean excluded) {
         this.excluded = excluded;
     }
 
-    private void writeJSON(JsonGenerator generator) throws IOException {
-        generator.writeStartObject();
-        generator.writeFieldName("path");
-        generator.writeString(relativeFilepath);
-
-        generator.writeFieldName("hexDigest");
-        generator.writeString(hexDigest);
-
-        generator.writeFieldName("excluded");
-        generator.writeBoolean(excluded);
-
-        generator.writeFieldName("children");
-        generator.writeStartArray();
-        for (ResourceNode child : children) {
-            child.writeJSON(generator);
-        }
-        generator.writeEndArray();
-        generator.writeEndObject();
+    public int getUseCount() {
+        return useCount;
     }
 
-    private void writeJSON(Writer writer) throws IOException {
-        JsonGenerator generator = null;
-        try {
-            generator = (new JsonFactory()).createJsonGenerator(writer);
-            generator.useDefaultPrettyPrinter();
-            writeJSON(generator);
-        }
-        finally {
-            if (generator != null) {
-                generator.close();
-            }
-            IOUtils.closeQuietly(writer);
-
-        }
-    }
-
-    public void writeJSON(OutputStream os) throws IOException {
-        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os);
-        BufferedWriter writer = new BufferedWriter(outputStreamWriter);
-        writeJSON(writer);
-    }
-
-    public String toJSON() throws IOException {
-        StringWriter stringWriter = new StringWriter();
-        BufferedWriter writer = new BufferedWriter(stringWriter);
-        writeJSON(writer);
-        return stringWriter.toString();
+    public int getExcludeCount() {
+        return excludeCount;
     }
 
     @Override

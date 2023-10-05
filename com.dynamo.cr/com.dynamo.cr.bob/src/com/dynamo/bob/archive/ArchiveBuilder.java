@@ -38,8 +38,11 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
@@ -156,39 +159,9 @@ public class ArchiveBuilder {
         }
     }
 
-    // Checks if any of the parents are excluded
-    // Parents are sorted, deepest parent first, root parent last
-    public boolean isTreeExcluded(List<String> parents, List<String> excludedResources) {
-        for (String parent : parents) {
-            if (excludedResources.contains(parent))
-                return true;
-        }
-        return false;
-    }
 
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
-    }
-
-    public boolean excludeResource(String filepath, List<String> excludedResources) {
-        boolean result = false;
-        if (this.manifestBuilder != null) {
-            List<ArrayList<String>> parentChains = this.manifestBuilder.getParentCollections(filepath);
-            for (List<String> parents : parentChains) {
-                boolean excluded = isTreeExcluded(parents, excludedResources);
-                if (!excluded) {
-                    return false; // as long as one tree path requires this resource, we cannot exclude it
-                }
-                result = true;
-            }
-
-            if (excludedResources.contains(filepath))
-            {
-                return true;
-            }
-        }
-
-        return result;
     }
 
     public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
@@ -251,7 +224,7 @@ public class ArchiveBuilder {
             hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
 
             // Write resource to resource pack or data archive
-            if (this.excludeResource(normalisedPath, excludedResources)) {
+            if (excludedResources.contains(normalisedPath)) {
                 this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
                 entries.remove(i);
                 excludedEntries.add(entry);
@@ -402,7 +375,11 @@ public class ArchiveBuilder {
         manifestBuilder.setPrivateKeyFilepath(filepathPrivateKey.getAbsolutePath());
         manifestBuilder.setPublicKeyFilepath(filepathPublicKey.getAbsolutePath());
 
-        ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
+        Project project = new Project(new DefaultFileSystem());
+        ResourceGraph resourceGraph = new ResourceGraph(project);
+        manifestBuilder.setResourceGraph(resourceGraph);
+
+        ResourceNode rootNode = resourceGraph.getRootNode();
 
         List<String> excludedResources = new ArrayList<String>();
 
@@ -426,12 +403,10 @@ public class ArchiveBuilder {
                 archivedEntries++;
                 archiveBuilder.add(absolutePath, doCompress, encrypt, false);
             }
-            ResourceNode currentNode = new ResourceNode(currentInput.getPath(), absolutePath);
+            ResourceNode currentNode = new ResourceNode(currentInput.getPath());
             rootNode.addChild(currentNode);
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
-
-        manifestBuilder.setRoot(rootNode);
 
         RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
         RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");

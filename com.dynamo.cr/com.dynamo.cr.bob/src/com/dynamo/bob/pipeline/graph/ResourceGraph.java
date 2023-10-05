@@ -17,9 +17,25 @@ package com.dynamo.bob.pipeline.graph;
 import java.util.Stack;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Collection;
+
+import java.io.Writer;
+import java.io.StringWriter;
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.io.OutputStream;
+import java.io.IOException;
+
+import org.apache.commons.io.IOUtils;
+
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
@@ -30,126 +46,109 @@ import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
 
 import com.google.protobuf.Message;
 
-public class ResourceGraph {
-
-    // helper class to keep track of current state while traversing
-    // the graph
-    private static class GraphTraversalState {
-        public Set<String> visitedNodes;
-        public ResourceNode node;
-
-        public GraphTraversalState(ResourceNode node) {
-            this.visitedNodes = new HashSet<String>();
-            this.node = node;
-        }
-        public GraphTraversalState(ResourceNode node, Set<String> visitedNodes) {
-            this.visitedNodes = visitedNodes;
-            this.node = node;
-        }
-
-        public String toString() {
-            return "[GraphTraversalState node: " + node + ", visited nodes: " + visitedNodes + "]";
-        }
-    }
-
-    public enum GraphType {
-        // Graph with resources added only once per collection proxy
-        LIVE_UPDATE,
-        // Full graph with all resources
-        FULL
-    }
+public class ResourceGraph implements IResourceVisitor {
 
     private Project project;
-    private GraphType type;
+
+    // set of all resources in the graph
     private Set<IResource> resources = new HashSet<>();
-    private List<ResourceNode> resourceNodes = new ArrayList<>();
-    private List<String> excludedResources = new ArrayList<>();
-    private ResourceNode root = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
+    // set of all resource nodes in the graph
+    private Set<ResourceNode> resourceNodes = new LinkedHashSet<>();
 
-    public ResourceGraph(GraphType type, Project project) {
-        this.type = type;
+    // lookup between IResource and ResourceNode
+    private Map<IResource, ResourceNode> resourceToNodeLookup = new HashMap<>();
+
+    // lookup between resource path and ResourceNode
+    private Map<String, ResourceNode> pathToNodeLookup = new HashMap<>();
+
+    // root resource to which all other resources are added
+    private ResourceNode root = new ResourceNode("<AnonymousRoot>");
+
+    // counter to keep track of if we are within an excluded collection or not
+    // the counter will increase when visiting an excluded collection and 
+    // decrease when leaving
+    private int inExcludedCollectionCount = 0;
+
+    public ResourceGraph(Project project) {
         this.project = project;
+    }
+
+    private void increaseCounters(ResourceNode node) {
+        node.increaseUseCount();
+        if (inExcludedCollectionCount > 0) {
+            node.increaseExcludeCount();
+        }
+    }
+
+    @Override
+    public boolean shouldVisit(IResource resource, IResource parentResource) {
+        ResourceNode currentNode = resourceToNodeLookup.get(resource);
+        if (currentNode != null) {
+            // the node has already been visited which means that it is used in
+            // multiple places in the graph
+            // in this case we reuse the resource node instance but increase the
+            // use and exclude count
+            ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
+            parentNode.addChild(currentNode);
+            // increase the use and exclude count for the resource and children
+            increaseCounters(currentNode);
+            for (ResourceNode child : currentNode.getChildren()) {
+                increaseCounters(child);
+            }
+
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void visit(IResource resource, IResource parentResource) throws CompileExceptionError {
+        IResource output = resource.output();
+        resources.add(output);
+
+        // create a new node since we are only visiting new resources (see check in shouldVisit)
+        ResourceNode currentNode = new ResourceNode(resource);
+        resourceNodes.add(currentNode);
+
+        // add resource node to lookup tables
+        resourceToNodeLookup.put(resource, currentNode);
+        pathToNodeLookup.put("/" + resource.getPath(), currentNode);
+
+        // add resource node to graph
+        ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
+        parentNode.addChild(currentNode);
+        increaseCounters(currentNode);
+    }
+
+    @Override
+    public void visitMessage(Message message, IResource resource, IResource parentResource) throws CompileExceptionError {
+        if (message instanceof CollectionProxyDesc) {
+            CollectionProxyDesc desc = (CollectionProxyDesc)message;
+            if (desc.getExclude()) {
+                ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
+                collectionProxyNode.setExcludedFlag(true);
+                inExcludedCollectionCount++;
+            }
+        }
+    }
+
+
+    @Override
+    public void leave(IResource resource, IResource parentResource) throws CompileExceptionError {
+        ResourceNode currentNode = resourceToNodeLookup.get(resource);
+        if (currentNode.getExcludedFlag()) {
+            inExcludedCollectionCount--;
+        }
     }
 
     /**
      * Add a resource to the graph. This will add the resource and all sub-resources
-     * to the graph, optionally filtering which resources to add based on the
-     * graph type.
+     * to the graph.
      * @param rootResource The resource to create graph from.
      */
     public void add(IResource rootResource) throws CompileExceptionError {
-        final Stack<GraphTraversalState> stack = new Stack<>();
-        ResourceWalker.walk(project, rootResource, new IResourceVisitor() {
-            boolean isCollectionProxy = false;
-
-            @Override
-            public boolean shouldVisit(IResource resource) {
-                if (type == GraphType.FULL) {
-                    return true;
-                }
-                if (stack.empty()) {
-                    return true;
-                }
-                GraphTraversalState state = stack.peek();
-                return !state.visitedNodes.contains(resource.output().getAbsPath());
-            }
-
-            @Override
-            public void visit(IResource resource) throws CompileExceptionError {
-                IResource output = resource.output();
-                resources.add(output);
-
-                ResourceNode currentNode = new ResourceNode(resource);
-                resourceNodes.add(currentNode);
-
-                if (stack.empty()) {
-                    GraphTraversalState state = new GraphTraversalState(currentNode, new HashSet<String>());
-                    state.visitedNodes.add(output.getAbsPath());
-                    // push the first stack item twice so that we have one left
-                    // when all resources have been visited (we pop in leave())
-                    stack.push(state);
-                    stack.push(state);
-                }
-                else {
-                    GraphTraversalState state = stack.peek();
-                    ResourceNode parentNode = state.node;
-                    parentNode.addChild(currentNode);
-                    if (output.getPath().endsWith(".collectionproxyc")) {
-                        state = new GraphTraversalState(currentNode, new HashSet<String>());
-                        isCollectionProxy = true;
-                    }
-                    else {
-                        state = new GraphTraversalState(currentNode, state.visitedNodes);
-                    }
-                    state.visitedNodes.add(output.getAbsPath());
-                    stack.push(state);
-                }
-            }
-
-            @Override
-            public void visitMessage(Message message) throws CompileExceptionError {
-                if (type != GraphType.FULL) {
-                    return;
-                }
-                if (isCollectionProxy) {
-                    isCollectionProxy = false;
-                    CollectionProxyDesc desc = (CollectionProxyDesc)message;
-                    if (desc.getExclude()) {
-                        ResourceNode lastNode = resourceNodes.get(resourceNodes.size() - 1);
-                        lastNode.setExcluded(true);
-                        excludedResources.add(lastNode.getPath());
-                    }
-                }
-            }
-
-            @Override
-            public void leave(IResource resource) throws CompileExceptionError {
-                stack.pop();
-            }
-        });
-        GraphTraversalState state = stack.pop();
-        root.addChild(state.node);
+        ResourceWalker.walk(project, rootResource, this);
     }
 
     /**
@@ -162,11 +161,20 @@ public class ResourceGraph {
     }
 
     /**
-     * Get a set of all resources added to the graph.
-     * @return A set of resources
+     * Get a collection of all resources added to the graph.
+     * @return A collection of resources
      */
-    public Set<IResource> getResources() {
+    public Collection<IResource> getResources() {
         return resources;
+    }
+
+    /**
+     * Get resource node from path
+     * @param path The path to get resource node for
+     * @return The resource node for the path
+     */
+    public ResourceNode getResourceNodeFromPath(String path) {
+        return pathToNodeLookup.get(path);
     }
 
     /**
@@ -181,10 +189,81 @@ public class ResourceGraph {
     }
 
     /**
-     * Get resources excluded from the main archive (live update)
-     * @return List of excluded resource paths (relative to root)
+     * Create a list of all excluded resources. A resource is considered to be
+     * excluded if it is only referenced from excluded collection proxies. If a
+     * resource is referenced both from an excluded collection proxy and from
+     * a non-excluded collection it will not be considered an excluded resource.
+     * @return List of excluded resources
      */
-    public List<String> getExcludedResources() {
+    public List<String> createExcludedResourcesList() {
+        List<String> excludedResources = new LinkedList<>();
+        for (ResourceNode node : resourceNodes) {
+            if (node.isFullyExcluded()) {
+                excludedResources.add(node.getPath());
+            }
+        }
         return excludedResources;
     }
+
+    public void writeJSON(ResourceNode node, JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeFieldName("path");
+        generator.writeString(node.getPath());
+
+        generator.writeFieldName("hexDigest");
+        generator.writeString(node.getHexDigest());
+
+        generator.writeFieldName("excluded");
+        generator.writeBoolean(node.getExcludedFlag());
+
+        generator.writeFieldName("useCount");
+        generator.writeNumber(node.getUseCount());
+
+        generator.writeFieldName("excludeCount");
+        generator.writeNumber(node.getExcludeCount());
+
+        generator.writeFieldName("children");
+        generator.writeStartArray();
+        for (ResourceNode child : node.getChildren()) {
+            generator.writeString(child.getPath());
+            // writeJSON(child, generator);
+        }
+        generator.writeEndArray();
+        generator.writeEndObject();
+    }
+
+    private void writeJSON(Writer writer) throws IOException {
+
+        JsonGenerator generator = null;
+        try {
+            generator = (new JsonFactory()).createJsonGenerator(writer);
+            generator.useDefaultPrettyPrinter();
+            generator.writeStartArray();
+            writeJSON(root, generator);
+            for (ResourceNode node : resourceNodes) {
+                writeJSON(node, generator);
+            }
+            generator.writeEndArray();
+        }
+        finally {
+            if (generator != null) {
+                generator.close();
+            }
+            IOUtils.closeQuietly(writer);
+        }
+    }
+
+    public void writeJSON(OutputStream os) throws IOException {
+        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os);
+        BufferedWriter writer = new BufferedWriter(outputStreamWriter);
+        writeJSON(writer);
+    }
+
+    public String toJSON() throws IOException {
+        StringWriter stringWriter = new StringWriter();
+        BufferedWriter writer = new BufferedWriter(stringWriter);
+        writeJSON(writer);
+        return stringWriter.toString();
+    }
+
 }

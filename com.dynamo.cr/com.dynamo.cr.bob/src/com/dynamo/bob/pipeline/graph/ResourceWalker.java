@@ -34,14 +34,13 @@ import com.google.protobuf.Message;
 public class ResourceWalker {
 
     public interface IResourceVisitor {
-        public void visit(IResource resource) throws CompileExceptionError;
-        public void visitMessage(Message message) throws CompileExceptionError;
-        public void leave(IResource resource) throws CompileExceptionError;
-        public boolean shouldVisit(IResource resource);
+        public void visit(IResource resource, IResource parentResource) throws CompileExceptionError;
+        public void visitMessage(Message message, IResource resource, IResource parentResource) throws CompileExceptionError;
+        public void leave(IResource resource, IResource parentResource) throws CompileExceptionError;
+        public boolean shouldVisit(IResource resource, IResource parentResource);
     }
 
-
-    private static void visitMessage(Project project, Message node, IResourceVisitor visitor) throws CompileExceptionError {
+    private static void visitMessage(Project project, IResource currentResource, Message node, IResourceVisitor visitor) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
         for (FieldDescriptor fieldDescriptor : fields) {
             FieldOptions options = fieldDescriptor.getOptions();
@@ -49,39 +48,39 @@ public class ResourceWalker {
             boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
-                visitMessage(project, (Message) value, visitor);
+                visitMessage(project, currentResource, (Message) value, visitor);
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
                 for (Object v : list) {
                     if (v instanceof Message) {
-                        visitMessage(project, (Message) v, visitor);
+                        visitMessage(project, currentResource, (Message) v, visitor);
                     } else if (isResource && v instanceof String) {
-                        visitResource(project, project.getResource((String) v), visitor);
+                        visitResource(project, currentResource, project.getResource((String) v), visitor);
                     }
                 }
             } else if (isResource && value instanceof String) {
-                visitResource(project, project.getResource((String) value), visitor);
+                visitResource(project, currentResource, project.getResource((String) value), visitor);
             }
         }
     }
 
-    private static void visitResource(Project project, IResource resource, IResourceVisitor visitor) throws CompileExceptionError {
-        if (resource.getPath().equals("") || !visitor.shouldVisit(resource)) {
+    private static void visitResource(Project project, IResource parentResource, IResource resource, IResourceVisitor visitor) throws CompileExceptionError {
+        if (resource.getPath().equals("") || !visitor.shouldVisit(resource, parentResource)) {
             return;
         }
 
-        visitor.visit(resource);
+        visitor.visit(resource, parentResource);
 
         int i = resource.getPath().lastIndexOf(".");
         if (i == -1) {
-            visitor.leave(resource);
+            visitor.leave(resource, parentResource);
             return;
         }
 
         String ext = resource.getPath().substring(i);
         if (!ProtoBuilder.supportsType(ext)) {
-            visitor.leave(resource);
+            visitor.leave(resource, parentResource);
             return;
         }
 
@@ -93,18 +92,18 @@ public class ResourceWalker {
             }
             builder.mergeFrom(content);
             Message message = (Message)builder.build();
-            visitor.visitMessage(message);
-            visitMessage(project, message, visitor);
+            visitor.visitMessage(message, resource, parentResource);
+            visitMessage(project, resource, message, visitor);
         } catch(CompileExceptionError e) {
             throw e;
         } catch(Exception e) {
             throw new RuntimeException(e);
         }
-        visitor.leave(resource);
+        visitor.leave(resource, parentResource);
     }
 
     public static void walk(Project project, IResource rootResource, IResourceVisitor visitor) throws CompileExceptionError {
-        visitResource(project, rootResource, visitor);
+        visitResource(project, null, rootResource, visitor);
     }
 
 }

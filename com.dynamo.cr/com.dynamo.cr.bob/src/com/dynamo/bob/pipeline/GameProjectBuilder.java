@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -61,7 +62,6 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
-import com.dynamo.bob.pipeline.graph.ResourceGraphs;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -271,8 +271,8 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ResourceGraphs createResourceGraphs(Project project) throws CompileExceptionError {
-        ResourceGraphs graphs = new ResourceGraphs(project);
+    private ResourceGraph createResourceGraph(Project project) throws CompileExceptionError {
+        ResourceGraph graph = new ResourceGraph(project);
 
         if (project.option("keep-unused", "false").equals("true")) {
             // All outputs of the project should be considered resources
@@ -281,9 +281,9 @@ public class GameProjectBuilder extends Builder<Void> {
                 // we need a path relative to the project root
                 String relativePath = project.getPathRelativeToRootDirectory(path);
                 IResource resource = project.getResource(relativePath);
-                graphs.add(resource);
+                graph.add(resource);
             }
-            return graphs;
+            return graph;
         }
 
         // Root nodes to follow (default values from engine.cpp)
@@ -298,31 +298,30 @@ public class GameProjectBuilder extends Builder<Void> {
             String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
             if (path != null) {
                 IResource resource = project.getResource(path);
-                graphs.add(resource);
+                graph.add(resource);
             }
         }
 
         // Editor debugger scripts
         if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
             IResource resource = project.getResource("/builtins/scripts/debugger.luac");
-            graphs.add(resource);
+            graph.add(resource);
         }
-        return graphs;
+        return graph;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResources) throws IOException {
+    private ManifestBuilder createManifestBuilder(ResourceGraph resourceGraph) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
-        manifestBuilder.setRoot(rootNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
-        manifestBuilder.setExcludedResources(excludedResources);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         // Try manifest signing keys specified through the publisher
         if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
@@ -424,9 +423,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 // the live update graph contains each resource only once per collection proxy
                 logger.info("Generating the resource graph");
                 long tstart = System.currentTimeMillis();
-                ResourceGraphs resourceGraphs = createResourceGraphs(project);
-                ResourceGraph fullGraph = resourceGraphs.getFullGraph();
-                ResourceGraph liveUpdateGraph = resourceGraphs.getLiveUpdateGraph();
+                ResourceGraph resourceGraph = createResourceGraph(project);
                 long tend = System.currentTimeMillis();
                 logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
 
@@ -434,7 +431,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 // also make sure to not archive the comp counter files
                 Set<IResource> resources = getCustomResources(project);
-                resources.addAll(fullGraph.getResources());
+                resources.addAll(resourceGraph.getResources());
                 for (IResource resource : task.getOutputs()) {
                     resources.remove(resource);
                 }
@@ -443,7 +440,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
                 List<String> excludedResources = null;
                 if (shouldPublishLU) {
-                    excludedResources = fullGraph.getExcludedResources();
+                    excludedResources = resourceGraph.createExcludedResourcesList();
                 }
                 else {
                     excludedResources = new ArrayList<String>();
@@ -459,7 +456,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
 
                 // create the archive and manifest
-                ManifestBuilder manifestBuilder = prepareManifestBuilder(liveUpdateGraph.getRootNode(), excludedResources);
+                ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -481,11 +478,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
                 // game.graph.json
-                fullGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
+                resourceGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
                 logger.info("Writing the resource graph to json");
                 tstart = System.currentTimeMillis();
-                String fullGraphJSON = fullGraph.getRootNode().toJSON();
-                task.getOutputs().get(5).setContent(fullGraphJSON.getBytes());
+                String resourceGraphJSON = resourceGraph.toJSON();
+                task.getOutputs().get(5).setContent(resourceGraphJSON.getBytes());
                 tend = System.currentTimeMillis();
                 logger.info("Writing the resource graph to json took %f s", (tend-tstart)/1000.0);
 
