@@ -98,13 +98,13 @@
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
            [javafx.scene Parent Scene]
-           [javafx.scene.text Font]
-           [javafx.scene.paint Color]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip Label]
+           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.layout AnchorPane GridPane HBox StackPane VBox Region]
+           [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
+           [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse SVGPath]
+           [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]))
 
 (set! *warn-on-reflection* true)
@@ -243,87 +243,74 @@
       escaped-resource-name)))
 
 (defn- create-key-info [label key-combo]
-  (let [keys (remove nil? (list
-                            (if (:meta-down? key-combo) "Meta")
-                            (if (:control-down? key-combo) "Ctrl")
-                            (if (:alt-down? key-combo) "Alt")
-                            (if (:shift-down? key-combo) "Shift")
-                            (str (:key key-combo))))]
-    {:label label :keys (into [] keys)}))
-(defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
-  (let [
-        tab-panes (.getItems editor-tabs-split)
-        is-empty (not (some (complement empty?) (map #(-> ^TabPane % (.getTabs)) tab-panes)))
-        quick-help-box (.lookup (.getParent editor-tabs-split) "#quick-help-box")
-        ^GridPane box-items (.lookup (.getParent editor-tabs-split) "#quick-help-items")]
+  (let [keys (into []
+                   (remove nil?)
+                   (list
+                     (when (:meta-down? key-combo) "Cmd")
+                     (when (:control-down? key-combo) "Ctrl")
+                     (when (:alt-down? key-combo) "Alt")
+                     (when (:shift-down? key-combo) "Shift")
+                     (str (:key key-combo))))]
+    {:label label :keys keys}))
 
-    ;Only make quick help visible when there is no-tabs.
+(defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
+  (let [tab-panes (.getItems editor-tabs-split)
+        is-empty (not-any? #(-> ^TabPane % .getTabs count pos?) tab-panes)
+        parent (.getParent editor-tabs-split)
+        quick-help-box (.lookup parent "#quick-help-box")
+        ^GridPane box-items (.lookup parent "#quick-help-items")]
+
+    ;; Only make quick help visible when there is no-tabs.
     (.setVisible quick-help-box is-empty)
 
-    (if is-empty
-      (do
-        (let [command->key-combo
-              (into {}
-                    (mapcat (fn [[key-combo command-infos]]
-                              (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
-                    keymap)]
-          (let [items [(create-key-info "Re-Open Closed File" (command->key-combo :reopen-recent-file))
-                       (create-key-info "Go Assets" (command->key-combo :open-asset))
-                       (create-key-info "Search in Files" (command->key-combo :search-in-files))
-                       (create-key-info "Start/Attach" (command->key-combo :start-debugger))
-                       (create-key-info "Show Preferences" (command->key-combo :preferences))
-                       ]]
+    (when is-empty
+      (let [command->key-combo
+            (into {}
+                  (mapcat (fn [[key-combo command-infos]]
+                            (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
+                  keymap)
+            items [(create-key-info "Open Asset" (command->key-combo :open-asset))
+                   (create-key-info "Re-Open Closed File" (command->key-combo :reopen-recent-file))
+                   (create-key-info "Search in Files" (command->key-combo :search-in-files))
+                   (create-key-info "Build and Run Project" (command->key-combo :build))
+                   (create-key-info "Start or Attach Debugger" (command->key-combo :start-debugger))]]
+        (-> box-items .getChildren .clear)
 
-            (-> box-items
-                (.getChildren)
-                (.clear))
+        (doseq [[row-index item] (map-indexed vector items)]
+          (let [font (Font. "Dejavu Sans Mono" 13)
+                color (Color. 1.0 1.0 0.59765625 0.6)
+                label (:label item)
+                keys (:keys item)]
 
-            (doseq [[row-index item] (map-indexed vector items)]
-              (let [
-                    font (Font. "Dejavu Sans Mono" 13)
-                    color (Color. 1.0 1.0 0.59765625 0.6)
-                    label (:label item)
-                    keys (:keys item)]
+            ;; Add label in the first column
+            (let [label-ui (Label. label)]
+              (.setFont label-ui font)
+              (.setTextFill label-ui color)
+              (GridPane/setHalignment label-ui (HPos/RIGHT))
+              (-> box-items (.add label-ui 0 row-index)))
 
-                ;Add label in the first column
-                (let [label-ui (Label. label)]
-                  (.setFont label-ui font)
-                  (.setTextFill label-ui color)
-                  (GridPane/setHalignment label-ui (HPos/RIGHT))
-                  (-> box-items
-                      (.add label-ui 0 row-index)))
+            ;; Add keys (in the hbox) in the second column
+            (let [hbox (HBox.)]
+              (.setAlignment hbox (Pos/CENTER_LEFT))
 
-                ;Add keys (in the hbox) in the second column
-                (let [hbox (HBox.)]
-                  (.setAlignment hbox (Pos/CENTER_LEFT))
+              (let [spacer (Region.)]
+                (.setPrefWidth spacer 10)
+                (-> hbox .getChildren (.add spacer)))
 
-                  (let [spacer (Region.)]
-                    (.setPrefWidth spacer 10)
-                    (-> hbox
-                        (.getChildren)
-                        (.add spacer)))
+              (doseq [[index key] (map-indexed vector keys)]
+                (when (pos? index)
+                  (let [plus-ui (Label. "+")]
+                    (.setPrefWidth plus-ui 10)
+                    (.setAlignment plus-ui (Pos/CENTER))
+                    (-> hbox .getChildren (.add plus-ui))))
 
-                  (doseq [[index key] (map-indexed vector keys)]
-                    (if (pos? index)
-                      (let [plus-ui (Label. "+")]
-                        (.setPrefWidth plus-ui 10)
-                        (.setAlignment plus-ui (Pos/CENTER))
-                        (-> hbox
-                            (.getChildren)
-                            (.add plus-ui))))
+                (let [key-ui (Label. key)]
+                  (.setFont key-ui font)
+                  (.setTextFill key-ui color)
+                  (-> key-ui .getStyleClass (.add "key-button"))
+                  (-> hbox .getChildren (.add key-ui))))
 
-                    (let [key-ui (Label. key)]
-                      (.setFont key-ui font)
-                      (.setTextFill key-ui color)
-                      (-> key-ui
-                          (.getStyleClass)
-                          (.add "key-button"))
-                      (-> hbox
-                          (.getChildren)
-                          (.add key-ui))))
-
-                  (-> box-items
-                      (.add hbox 1 row-index)))))))))))
+              (-> box-items (.add hbox 1 row-index)))))))))
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
