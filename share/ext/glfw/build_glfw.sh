@@ -13,6 +13,17 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+
+# Compilation guide:
+# https://www.glfw.org/docs/latest/compile.html
+
+readonly VERSION=3.3.8
+readonly BASE_URL=https://github.com/glfw/glfw/releases/download/${VERSION}/
+readonly FILE_URL=glfw-${VERSION}.zip
+readonly PRODUCT=glfw
+
+. ../common.sh
+
 PLATFORM=$1
 PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
@@ -23,74 +34,52 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
-
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_STATIC=ON ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_CLI=ON ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_SHARED=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
+
+# TODO: Investigate if we want this or our own loader.
+# CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
 
 case $PLATFORM in
     arm64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
-        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 ${CMAKE_FLAGS}"
         ;;
     x86_64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
-        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${CMAKE_FLAGS}"
         ;;
 esac
 
-# Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
+download
 
-if [ ! -d "${SOURCE_DIR}" ]; then
-    git clone https://github.com/KhronosGroup/SPIRV-Cross.git ${SOURCE_DIR}
-fi
+mkdir -p ${SOURCE_DIR}
 
-# Build
+pushd $SOURCE_DIR
 
-mkdir -p ${BUILD_DIR}
+cmi_unpack
 
-pushd $BUILD_DIR
-
+## BUILD
 echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
-
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
 
-EXE_SUFFIX=
-case $PLATFORM in
-    win32|x86_64-win32)
-        EXE_SUFFIX=.exe
-        SRC_EXE=./Release/spirv-cross${EXE_SUFFIX}
-        ;;
-    *)
-        SRC_EXE=./spirv-cross${EXE_SUFFIX}
-        ;;
-esac
+## PACKAGE
+SRC_LIB=./src/libglfw3.a
+TARGET_LIB=./lib/$PLATFORM
 
-TARGET_EXE=./bin/$PLATFORM/spirv-cross${EXE_SUFFIX}
+# clean out anything previously built
+rm -rf ./lib/
+mkdir -p $TARGET_LIB
 
-mkdir -p ./bin/$PLATFORM
+cp -v ${SRC_LIB} ${TARGET_LIB}
 
-cp -v ${SRC_EXE} ${TARGET_EXE}
+PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
-case $PLATFORM in
-    win32|x86_64-win32)
-        ;;
-    *)
-        strip ${TARGET_EXE}
-        ;;
-esac
+tar cfvz $PACKAGE lib include
 
 popd
 
-# Package
+## FINALIZE
+mv $SOURCE_DIR/$PACKAGE .
 
-VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
-echo VERSION=${VERSION}
-
-PACKAGE=spirv-cross-${VERSION}-${PLATFORM}.tar.gz
-
-pushd $BUILD_DIR
-tar cfvz $PACKAGE bin
-popd

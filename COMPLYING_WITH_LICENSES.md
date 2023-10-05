@@ -62,5 +62,6 @@ The following third party software has licenses which does not require inclusion
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
     * GLFW - Marcus Geelnard, Camilla Löwy
+    * bindgen (Sokol) - Andre Weissflog
 
 NOTE: The Zlib license encourages attribution but does not require inclusion of the license.
