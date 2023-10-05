@@ -122,7 +122,7 @@ public class Splash {
                 break;
             case 10:
                 imagePath = "/games/craftomation101.jpg";
-                gameName = "Look Your Loot";
+                gameName = "Craftomation 101";
                 break;
             default:
                 imagePath = "/games/familyisland.jpg";
