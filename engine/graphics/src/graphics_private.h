@@ -75,13 +75,14 @@ namespace dmGraphics
         return (T*) container.Get(opaque_handle);
     }
 
+    // These functions are used for engine tests, but are available as experimental functions as well
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HVertexBuffer buffer);
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HIndexBuffer buffer);
+
     // Test functions:
-    uint64_t    GetDrawCount();
-    void*       MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool        UnmapVertexBuffer(HVertexBuffer buffer);
-    void*       MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool        UnmapIndexBuffer(HIndexBuffer buffer);
-    // <- end test functions
+    uint64_t GetDrawCount();
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

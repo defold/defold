@@ -1606,17 +1606,6 @@ namespace dmGraphics
         return false;
     }
 
-    ////////////////////////////////
-    // UNIT TEST FUNCTIONS
-    ////////////////////////////////
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        ib->m_Copy = new char[ib->m_Size];
-        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
-        return ib->m_Copy;
-    }
-
     bool UnmapIndexBuffer(HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
@@ -1641,6 +1630,14 @@ namespace dmGraphics
         delete [] vb->m_Copy;
         vb->m_Copy = 0x0;
         return true;
+    }
+
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        IndexBuffer* ib = (IndexBuffer*)buffer;
+        ib->m_Copy = new char[ib->m_Size];
+        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
+        return ib->m_Copy;
     }
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable()

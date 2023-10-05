@@ -603,7 +603,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             }
         }
 
-        if (mesh->m_Weights)
+        if (mesh->m_Weights && mesh->m_Material)
         {
             mesh->m_Material->m_IsSkinned = 1;
         }
