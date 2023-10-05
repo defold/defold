@@ -247,7 +247,7 @@ namespace dmGameSystem
      * `playback_rate`
      * : [type:number] The rate with which the animation will be played. Must be positive.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
      *
      * `self`
      * : [type:object] The current object.

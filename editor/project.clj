@@ -63,7 +63,8 @@
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
-                     [com.atlassian.commonmark/commonmark         "0.9.0"]
+                     [org.commonmark/commonmark "0.21.0"]
+                     [org.commonmark/commonmark-ext-autolink "0.21.0"]
 
                      [com.cognitect.aws/api "0.8.673"]
                      [com.cognitect.aws/endpoints "1.1.12.478"]

@@ -16,7 +16,8 @@
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [internal.util :as util]))
+            [internal.util :as util])
+  (:import [java.net URI]))
 
 ;; Completion spec
 (s/def ::name string?) ;; used for filtering
@@ -43,9 +44,11 @@
 (s/def ::detail string?)
 (s/def :editor.code-completion.doc/type #{:markdown :plaintext})
 (s/def :editor.code-completion.doc/value string?)
+(s/def :editor.code-completion.doc/base-url #(instance? URI %))
 (s/def ::doc
   (s/keys :req-un [:editor.code-completion.doc/type
-                   :editor.code-completion.doc/value]))
+                   :editor.code-completion.doc/value]
+          :opt-un [:editor.code-completion.doc/base-url]))
 (s/def ::completion
   (s/keys :req-un [::name ::display-string ::insert]
           :opt-un [::type ::commit-characters ::detail ::doc]))
@@ -71,8 +74,11 @@
                           completion popup, e.g. type or symbol information
     :doc                  if a string, it is assumed to be a markdown
                           documentation, otherwise, it can be either:
-                          - {:type :plaintext :value \"literal doc\"}
-                          - {:type :markdown  :value \"markdown doc\"}"
+                          - {:type :plaintext
+                             :value \"literal doc\"}
+                          - {:type :markdown
+                             :value \"markdown doc\"
+                             :base-url URI} (optional URI for resolving links)"
   [name & {:keys [insert-snippet insert-string display-string type commit-characters detail doc]}]
   {:pre [(not (and insert-string insert-snippet))]
    :post [(s/assert ::completion %)]}

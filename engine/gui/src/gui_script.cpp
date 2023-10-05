@@ -1310,8 +1310,6 @@ namespace dmGui
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
-        if (font == 0x0)
-            font = scene->m_Context->m_DefaultFont;
         Vector3 size = Vector3(1,1,1);
         if (font != 0x0)
         {
@@ -1983,7 +1981,7 @@ namespace dmGui
     /*# resets the node material
      * Resets the node material to the material assigned in the gui scene.
      *
-     * @name gui.set_material
+     * @name gui.reset_material
      * @param node [type:node] node to reset the material for
      * @examples
      *
@@ -3190,7 +3188,7 @@ namespace dmGui
      *
      * @name gui.move_above
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node above which the first node should be moved
+     * @param reference [type:node|nil] reference node above which the first node should be moved
      */
     static int LuaMoveAbove(lua_State* L)
     {
@@ -3213,7 +3211,7 @@ namespace dmGui
      *
      * @name gui.move_below
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node below which the first node should be moved
+     * @param reference [type:node|nil] reference node below which the first node should be moved
      */
     static int LuaMoveBelow(lua_State* L)
     {
@@ -3235,7 +3233,7 @@ namespace dmGui
      *
      * @name gui.get_parent
      * @param node [type:node] the node from which to retrieve its parent
-     * @return parent [type:node] parent instance or nil
+     * @return parent [type:node|nil] parent instance or `nil`
      */
     int LuaGetParent(lua_State* L)
     {
@@ -3944,7 +3942,7 @@ namespace dmGui
      *
      * @name gui.get_flipbook_cursor
      * @param node [type:node] node to get the cursor for (node)
-     * @return cursor value [type:number] cursor value
+     * @return cursor [type:number] cursor value
      */
     static int LuaGetFlipbookCursor(lua_State* L)
     {
@@ -4295,7 +4293,7 @@ namespace dmGui
      *
      * @name gui.get_particlefx
      * @param node [type:node] node to get particle fx for
-     * @return [type:hash] particle fx id
+     * @return particlefx [type:hash] particle fx id
      */
     static int LuaGetParticlefx(lua_State* L)
     {
@@ -5122,7 +5120,7 @@ namespace dmGui
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * ```lua

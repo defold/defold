@@ -57,6 +57,9 @@ def apply_barchive_after(self):
         hook = self.get_hook(x)
         hook(self, x)
 
+        if x.abspath().endswith(".font"):
+            builder.inputs.extend([x.change_ext(".glyph_bankc")])
+
     # We need to clear the source so we don't generate outputs more than once
     self.source = []
 
@@ -75,7 +78,7 @@ def apply_barchive_after(self):
         current_output = self.path.find_or_declare(current_filepath)
         builder.outputs.append(current_output)
 
-    classpath    = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar', 'src/java']
+    classpath                = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar', 'src/java']
     builder.env['CLASSPATH'] = os.pathsep.join(classpath)
 
     arg_root     = self.path.get_bld().abspath()
