@@ -189,6 +189,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
             default:break;
         }
         return "<unknown dmGraphics::TextureFormat>";
@@ -502,6 +503,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RG16F:              return 32;
         case TEXTURE_FORMAT_R32F:               return 32;
         case TEXTURE_FORMAT_RG32F:              return 64;
+        case TEXTURE_FORMAT_RGBA32UI:           return 128;
         default:
             assert(false && "Unknown texture format");
             return TEXTURE_FORMAT_COUNT;
@@ -586,6 +588,7 @@ namespace dmGraphics
         switch(format)
         {
             case dmGraphics::TEXTURE_FORMAT_RGBA:
+            case dmGraphics::TEXTURE_FORMAT_RGBA32UI:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:

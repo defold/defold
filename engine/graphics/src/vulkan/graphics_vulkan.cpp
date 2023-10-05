@@ -792,6 +792,7 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_LUMINANCE_ALPHA,
                                             TEXTURE_FORMAT_RGBA,
 
+                                            // Float formats
                                             TEXTURE_FORMAT_RGB16F,
                                             TEXTURE_FORMAT_RGB32F,
                                             TEXTURE_FORMAT_RGBA16F,
@@ -800,6 +801,9 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_RG16F,
                                             TEXTURE_FORMAT_R32F,
                                             TEXTURE_FORMAT_RG32F,
+
+                                            // Misc formats
+                                            TEXTURE_FORMAT_RGBA32UI,
 
                                             // Apparently these aren't supported on macOS/Metal
                                             TEXTURE_FORMAT_RGB_16BPP,
@@ -1469,7 +1473,12 @@ bail:
     {
         assert(size > 0);
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-        DeviceBufferUploadHelper((VulkanContext*) context, data, size, 0, (DeviceBuffer*) buffer);
+
+        if (size > 0)
+        {
+            DeviceBufferUploadHelper((VulkanContext*) context, data, size, 0, buffer);
+        }
+
         return (HIndexBuffer) buffer;
     }
 
@@ -2903,6 +2912,7 @@ bail:
             case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
             case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
             case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
+            case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
             default:                                return VK_FORMAT_UNDEFINED;
         };
     }
