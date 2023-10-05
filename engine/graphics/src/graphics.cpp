@@ -1247,6 +1247,25 @@ namespace dmGraphics
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
 
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapVertexBuffer(buffer, access);
+    }
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        return g_functions.m_UnmapVertexBuffer(buffer);
+    }
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapIndexBuffer(buffer, access);
+    }
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        return g_functions.m_UnmapIndexBuffer(buffer);
+    }
+#endif
+
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
