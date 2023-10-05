@@ -1575,6 +1575,30 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static void* OpenGLMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        assert(0);
+        return 0;
+    }
+
+    static bool OpenGLUnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        assert(0);
+        return false;
+    }
+
+    static void* OpenGLMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        assert(0);
+        return 0;
+    }
+
+    static bool OpenGLUnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        assert(0);
+        return false;
+    }
+
     static uint32_t OpenGLGetMaxElementsVertices(HContext context)
     {
         return ((OpenGLContext*) context)->m_MaxElementVertices;

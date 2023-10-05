@@ -877,6 +877,22 @@ namespace dmGraphics
     {
         g_functions.m_Clear(context, flags, red, green, blue, alpha, depth, stencil);
     }
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapVertexBuffer(buffer, access);
+    }
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        return g_functions.m_UnmapVertexBuffer(buffer);
+    }
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapIndexBuffer(buffer, access);
+    }
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        return g_functions.m_UnmapIndexBuffer(buffer);
+    }
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         return g_functions.m_NewVertexBuffer(context, size, data, buffer_usage);
