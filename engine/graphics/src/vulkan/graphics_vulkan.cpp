@@ -1454,36 +1454,6 @@ bail:
         DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
     }
 
-    static void* VulkanMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
-        CHECK_VK_ERROR(res);
-        return buffer_ptr->m_MappedDataPtr;
-    }
-
-    static bool VulkanUnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
-        return true;
-    }
-
-    static void* VulkanMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
-        CHECK_VK_ERROR(res);
-        return buffer_ptr->m_MappedDataPtr;
-    }
-
-    static bool VulkanUnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
-        return true;
-    }
-
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
     {
         return ((VulkanContext*) context)->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
@@ -3822,10 +3792,43 @@ bail:
         return false;
     }
 
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    static void* VulkanMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+        return buffer_ptr->m_MappedDataPtr;
+    }
+
+    static bool VulkanUnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        return true;
+    }
+
+    static void* VulkanMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+        return buffer_ptr->m_MappedDataPtr;
+    }
+
+    static bool VulkanUnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        return true;
+    }
+#endif
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
+        DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(fn_table, Vulkan);
         return fn_table;
     }
 }

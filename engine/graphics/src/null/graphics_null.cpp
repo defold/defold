@@ -1606,7 +1606,7 @@ namespace dmGraphics
         return false;
     }
 
-    bool NullUnmapIndexBuffer(HIndexBuffer buffer)
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
@@ -1615,7 +1615,7 @@ namespace dmGraphics
         return true;
     }
 
-    void* NullMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         vb->m_Copy = new char[vb->m_Size];
@@ -1623,7 +1623,7 @@ namespace dmGraphics
         return vb->m_Copy;
     }
 
-    bool NullUnmapVertexBuffer(HVertexBuffer buffer)
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
@@ -1632,7 +1632,7 @@ namespace dmGraphics
         return true;
     }
 
-    void* NullMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         ib->m_Copy = new char[ib->m_Size];

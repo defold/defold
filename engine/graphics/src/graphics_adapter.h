@@ -168,10 +168,13 @@ namespace dmGraphics
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
+
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
     typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
+#endif
 
     struct GraphicsAdapterFunctionTable
     {
@@ -289,10 +292,13 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         MapVertexBufferFn m_MapVertexBuffer;
         UnmapVertexBufferFn m_UnmapVertexBuffer;
         MapIndexBufferFn m_MapIndexBuffer;
         UnmapIndexBufferFn m_UnmapIndexBuffer;
+    #endif
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -411,11 +417,16 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
+    #else
+        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
+    #endif
 }
 
 #endif

@@ -559,12 +559,6 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
-    // Buffer mapping
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool  UnmapVertexBuffer(HVertexBuffer buffer);
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool  UnmapIndexBuffer(HIndexBuffer buffer);
-
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
