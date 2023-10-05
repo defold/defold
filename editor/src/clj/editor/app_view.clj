@@ -269,11 +269,14 @@
                   (mapcat (fn [[key-combo command-infos]]
                             (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
                   keymap)
-            items [(create-key-info "Open Asset" (command->key-combo :open-asset))
-                   (create-key-info "Re-Open Closed File" (command->key-combo :reopen-recent-file))
-                   (create-key-info "Search in Files" (command->key-combo :search-in-files))
-                   (create-key-info "Build and Run Project" (command->key-combo :build))
-                   (create-key-info "Start or Attach Debugger" (command->key-combo :start-debugger))]]
+            items (keep (fn [[command label]]
+                          (when-some [key-combo (command->key-combo command)]
+                            (create-key-info label key-combo)))
+                        [[:open-asset "Open Asset"]
+                         [:reopen-recent-file "Re-Open Closed File"]
+                         [:search-in-files "Search in Files"]
+                         [:build "Build and Run Project"]
+                         [:start-debugger "Start or Attach Debugger"]])]
         (-> box-items .getChildren .clear)
 
         (doseq [[row-index item] (map-indexed vector items)]
@@ -311,6 +314,7 @@
                   (-> hbox .getChildren (.add key-ui))))
 
               (-> box-items (.add hbox 1 row-index)))))))))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
