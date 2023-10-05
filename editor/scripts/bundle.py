@@ -119,7 +119,7 @@ def archivetree(path, outfile, directory = None, fmt= 'zip'):
     # Directory is similar to -C in tar
     if fmt=='zip':
         archive = zipfile.ZipFile(outfile, 'w')
-    elif fmt=='gz':
+    elif fmt=='tar.gz':
         archive = tarfile.open(outfile, 'w:gz')
     else:
         assert False, "Unknown format %s" % fmt
@@ -130,7 +130,7 @@ def archivetree(path, outfile, directory = None, fmt= 'zip'):
             an = p
             if directory:
                 an = os.path.relpath(p, directory)
-            if fmt=='gz':
+            if fmt=='tar.gz':
                 archive.add(p, an)
             else:    
                 archive.write(p, an)
