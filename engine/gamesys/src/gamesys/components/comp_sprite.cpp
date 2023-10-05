@@ -406,8 +406,8 @@ namespace dmGameSystem
 
     TextureResource* GetTextureResource(const SpriteComponent* component, uint32_t texture_unit)
     {
-        MaterialResource* material = GetMaterialResource(component);
-        assert(texture_unit < material->m_NumTextures);
+        if(texture_unit >= component->m_Resource->m_NumTextures)
+            return 0;
 
         const SpriteResourceOverrides* overrides = component->m_Overrides;
         if (overrides)
@@ -415,7 +415,7 @@ namespace dmGameSystem
             if (overrides->m_Textures[texture_unit].m_TextureSet)
                 return overrides->m_Textures[texture_unit].m_TextureSet->m_Texture;
         }
-        return material->m_Textures[texture_unit];
+        return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_Texture;
     }
 
     dmGraphics::HTexture GetMaterialTexture(const SpriteComponent* component, uint32_t texture_unit)
@@ -1096,7 +1096,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = material;
-        for(uint32_t i = 0; i < material_resource->m_NumTextures; ++i)
+        for(uint32_t i = 0; i < resource->m_NumTextures; ++i)
         {
             ro.m_Textures[i] = GetMaterialTexture(first, i);
         }
