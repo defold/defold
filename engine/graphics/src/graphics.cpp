@@ -1029,19 +1029,19 @@ namespace dmGraphics
     {
         return g_functions.m_GetUniformCount(prog);
     }
-    int32_t  GetUniformLocation(HProgram prog, const char* name)
+    HUniformLocation GetUniformLocation(HProgram prog, const char* name)
     {
         return g_functions.m_GetUniformLocation(prog, name);
     }
-    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        g_functions.m_SetConstantV4(context, data, count, base_register);
+        g_functions.m_SetConstantV4(context, data, count, base_location);
     }
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        g_functions.m_SetConstantM4(context, data, count, base_register);
+        g_functions.m_SetConstantM4(context, data, count, base_location);
     }
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         g_functions.m_SetSampler(context, location, unit);
     }
