@@ -1174,7 +1174,7 @@ bail:
             return;
         }
 
-        context->m_MainScratchBuffers[frame_ix].m_DeviceBuffer.UnmapMemory(context->m_LogicalDevice.m_Device);
+        // context->m_MainScratchBuffers[frame_ix].m_DeviceBuffer.UnmapMemory(context->m_LogicalDevice.m_Device);
 
         VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
         CHECK_VK_ERROR(res);
@@ -1350,6 +1350,7 @@ bail:
                 break;
             case RESOURCE_TYPE_DEVICE_BUFFER:
                 resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
+                ((DeviceBuffer*) resource)->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
                 break;
             case RESOURCE_TYPE_PROGRAM:
                 resource_to_destroy.m_Program = ((Program*) resource)->m_Handle;
@@ -1476,7 +1477,6 @@ bail:
 
     static HIndexBuffer VulkanNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(size > 0);
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
         if (size > 0)
@@ -3907,7 +3907,7 @@ bail:
     }
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    static void* VulkanMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    static void* VulkanMapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
@@ -3915,14 +3915,14 @@ bail:
         return buffer_ptr->m_MappedDataPtr;
     }
 
-    static bool VulkanUnmapVertexBuffer(HVertexBuffer buffer)
+    static bool VulkanUnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
         return true;
     }
 
-    static void* VulkanMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    static void* VulkanMapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
@@ -3930,12 +3930,85 @@ bail:
         return buffer_ptr->m_MappedDataPtr;
     }
 
-    static bool VulkanUnmapIndexBuffer(HIndexBuffer buffer)
+    static bool VulkanUnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
         return true;
     }
+
+    static void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture)
+    {
+        VulkanContext* context = g_VulkanContext; // (VulkanContext*) _context;
+        DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
+
+        assert(context->m_FrameBegun);
+
+        VkBufferImageCopy vk_copy_region = {};
+        vk_copy_region.bufferOffset                    = 0;
+        vk_copy_region.bufferRowLength                 = 0;
+        vk_copy_region.bufferImageHeight               = 0;
+        vk_copy_region.imageOffset.x                   = 0; // params.m_X;
+        vk_copy_region.imageOffset.y                   = 0; // params.m_Y;
+        vk_copy_region.imageOffset.z                   = 0;
+        vk_copy_region.imageExtent.width               = texture->m_Width; // params.m_Width;
+        vk_copy_region.imageExtent.height              = texture->m_Height; // params.m_Height;
+        vk_copy_region.imageExtent.depth               = 1;
+        vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_copy_region.imageSubresource.mipLevel       = 0; // params.m_MipMap;
+        vk_copy_region.imageSubresource.baseArrayLayer = 0;
+        vk_copy_region.imageSubresource.layerCount     = 1;
+
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+
+        vkCmdCopyBufferToImage(vk_command_buffer, buffer->m_Handle.m_Buffer,
+            texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &vk_copy_region);
+
+        VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
+            texture->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        CHECK_VK_ERROR(res);
+
+        /*
+        VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
+        for (int i = 0; i < layer_count; ++i)
+        {
+            VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
+            vk_copy_region.bufferOffset                    = i * slice_size;
+            vk_copy_region.bufferRowLength                 = 0;
+            vk_copy_region.bufferImageHeight               = 0;
+            vk_copy_region.imageOffset.x                   = params.m_X;
+            vk_copy_region.imageOffset.y                   = params.m_Y;
+            vk_copy_region.imageOffset.z                   = 0;
+            vk_copy_region.imageExtent.width               = params.m_Width;
+            vk_copy_region.imageExtent.height              = params.m_Height;
+            vk_copy_region.imageExtent.depth               = 1;
+            vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
+            vk_copy_region.imageSubresource.baseArrayLayer = i;
+            vk_copy_region.imageSubresource.layerCount     = 1;
+        }
+
+        vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
+            textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            layer_count, vk_copy_regions);
+
+        res = vkEndCommandBuffer(vk_command_buffer);
+        CHECK_VK_ERROR(res);
+
+        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+        CHECK_VK_ERROR(res);
+
+        vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
+
+        res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
+            textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            params.m_MipMap, layer_count);
+        CHECK_VK_ERROR(res);
+        */
+    }
+
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()

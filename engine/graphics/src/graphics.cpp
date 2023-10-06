@@ -1251,21 +1251,25 @@ namespace dmGraphics
     }
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
-        return g_functions.m_MapVertexBuffer(buffer, access);
+        return g_functions.m_MapVertexBuffer(context, buffer, access);
     }
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
-        return g_functions.m_UnmapVertexBuffer(buffer);
+        return g_functions.m_UnmapVertexBuffer(context, buffer);
     }
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
-        return g_functions.m_MapIndexBuffer(buffer, access);
+        return g_functions.m_MapIndexBuffer(context, buffer, access);
     }
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
-        return g_functions.m_UnmapIndexBuffer(buffer);
+        return g_functions.m_UnmapIndexBuffer(context, buffer);
+    }
+    void CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture)
+    {
+        return g_functions.m_CopyBufferToTexture(context, buffer, texture);
     }
 #endif
 

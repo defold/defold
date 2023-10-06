@@ -168,13 +168,21 @@ namespace dmGraphics
 
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
+        if (m_MappedDataPtr)
+        {
+            return VK_SUCCESS;
+        }
         return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
     {
-        assert(m_MappedDataPtr);
+        if (m_MappedDataPtr == 0)
+        {
+            return;
+        }
         vkUnmapMemory(vk_device, m_Handle.m_Memory);
+        m_MappedDataPtr = 0;
     }
 
     const VulkanResourceType DeviceBuffer::GetType()

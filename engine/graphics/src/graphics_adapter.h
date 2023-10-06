@@ -170,10 +170,11 @@ namespace dmGraphics
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
-    typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
+    typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
+    typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
+    typedef void (*CopyBufferToTextureFn)(HContext context, HVertexBuffer buffer, HTexture texture);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -298,6 +299,7 @@ namespace dmGraphics
         UnmapVertexBufferFn m_UnmapVertexBuffer;
         MapIndexBufferFn m_MapIndexBuffer;
         UnmapIndexBufferFn m_UnmapIndexBuffer;
+        CopyBufferToTextureFn m_CopyBufferToTexture;
     #endif
     };
 
@@ -423,7 +425,8 @@ namespace dmGraphics
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CopyBufferToTexture);
     #else
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
     #endif
