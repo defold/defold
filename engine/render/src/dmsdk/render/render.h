@@ -466,15 +466,15 @@ namespace dmRender
      * @param constant [type: dmRender::HConstant] The shader constant
      * @return location [type: int32_t] the location
     */
-    int32_t GetConstantLocation(HConstant constant);
+    dmGraphics::HUniformLocation GetConstantLocation(HConstant constant);
 
     /*#
      * Sets the shader program constant location
      * @name SetConstantLocation
      * @param constant [type: dmRender::HConstant] The shader constant
-     * @param location [type: int32_t] the location
+     * @param location [type: dmGraphics::HUniformLocation] the location
     */
-    void SetConstantLocation(HConstant constant, int32_t location);
+    void SetConstantLocation(HConstant constant, dmGraphics::HUniformLocation location);
 
     /*#
      * Gets the type of the constant
