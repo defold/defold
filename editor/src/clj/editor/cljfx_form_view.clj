@@ -16,7 +16,6 @@
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.ext.table-view :as fx.ext.table-view]
-            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
@@ -45,8 +44,8 @@
             [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
-            [editor.icons :as icons]
             [editor.handler :as handler]
+            [editor.icons :as icons]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
@@ -58,7 +57,7 @@
   (:import [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
+           [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn$CellEditEvent TableView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -93,7 +92,7 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(def uri-string-converter
+(def ^:private uri-string-converter
   (proxy [StringConverter] []
     (toString
       ([] "uri-string-converter")
@@ -101,23 +100,48 @@
     (fromString [v]
       (url/try-parse v))))
 
-(def number-converter
+(def ^:private float-converter
   (proxy [StringConverter] []
     (toString
-      ([] "number-string-converter")
-      ([v] (field-expression/format-number v)))
+      ([] "float-string-converter")
+      ([v] (field-expression/format-real v)))
+    (fromString [v]
+      (or (field-expression/to-float v)
+          (throw (RuntimeException.))))))
+
+(def ^:private double-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "double-string-converter")
+      ([v] (field-expression/format-real v)))
     (fromString [v]
       (or (field-expression/to-double v)
           (throw (RuntimeException.))))))
 
-(def int-converter
+(def ^:private int-converter
   (proxy [StringConverter] []
     (toString
       ([] "int-string-converter")
       ([v] (field-expression/format-int v)))
     (fromString [v]
-      (or (int (field-expression/to-double v))
+      (or (field-expression/to-int v)
           (throw (RuntimeException.))))))
+
+(def ^:private long-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "long-string-converter")
+      ([v] (field-expression/format-int v)))
+    (fromString [v]
+      (or (field-expression/to-long v)
+          (throw (RuntimeException.))))))
+
+(defn- number-string-converter [value]
+  (condp instance? value
+    Float float-converter
+    Double double-converter
+    Integer int-converter
+    Long long-converter))
 
 (defn- make-resource-string-converter [workspace]
   (proxy [StringConverter] []
@@ -252,13 +276,15 @@
 ;; region integer input
 
 (defmethod form-input-view :integer [{:keys [value on-value-changed] :as field}]
-  {:fx/type text-field
-   :alignment :center-right
-   :max-width 80
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
-                    :value-converter int-converter
-                    :value (int (ensure-value value field))
-                    :on-value-changed on-value-changed}})
+  (let [value (ensure-value value field)
+        value-converter (number-string-converter value)]
+    {:fx/type text-field
+     :alignment :center-right
+     :max-width 80
+     :text-formatter {:fx/type fx.text-formatter/lifecycle
+                      :value-converter value-converter
+                      :value value
+                      :on-value-changed on-value-changed}}))
 
 (defmethod cell-input-view :integer [field]
   (wrap-focus-text-field (default-cell-input-view field)))
@@ -268,13 +294,15 @@
 ;; region number input
 
 (defmethod form-input-view :number [{:keys [value on-value-changed] :as field}]
-  {:fx/type text-field
-   :alignment :center-right
-   :max-width 80
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
-                    :value-converter number-converter
-                    :value (ensure-value value field)
-                    :on-value-changed on-value-changed}})
+  (let [value (ensure-value value field)
+        value-converter (number-string-converter value)]
+    {:fx/type text-field
+     :alignment :center-right
+     :max-width 80
+     :text-formatter {:fx/type fx.text-formatter/lifecycle
+                      :value-converter value-converter
+                      :value value
+                      :on-value-changed on-value-changed}}))
 
 (defmethod cell-input-view :number [field]
   (wrap-focus-text-field (default-cell-input-view field)))
@@ -1546,17 +1574,16 @@
                          :parent parent
                          :resource-string-converter resource-string-converter}))))))
 
+(defn- make-form-view-node [graph parent resource-node workspace project]
+  (g/make-nodes graph [view CljfxFormView]
+    (g/set-property view :renderer (create-renderer view parent workspace project))
+    (g/connect resource-node :form-data view :form-data)))
+
+(def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
+
 (defn- make-form-view [graph parent resource-node opts]
   (let [{:keys [workspace project tab]} opts
-        view-id (-> (g/make-nodes graph [view [CljfxFormView]]
-                      (g/set-property view :renderer (create-renderer view
-                                                                      parent
-                                                                      workspace
-                                                                      project))
-                      (g/connect resource-node :form-data view :form-data))
-                    g/transact
-                    g/tx-nodes-added
-                    first)
+        view-id (make-form-view-node! graph parent resource-node workspace project)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
