@@ -100,7 +100,7 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.input Clipboard ClipboardContent KeyCodeCombination]
            [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse SVGPath]
@@ -242,16 +242,9 @@
       (str "*" escaped-resource-name)
       escaped-resource-name)))
 
-(defn- create-key-info [label key-combo]
-  (let [keys (into []
-                   (remove nil?)
-                   (list
-                     (when (:meta-down? key-combo) "Cmd")
-                     (when (:control-down? key-combo) "Ctrl")
-                     (when (:alt-down? key-combo) "Alt")
-                     (when (:shift-down? key-combo) "Shift")
-                     (str (:key key-combo))))]
-    {:label label :keys keys}))
+
+(defn- create-key-info [label ^KeyCodeCombination key-combo]
+  {:label label :keys (.getDisplayText key-combo)})
 
 (defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
   (let [tab-panes (.getItems editor-tabs-split)
@@ -266,8 +259,9 @@
     (when is-empty
       (let [command->key-combo
             (into {}
-                  (mapcat (fn [[key-combo command-infos]]
-                            (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
+                  (mapcat (fn [[_ command-infos]]
+                            (map (fn [command-info] [(:command command-info) (:key-combo command-info)])
+                                 command-infos)))
                   keymap)
             items (keep (fn [[command label]]
                           (when-some [key-combo (command->key-combo command)]
@@ -300,18 +294,11 @@
                 (.setPrefWidth spacer 10)
                 (-> hbox .getChildren (.add spacer)))
 
-              (doseq [[index key] (map-indexed vector keys)]
-                (when (pos? index)
-                  (let [plus-ui (Label. "+")]
-                    (.setPrefWidth plus-ui 10)
-                    (.setAlignment plus-ui (Pos/CENTER))
-                    (-> hbox .getChildren (.add plus-ui))))
-
-                (let [key-ui (Label. key)]
-                  (.setFont key-ui font)
-                  (.setTextFill key-ui color)
-                  (-> key-ui .getStyleClass (.add "key-button"))
-                  (-> hbox .getChildren (.add key-ui))))
+              (let [key-ui (Label. keys)]
+                (.setFont key-ui font)
+                (.setTextFill key-ui color)
+                (-> key-ui .getStyleClass (.add "key-button"))
+                (-> hbox .getChildren (.add key-ui)))
 
               (-> box-items (.add hbox 1 row-index)))))))))
 
