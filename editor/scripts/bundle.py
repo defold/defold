@@ -115,11 +115,11 @@ def download(url):
     return path
 
 def archivetree(path, outfile, directory = None, fmt= 'zip'):
-    # Generate archive of fmt zip or tar.gz
+    # Generate archvie of fmt zip or tar.gz
     # Directory is similar to -C in tar
-    if fmt == 'zip':
+    if fmt=='zip':
         archive = zipfile.ZipFile(outfile, 'w')
-    elif fmt == 'tar.gz':
+    elif fmt=='tar.gz':
         archive = tarfile.open(outfile, 'w:gz')
     else:
         assert False, "Unknown format %s" % fmt
@@ -130,7 +130,7 @@ def archivetree(path, outfile, directory = None, fmt= 'zip'):
             an = p
             if directory:
                 an = os.path.relpath(p, directory)
-            if fmt == 'tar.gz':
+            if fmt=='tar.gz':
                 archive.add(p, an)
             else:    
                 archive.write(p, an)
