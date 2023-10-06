@@ -88,6 +88,7 @@
            [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
+           [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
            [java.net URL]
@@ -100,7 +101,7 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input Clipboard ClipboardContent KeyCodeCombination]
+           [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse SVGPath]
@@ -242,9 +243,22 @@
       (str "*" escaped-resource-name)
       escaped-resource-name)))
 
+(defn- is-macos [] (PlatformUtil/isMac))
 
-(defn- create-key-info [label ^KeyCodeCombination key-combo]
-  {:label label :keys (.getDisplayText key-combo)})
+(defn- create-key-info [label key-combo]
+  (let [cmd (if (is-macos) "⌘" "Cmd")
+        ctrl (if (is-macos) "⌃" "Ctrl")
+        alt (if (is-macos) "⌥" "Alt")
+        shift (if (is-macos) "⇧" "Shift")
+        keys (into []
+                   (remove nil?)
+                   (list
+                     (when (:meta-down? key-combo) cmd)
+                     (when (:control-down? key-combo) ctrl)
+                     (when (:alt-down? key-combo) alt)
+                     (when (:shift-down? key-combo) shift)
+                     (str (:key key-combo))))]
+    {:label label :keys keys}))
 
 (defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
   (let [tab-panes (.getItems editor-tabs-split)
@@ -259,9 +273,8 @@
     (when is-empty
       (let [command->key-combo
             (into {}
-                  (mapcat (fn [[_ command-infos]]
-                            (map (fn [command-info] [(:command command-info) (:key-combo command-info)])
-                                 command-infos)))
+                  (mapcat (fn [[key-combo command-infos]]
+                            (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
                   keymap)
             items (keep (fn [[command label]]
                           (when-some [key-combo (command->key-combo command)]
@@ -274,14 +287,17 @@
         (-> box-items .getChildren .clear)
 
         (doseq [[row-index item] (map-indexed vector items)]
-          (let [font (Font. "Dejavu Sans Mono" 13)
+          (let [space-character (if (is-macos) "" "+")
+                space (if (is-macos) 5 10)
+                label-font (Font. "Dejavu Sans Mono" 13)
+                key-font (Font. "" 13)
                 color (Color. 1.0 1.0 0.59765625 0.6)
                 label (:label item)
                 keys (:keys item)]
 
             ;; Add label in the first column
             (let [label-ui (Label. label)]
-              (.setFont label-ui font)
+              (.setFont label-ui label-font)
               (.setTextFill label-ui color)
               (GridPane/setHalignment label-ui (HPos/RIGHT))
               (-> box-items (.add label-ui 0 row-index)))
@@ -294,11 +310,19 @@
                 (.setPrefWidth spacer 10)
                 (-> hbox .getChildren (.add spacer)))
 
-              (let [key-ui (Label. keys)]
-                (.setFont key-ui font)
-                (.setTextFill key-ui color)
-                (-> key-ui .getStyleClass (.add "key-button"))
-                (-> hbox .getChildren (.add key-ui)))
+              (doseq [[index key] (map-indexed vector keys)]
+                (when (pos? index)
+                  (let [plus-ui (Label. space-character)]
+                    (.setPrefWidth plus-ui space)
+                    (.setAlignment plus-ui (Pos/CENTER))
+                    (-> hbox .getChildren (.add plus-ui))))
+
+                (let [key-ui (Label. key)]
+                  (.setFont key-ui key-font)
+                  (.setAlignment key-ui (Pos/CENTER))
+                  (.setTextFill key-ui color)
+                  (-> key-ui .getStyleClass (.add "key-button"))
+                  (-> hbox .getChildren (.add key-ui))))
 
               (-> box-items (.add hbox 1 row-index)))))))))
 
