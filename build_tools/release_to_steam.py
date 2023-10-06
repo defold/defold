@@ -73,9 +73,6 @@ def write_manifest(dir):
 def unzip(filepath, dest_dir):
     run.shell_command('unzip %s -d %s' % (filepath, dest_dir))
 
-def unpack_gz(filepath, dest_dir):
-    run.shell_command('tar xzf %s -C %s' % (filepath, dest_dir))
-
 def unpack_dmg(filepath, dest_dir):
     system = platform.system()
     if system == "Darwin":
@@ -99,7 +96,7 @@ def release(config, tag_name, s3_release):
 
     def is_editor_file(path):
         return os.path.basename(path) in ('Defold-x86_64-macos.dmg',
-                                          'Defold-x86_64-linux.tar.gz',
+                                          'Defold-x86_64-linux.zip',
                                           'Defold-x86_64-win32.zip')
 
     # get a set of editor files only
@@ -126,7 +123,7 @@ def release(config, tag_name, s3_release):
     for download_url in urls:
         filepath = config._download(download_url)
         if "x86_64-linux" in filepath:
-            unpack_gz(filepath, linux_dir)
+            unzip(filepath, linux_dir)
         elif "x86_64-win32" in filepath:
             unzip(filepath, windows_dir)
         elif "x86_64-macos" in filepath:

@@ -25,7 +25,6 @@ import re
 import shutil
 import subprocess
 import zipfile
-import tarfile
 import configparser
 import datetime
 import imp
@@ -114,28 +113,19 @@ def download(url):
         log('Downloading %s failed' % (url))
     return path
 
-def archivetree(path, outfile, directory = None, fmt= 'zip'):
-    # Generate archvie of fmt zip or tar.gz
+def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
-    if fmt=='zip':
-        archive = zipfile.ZipFile(outfile, 'w')
-    elif fmt=='gz':
-        archive = tarfile.open(outfile, 'w:gz')
-    else:
-        assert False, "Unknown format %s" % fmt
 
+    zip = zipfile.ZipFile(outfile, 'w')
     for root, dirs, files in os.walk(path):
         for f in files:
             p = os.path.join(root, f)
             an = p
             if directory:
                 an = os.path.relpath(p, directory)
-            if fmt=='gz':
-                archive.add(p, an)
-            else:    
-                archive.write(p, an)
+            zip.write(p, an)
 
-    archive.close()
+    zip.close()
     return outfile
 
 def _get_tag_name(version, channel): # from build.py
@@ -399,8 +389,6 @@ def create_bundle(options):
         tmp_dir = "tmp"
 
         is_mac = 'macos' in platform
-        is_linux = 'linux' in platform
-
         if is_mac:
             resources_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources')
             packages_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources/packages')
@@ -469,14 +457,13 @@ def create_bundle(options):
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s' % packages_jdk])
 
-        # create final archive file
-        fmt = 'tar.gz' if is_linux else 'zip'
-        archive_file = 'target/editor/Defold-%s.%s' % (platform, fmt)
-        if os.path.exists(archive_file):
-            os.remove(archive_file)
+        # create final zip file
+        zipfile = 'target/editor/Defold-%s.zip' % platform
+        if os.path.exists(zipfile):
+            os.remove(zipfile)
 
-        print("Creating '%s' bundle from '%s'" % (archive_file, bundle_dir))
-        archivetree(bundle_dir, archive_file, tmp_dir, fmt)
+        print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
+        ziptree(bundle_dir, zipfile, tmp_dir)
 
 
 def sign(options):
@@ -520,7 +507,7 @@ def sign(options):
 
         # create editor bundle with signed files
         os.remove(bundle_file)
-        archivetree(sign_dir, bundle_file, sign_dir)
+        ziptree(sign_dir, bundle_file, sign_dir)
         rmtree(sign_dir)
 
 
