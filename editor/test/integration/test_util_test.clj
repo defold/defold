@@ -26,50 +26,55 @@
             [integration.test-util :as test-util]
             [support.test-support :as test-support]))
 
-(deftest float-type-preserving?-test
-  (let [float-type-preserving? ; Silence inner assertions since we'll be triggering failures.
-        (fn silenced-float-type-preserving? [a b]
+(deftest number-type-preserving?-test
+  (let [number-type-preserving? ; Silence inner assertions since we'll be triggering failures.
+        (fn silenced-number-type-preserving? [a b]
           (with-redefs [do-report identity]
-            (test-util/float-type-preserving? a b)))
+            (test-util/number-type-preserving? a b)))
 
         original-meta {:version "original"}
         altered-meta {:version "altered"}]
 
-    (is (true? (float-type-preserving? (float 0.0) (float 0.0))))
-    (is (true? (float-type-preserving? (double 0.0) (double 0.0))))
-    (is (false? (float-type-preserving? (float 0.0) (double 0.0))))
-    (is (false? (float-type-preserving? (double 0.0) (float 0.0))))
+    (is (true? (number-type-preserving? (int 0) (int 0))))
+    (is (true? (number-type-preserving? (long 0) (long 0))))
+    (is (false? (number-type-preserving? (int 0) (long 0))))
+    (is (false? (number-type-preserving? (long 0) (int 0))))
 
-    (is (true? (float-type-preserving? [(float 0.0)] [(float 0.0)])))
-    (is (true? (float-type-preserving? [(double 0.0)] [(double 0.0)])))
-    (is (false? (float-type-preserving? [(float 0.0)] [(double 0.0)])))
-    (is (false? (float-type-preserving? [(double 0.0)] [(float 0.0)])))
+    (is (true? (number-type-preserving? (float 0.0) (float 0.0))))
+    (is (true? (number-type-preserving? (double 0.0) (double 0.0))))
+    (is (false? (number-type-preserving? (float 0.0) (double 0.0))))
+    (is (false? (number-type-preserving? (double 0.0) (float 0.0))))
 
-    (is (true? (float-type-preserving? [[(float 0.0)]] [[(float 0.0)]])))
-    (is (true? (float-type-preserving? [[(double 0.0)]] [[(double 0.0)]])))
-    (is (false? (float-type-preserving? [[(float 0.0)]] [[(double 0.0)]])))
-    (is (false? (float-type-preserving? [[(double 0.0)]] [[(float 0.0)]])))
+    (is (true? (number-type-preserving? [(float 0.0)] [(float 0.0)])))
+    (is (true? (number-type-preserving? [(double 0.0)] [(double 0.0)])))
+    (is (false? (number-type-preserving? [(float 0.0)] [(double 0.0)])))
+    (is (false? (number-type-preserving? [(double 0.0)] [(float 0.0)])))
 
-    (is (true? (float-type-preserving? (vector-of :float 0.0) (vector-of :float 0.0))))
-    (is (true? (float-type-preserving? (vector-of :double 0.0) (vector-of :double 0.0))))
-    (is (false? (float-type-preserving? (vector-of :float 0.0) (vector-of :double 0.0))))
-    (is (false? (float-type-preserving? (vector-of :double 0.0) (vector-of :float 0.0))))
+    (is (true? (number-type-preserving? [[(float 0.0)]] [[(float 0.0)]])))
+    (is (true? (number-type-preserving? [[(double 0.0)]] [[(double 0.0)]])))
+    (is (false? (number-type-preserving? [[(float 0.0)]] [[(double 0.0)]])))
+    (is (false? (number-type-preserving? [[(double 0.0)]] [[(float 0.0)]])))
 
-    (is (true? (float-type-preserving? [(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)])))
-    (is (true? (float-type-preserving? [(double 0.0) (float 0.0)] [(double 0.0) (float 0.0)])))
-    (is (false? (float-type-preserving? [(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)])))
-    (is (false? (float-type-preserving? [(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)])))
+    (is (true? (number-type-preserving? (vector-of :float 0.0) (vector-of :float 0.0))))
+    (is (true? (number-type-preserving? (vector-of :double 0.0) (vector-of :double 0.0))))
+    (is (false? (number-type-preserving? (vector-of :float 0.0) (vector-of :double 0.0))))
+    (is (false? (number-type-preserving? (vector-of :double 0.0) (vector-of :float 0.0))))
 
-    (is (true? (float-type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]])))
-    (is (true? (float-type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)]])))
-    (is (false? (float-type-preserving? [[(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)]])))
-    (is (false? (float-type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)]])))
-    (is (false? (float-type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)]])))
+    (is (true? (number-type-preserving? [(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)])))
+    (is (true? (number-type-preserving? [(double 0.0) (float 0.0)] [(double 0.0) (float 0.0)])))
+    (is (false? (number-type-preserving? [(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)])))
+    (is (false? (number-type-preserving? [(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)])))
 
-    (is (true? (float-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] original-meta))))
-    (is (false? (float-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] altered-meta))))
-    (is (true? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) original-meta))))
-    (is (false? (float-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) altered-meta))))
+    (is (true? (number-type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]])))
+    (is (true? (number-type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)]])))
+    (is (false? (number-type-preserving? [[(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)] [(float 0.0) (double 0.0)]])))
+    (is (false? (number-type-preserving? [[(float 0.0) (double 0.0)]] [[(float 0.0) (double 0.0)] [(double 0.0) (float 0.0)]])))
+    (is (false? (number-type-preserving? [[(float 0.0) (double 0.0)] [(float 0.0) (double 0.0)]] [[(double 0.0) (float 0.0)]])))
+
+    (is (true? (number-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] original-meta))))
+    (is (false? (number-type-preserving? (with-meta [(float 0.0)] original-meta) (with-meta [(float 0.0)] altered-meta))))
+    (is (true? (number-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) original-meta))))
+    (is (false? (number-type-preserving? (with-meta (vector-of :float 0.0) original-meta) (with-meta (vector-of :float 0.0) altered-meta))))
 
     (letfn [(->control-points [empty-point num-fn]
               (mapv (fn [control-point]
@@ -83,25 +88,25 @@
                          (properties/->curve-spread (->control-points empty-point num-fn)
                                                     (num-fn 0.0)))]]
 
-        (is (true? (float-type-preserving? (->curve [] float) (->curve [] float))))
-        (is (true? (float-type-preserving? (->curve [] double) (->curve [] double))))
-        (is (false? (float-type-preserving? (->curve [] float) (->curve [] double))))
-        (is (false? (float-type-preserving? (->curve [] double) (->curve [] float))))
+        (is (true? (number-type-preserving? (->curve [] float) (->curve [] float))))
+        (is (true? (number-type-preserving? (->curve [] double) (->curve [] double))))
+        (is (false? (number-type-preserving? (->curve [] float) (->curve [] double))))
+        (is (false? (number-type-preserving? (->curve [] double) (->curve [] float))))
 
-        (is (true? (float-type-preserving? (->curve (vector-of :float) float) (->curve (vector-of :float) float))))
-        (is (true? (float-type-preserving? (->curve (vector-of :double) double) (->curve (vector-of :double) double))))
-        (is (false? (float-type-preserving? (->curve (vector-of :float) float) (->curve (vector-of :double) double))))
-        (is (false? (float-type-preserving? (->curve (vector-of :double) double) (->curve (vector-of :float) float))))
+        (is (true? (number-type-preserving? (->curve (vector-of :float) float) (->curve (vector-of :float) float))))
+        (is (true? (number-type-preserving? (->curve (vector-of :double) double) (->curve (vector-of :double) double))))
+        (is (false? (number-type-preserving? (->curve (vector-of :float) float) (->curve (vector-of :double) double))))
+        (is (false? (number-type-preserving? (->curve (vector-of :double) double) (->curve (vector-of :float) float))))
 
-        (is (true? (float-type-preserving? (->curve (with-meta [] original-meta) float) (->curve (with-meta [] original-meta) float))))
-        (is (false? (float-type-preserving? (->curve (with-meta [] original-meta) float) (->curve (with-meta [] altered-meta) float))))
-        (is (true? (float-type-preserving? (->curve (with-meta (vector-of :float) original-meta) float) (->curve (with-meta (vector-of :float) original-meta) float))))
-        (is (false? (float-type-preserving? (->curve (with-meta (vector-of :float) original-meta) float) (->curve (with-meta (vector-of :float) altered-meta) float))))
+        (is (true? (number-type-preserving? (->curve (with-meta [] original-meta) float) (->curve (with-meta [] original-meta) float))))
+        (is (false? (number-type-preserving? (->curve (with-meta [] original-meta) float) (->curve (with-meta [] altered-meta) float))))
+        (is (true? (number-type-preserving? (->curve (with-meta (vector-of :float) original-meta) float) (->curve (with-meta (vector-of :float) original-meta) float))))
+        (is (false? (number-type-preserving? (->curve (with-meta (vector-of :float) original-meta) float) (->curve (with-meta (vector-of :float) altered-meta) float))))
 
-        (is (true? (float-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) original-meta))))
-        (is (false? (float-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) altered-meta))))
-        (is (true? (float-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) original-meta))))
-        (is (false? (float-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) altered-meta))))))))
+        (is (true? (number-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) original-meta))))
+        (is (false? (number-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) altered-meta))))
+        (is (true? (number-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) original-meta))))
+        (is (false? (number-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) altered-meta))))))))
 
 (deftest run-event-loop-test
 

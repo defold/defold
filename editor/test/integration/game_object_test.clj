@@ -97,4 +97,4 @@
           (let [modified-scale (g/node-value embedded-component :scale)]
             (is (not= original-scale modified-scale))
             (is (= (count original-scale) (count modified-scale)))
-            (test-util/ensure-float-type-preserving! original-scale modified-scale)))))))
+            (test-util/ensure-number-type-preserving! original-scale modified-scale)))))))

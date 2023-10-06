@@ -115,26 +115,26 @@
       (mouse-move! curve-view 0.0 0.0)
       (mouse-drag! curve-view 0.0 0.0 0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ;; X limit for first control point
       (mouse-drag! curve-view 0.0 0.1 0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       (mouse-drag! curve-view 0.0 0.1 -0.1 0.1)
       (is (cp? [0.0 0.1] (cp emitter :particle-key-alpha 1)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ;; Box selection
       (mouse-drag! curve-view -1.0 -1.0 0.2 1.0)
       ;; Multi-selection movement
       (mouse-drag! curve-view 0.0 0.1 0.0 0.2)
       (is (cp? [0.00 0.20] (cp emitter :particle-key-alpha 1)))
       (is (cp? [0.11 1.09] (cp emitter :particle-key-alpha 2)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ;; X limit for second control point
       (mouse-drag! curve-view 0.11 1.09 -0.1 1.09)
       (is (< (first (cp emitter :particle-key-alpha 1))
              (first (cp emitter :particle-key-alpha 2))))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
 
 (deftest add-delete-control-point
   (test-util/with-loaded-project
@@ -147,16 +147,16 @@
       ; First control point can't be deleted
       (mouse-dbl-click! curve-view 0.0 0.0)
       (is (cp? [0.0 0.0] (cp emitter :particle-key-alpha 1)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ; But second can
       (mouse-dbl-click! curve-view 0.05 0.5)
       (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       (mouse-dbl-click! curve-view 0.05 0.62)
       (is (nil? (cp emitter :particle-key-alpha 9)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
       (test-util/handler-run :delete [context] {})
       (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6)))
-      (test-util/ensure-float-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
+      (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))

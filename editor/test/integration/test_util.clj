@@ -25,6 +25,7 @@
             [editor.defold-project :as project]
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
+            [editor.field-expression :as field-expression]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
@@ -61,7 +62,10 @@
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
-           [javafx.scene Scene]
+           [javafx.event ActionEvent]
+           [javafx.scene Parent Scene]
+           [javafx.scene.control ColorPicker Control Label Slider TextField ToggleButton]
+           [javafx.scene.paint Color]
            [javafx.scene.layout VBox]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
@@ -73,7 +77,7 @@
 
 (def ^:private ^:const system-cache-size 1000)
 
-(defn float-type-preserving? [a b]
+(defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
   (assert (or (number? b) (vector? b) (instance? Curve b) (instance? CurveSpread b)))
   (and (is (= (type a) (type b)))
@@ -85,20 +89,43 @@
                            (is (= (type (.am ^Vec a))
                                   (type (.am ^Vec b)))))
                        (testing "Vector elements"
-                         (every? true? (map float-type-preserving? a (cycle b)))
-                         (every? true? (map float-type-preserving? b (cycle a)))))
+                         (every? true? (map number-type-preserving? a (cycle b)))
+                         (every? true? (map number-type-preserving? b (cycle a)))))
 
                   (instance? Curve a)
                   (testing "Curve points"
-                    (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))
+                    (true? (number-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))
 
                   (instance? CurveSpread a)
                   (and (testing "CurveSpread spread"
-                         (true? (float-type-preserving? (:spread a) (:spread b))))
+                         (true? (number-type-preserving? (:spread a) (:spread b))))
                        (testing "CurveSpread points"
-                         (true? (float-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))))))))
+                         (true? (number-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))))))))
 
-(def ensure-float-type-preserving! float-type-preserving?)
+(def ensure-number-type-preserving! number-type-preserving?)
+
+(defn editable-controls [^Parent parent]
+  (->> parent
+       (tree-seq (constantly true)
+                 #(.getChildrenUnmodifiable ^Parent %))
+       (filterv #(and (instance? Control %)
+                      (not (instance? Label %))))))
+
+(defmulti set-control-value! (fn [^Control control _num-value] (class control)))
+
+(defmethod set-control-value! ColorPicker [^ColorPicker color-picker num-value]
+  (.setValue color-picker (Color/gray num-value))
+  (.fireEvent color-picker (ActionEvent. color-picker color-picker)))
+
+(defmethod set-control-value! Slider [^Slider slider num-value]
+  (.setValue slider num-value))
+
+(defmethod set-control-value! TextField [^TextField text-field num-value]
+  (.setText text-field (field-expression/format-number num-value))
+  (.fireEvent text-field (ActionEvent. text-field text-field)))
+
+(defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
+  (.fire toggle-button))
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))

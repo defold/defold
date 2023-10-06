@@ -43,15 +43,15 @@
     (catch Throwable _
       nil)))
 
-(defn to-double [s]
-  (try
-    (evaluate-expression #(Double/parseDouble %) math/precision-general s)
-    (catch Throwable _
-      nil)))
-
 (defn to-float [s]
   (try
     (evaluate-expression #(Float/parseFloat %) math/precision-general s)
+    (catch Throwable _
+      nil)))
+
+(defn to-double [s]
+  (try
+    (evaluate-expression #(Double/parseDouble %) math/precision-general s)
     (catch Throwable _
       nil)))
 
@@ -125,7 +125,7 @@
 
 (def format-int str)
 
-(defn- format-real
+(defn format-real
   ^String [n]
   (if n
     (scientific->decimal (str n))
