@@ -13,15 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.prefs-dialog
-  (:require [editor.engine :as engine]
+  (:require [clojure.java.io :as io]
+            [editor.engine :as engine]
             [editor.engine.native-extensions :as native-extensions]
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
   (:import [com.defold.control LongField]
-           [javafx.geometry VPos]
+           [com.sun.javafx PlatformUtil]
+           [javafx.geometry Side VPos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control ColorPicker CheckBox ChoiceBox Label TextArea TextField Tab TabPane]
+           [javafx.scene.control ColorPicker CheckBox ChoiceBox Label TextArea TextField Tab TabPane ContextMenu MenuItem]
            [javafx.scene.layout ColumnConstraints GridPane Priority]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
@@ -49,6 +51,72 @@
   (if (:multi-line desc)
     (create-generic TextArea prefs grid desc)
     (create-generic TextField prefs grid desc)))
+
+(defn- filter-exist-files [files]
+  (filter #(.exists (io/file %)) files))
+
+(defn- suggest-code-editor-macos []
+  (let [files (list "/Applications/Visual Studio Code.app/Contents/MacOS/Electron")]
+    (filter-exist-files files)))
+
+(defn- suggest-code-editor-win []
+  (let [files (list "C:/Program Files/Microsoft VS Code/Code.exe"
+                    "C:/Program Files (x86)/Microsoft VS Code/Code.exe")]
+    (filter-exist-files files)))
+
+(defn- suggest-code-editor-linux []
+  (let [files (list "/usr/bin/code"
+                    "/usr/share/code"
+                    "/snap/code/current")]
+    (filter-exist-files files)))
+
+(defn- suggest-code-editor []
+  (cond
+    (PlatformUtil/isMac) (suggest-code-editor-macos)
+    (PlatformUtil/isWindows) (suggest-code-editor-win)
+    (PlatformUtil/isLinux) (suggest-code-editor-linux)
+    :else '()))
+
+(defn- items-for-auto-type [^String type]
+  (case type
+    "code" (suggest-code-editor)
+    '()))
+
+(defmethod create-control! :string-auto [prefs grid desc]
+  (let [auto-type (:auto-type desc)
+        items (items-for-auto-type auto-type)
+        control (TextField.)
+        popup (ContextMenu.)
+        commit (fn [] (prefs/set-prefs prefs (:key desc) (ui/value control)))]
+
+    (ui/value! control (prefs/get-prefs prefs (:key desc) (:default desc)))
+    (ui/on-focus! control (fn [focus] (when-not focus (commit))))
+    (ui/on-action! control (fn [_] (commit)))
+
+    (ui/observe (.focusedProperty control) (fn [_ _ _] (.hide popup)))
+
+    (ui/observe (.textProperty control)
+                (fn [_ _ ^String new-val]
+
+                  (let [text (if new-val (.trim new-val) "")
+                        match-items (filter #(.contains (.toLowerCase ^String %) (.toLowerCase text)) items)
+                        should-show (and (not-empty match-items) (not (.isEmpty text)))
+                        menu-items (map (fn [^String item]
+                                          (let [menu (MenuItem. item)]
+                                            (.setOnAction menu (ui/event-handler menu
+                                                                 (.setText control item)
+                                                                 (.positionCaret control (.length item))
+                                                                 (.hide popup)
+                                                                 (commit)))
+                                            menu)) match-items)]
+                    (if should-show
+                      (do
+                        (-> popup .getItems .clear)
+                        (-> popup .getItems (.addAll ^java.util.Collection menu-items))
+                        (.show popup control (Side/BOTTOM) 0 0))
+                      (.hide popup))
+                    )))
+    control))
 
 (defmethod create-control! :long [prefs grid desc]
   (create-generic LongField prefs grid desc))
@@ -109,7 +177,7 @@
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
                     {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
            {:name  "Code"
-            :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
+            :prefs [{:label "Custom Editor" :type :string-auto :key "code-custom-editor" :auto-type "code" :default ""}
                     {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
                     {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}
                     {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
