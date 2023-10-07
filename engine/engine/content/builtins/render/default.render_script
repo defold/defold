@@ -209,9 +209,7 @@ function on_message(self, message_id, message)
         self.camera_projection = message.projection or vmath.matrix4()
         update_camera(camera, state)
     elseif message_id == MSG_SET_CAMERA_PROJ then
-        self.camera_projection = message.projection or vmath.matrix4()
         camera.projection_fn = function() return self.camera_projection end
-        update_camera(camera, state)
     elseif message_id == MSG_USE_STRETCH_PROJ then
         init_camera(camera, get_stretch_projection, message.near, message.far)
         update_camera(camera, state)
