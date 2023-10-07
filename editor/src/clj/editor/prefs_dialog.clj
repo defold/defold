@@ -56,18 +56,25 @@
   (filter #(.exists (io/file %)) files))
 
 (defn- suggest-code-editor-macos []
-  (let [files (list "/Applications/Visual Studio Code.app/Contents/MacOS/Electron")]
+  (let [files (list "/Applications/Visual Studio Code.app/Contents/MacOS/Electron"
+                    "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"
+                    "/Applications/TextMate.app/Contents/Resources/mate")]
     (filter-exist-files files)))
 
 (defn- suggest-code-editor-win []
   (let [files (list "C:/Program Files/Microsoft VS Code/Code.exe"
-                    "C:/Program Files (x86)/Microsoft VS Code/Code.exe")]
+                    "C:/Program Files (x86)/Microsoft VS Code/Code.exe"
+                    "C:/Program Files/Sublime Text/sublime_text.exe"
+                    "C:/Program Files (x86)/Sublime Text/sublime_text.exe"
+                    "C:/Program Files/Notepad++/notepad++.exe")]
     (filter-exist-files files)))
 
 (defn- suggest-code-editor-linux []
   (let [files (list "/usr/bin/code"
                     "/usr/share/code"
-                    "/snap/code/current")]
+                    "/snap/code/current"
+                    "/usr/bin/subl"
+                    "/snap/sublime-text/current/opt/sublime_text")]
     (filter-exist-files files)))
 
 (defn- suggest-code-editor []
