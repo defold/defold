@@ -2105,7 +2105,7 @@ If you do not specifically require different script states, consider changing th
                     (conj {:label :separator})
                     (into
                       (map (fn [[resource view-type :as resource+view-type]]
-                             {:label (str (resource/proj-path resource) " • " (:label view-type) " view")
+                             {:label (string/replace (str (resource/proj-path resource) " • " (:label view-type) " view") #"_" "__")
                               :command :open-selected-recent-file
                               :user-data resource+view-type}))
                       (recent-files/some-recent prefs workspace evaluation-context))
