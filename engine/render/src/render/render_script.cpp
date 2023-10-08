@@ -379,7 +379,7 @@ namespace dmRender
      * Then use the constant buffer when drawing a predicate:
      *
      * ```lua
-     * render.draw(self.my_pred, constants)
+     * render.draw(self.my_pred, {constants = constants})
      * ```
      *
      * The constant buffer also supports array values by specifying constants in a table:
