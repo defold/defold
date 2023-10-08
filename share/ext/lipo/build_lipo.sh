@@ -70,15 +70,15 @@ esac
 
 (cd ${SOURCE_DIR} && make -j8)
 
-mkdir ${BUILD_DIR}/bin
-cp -v ${SOURCE_DIR}/bin/* ${BUILD_DIR}/bin
+BIN_DIR=${BUILD_DIR}/bin/${PLATFORM}
+mkdir -p ${BIN_DIR}
 
 case $PLATFORM in
     win32|x86_64-win32)
-        mv ${SOURCE_DIR}/bin/lipo ${BUILD_DIR}/bin/lipo.exe
+        mv ${SOURCE_DIR}/bin/lipo ${BIN_DIR}/lipo.exe
         ;;
     *)
-        mv ${SOURCE_DIR}/bin/lipo ${BUILD_DIR}/bin/lipo
+        mv ${SOURCE_DIR}/bin/lipo ${BIN_DIR}/lipo
         ;;
 esac
 
