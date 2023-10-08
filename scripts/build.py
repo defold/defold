@@ -2130,8 +2130,6 @@ class Configuration(object):
 
         env['ANDROID_HOME'] = os.path.join(self.dynamo_home, 'ext', 'SDKs', 'android-sdk')
 
-        go_root = '%s/ext/go/%s/go' % (self.dynamo_home, self.target_platform)
-
         android_host = self.host
         if 'win32' in android_host:
             android_host = 'windows'
@@ -2139,7 +2137,6 @@ class Configuration(object):
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, host),
-                                      '%s/bin' % go_root,
                                       '%s/platform-tools' % env['ANDROID_HOME'],
                                       '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
 
@@ -2150,11 +2147,6 @@ class Configuration(object):
         is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
         if is_mingw:
             env['ORIGINAL_PATH'] = env['PATH']
-
-        go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
-                                         join(self.defold, 'go')])
-        env['GOPATH'] = go_paths
-        env['GOROOT'] = go_root
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
