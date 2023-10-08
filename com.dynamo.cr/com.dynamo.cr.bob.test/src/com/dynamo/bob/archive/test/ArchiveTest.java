@@ -40,7 +40,11 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
+
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
@@ -53,6 +57,8 @@ public class ArchiveTest {
     private Path resourcePackDir;
 
     private ManifestBuilder manifestBuilder;
+
+    private ResourceGraph resourceGraph;
 
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
         File tmp = new File(Paths.get(FilenameUtils.concat(dir, filepath)).toString());
@@ -89,14 +95,18 @@ public class ArchiveTest {
     private ResourceNode addEntry(String filename, String content, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
         String filepath = createDummyFile(contentRoot, filename, filename.getBytes());
         archiveBuilder.add(filepath, true, false);
-
-        ResourceNode current = new ResourceNode(filename);
-        parent.addChild(current);
+        return resourceGraph.add(filename, parent);
+    }
+    private ResourceNode addExcludedEntry(String filename, String content, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
+        ResourceNode current = addEntry(filename, content, archiveBuilder, parent);
+        current.setExcludedFlag(true);
         return current;
-   }
+    }
 
     @Before
     public void setUp() throws Exception {
+        resourceGraph = new ResourceGraph(new Project(new DefaultFileSystem()));
+
         contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
         outputDarc = Files.createTempFile("tmp.darc", "").toFile();
 
@@ -262,17 +272,16 @@ public class ArchiveTest {
     public void testWriteArchive() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("main.collectionproxyc", "beta", instance, collection1);
+        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", "beta", instance, collection1);
         ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/main.collectionproxyc");
-        excludedResources.add("/main.goc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -289,19 +298,18 @@ public class ArchiveTest {
     public void testWriteArchive_SiblingProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
         ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collection1);
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level2.collectionproxyc");
-        excludedResources.add("/level2.goc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -320,18 +328,18 @@ public class ArchiveTest {
     public void testWriteArchive_SharedResourceExcludedProxy() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
+        ResourceNode collectionproxy1 = addExcludedEntry("level1.collectionproxyc", "beta", instance, collection1);
         ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
         ResourceNode gameobject1 = addEntry("shared.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("shared.goc", "gamma", instance, collectionproxy2);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level1.collectionproxyc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -350,19 +358,18 @@ public class ArchiveTest {
     public void testWriteArchive_DeepProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
         ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collectionproxy1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collectionproxy1);
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level2.collectionproxyc");
-        excludedResources.add("/level2.goc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -381,18 +388,17 @@ public class ArchiveTest {
     public void testWriteArchive_ExcludedProxy() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
         ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collection1);
         ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level2.collectionproxyc");
-        excludedResources.add("/level2.goc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -412,21 +418,19 @@ public class ArchiveTest {
     public void testWriteArchive_ResourceInBundledAndExcludedProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
         ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collection1);
         ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
         ResourceNode gameobject12 = addEntry("level1.goc", "gamma", instance, collectionproxy2);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
         ResourceNode gameobject3 = addEntry("level3.goc", "eta", instance, collectionproxy2); // should be excluded
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level2.collectionproxyc");
-        excludedResources.add("/level2.goc");
-        excludedResources.add("/level3.goc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -445,19 +449,18 @@ public class ArchiveTest {
     public void testWriteArchive_DeepProxiesExcludeGrandparent() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4);
 
-        ResourceNode root = new ResourceNode("<Anonymous Root>");
+        ResourceNode root = resourceGraph.getRootNode();
         ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
+        ResourceNode collectionproxy1 = addExcludedEntry("level1.collectionproxyc", "beta", instance, collection1);
         ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collectionproxy1);
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = new ArrayList<String>();
-        excludedResources.add("/level1.collectionproxyc");
-        excludedResources.add("/level2.goc");
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");

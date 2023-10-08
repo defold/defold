@@ -65,20 +65,8 @@ public class ResourceGraph implements IResourceVisitor {
     // root resource to which all other resources are added
     private ResourceNode root = new ResourceNode("<AnonymousRoot>");
 
-    // counter to keep track of if we are within an excluded collection or not
-    // the counter will increase when visiting an excluded collection and 
-    // decrease when leaving
-    private int inExcludedCollectionCount = 0;
-
     public ResourceGraph(Project project) {
         this.project = project;
-    }
-
-    private void increaseCounters(ResourceNode node) {
-        node.increaseUseCount();
-        if (inExcludedCollectionCount > 0) {
-            node.increaseExcludeCount();
-        }
     }
 
     @Override
@@ -87,16 +75,9 @@ public class ResourceGraph implements IResourceVisitor {
         if (currentNode != null) {
             // the node has already been visited which means that it is used in
             // multiple places in the graph
-            // in this case we reuse the resource node instance but increase the
-            // use and exclude count
+            // in this case we reuse the node and don't visit it again
             ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
             parentNode.addChild(currentNode);
-            // increase the use and exclude count for the resource and children
-            increaseCounters(currentNode);
-            for (ResourceNode child : currentNode.getChildren()) {
-                increaseCounters(child);
-            }
-
             return false;
         }
         return true;
@@ -118,7 +99,6 @@ public class ResourceGraph implements IResourceVisitor {
         // add resource node to graph
         ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
         parentNode.addChild(currentNode);
-        increaseCounters(currentNode);
     }
 
     @Override
@@ -128,7 +108,6 @@ public class ResourceGraph implements IResourceVisitor {
             if (desc.getExclude()) {
                 ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
                 collectionProxyNode.setExcludedFlag(true);
-                inExcludedCollectionCount++;
             }
         }
     }
@@ -136,10 +115,7 @@ public class ResourceGraph implements IResourceVisitor {
 
     @Override
     public void leave(IResource resource, IResource parentResource) throws CompileExceptionError {
-        ResourceNode currentNode = resourceToNodeLookup.get(resource);
-        if (currentNode.getExcludedFlag()) {
-            inExcludedCollectionCount--;
-        }
+        // do nothing
     }
 
     /**
@@ -149,6 +125,24 @@ public class ResourceGraph implements IResourceVisitor {
      */
     public void add(IResource rootResource) throws CompileExceptionError {
         ResourceWalker.walk(project, rootResource, this);
+    }
+
+    // used in tests
+    public ResourceNode add(String resourcePath, ResourceNode parentNode) {
+        IResource currentResource = project.getResource(resourcePath);
+        IResource parentResource = project.getResource(parentNode.getPath());
+        ResourceNode currentNode = resourceToNodeLookup.get(currentResource);
+        if (currentNode == null) {
+            currentNode = new ResourceNode(resourcePath);
+            resourceToNodeLookup.put(currentResource, currentNode);
+            pathToNodeLookup.put("/" + currentResource.getPath(), currentNode);
+            resourceNodes.add(currentNode);
+        }
+        parentNode.addChild(currentNode);
+        return currentNode;
+    }
+    public ResourceNode add(ResourceNode resourceNode, ResourceNode parentNode) {
+        return add(resourceNode.getPath(), parentNode);
     }
 
     /**
@@ -188,6 +182,39 @@ public class ResourceGraph implements IResourceVisitor {
         }
     }
 
+    private void calculateResourceNodeUsageCounters(ResourceNode node, int excludedCount) {
+        node.increaseUseCount();
+        if (excludedCount > 0) {
+            node.increaseExcludeCount();
+        }
+        if (node.getExcludedFlag()) {
+            excludedCount++;
+        }
+        for (ResourceNode child : node.getChildren()) {
+            calculateResourceNodeUsageCounters(child, excludedCount);
+        }
+        if (node.getExcludedFlag()) {
+            excludedCount--;
+        }
+    }
+
+    /**
+     * Calculate resource node usage counters on all entries in the graph. The
+     * resource counters track the number of times a resource is used and how
+     * many times a resource is referenced from an excluded collection proxy.
+     * If the number of usage counts is equal to the number of times the resource
+     * is referenced from an excluded collection the resource can be excluded
+     * from the main archive and moved to a live update archive.
+     */
+    public void calculateResourceNodeUsageCounters() {
+        // reset counters
+        for (ResourceNode node : resourceNodes) {
+            node.setUseCount(0);
+            node.setExcludeCount(0);
+        }
+        calculateResourceNodeUsageCounters(root, 0);
+    }
+
     /**
      * Create a list of all excluded resources. A resource is considered to be
      * excluded if it is only referenced from excluded collection proxies. If a
@@ -196,6 +223,7 @@ public class ResourceGraph implements IResourceVisitor {
      * @return List of excluded resources
      */
     public List<String> createExcludedResourcesList() {
+        calculateResourceNodeUsageCounters();
         List<String> excludedResources = new LinkedList<>();
         for (ResourceNode node : resourceNodes) {
             if (node.isFullyExcluded()) {
@@ -224,9 +252,9 @@ public class ResourceGraph implements IResourceVisitor {
 
         generator.writeFieldName("children");
         generator.writeStartArray();
+
         for (ResourceNode child : node.getChildren()) {
             generator.writeString(child.getPath());
-            // writeJSON(child, generator);
         }
         generator.writeEndArray();
         generator.writeEndObject();

@@ -33,22 +33,17 @@ public class ResourceNode {
     public ResourceNode(IResource resource) {
         this(resource.getPath());
         this.resource = resource;
-
     }
     public ResourceNode(final String relativeFilepath) {
+        this(relativeFilepath, false);
+    }
+    public ResourceNode(final String relativeFilepath, boolean excluded) {
         if (relativeFilepath.startsWith("/")) {
             this.relativeFilepath = relativeFilepath;
         } else {
             this.relativeFilepath = "/" + relativeFilepath;
         }
-    }
-
-    public void increaseUseCount() {
-        useCount++;
-    }
-
-    public void increaseExcludeCount() {
-        excludeCount++;
+        this.excluded = excluded;
     }
 
     public void addChild(ResourceNode childNode) {
@@ -93,6 +88,22 @@ public class ResourceNode {
         this.excluded = excluded;
     }
 
+    public void setUseCount(int useCount) {
+        this.useCount = useCount;
+    }
+
+    public void setExcludeCount(int excludeCount) {
+        this.excludeCount = excludeCount;
+    }
+
+    public void increaseUseCount() {
+        this.useCount = this.useCount + 1;
+    }
+
+    public void increaseExcludeCount() {
+        this.excludeCount = this.excludeCount + 1;
+    }
+
     public int getUseCount() {
         return useCount;
     }
@@ -103,7 +114,7 @@ public class ResourceNode {
 
     @Override
     public String toString() {
-        return "[ResourceNode path: " + relativeFilepath + "]";
+        return "[ResourceNode path: " + relativeFilepath + ", " + super.toString() + "]";
     }
 
     @Override

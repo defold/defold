@@ -418,6 +418,45 @@ public class ManifestBuilder {
         }
     }
 
+    public List<String> getDependants(String filepath) throws IOException {
+        /* Once a candidate has been found the children, the children, and so
+           on are added to the list of dependants. If a CollectionProxy is
+           found that resource itself is added to the list of dependants, but
+           it is seen as a leaf and the Collection that it points to is ignored.
+
+           The reason children of a CollectionProxy is ignored is that they are
+           not required to load the parent Collection. This allows us to
+           exclude an entire Collection that is loaded through a CollectionProxy
+           and thus create a partial archive that has to be updated (through
+           LiveUpdate) before that CollectionProxy can be loaded.
+        */
+
+        ResourceNode candidate = resourceGraph.getResourceNodeFromPath(filepath);
+
+        if (candidate == null) {
+            return new ArrayList<String>();
+        }
+
+        List<String> dependants = pathToDependants.get(filepath);
+        if (dependants != null) {
+            return dependants;
+        }
+
+        dependants = new ArrayList<String>();
+
+        for (ResourceNode child : candidate.getChildren()) {
+            dependants.add(child.getPath());
+
+            if (!child.getPath().endsWith("collectionproxyc")) {
+                dependants.addAll(getDependants(child.getPath()));
+            }
+        }
+
+        pathToDependants.put(filepath, dependants);
+
+        return dependants;
+    }
+
     public ManifestHeader buildManifestHeader() throws IOException {
         HashDigest projectIdentifierHash = null;
         try {
@@ -472,14 +511,15 @@ public class ManifestBuilder {
             // Since we'll only ever ask collection proxies, we only store those lists
             if (url.endsWith("collectionproxyc")) {
                 ResourceNode proxy = resourceGraph.getResourceNodeFromPath(url);
+                // We'll only store the dependencies for the excluded collection proxies
                 if (proxy.getExcludedFlag()) {
-                    for (ResourceNode child : proxy.getChildren()) {
-                        if (child.isFullyExcluded()) {
-                            ResourceEntry resource = urlToResource.get(child.getPath());
-                            if (resource != null) {
-                                resourceEntryBuilder.addDependants(resource.getUrlHash());
-                            }
+                    List<String> dependants = this.getDependants(url);
+                    for (String dependant : dependants) {
+                        ResourceEntry resource = urlToResource.get(dependant);
+                        if (resource == null) {
+                            continue;
                         }
+                        resourceEntryBuilder.addDependants(resource.getUrlHash());
                     }
                 }
             }
