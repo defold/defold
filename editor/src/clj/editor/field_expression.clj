@@ -17,7 +17,8 @@
             [editor.math :as math])
   (:import (java.math MathContext)
            (java.text DecimalFormat DecimalFormatSymbols)
-           (java.util Locale)))
+           (java.util Locale)
+           [net.objecthunter.exp4j ExpressionBuilder]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,21 +34,33 @@
       (math/round-with-precision (op a b) precision))
     (parse-fn (parsable-number-format text))))
 
-(defn to-int [s]
+(defn- to-double-safe [s]
+  (try
+    (-> (ExpressionBuilder. s) .build .evaluate)
+    (catch Throwable _
+      nil)))
+
+(defn- to-int-legacy [s]
   (try
     (int (evaluate-expression #(Integer/parseInt %) 1.0 s))
     (catch Throwable _
       nil)))
+
+(defn- to-double-legacy [s]
+  (try
+    (evaluate-expression #(Double/parseDouble %) math/precision-general s)
+    (catch Throwable _
+      nil)))
+
+(defn to-int [s]
+  (or (int (to-double-safe s)) (to-int-legacy s)))
 
 (defn format-int
   ^String [n]
   (if (nil? n) "" (str n)))
 
 (defn to-double [s]
- (try
-   (evaluate-expression #(Double/parseDouble %) math/precision-general s)
-   (catch Throwable _
-     nil)))
+  (or (to-double-safe s) (to-double-legacy s)))
 
 (def ^:private ^DecimalFormat double-decimal-format
   (doto (DecimalFormat. "0"

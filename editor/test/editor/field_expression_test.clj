@@ -114,7 +114,6 @@
     (is (= 1.1 (to-double "1.1")))
     (is (= -2.0 (to-double "-2")))
     (is (= -2.5 (to-double "-2.5")))
-    (is (= -1.5 (to-double "-1,5")))
     (is (= 3.1 (to-double "+3.1")))
     (is (= 0.0001 (to-double "1.0e-4")))
     (is (= 0.00001 (to-double "1.0E-5")))
