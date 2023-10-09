@@ -14,6 +14,7 @@
 
 (ns editor.prefs-dialog
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.engine :as engine]
             [editor.engine.native-extensions :as native-extensions]
             [editor.prefs :as prefs]
@@ -21,6 +22,7 @@
             [editor.ui :as ui])
   (:import [com.defold.control LongField]
            [com.sun.javafx PlatformUtil]
+           [java.util Collection]
            [javafx.geometry Side VPos]
            [javafx.scene Parent Scene]
            [javafx.scene.control ColorPicker CheckBox ChoiceBox Label TextArea TextField Tab TabPane ContextMenu MenuItem]
@@ -52,78 +54,89 @@
     (create-generic TextArea prefs grid desc)
     (create-generic TextField prefs grid desc)))
 
-(defn- filter-exist-files [files]
-  (filter #(.exists (io/file %)) files))
+(defn- all-editors
+  []
+  [{
+    :id "code"
+    :label "Visual Studio Code"
+    :macos ["/Applications/Visual Studio Code.app/Contents/MacOS/Electron"]
+    :linux ["/usr/bin/code"
+            "/usr/share/code"
+            "/snap/code/current"]
+    :win ["C:/Program Files/Microsoft VS Code/Code.exe"
+          "C:/Program Files (x86)/Microsoft VS Code/Code.exe"]}
+   {
+    :id "subl"
+    :label "Sublime Text"
+    :macos ["/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"]
+    :linux ["/usr/bin/subl"
+            "/snap/sublime-text/current/opt/sublime_text"]
+    :win ["C:/Program Files/Sublime Text/sublime_text.exe"
+          "C:/Program Files (x86)/Sublime Text/sublime_text.exe"]}
+   {
+    :id "kate"
+    :label "Kate"
+    :macos []
+    :linux ["/usr/bin/kate"]
+    :win []}
+   {
+    :id "mate"
+    :label "Text Mate"
+    :macos ["/Applications/TextMate.app/Contents/Resources/mate"]
+    :linux []
+    :win []}
+   {
+    :id "notepadplus"
+    :label "Notepad ++"
+    :macos []
+    :linux []
+    :win ["C:/Program Files/Notepad++/notepad++.exe"]}])
 
-(defn- suggest-code-editor-macos []
-  (let [files (list "/Applications/Visual Studio Code.app/Contents/MacOS/Electron"
-                    "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"
-                    "/Applications/TextMate.app/Contents/Resources/mate")]
-    (filter-exist-files files)))
+(defn- defold-editor
+  []
+  {:id "defold"
+   :label "Defold Editor"
+   :path ""
+   })
 
-(defn- suggest-code-editor-win []
-  (let [files (list "C:/Program Files/Microsoft VS Code/Code.exe"
-                    "C:/Program Files (x86)/Microsoft VS Code/Code.exe"
-                    "C:/Program Files/Sublime Text/sublime_text.exe"
-                    "C:/Program Files (x86)/Sublime Text/sublime_text.exe"
-                    "C:/Program Files/Notepad++/notepad++.exe")]
-    (filter-exist-files files)))
+(defn- manual-selected-editor
+  [^String path]
+  (let [file (io/file path)
+        name (.getName file)]
+    {:id "manual"
+     :label (str "[Custom] " name)
+     :path path
+     }))
 
-(defn- suggest-code-editor-linux []
-  (let [files (list "/usr/bin/code"
-                    "/usr/share/code"
-                    "/snap/code/current"
-                    "/usr/bin/subl"
-                    "/snap/sublime-text/current/opt/sublime_text")]
-    (filter-exist-files files)))
+(defn- borrow-editor
+  []
+  {:id "borrow"
+   :label "Borrow..."
+   :path ""
+   })
+(defn- editor-for-os
+  [info os]
+  (let [paths (os info)
+        first-exist-path (first (filter #(.exists (io/file %)) paths))]
+    (when first-exist-path {:id (:id info)
+                            :label (:label info)
+                            :path first-exist-path
+                            })))
+(defn- available-editors [os]
+  (let [all (all-editors)
+        available (into []
+                        (remove nil?)
+                        (map #(editor-for-os % os) all))]
+    available))
 
-(defn- suggest-code-editor []
-  (cond
-    (PlatformUtil/isMac) (suggest-code-editor-macos)
-    (PlatformUtil/isWindows) (suggest-code-editor-win)
-    (PlatformUtil/isLinux) (suggest-code-editor-linux)
-    :else '()))
-
-(defn- items-for-auto-type [^String type]
-  (case type
-    "code" (suggest-code-editor)
-    '()))
-
-(defmethod create-control! :string-auto [prefs grid desc]
-  (let [auto-type (:auto-type desc)
-        items (items-for-auto-type auto-type)
-        control (TextField.)
-        popup (ContextMenu.)
-        commit (fn [] (prefs/set-prefs prefs (:key desc) (ui/value control)))]
-
-    (ui/value! control (prefs/get-prefs prefs (:key desc) (:default desc)))
-    (ui/on-focus! control (fn [focus] (when-not focus (commit))))
-    (ui/on-action! control (fn [_] (commit)))
-
-    (ui/observe (.focusedProperty control) (fn [_ _ _] (.hide popup)))
-
-    (ui/observe (.textProperty control)
-                (fn [_ _ ^String new-val]
-
-                  (let [text (if new-val (.trim new-val) "")
-                        match-items (filter #(.contains (.toLowerCase ^String %) (.toLowerCase text)) items)
-                        should-show (and (not-empty match-items) (not (.isEmpty text)))
-                        menu-items (map (fn [^String item]
-                                          (let [menu (MenuItem. item)]
-                                            (.setOnAction menu (ui/event-handler menu
-                                                                 (.setText control item)
-                                                                 (.positionCaret control (.length item))
-                                                                 (.hide popup)
-                                                                 (commit)))
-                                            menu)) match-items)]
-                    (if should-show
-                      (do
-                        (-> popup .getItems .clear)
-                        (-> popup .getItems (.addAll ^java.util.Collection menu-items))
-                        (.show popup control (Side/BOTTOM) 0 0))
-                      (.hide popup))
-                    )))
-    control))
+(defn- code-editor-options []
+  (cons (defold-editor)
+          (conj (cond
+            (PlatformUtil/isMac) (available-editors :macos)
+            (PlatformUtil/isWindows) (available-editors :win)
+            (PlatformUtil/isLinux) (available-editors :linux)
+            :else [])
+          (borrow-editor))))
 
 (defmethod create-control! :long [prefs grid desc]
   (create-generic LongField prefs grid desc))
@@ -139,11 +152,57 @@
           (get options-map value))
         (fromString [s]
           (inv-options-map s))))
-    (.addAll (.getItems control) ^java.util.Collection (map first options))
+    (.addAll (.getItems control) ^Collection (map first options))
     (.select (.getSelectionModel control) (prefs/get-prefs prefs (:key desc) (:default desc)))
 
     (ui/observe (.valueProperty control) (fn [observable old-val new-val]
                                            (prefs/set-prefs prefs (:key desc) new-val)))
+    control))
+
+(defmethod create-control! :select-code-editor [prefs ^GridPane grid desc]
+  (let [control (ChoiceBox.)
+        options (:options desc)
+        display-key (:display-key desc)                     ; Used to save the display name
+        key (:key desc)                                     ; Used to save the path
+        manual-key "code-custom-editor-manual-path-key"     ; Used to save the path that user manual selected from dialog
+        refresh (fn [current-selected-id]
+                  (doto (.getItems control)
+                    (.clear)
+                    (.addAll ^Collection options))
+
+                  (let [path (string/trim (prefs/get-prefs prefs manual-key ""))
+                        insert-index (- (count options) 1)]
+                    (if (and (not-empty path) (.exists (io/file path)))
+                      (-> control .getItems (.add insert-index (manual-selected-editor path)))))
+
+                  (let [current-selected (or (first (filter #(= current-selected-id (:id %)) (.getItems control))) (defold-editor))]
+                    (clojure.pprint/pprint current-selected)
+                    (.select (.getSelectionModel control) current-selected)))
+        ]
+    (.setConverter control
+                   (proxy [StringConverter] []
+                     (toString [value]
+                       (:label value))
+                     (fromString [s]
+                       (first (filter #(= s (:label %)))))))
+
+    (refresh (prefs/get-prefs prefs display-key (:default desc)))
+
+    (ui/observe (.valueProperty control) (fn [_ old-val new-val]
+                                           (if (= (:id new-val) "borrow")
+                                             (let [editor-file (editor.dialogs/make-file-dialog "Select editor" [] nil (-> grid .getScene .getWindow))]
+                                               (if editor-file
+                                                 (do
+                                                  (prefs/set-prefs prefs manual-key (.getAbsolutePath editor-file))
+                                                  (prefs/set-prefs prefs key (.getAbsolutePath editor-file))
+                                                  (prefs/set-prefs prefs display-key "manual")
+                                                  (refresh "manual"))
+                                                 (do
+                                                   (.select (.getSelectionModel control) old-val)))
+                                               )
+                                             (do
+                                               (prefs/set-prefs prefs key (:path new-val))
+                                               (prefs/set-prefs prefs display-key (:id new-val))))))
     control))
 
 (defn- create-prefs-row! [prefs ^GridPane grid row desc]
@@ -184,7 +243,7 @@
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
                     {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
            {:name  "Code"
-            :prefs [{:label "Custom Editor" :type :string-auto :key "code-custom-editor" :auto-type "code" :default ""}
+            :prefs [{:label "Custom Editor" :type :select-code-editor :key "code-custom-editor" :display-key "code-custom-editor-name" :default "defold" :options (code-editor-options)}
                     {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
                     {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}
                     {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
