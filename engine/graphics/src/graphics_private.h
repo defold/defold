@@ -76,7 +76,7 @@ namespace dmGraphics
     }
 
     // Experimental only functions:
-    void CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture);
+    void CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
 
     // Test only functions:
     uint64_t GetDrawCount();

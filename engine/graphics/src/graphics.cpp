@@ -1267,9 +1267,9 @@ namespace dmGraphics
     {
         return g_functions.m_UnmapIndexBuffer(context, buffer);
     }
-    void CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture)
+    void CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params)
     {
-        return g_functions.m_CopyBufferToTexture(context, buffer, texture);
+        return g_functions.m_CopyBufferToTexture(context, buffer, texture, params);
     }
 #endif
 

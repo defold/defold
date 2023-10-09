@@ -174,7 +174,7 @@ namespace dmGraphics
     typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
     typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
-    typedef void (*CopyBufferToTextureFn)(HContext context, HVertexBuffer buffer, HTexture texture);
+    typedef void (*CopyBufferToTextureFn)(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
 #endif
 
     struct GraphicsAdapterFunctionTable
