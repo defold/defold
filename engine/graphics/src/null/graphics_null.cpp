@@ -916,7 +916,7 @@ namespace dmGraphics
         return (uint32_t)strlen(buffer);
     }
 
-    static int32_t NullGetUniformLocation(HProgram prog, const char* name)
+    static HUniformLocation NullGetUniformLocation(HProgram prog, const char* name)
     {
         Program* program = (Program*)prog;
         uint32_t count = program->m_Uniforms.Size();
@@ -928,7 +928,7 @@ namespace dmGraphics
                 return (int32_t)uniform.m_Index;
             }
         }
-        return -1;
+        return INVALID_UNIFORM_LOCATION;
     }
 
     static void NullSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -937,31 +937,31 @@ namespace dmGraphics
     }
 
     // Tests Only
-    const Vector4& GetConstantV4Ptr(HContext _context, int base_register)
+    const Vector4& GetConstantV4Ptr(HContext _context, HUniformLocation base_location)
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        return context->m_ProgramRegisters[base_register];
+        return context->m_ProgramRegisters[base_location];
     }
 
-    static void NullSetConstantV4(HContext _context, const Vector4* data, int count, int base_register)
+    static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * count);
+        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * count);
     }
 
-    static void NullSetConstantM4(HContext _context, const Vector4* data, int count, int base_register)
+    static void NullSetConstantM4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
+        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
     }
 
-    static void NullSetSampler(HContext context, int32_t location, int32_t unit)
+    static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
     }
 
@@ -1606,17 +1606,6 @@ namespace dmGraphics
         return false;
     }
 
-    ////////////////////////////////
-    // UNIT TEST FUNCTIONS
-    ////////////////////////////////
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        ib->m_Copy = new char[ib->m_Size];
-        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
-        return ib->m_Copy;
-    }
-
     bool UnmapIndexBuffer(HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
@@ -1641,6 +1630,14 @@ namespace dmGraphics
         delete [] vb->m_Copy;
         vb->m_Copy = 0x0;
         return true;
+    }
+
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        IndexBuffer* ib = (IndexBuffer*)buffer;
+        ib->m_Copy = new char[ib->m_Size];
+        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
+        return ib->m_Copy;
     }
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable()

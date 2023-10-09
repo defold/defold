@@ -39,13 +39,21 @@ import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
 
 public class ShaderUtil {
     public static class Common {
-        public static final int     MAX_ARRAY_SAMPLERS             = 8;
-        public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
-        public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
-        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
-        public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
-        public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
-        public static final Pattern arrayArraySamplerPattern       = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+        public static final int     MAX_ARRAY_SAMPLERS                   = 8;
+        public static final String  glSampler2DArrayRegex                = "(.+)sampler2DArray\\s+(\\w+);";
+        public static final Pattern regexUniformKeywordPattern           = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
+        public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)(?<any>.*)");
+        public static String        includeDirectiveReplaceBaseStr       = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
+        public static String        includeDirectiveBaseStr              = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
+        public static final Pattern includeDirectivePattern              = Pattern.compile(includeDirectiveBaseStr);
+        public static final Pattern arrayArraySamplerPattern             = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+        public static final Pattern regexVersionStringPattern            = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
+
+        public static class GLSLShaderInfo
+        {
+            public int    version;
+            public String profile;
+        };
 
         public static class GLSLCompileResult
         {
@@ -53,12 +61,26 @@ public class ShaderUtil {
             public String[] arraySamplers = new String[0];
         }
 
+        public static GLSLShaderInfo getShaderInfo(String source)
+        {
+            GLSLShaderInfo info = null;
+            Matcher versionMatcher = regexVersionStringPattern.matcher(source.substring(0, Math.min(source.length(), 128)));
+            if (versionMatcher.find()) {
+                info                 = new GLSLShaderInfo();
+                String shaderVersion = versionMatcher.group("version");
+                String shaderProfile = versionMatcher.group("profile");
+                info.version         = Integer.parseInt(shaderVersion);
+                info.profile         = shaderProfile == null ? "" : shaderProfile;
+            }
+            return info;
+        }
+
         public static String stripComments(String source)
-        {  
+        {
             CharStream stream = CharStreams.fromString(source);
             GLSLLexer lexer = new GLSLLexer(stream);
             CommonTokenStream tokens = new CommonTokenStream(lexer, GLSLLexer.COMMENTS);
-            // Get all tokens from lexer until EOF 
+            // Get all tokens from lexer until EOF
             tokens.fill();
             TokenStreamRewriter rewriter = new TokenStreamRewriter(tokens);
             // Iterate over the tokens and remove comments
@@ -107,7 +129,8 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
                 new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
                 new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
-                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)
+                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
+                new ShaderDataTypeConversionEntry("ubo", ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -221,7 +244,7 @@ public class ShaderUtil {
 
         public static class UniformBlock extends Resource
         {
-            public ArrayList<Resource> uniforms;
+            public ArrayList<Resource> uniforms = new ArrayList<Resource>();
         }
 
         public static ArrayList<UniformBlock> getUniformBlocks()
@@ -243,7 +266,7 @@ public class ShaderUtil {
                 ubo.name         = uniformBlockNode.get("name").asText();
                 ubo.set          = uniformBlockNode.get("set").asInt();
                 ubo.binding      = uniformBlockNode.get("binding").asInt();
-                ubo.uniforms     = new ArrayList<Resource>();
+                ubo.type         = "ubo";
 
                 JsonNode typeNode    = typesNode.get(uniformBlockNode.get("type").asText());
                 JsonNode membersNode = typeNode.get("members");
@@ -381,7 +404,6 @@ public class ShaderUtil {
         };
 
         private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
-        private static final Pattern regexVersionStringPattern    = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexFragDataArrayPattern    = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
@@ -391,6 +413,8 @@ public class ShaderUtil {
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
 
         private static final String glUBRep                     = dmEngineGeneratedRep + "UB_";
+        private static final String glUBRepVs                   = glUBRep + "VS_";
+        private static final String glUBRepFs                   = glUBRep + "FS_";
         private static final String glFragColorKeyword          = "gl_FragColor";
         private static final String glFragDataKeyword           = "gl_FragData";
         private static final String glFragColorRep              = dmEngineGeneratedRep + glFragColorKeyword;
@@ -413,25 +437,23 @@ public class ShaderUtil {
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
 
-            // Try get version and profile. Override targetProfile if version is set in shader
-            Matcher versionMatcher = regexVersionStringPattern.matcher(input.substring(0, Math.min(input.length(), 128)));
-            if (versionMatcher.find()) {
-                result.shaderVersion = versionMatcher.group("version");
-                result.shaderProfile = versionMatcher.group("profile");
-                result.shaderProfile = result.shaderProfile == null ? "" : result.shaderProfile;
-                // override targetProfile if version is set in shader
-                targetProfile = result.shaderProfile;
-            } else {
+            Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(input);
+
+            // If no version (and/or profile) was set in shader, append the target to the shader source.
+            if (shaderInfo == null) {
                 String versionPrefix = String.format("#version %d", targetVersion);
-                if (!targetProfile.isEmpty())
+                if (!targetProfile.isEmpty()) {
                     versionPrefix += String.format(" %s", targetProfile);
+                }
                 versionPrefix += "\n";
                 input = versionPrefix + input;
+            } else {
+                targetVersion = shaderInfo.version;
+                targetProfile = shaderInfo.profile;
             }
 
-            if (!result.shaderVersion.isEmpty()) {
-                targetVersion = Integer.parseInt(result.shaderVersion);
-            }
+            result.shaderVersion = Integer.toString(targetVersion);
+            result.shaderProfile = targetProfile;
 
             // Patch qualifiers (reserved keywords so word boundary replacement is safe)
             String[][] keywordReps = (shaderType == ShaderType.VERTEX_SHADER) ? vsKeywordReps : fsKeywordReps;
@@ -481,22 +503,24 @@ public class ShaderUtil {
             // Preallocate array of resulting slices. This makes patching in specific positions less complex
             ArrayList<String> output = new ArrayList<String>(input.length());
 
+            String ubBase = shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? glUBRepVs : glUBRepFs;
+
             // Multi-instance patching
             int ubIndex = 0;
             for(String line : inputLines) {
 
-                if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
+                if(line.contains("uniform") && useLatestFeatures)
                 {
-                    // Transform non-opaque uniforms into uniform blocks (UB's). Do not process existing UB's
                     Matcher uniformMatcher = Common.regexUniformKeywordPattern.matcher(line);
-                    if(uniformMatcher.find()) {
+
+                    if (uniformMatcher.find()) {
                         String keyword = uniformMatcher.group("keyword");
                         if(keyword != null) {
-                            String layout = uniformMatcher.group("layout");
-                            String precision = uniformMatcher.group("precision");
-                            String type = uniformMatcher.group("type");
+                            String layout     = uniformMatcher.group("layout");
+                            String precision  = uniformMatcher.group("precision");
+                            String type       = uniformMatcher.group("type");
                             String identifier = uniformMatcher.group("identifier");
-                            String any = uniformMatcher.group("any");
+                            String any        = uniformMatcher.group("any");
 
                             boolean isOpaque = false;
                             for( String opaqueTypePrefix : opaqueUniformTypesPrefix) {
@@ -510,11 +534,29 @@ public class ShaderUtil {
                                 layout = "layout(set=" + layoutSet + ")";
                             }
 
-                            if (isOpaque){
+                            if (isOpaque) {
                                 line = layout + " " + line;
                             } else {
-                                line = "\n" + layout + " " + keyword + " " + glUBRep + ubIndex++ + " { " +
+                                line = "\n" + layout + " " + keyword + " " + ubBase + ubIndex++ + " { " +
                                 (precision == null ? "" : (precision + " ")) + type + " " + identifier + " " + (any == null ? "" : (any + " ")) + "; };";
+                            }
+                        }
+                    } else {
+                        Matcher uniforBlockBeginMatcher = Common.regexUniformBlockBeginKeywordPattern.matcher(line);
+                        if (uniforBlockBeginMatcher.find()) {
+                            String keyword = uniforBlockBeginMatcher.group("keyword");
+                            if(keyword != null) {
+                                String layout = uniforBlockBeginMatcher.group("layout");
+                                String type   = uniforBlockBeginMatcher.group("type");
+                                String any    = uniforBlockBeginMatcher.group("any");
+
+                                boolean blockScopeBegin = line.contains("{");
+
+                                if (layout == null) {
+                                    layout = "layout(set=" + layoutSet + ")";
+                                }
+
+                                line = layout + " " + keyword + " " + type + (blockScopeBegin ? "{" : "");
                             }
                         }
                     }

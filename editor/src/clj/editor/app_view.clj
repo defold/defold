@@ -88,6 +88,7 @@
            [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
+           [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
            [java.net URL]
@@ -96,13 +97,15 @@
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
-           [javafx.geometry Orientation]
+           [javafx.geometry HPos Orientation Pos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.layout AnchorPane StackPane]
+           [javafx.scene.layout AnchorPane GridPane HBox Region StackPane]
+           [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse SVGPath]
+           [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]))
 
 (set! *warn-on-reflection* true)
@@ -240,6 +243,89 @@
       (str "*" escaped-resource-name)
       escaped-resource-name)))
 
+(defn- is-macos [] (PlatformUtil/isMac))
+
+(defn- create-key-info [label key-combo]
+  (let [cmd (if (is-macos) "⌘" "Cmd")
+        ctrl (if (is-macos) "⌃" "Ctrl")
+        alt (if (is-macos) "⌥" "Alt")
+        shift (if (is-macos) "⇧" "Shift")
+        keys (into []
+                   (remove nil?)
+                   (list
+                     (when (:meta-down? key-combo) cmd)
+                     (when (:control-down? key-combo) ctrl)
+                     (when (:alt-down? key-combo) alt)
+                     (when (:shift-down? key-combo) shift)
+                     (str (:key key-combo))))]
+    {:label label :keys keys}))
+
+(defn- update-quick-help-pane [^SplitPane editor-tabs-split keymap]
+  (let [tab-panes (.getItems editor-tabs-split)
+        is-empty (not-any? #(-> ^TabPane % .getTabs count pos?) tab-panes)
+        parent (.getParent editor-tabs-split)
+        quick-help-box (.lookup parent "#quick-help-box")
+        ^GridPane box-items (.lookup parent "#quick-help-items")]
+
+    ;; Only make quick help visible when there is no-tabs.
+    (.setVisible quick-help-box is-empty)
+
+    (when is-empty
+      (let [command->key-combo
+            (into {}
+                  (mapcat (fn [[key-combo command-infos]]
+                            (map (fn [command-info] [(:command command-info) key-combo]) command-infos)))
+                  keymap)
+            items (keep (fn [[command label]]
+                          (when-some [key-combo (command->key-combo command)]
+                            (create-key-info label key-combo)))
+                        [[:open-asset "Open Asset"]
+                         [:reopen-recent-file "Re-Open Closed File"]
+                         [:search-in-files "Search in Files"]
+                         [:build "Build and Run Project"]
+                         [:start-debugger "Start or Attach Debugger"]])]
+        (-> box-items .getChildren .clear)
+
+        (doseq [[row-index item] (map-indexed vector items)]
+          (let [space-character (if (is-macos) "" "+")
+                space (if (is-macos) 5 10)
+                label-font (Font. "Dejavu Sans Mono" 13)
+                key-font (Font. "" 13)
+                color (Color. 1.0 1.0 0.59765625 0.6)
+                label (:label item)
+                keys (:keys item)]
+
+            ;; Add label in the first column
+            (let [label-ui (Label. label)]
+              (.setFont label-ui label-font)
+              (.setTextFill label-ui color)
+              (GridPane/setHalignment label-ui (HPos/RIGHT))
+              (-> box-items (.add label-ui 0 row-index)))
+
+            ;; Add keys (in the hbox) in the second column
+            (let [hbox (HBox.)]
+              (.setAlignment hbox (Pos/CENTER_LEFT))
+
+              (let [spacer (Region.)]
+                (.setPrefWidth spacer 10)
+                (-> hbox .getChildren (.add spacer)))
+
+              (doseq [[index key] (map-indexed vector keys)]
+                (when (pos? index)
+                  (let [plus-ui (Label. space-character)]
+                    (.setPrefWidth plus-ui space)
+                    (.setAlignment plus-ui (Pos/CENTER))
+                    (-> hbox .getChildren (.add plus-ui))))
+
+                (let [key-ui (Label. key)]
+                  (.setFont key-ui key-font)
+                  (.setAlignment key-ui (Pos/CENTER))
+                  (.setTextFill key-ui color)
+                  (-> key-ui .getStyleClass (.add "key-button"))
+                  (-> hbox .getChildren (.add key-ui))))
+
+              (-> box-items (.add hbox 1 row-index)))))))))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -292,8 +378,10 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views]
+  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views keymap]
                                             (let [tab-panes (.getItems editor-tabs-split)]
+                                              (update-quick-help-pane editor-tabs-split keymap)
+
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
