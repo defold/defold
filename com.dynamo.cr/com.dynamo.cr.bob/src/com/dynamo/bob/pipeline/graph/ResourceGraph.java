@@ -98,7 +98,7 @@ public class ResourceGraph implements IResourceVisitor {
 
         // add resource node to graph
         ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
-        parentNode.addChild(currentNode);
+        parentNode.addUniqueChild(currentNode);
     }
 
     @Override
@@ -138,7 +138,7 @@ public class ResourceGraph implements IResourceVisitor {
             pathToNodeLookup.put("/" + currentResource.getPath(), currentNode);
             resourceNodes.add(currentNode);
         }
-        parentNode.addChild(currentNode);
+        parentNode.addUniqueChild(currentNode);
         return currentNode;
     }
     public ResourceNode add(ResourceNode resourceNode, ResourceNode parentNode) {

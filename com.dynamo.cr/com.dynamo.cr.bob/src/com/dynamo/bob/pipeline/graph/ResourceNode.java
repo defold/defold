@@ -29,6 +29,7 @@ public class ResourceNode {
     protected int useCount = 0;
     protected int excludeCount = 0;
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
+    private final List<ResourceNode> uniqueChildren = new ArrayList<ResourceNode>();
 
     public ResourceNode(IResource resource) {
         this(resource.getPath());
@@ -58,6 +59,21 @@ public class ResourceNode {
 
     public List<ResourceNode> getChildren() {
         return this.children;
+    }
+
+    public void addUniqueChild(ResourceNode childNode) {
+        this.uniqueChildren.add(childNode);
+        this.children.add(childNode);
+    }
+
+    public void addUniqueChildren(List<ResourceNode> childNodes) {
+        for (ResourceNode childNode : childNodes) {
+            addUniqueChild(childNode);
+        }
+    }
+
+    public List<ResourceNode> getUniqueChildren() {
+        return this.uniqueChildren;
     }
 
     public IResource getResource() {

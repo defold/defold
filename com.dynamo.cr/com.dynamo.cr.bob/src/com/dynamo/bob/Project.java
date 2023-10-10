@@ -94,6 +94,7 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
@@ -476,7 +477,7 @@ public class Project {
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
-                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
                 TimeProfiler.addData("name", task.getName());
                 tasks.put(key, task);
             }

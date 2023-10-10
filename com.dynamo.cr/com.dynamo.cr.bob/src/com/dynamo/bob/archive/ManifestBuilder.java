@@ -51,6 +51,7 @@ import javax.security.auth.DestroyFailedException;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
@@ -292,7 +293,6 @@ public class ManifestBuilder {
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private HashMap<String, List<String>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
-    private HashMap<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         // We need to make sure the entries are sorted properly in order to do the binary search
@@ -444,7 +444,7 @@ public class ManifestBuilder {
 
         dependants = new ArrayList<String>();
 
-        for (ResourceNode child : candidate.getChildren()) {
+        for (ResourceNode child : candidate.getUniqueChildren()) {
             dependants.add(child.getPath());
 
             if (!child.getPath().endsWith("collectionproxyc")) {
@@ -485,6 +485,7 @@ public class ManifestBuilder {
     }
 
     public ManifestData buildManifestData() throws IOException {
+        TimeProfiler.start("buildManifestData");
         logger.info("buildManifestData begin");
         long tstart = System.currentTimeMillis();
 
@@ -529,11 +530,12 @@ public class ManifestBuilder {
 
         long tend = System.currentTimeMillis();
         logger.info("ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
-
+        TimeProfiler.stop();
         return builder.build();
     }
 
     public ManifestFile buildManifestFile() throws IOException {
+        TimeProfiler.start("buildManifestFile");
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
         ManifestData manifestData = this.buildManifestData();
@@ -555,6 +557,7 @@ public class ManifestBuilder {
         } catch (IllegalBlockSizeException | BadPaddingException | NoSuchPaddingException exception) {
             throw new IOException("Unable to create ManifestFile, cryptographic error!");
         } finally {
+            TimeProfiler.stop();
             if (privateKey != null && !privateKey.isDestroyed()) {
                 try {
                     privateKey.destroy();
@@ -566,7 +569,6 @@ public class ManifestBuilder {
                 }
             }
         }
-
         return builder.build();
     }
 

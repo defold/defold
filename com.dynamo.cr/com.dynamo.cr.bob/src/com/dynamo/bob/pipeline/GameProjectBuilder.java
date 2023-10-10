@@ -136,6 +136,7 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.addInput(propertyFile);
         }
 
+        TimeProfiler.start("Add outputs");
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".arci").disableCache());
             builder.addOutput(input.changeExt(".arcd").disableCache());
@@ -146,13 +147,14 @@ public class GameProjectBuilder extends Builder<Void> {
                 builder.addOutput(output);
             }
         }
+        TimeProfiler.stop();
 
         project.createTask(input, CopyCustomResourcesBuilder.class);
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
         if (textureProfilesPath != null) {
-
+            TimeProfiler.start("Load texture profile");
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
             if (!texProfilesInput.exists()) {
@@ -194,13 +196,16 @@ public class GameProjectBuilder extends Builder<Void> {
             // needs to be reachedable by the TextureGenerator.
             TextureProfiles textureProfiles = texProfilesBuilder.build();
             project.setTextureProfiles(textureProfiles);
+            TimeProfiler.stop();
         }
 
+        TimeProfiler.start("Add inputs");
         for (Task<?> task : project.getTasks()) {
             for (IResource output : task.getOutputs()) {
                 builder.addInput(output);
             }
         }
+        TimeProfiler.stop();
 
         return builder.build();
     }
@@ -237,9 +242,11 @@ public class GameProjectBuilder extends Builder<Void> {
         TimeProfiler.addData("resources", resources.size());
         TimeProfiler.addData("excludedResources", excludedResources.size());
 
+        TimeProfiler.start("writeArchive");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         archiveIndex.close();
         archiveData.close();
+        TimeProfiler.stop();
 
         // Populate publisher with the resource pack
         Publisher publisher = project.getPublisher();
