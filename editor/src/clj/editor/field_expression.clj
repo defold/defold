@@ -15,9 +15,9 @@
 (ns editor.field-expression
   (:require [clojure.string :as string]
             [editor.math :as math])
-  (:import (java.math MathContext)
-           (java.text DecimalFormat DecimalFormatSymbols)
-           (java.util Locale)
+  (:import [java.math MathContext]
+           [java.text DecimalFormat DecimalFormatSymbols]
+           [java.util Locale]
            [net.objecthunter.exp4j ExpressionBuilder]))
 
 (set! *warn-on-reflection* true)
@@ -36,7 +36,8 @@
 
 (defn- to-double-safe [s]
   (try
-    (-> (ExpressionBuilder. s) .build .evaluate)
+    (let [value (-> (ExpressionBuilder. s) .build .evaluate)]
+      (math/round-with-precision value math/precision-general))
     (catch Throwable _
       nil)))
 
@@ -53,14 +54,14 @@
       nil)))
 
 (defn to-int [s]
-  (or (int (to-double-safe s)) (to-int-legacy s)))
+  (or (to-int-legacy s) (int (to-double-safe s))))
 
 (defn format-int
   ^String [n]
   (if (nil? n) "" (str n)))
 
 (defn to-double [s]
-  (or (to-double-safe s) (to-double-legacy s)))
+  (or (to-double-legacy s) (to-double-safe s)))
 
 (def ^:private ^DecimalFormat double-decimal-format
   (doto (DecimalFormat. "0"
