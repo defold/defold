@@ -244,14 +244,13 @@
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (enabled? [scene-visibility evaluation-context]
-            (or (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)
-                (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context)))
+            (pos? (count (g/node-value scene-visibility :selected-outline-name-paths evaluation-context))))
   (run [scene-visibility]
        (g/with-auto-evaluation-context evaluation-context
-         (let [should-hide (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)]
-           (if should-hide
-             (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))
-             (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths)))))))
+         (if-let [selected-hideable (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)]
+           (hide-outline-name-paths! scene-visibility selected-hideable)
+           (let [selected-showable (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context)]
+             (show-outline-name-paths! scene-visibility selected-showable))))))
 
 (handler/defhandler :show-last-hidden :workbench
   (active? [scene-visibility evaluation-context]
