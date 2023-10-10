@@ -267,12 +267,10 @@
    {:label "Move Down"
     :command :move-down}
    {:label :separator}
-   {:label "Hide Objects"
-    :command :hide-selected}
+   {:label "Show/Hide Objects"
+    :command :hide-toggle-selected}
    {:label "Hide Unselected Objects"
     :command :hide-unselected}
-   {:label "Show Objects"
-    :command :show-selected}
    {:label "Show Last Hidden Objects"
     :command :show-last-hidden}
    {:label "Show All Hidden Objects"

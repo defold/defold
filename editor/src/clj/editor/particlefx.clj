@@ -145,9 +145,6 @@
 
 (def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
 
-(def color colors/outline-color)
-(def selected-color colors/selected-outline-color)
-
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
                            :modifier-type-radial [:modifier-key-magnitude :modifier-key-max-distance]
@@ -212,7 +209,7 @@
             :when (> vcount 0)]
       (let [^Matrix4d world-transform (:world-transform renderable)
             world-transform-no-scale (orthonormalize world-transform)
-            color (if (:selected renderable) selected-color color)
+            color (colors/renderable-outline-color renderable)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
@@ -649,26 +646,10 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-
-(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
-  (when (and (some? texture-page-count)
-             (some? material-max-page-count))
-    (cond
-      (and is-paged-material
-           (zero? texture-page-count))
-      "The Material expects a paged Atlas, but the selected Image is not paged"
-
-      (and (not is-paged-material)
-           (pos? texture-page-count))
-      "The Material does not support paged Atlases, but the selected Image is paged"
-
-      (< material-max-page-count texture-page-count)
-      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
-
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
   (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
     (or (prop-resource-error :fatal _node-id :material material "Material")
-        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]

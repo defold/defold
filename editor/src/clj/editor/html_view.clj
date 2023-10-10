@@ -148,7 +148,7 @@
   [^URI uri _]
   {:command (keyword (.getHost uri))})
 
-(defn- dispatch-url!
+(defn dispatch-url!
   [project ^URI uri]
   (when-some [{:keys [command user-data]} (url->command uri {:project project})]
     (ui/execute-command (ui/contexts (ui/main-scene)) command user-data)))

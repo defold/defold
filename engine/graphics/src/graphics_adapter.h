@@ -115,10 +115,10 @@ namespace dmGraphics
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
-    typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
-    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t unit);
+    typedef HUniformLocation (* GetUniformLocationFn)(HProgram prog, const char* name);
+    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    typedef void (*SetSamplerFn)(HContext context, HUniformLocation location, int32_t unit);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);
@@ -168,6 +168,13 @@ namespace dmGraphics
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
+
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
+    typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
+#endif
 
     struct GraphicsAdapterFunctionTable
     {
@@ -285,6 +292,13 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        MapVertexBufferFn m_MapVertexBuffer;
+        UnmapVertexBufferFn m_UnmapVertexBuffer;
+        MapIndexBufferFn m_MapIndexBuffer;
+        UnmapIndexBufferFn m_UnmapIndexBuffer;
+    #endif
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -404,6 +418,15 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
+    #else
+        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
+    #endif
 }
 
 #endif

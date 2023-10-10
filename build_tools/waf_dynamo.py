@@ -1277,6 +1277,36 @@ def create_test_server_config(ctx, port=None, ip=None, config_name=None):
         return configfilepath
     return None
 
+def _should_run_test_taskgen(ctx, taskgen):
+    if not 'test' in taskgen.features:
+        return False
+
+    if not taskgen.name.startswith('test_'):
+        return False
+
+    if getattr(taskgen, 'skip_test', False):
+        return False
+
+    supported_features = ['cprogram', 'cxxprogram', 'jar']
+    found_feature = False
+    for feature in supported_features:
+        if feature in taskgen.features:
+            found_feature = True
+            break
+    if not found_feature:
+        return False
+
+    if ctx.targets:
+        if not taskgen.name in ctx.targets:
+            return False
+
+    if not platform_supports_feature(ctx.env.PLATFORM, taskgen.name, True):
+        print("Skipping %s test for platform %s" % (ctx.env.PLATFORM, taskgen.name))
+        return False
+
+    return True
+
+
 def run_tests(ctx, valgrind = False, configfile = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
@@ -1296,59 +1326,73 @@ def run_tests(ctx, valgrind = False, configfile = None):
         return
 
     for t in ctx.get_all_task_gen():
-        if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
-            if getattr(t, 'skip_test', False):
-                continue
+        if not _should_run_test_taskgen(ctx, t):
+            continue
 
-            if ctx.targets:
-                if not t.name in ctx.targets:
-                    continue
+        if not t.tasks:
+            print("No runnable task found in generator %s" % t.name)
+            continue
 
-            if not platform_supports_feature(ctx.env.PLATFORM, t.name, True):
-                print("Skipping %s test for platform %s" % (ctx.env.PLATFORM, t.name))
-                continue
-
-            env = dict(os.environ)
-            merged_table = t.env.get_merged_dict()
-            keys=list(merged_table.keys())
-            for key in keys:
-                v = merged_table[key]
-                if isinstance(v, str):
-                    env[key] = v
-
-            output = t.path
-            launch_pattern = '%s %s'
-            if 'TEST_LAUNCH_PATTERN' in t.env:
-                launch_pattern = t.env.TEST_LAUNCH_PATTERN
-
-            if not t.tasks:
-                print("No runnable task found in generator %s" % t.name)
-                continue
-
-            task = None
-            for task in t.tasks:
-                if task in ['link_task']:
+        task = None
+        task_type = None
+        for _task in t.tasks:
+            for attr in ['link_task', 'jar_task']:
+                if _task == getattr(t, attr, None):
+                    task = _task
+                    task_type = attr
                     break
 
-            if task is None:
-                print("Skipping", t.name)
-                continue
+        # Create the environment for the task
+        env = dict(os.environ)
+        merged_table = t.env.get_merged_dict()
+        keys=list(merged_table.keys())
+        for key in keys:
+            v = merged_table[key]
+            if isinstance(v, str):
+                env[key] = v
 
-            program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+        launch_pattern = '%s %s'
+        if task_type == 'jar_task':
+            # java -cp <classpath> <main-class>
+            mainclass = getattr(t, 'mainclass', '')
+            classpath = Utils.to_list(getattr(t, 'classpath', []))
+            java_library_paths = Utils.to_list(getattr(t, 'java_library_paths', []))
+            jar_path = task.outputs[0].abspath()
+            jar_dir = os.path.dirname(jar_path)
+            java_library_paths.append(jar_dir)
+            classpath.append(jar_path)
+            debug_flags = ''
+            #debug_flags = '-Xcheck:jni'
+            #debug_flags = '-Xcheck:jni -Xlog:library=info -verbose:class'
+            launch_pattern = f'java {debug_flags} -Djava.library.path={os.pathsep.join(java_library_paths)} -Djni.library.path={os.pathsep.join(java_library_paths)} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
+            print("launch_pattern:", launch_pattern)
 
+        if 'TEST_LAUNCH_PATTERN' in t.env:
+            launch_pattern = t.env.TEST_LAUNCH_PATTERN
+
+        if task is None:
+            print("Skipping", t.name)
+            continue
+
+        program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+
+        if task_type == 'jar_task':
+            cmd = launch_pattern
+        else:
             cmd = launch_pattern % (program, configfile if configfile else '')
+
             if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
                 cmd = '%s %s' % (ctx.env['NODEJS'], cmd)
-            # disable shortly during beta release, due to issue with jctest + test_gui
-            valgrind = False
-            if valgrind:
-                dynamo_home = os.getenv('DYNAMO_HOME')
-                cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-            proc = subprocess.Popen(cmd, shell = True, env = env)
-            ret = proc.wait()
-            if ret != 0:
-                print("test failed %s" %(t.target) )
-                sys.exit(ret)
+        # disable shortly during beta release, due to issue with jctest + test_gui
+        valgrind = False
+        if valgrind:
+            dynamo_home = os.getenv('DYNAMO_HOME')
+            cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
+        proc = subprocess.Popen(cmd, shell = True, env = env)
+        ret = proc.wait()
+        if ret != 0:
+            print("test failed %s" %(t.target) )
+            sys.exit(ret)
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1553,11 +1597,18 @@ def detect(conf):
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
+        if bp_os == 'macos':
+            bp_os = 'darwin'
+        elif bp_os == 'win32':
+            bp_os = 'windows'
         target_arch = build_util.get_target_architecture()
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
         bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
         tool_name = "llvm"
+
+        if not os.path.exists(bintools):
+            conf.fatal("Path does not exist: %s" % bintools)
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
@@ -1791,6 +1842,26 @@ def detect(conf):
 
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
+
+    if conf.env.IS_TARGET_DESKTOP:
+
+        conf.env['STLIB_JNI'] = 'jni'
+        conf.env['STLIB_JNI_NOASAN'] = 'jni_noasan'
+
+        if 'JAVA_HOME' in os.environ:
+            host = 'win32'
+            if 'linux' in sys.platform:
+                host = 'linux'
+            elif 'darwin' in sys.platform:
+                host = 'darwin'
+
+            conf.env['INCLUDES_JDK'] = [os.path.join(os.environ['JAVA_HOME'], 'include'), os.path.join(os.environ['JAVA_HOME'], 'include', host)]
+            conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
+            conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
+
+            conf.env['LIB_JNI'] = ['jni']
+            conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
+
 
 def configure(conf):
     detect(conf)

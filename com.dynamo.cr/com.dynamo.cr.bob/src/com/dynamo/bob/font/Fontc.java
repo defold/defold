@@ -1024,7 +1024,7 @@ public class Fontc {
         try {
             System.setProperty("java.awt.headless", "true");
             if (args.length != 2 && args.length != 3 && args.length != 4)    {
-                System.err.println("Usage: fontc fontfile [basedir] outfile [project-root]");
+                System.err.println("Usage: fontc fontfile [basedir] outfile");
                 System.exit(1);
             }
 

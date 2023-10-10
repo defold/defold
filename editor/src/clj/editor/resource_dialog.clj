@@ -93,31 +93,6 @@
 
         (resource-node-ids->project-resources basis resource-nodes-that-depend-on-us)))))
 
-(defn- make-text-run [text style-class]
-  (cond-> {:fx/type fx.text/lifecycle
-           :text text}
-          style-class
-          (assoc :style-class style-class)))
-
-(defn- matched-text-runs [text matching-indices]
-  (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
-    (into []
-          (mapcat (fn [[matched? start end]]
-                    (cond
-                      matched?
-                      [(make-text-run (subs text start end) "matched")]
-
-                      (< start / end)
-                      [(make-text-run (subs text start /) "diminished")
-                       (make-text-run (subs text / end) nil)]
-
-                      (<= start end /)
-                      [(make-text-run (subs text start end) "diminished")]
-
-                      :else
-                      [(make-text-run (subs text start end) nil)])))
-          (fuzzy-text/runs (count text) matching-indices))))
-
 (defn matched-list-item-view [{:keys [icon text matching-indices children]}]
   {:fx/type fx.h-box/lifecycle
    :style-class "content"
@@ -126,8 +101,7 @@
    :children (cond-> [{:fx/type ui/image-icon
                        :path icon
                        :size 16.0}
-                      {:fx/type fx.text-flow/lifecycle
-                       :children (matched-text-runs text matching-indices)}]
+                      (fuzzy-choices/make-matched-text-flow-cljfx text matching-indices)]
                      children
                      (into children))})
 

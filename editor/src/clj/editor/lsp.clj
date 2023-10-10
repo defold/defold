@@ -662,11 +662,13 @@
           servers))
       state)))
 
-(defn- send-requests! [state responses-ch requests-fn & {:keys [capabilities-pred language timeout-ms]
-                                                         :or {capabilities-pred any?}}]
-  {:pre [(pos-int? timeout-ms)
+(defn- send-requests! [state responses-ch & {:keys [requests requests-fn capabilities-pred language timeout-ms]
+                                             :or {capabilities-pred any?}}]
+  {:pre [(not= (some? requests) (some? requests-fn))
+         (pos-int? timeout-ms)
          (not (contains? (:requests state) responses-ch))]}
-  (let [server->requests (->> state
+  (let [requests-fn (or requests-fn (constantly requests))
+        server->requests (->> state
                               :server->server-state
                               (eduction
                                 (mapcat
@@ -724,26 +726,26 @@
            (send-requests!
              state
              responses-ch
-             (fn [server server-state]
-               (case (-> server-state :capabilities :pull-diagnostics)
-                 :workspace [(lsp.server/pull-workspace-diagnostics
-                               (into {}
-                                     (keep (fn [[resource {:keys [result-id]}]]
-                                             (when result-id
-                                               [resource result-id])))
-                                     (:diagnostics server-state))
-                               (with-update-state-on-response
-                                 apply-full-or-unchanged-workspace-diagnostics))]
-                 :text-document (eduction
-                                  (mapcat @language->resources)
-                                  (map (fn [resource]
-                                         (lsp.server/pull-document-diagnostics
-                                           resource
-                                           (get-in server-state [:diagnostics resource :result-id])
-                                           (with-update-state-on-response
-                                             #(pair resource %)
-                                             apply-full-or-unchanged-resource-diagnostics))))
-                                  (:languages server))))
+             :requests-fn (fn [server server-state]
+                            (case (-> server-state :capabilities :pull-diagnostics)
+                              :workspace [(lsp.server/pull-workspace-diagnostics
+                                            (into {}
+                                                  (keep (fn [[resource {:keys [result-id]}]]
+                                                          (when result-id
+                                                            [resource result-id])))
+                                                  (:diagnostics server-state))
+                                            (with-update-state-on-response
+                                              apply-full-or-unchanged-workspace-diagnostics))]
+                              :text-document (eduction
+                                               (mapcat @language->resources)
+                                               (map (fn [resource]
+                                                      (lsp.server/pull-document-diagnostics
+                                                        resource
+                                                        (get-in server-state [:diagnostics resource :result-id])
+                                                        (with-update-state-on-response
+                                                          #(pair resource %)
+                                                          apply-full-or-unchanged-resource-diagnostics))))
+                                               (:languages server))))
              :timeout-ms timeout-ms
              :capabilities-pred #(not= :none (:pull-diagnostics %)))))))
 
@@ -754,8 +756,7 @@
          (let [ch (a/chan 1 cat)]
            (a/go (result-callback (<! (a/into [] ch))))
            (send-requests! state ch
-                           (fn [_ _]
-                             [(lsp.server/goto-definition resource cursor)])
+                           :requests [(lsp.server/goto-definition resource cursor)]
                            :capabilities-pred :goto-definition
                            :language (resource/language resource)
                            :timeout-ms timeout-ms)))))
@@ -767,8 +768,7 @@
          (let [ch (a/chan 1 cat)]
            (a/go (result-callback (<! (a/into [] ch))))
            (send-requests! state ch
-                           (fn [_ _]
-                             [(lsp.server/find-references resource cursor)])
+                           :requests [(lsp.server/find-references resource cursor)]
                            :capabilities-pred :find-references
                            :language (resource/language resource)
                            :timeout-ms timeout-ms)))))
@@ -782,6 +782,53 @@
        boolean))
 
 (comment
+  ;; ask for completions
+  (let [view (dev/active-view)
+        res (g/node-value (g/node-value view :resource-node) :resource)
+        cursor (editor.code.data/cursor-range-start (first (g/node-value view :cursor-ranges)))
+        lsp (g/graph-value 1 :lsp)]
+    (lsp (fn [state]
+           (send-requests! state
+                           (a/chan 1 (map tap>))
+                           :requests-fn (fn [_ {:keys [out]}]
+                                          [(lsp.server/completion res cursor #(assoc % :server-out out))])
+                           :capabilities-pred :completion
+                           :language (resource/language res)
+                           :timeout-ms 2000))))
+
+  ;; ask for details
+  (let [item (assoc {:completion {:name "abs(x)"
+                                  :display-string "abs(x)"
+                                  :insert {:type :snippet
+                                           :value "abs"}
+                                  :type :function
+                                  :commit-characters #{}}
+                     :tags #{}
+                     :additional-text-edits []
+                     :raw-completion-item {:data {:id 57
+                                                  :uri "file:///Users/vlaaad/Projects/empty-proj/main/main.script"}
+                                           :insertText "abs"
+                                           :insertTextFormat 2
+                                           :kind 3
+                                           :label "abs(x)"
+                                           :sortText "0001"}}
+               :server-out (-> @running-lsps (first) (val) :server->server-state first val :out))]
+    ((g/graph-value 1 :lsp)
+     (fn [state]
+       (send-requests! state
+                       (a/chan 1 (map tap>))
+                       :requests-fn (fn [_ {:keys [out]}]
+                                      (when (= out (:server-out item))
+                                        [(lsp.server/resolve-completion
+                                           item
+                                           #(dissoc % :raw-completion-item :server-out))]))
+                       :capabilities-pred :completion
+                       :language "lua"
+                       :timeout-ms 10000))))
+  ,,,)
+
+(comment
+  (val (first @running-lsps))
   ;; Restart all servers:
   ((g/graph-value 1 :lsp) (fn [state]
                             (let [servers (set (keys (:server->server-state state)))]
@@ -795,11 +842,10 @@
   ;; Start json LSP server (install: npm install -g vscode-json-languageserver)
   (set-servers!
     (g/graph-value 1 :lsp)
-    #{#_{:languages #{"json" "jsonc"}
-         :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
+    #{{:languages #{"json" "jsonc"}
+       :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
       {:languages #{"lua"}
-       :launcher {:command ["/Users/vlaaad/Downloads/lua-language-server-3.6.3-darwin-x64/bin/lua-language-server"
-                            "--configpath=build/plugins/lsp-lua-language-server/plugins/share/config.json"]}}
+       :launcher {:command ["/Users/vlaaad/Downloads/release 2 5/lsp-lua-language-server/plugins/bin/arm64-macos/bin/lua-language-server"]}}
       #_{:languages #{"lua"}
          :watched-files [{:pattern "**/.luacheckrc"}]
          :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}}))

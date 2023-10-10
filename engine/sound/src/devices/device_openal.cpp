@@ -49,13 +49,14 @@ namespace dmDeviceOpenAL
         }
     };
 
-    static void CheckAndPrintError()
+    static ALenum CheckAndPrintError()
     {
         ALenum error = alGetError();
         if (error != AL_NO_ERROR)
         {
-            dmLogError("%s", alGetString(error));
+            dmLogError("OPENAL error 0x%04x: %s", error, alGetString(error));
         }
+        return error;
     }
 
     dmSound::Result DeviceOpenALOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
@@ -118,17 +119,28 @@ namespace dmDeviceOpenAL
         alcMakeContextCurrent(openal->m_Context);
         alcProcessContext(openal->m_Context);
 
+        alSourceStop(openal->m_Source);
+
         int iter = 0;
         while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
         {
-            int processed;
-            alGetSourcei(openal->m_Source, AL_BUFFERS_PROCESSED, &processed);
-            while (processed > 0) {
+            ALint num_queued = 0;
+            alcProcessContext(openal->m_Context);
+            alGetSourcei(openal->m_Source, AL_BUFFERS_QUEUED, &num_queued);
+            CheckAndPrintError();
+
+            while (num_queued > 0) {
                 ALuint buffer;
                 alSourceUnqueueBuffers(openal->m_Source, 1, &buffer);
-                CheckAndPrintError();
+                if (CheckAndPrintError() != AL_NO_ERROR)
+                {
+                    dmLogError("Still buffers in OpenAL. Bailing.");
+                    break;
+                }
+
                 openal->m_Buffers.Push(buffer);
-                --processed;
+
+                alGetSourcei(openal->m_Source, AL_BUFFERS_QUEUED, &num_queued);
             }
 
             if ((iter + 1) % 10 == 0) {
@@ -139,20 +151,27 @@ namespace dmDeviceOpenAL
 
             if (iter > 1000) {
                 dmLogError("Still buffers in OpenAL. Bailing.");
+                break;
             }
         }
 
-        alSourceStop(openal->m_Source);
         alDeleteSources(1, &openal->m_Source);
 
         alDeleteBuffers(openal->m_Buffers.Size(), openal->m_Buffers.Begin());
         CheckAndPrintError();
 
-        if (alcMakeContextCurrent(0)) {
+        bool active = alcMakeContextCurrent(0);
+#if defined(__EMSCRIPTEN__)
+        active = true; // the function seems to always return false
+#endif
+
+        if (active) {
             alcDestroyContext(openal->m_Context);
+            openal->m_Context = 0;
             if (!alcCloseDevice(openal->m_Device)) {
                 dmLogError("Failed to close OpenAL device");
             }
+            openal->m_Device = 0;
         } else {
             dmLogError("Failed to make OpenAL context current");
         }
