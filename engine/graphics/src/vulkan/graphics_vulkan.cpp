@@ -615,6 +615,12 @@ namespace dmGraphics
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
 
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA32UI;
+        context->m_DefaultTexture2D32UI = VulkanNewTextureInternal(default_texture_creation_params);
+        VulkanSetTextureInternal(context->m_DefaultTexture2D32UI, default_texture_params);
+    #endif
+
         default_texture_creation_params.m_Type  = TEXTURE_TYPE_2D_ARRAY;
         default_texture_creation_params.m_Depth = 1;
         context->m_DefaultTexture2DArray = VulkanNewTextureInternal(default_texture_creation_params);
@@ -624,6 +630,10 @@ namespace dmGraphics
         context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        context->m_CurrentSwapchainTexture  = StoreAssetInContainer(context->m_AssetHandleContainer, VulkanNewTextureInternal({}), ASSET_TYPE_TEXTURE);
+    #endif
 
         return res;
     }
@@ -1158,6 +1168,76 @@ bail:
         context->m_FrameBegun      = 1;
         context->m_CurrentPipeline = 0;
 
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        /*
+        struct VulkanTexture
+        {
+            struct VulkanHandle
+            {
+                VkImage     m_Image;
+                VkImageView m_ImageView;
+            };
+
+            VulkanHandle   m_Handle;
+            TextureType    m_Type;
+            TextureFormat  m_GraphicsFormat;
+            VkFormat       m_Format;
+            DeviceBuffer   m_DeviceBuffer;
+            uint16_t       m_Width;
+            uint16_t       m_Height;
+            uint16_t       m_Depth;
+            uint16_t       m_OriginalWidth;
+            uint16_t       m_OriginalHeight;
+            uint16_t       m_MipMapCount         : 5;
+            uint16_t       m_TextureSamplerIndex : 10;
+            uint32_t       m_Destroyed           : 1;
+
+            const VulkanResourceType GetType();
+        };
+
+        struct SwapChain
+        {
+            SwapChain(const VkSurfaceKHR     surface,
+                VkSampleCountFlagBits        vk_sample_flag,
+                const SwapChainCapabilities& capabilities,
+                const QueueFamily            queueFamily,
+                VulkanTexture*               resolveTexture);
+
+            dmArray<VkImage>      m_Images;
+            dmArray<VkImageView>  m_ImageViews;
+            VulkanTexture*        m_ResolveTexture;
+            const VkSurfaceKHR    m_Surface;
+            const QueueFamily     m_QueueFamily;
+            VkSurfaceFormatKHR    m_SurfaceFormat;
+            VkSwapchainKHR        m_SwapChain;
+            VkExtent2D            m_ImageExtent;
+            VkSampleCountFlagBits m_SampleCountFlag;
+            uint8_t               m_ImageIndex;
+
+            VkResult Advance(VkDevice vk_device, VkSemaphore);
+            bool     HasMultiSampling();
+
+            VkImage Image()     { return m_Images[m_ImageIndex]; }
+            VkImage ImageView() { return m_ImageViews[m_ImageIndex]; }
+        };
+        */
+
+        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+        assert(tex_sc);
+
+        memset(tex_sc, 0, sizeof(VulkanTexture));
+
+        tex_sc->m_Handle.m_Image     = context->m_SwapChain->Image();
+        tex_sc->m_Handle.m_ImageView = context->m_SwapChain->ImageView();
+        tex_sc->m_Width              = context->m_SwapChain->m_ImageExtent.width;
+        tex_sc->m_Height             = context->m_SwapChain->m_ImageExtent.height;
+        tex_sc->m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
+        tex_sc->m_OriginalWidth      = tex_sc->m_Width;
+        tex_sc->m_OriginalHeight     = tex_sc->m_Height;
+        tex_sc->m_Type               = TEXTURE_TYPE_2D;
+        tex_sc->m_GraphicsFormat     = TEXTURE_FORMAT_BGRA8U;
+    #endif
+
         BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
@@ -1173,8 +1253,6 @@ bail:
             assert(0);
             return;
         }
-
-        // context->m_MainScratchBuffers[frame_ix].m_DeviceBuffer.UnmapMemory(context->m_LogicalDevice.m_Device);
 
         VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
         CHECK_VK_ERROR(res);
@@ -1609,6 +1687,17 @@ bail:
                 default:break;
             }
         }
+        else if (type == TYPE_UNSIGNED_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_UINT;
+                case 2: return VK_FORMAT_R32G32_UINT;
+                case 3: return VK_FORMAT_R32G32B32_UINT;
+                case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                default:break;
+            }
+        }
         else if (type == TYPE_BYTE)
         {
             switch(size)
@@ -1815,7 +1904,8 @@ bail:
         return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE    ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D;
     }
 
     static inline VulkanTexture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
@@ -1825,6 +1915,7 @@ bail:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
+            case ShaderDesc::SHADER_TYPE_UTEXTURE2D:      return context->m_DefaultTexture2D32UI;
             default:break;
         }
         return 0x0;
@@ -2193,7 +2284,7 @@ bail:
                 res.m_Type                 = ddf->m_Resources[i].m_Type;
                 res.m_ElementCount         = ddf->m_Resources[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
-                res.m_NameHash             = 0;
+                res.m_NameHash             = ddf->m_Resources[i].m_NameHash;
 
                 assert(res.m_Set <= 1);
                 if (IsUniformTextureSampler(res))
@@ -2839,12 +2930,6 @@ bail:
         }
     }
 
-    #undef UNIFORM_LOCATION_MAX
-    #undef UNIFORM_LOCATION_GET_VS
-    #undef UNIFORM_LOCATION_GET_VS_MEMBER
-    #undef UNIFORM_LOCATION_GET_FS
-    #undef UNIFORM_LOCATION_GET_FS_MEMBER
-
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         // Defer the update to when we actually draw, since we *might* need to invert the viewport
@@ -3017,6 +3102,7 @@ bail:
             case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
             case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
             case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
+            case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
             default:                                return VK_FORMAT_UNDEFINED;
         };
     }
@@ -3210,7 +3296,7 @@ bail:
                 GetDepthFormatAndTiling(g_VulkanContext->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            texture_depth_stencil              = NewTexture(context, stencil_depth_create_params);
+            texture_depth_stencil                    = NewTexture(context, stencil_depth_create_params);
             VulkanTexture* texture_depth_stencil_ptr = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture_depth_stencil);
 
             // TODO: Right now we can only sample depth with this texture, if we want to support stencil texture reads we need to make a separate texture I think
@@ -3222,8 +3308,11 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        VkResult res = CreateRenderTarget(g_VulkanContext, texture_color, buffer_types, color_index, texture_depth_stencil, rt);
-        CHECK_VK_ERROR(res);
+        if (color_index > 0 || has_depth || has_stencil)
+        {
+            VkResult res = CreateRenderTarget(g_VulkanContext, texture_color, buffer_types, color_index, texture_depth_stencil, rt);
+            CHECK_VK_ERROR(res);
+        }
 
         return StoreAssetInContainer(g_VulkanContext->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
@@ -3954,35 +4043,91 @@ bail:
         VulkanSetTextureInternal(texture, _p);
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
+    }
 
-        /*
-        assert(context->m_FrameBegun);
+    static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
 
-        VkBufferImageCopy vk_copy_region = {};
-        vk_copy_region.bufferOffset                    = 0;
-        vk_copy_region.bufferRowLength                 = 0;
-        vk_copy_region.bufferImageHeight               = 0;
-        vk_copy_region.imageOffset.x                   = 0; // params.m_X;
-        vk_copy_region.imageOffset.y                   = 0; // params.m_Y;
-        vk_copy_region.imageOffset.z                   = 0;
-        vk_copy_region.imageExtent.width               = params.m_Width;
-        vk_copy_region.imageExtent.height              = params.m_Height;
-        vk_copy_region.imageExtent.depth               = 1;
-        vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        vk_copy_region.imageSubresource.mipLevel       = 0; // params.m_MipMap;
-        vk_copy_region.imageSubresource.baseArrayLayer = 0;
-        vk_copy_region.imageSubresource.layerCount     = 1;
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
 
-        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        if (rt->m_Framebuffer != VK_NULL_HANDLE)
+        {
+            DestroyRenderTarget(&context->m_LogicalDevice, rt);
+        }
 
-        vkCmdCopyBufferToImage(vk_command_buffer, buffer->m_Handle.m_Buffer,
-            texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &vk_copy_region);
+        BufferType color_buffer_flags[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
 
-        VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-            texture->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+        for (int i = 0; i < num_color_attachments; ++i)
+        {
+            buffer_types[i]                      = color_buffer_flags[i];
+            VulkanTexture* attachment            = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, color_attachments[i]);
+            rt->m_ColorTextureParams[i].m_Width  = attachment->m_Width;
+            rt->m_ColorTextureParams[i].m_Height = attachment->m_Height;
+        }
+
+        if (depth_stencil_attachment)
+        {
+            buffer_types[num_color_attachments    ]  = BUFFER_TYPE_DEPTH_BIT;
+            buffer_types[num_color_attachments + 1]  = BUFFER_TYPE_STENCIL_BIT;
+            VulkanTexture* attachment                = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, depth_stencil_attachment);
+            rt->m_DepthStencilTextureParams.m_Width  = attachment->m_Width;
+            rt->m_DepthStencilTextureParams.m_Height = attachment->m_Height;
+        }
+
+        VkResult res = CreateRenderTarget(context, color_attachments, buffer_types, num_color_attachments, depth_stencil_attachment, rt);
         CHECK_VK_ERROR(res);
-        */
+    }
+
+    static void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, HUniformLocation base_location)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        Program* program_ptr   = (Program*) context->m_CurrentProgram;
+        DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
+
+        VkResult res = buffer->MapMemory(context->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+
+        assert(context->m_CurrentProgram);
+        assert(base_location != INVALID_UNIFORM_LOCATION);
+
+        uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_location);
+
+        if (index_vs != UNIFORM_LOCATION_MAX)
+        {
+            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
+
+            assert(!IsUniformTextureSampler(res));
+            uint32_t offset_index      = res.m_UniformDataIndex;
+            uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
+            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, buffer->m_MemorySize);
+        }
+
+        if (index_fs != UNIFORM_LOCATION_MAX)
+        {
+            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
+
+            assert(!IsUniformTextureSampler(res));
+            // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
+            uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
+            uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
+            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, buffer->m_MemorySize);
+        }
+
+        buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
+    }
+
+    static HTexture VulkanGetActiveSwapChainTexture(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_CurrentSwapchainTexture;
     }
 
 #endif

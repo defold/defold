@@ -350,6 +350,9 @@ namespace dmGraphics
 
         VkResult Advance(VkDevice vk_device, VkSemaphore);
         bool     HasMultiSampling();
+
+        VkImage     Image()     { return m_Images[m_ImageIndex]; }
+        VkImageView ImageView() { return m_ImageViews[m_ImageIndex]; }
     };
 
     struct VulkanContext
@@ -403,7 +406,11 @@ namespace dmGraphics
         VulkanTexture*                  m_DefaultTexture2D;
         VulkanTexture*                  m_DefaultTexture2DArray;
         VulkanTexture*                  m_DefaultTextureCubeMap;
+        VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture                   m_ResolveTexture;
+
+        HTexture m_CurrentSwapchainTexture;
+
         uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;

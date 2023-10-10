@@ -251,6 +251,12 @@ message ShaderDesc
         SHADER_TYPE_SAMPLER_CUBE    = 12;
         SHADER_TYPE_SAMPLER2D_ARRAY = 13;
         SHADER_TYPE_UNIFORM_BUFFER  = 14;
+
+        // Extended types (not universally supported)
+        SHADER_TYPE_UVEC2           = 15;
+        SHADER_TYPE_UVEC3           = 16;
+        SHADER_TYPE_UVEC4           = 17;
+        SHADER_TYPE_UTEXTURE2D      = 18;
     }
 
     message ResourceBinding

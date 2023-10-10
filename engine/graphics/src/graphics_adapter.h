@@ -175,6 +175,9 @@ namespace dmGraphics
     typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
     typedef void (*CopyBufferToTextureFn)(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
+    typedef void (*SetRenderTargetAttachmentsFn)(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment);
+    typedef void (*SetConstantBufferFn)(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
+    typedef HTexture (*GetActiveSwapChainTextureFn)(HContext context);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -300,6 +303,9 @@ namespace dmGraphics
         MapIndexBufferFn m_MapIndexBuffer;
         UnmapIndexBufferFn m_UnmapIndexBuffer;
         CopyBufferToTextureFn m_CopyBufferToTexture;
+        SetRenderTargetAttachmentsFn m_SetRenderTargetAttachments;
+        SetConstantBufferFn m_SetConstantBuffer;
+        GetActiveSwapChainTextureFn m_GetActiveSwapChainTexture;
     #endif
     };
 
@@ -426,7 +432,10 @@ namespace dmGraphics
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CopyBufferToTexture);
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CopyBufferToTexture); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTargetAttachments); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetActiveSwapChainTexture);
     #else
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
     #endif

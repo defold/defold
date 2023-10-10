@@ -104,7 +104,8 @@ public class ShaderUtil {
             return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D;
         }
 
         private static class ShaderDataTypeConversionEntry {
@@ -130,7 +131,11 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
                 new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
                 new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
-                new ShaderDataTypeConversionEntry("ubo", ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER)
+                new ShaderDataTypeConversionEntry("ubo", ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER),
+                new ShaderDataTypeConversionEntry("uvec2", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2),
+                new ShaderDataTypeConversionEntry("uvec3", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
+                new ShaderDataTypeConversionEntry("uvec4", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
+                new ShaderDataTypeConversionEntry("utexture2D", ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -296,26 +301,25 @@ public class ShaderUtil {
             return uniformBlocks;
         }
 
+        private static void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {
+            if (node != null) {
+                for (Iterator<JsonNode> iter = node.getElements(); iter.hasNext();) {
+                    JsonNode textureNode = iter.next();
+                    Resource res     = new Resource();
+                    res.name         = textureNode.get("name").asText();
+                    res.type         = textureNode.get("type").asText();
+                    res.binding      = textureNode.get("binding").asInt();
+                    res.set          = textureNode.get("set").asInt();
+                    res.elementCount = 1;
+                    textures.add(res);
+                }
+            }
+        }
+
         public static ArrayList<Resource> getTextures() {
             ArrayList<Resource> textures = new ArrayList<Resource>();
-
-            JsonNode texturesNode = root.get("textures");
-
-            if (texturesNode == null) {
-                return textures;
-            }
-
-            for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
-                JsonNode textureNode = iter.next();
-                Resource res     = new Resource();
-                res.name         = textureNode.get("name").asText();
-                res.type         = textureNode.get("type").asText();
-                res.binding      = textureNode.get("binding").asInt();
-                res.set          = textureNode.get("set").asInt();
-                res.elementCount = 1;
-                textures.add(res);
-            }
-
+            addTexturesFromNode(root.get("textures"), textures);
+            addTexturesFromNode(root.get("separate_images"), textures);
             return textures;
         }
 

@@ -76,7 +76,10 @@ namespace dmGraphics
     }
 
     // Experimental only functions:
-    void CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
+    void     CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
+    void     SetRenderTargetAttachments(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment);
+    void     SetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
+    HTexture GetActiveSwapChainTexture(HContext _context);
 
     // Test only functions:
     uint64_t GetDrawCount();
