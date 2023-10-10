@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.field-expression
-  (:require [clojure.string :as string]
-            [editor.math :as math])
+  (:require [editor.math :as math])
   (:import [java.math MathContext]
            [java.text DecimalFormat DecimalFormatSymbols]
            [java.util Locale]
@@ -22,46 +21,33 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- parsable-number-format [text]
-  (-> text
-      (string/replace \, \.)))
-
-(defn- evaluate-expression [parse-fn precision text]
-  (if-let [matches (re-find #"(.+?)\s*((?<![Ee])[\+\-*/])\s*(.+)" text)]
-    (let [a (parse-fn (parsable-number-format (matches 1)))
-          b (parse-fn (parsable-number-format (matches 3)))
-          op (resolve (symbol (matches 2)))]
-      (math/round-with-precision (op a b) precision))
-    (parse-fn (parsable-number-format text))))
-
-(defn- to-double-safe [s]
+(defn- evaluate-expression [text]
   (try
-    (let [value (-> (ExpressionBuilder. s) .build .evaluate)]
-      (math/round-with-precision value math/precision-general))
-    (catch Throwable _
-      nil)))
-
-(defn- to-int-legacy [s]
-  (try
-    (int (evaluate-expression #(Integer/parseInt %) 1.0 s))
-    (catch Throwable _
-      nil)))
-
-(defn- to-double-legacy [s]
-  (try
-    (evaluate-expression #(Double/parseDouble %) math/precision-general s)
+    (-> (ExpressionBuilder. text) .build .evaluate)
     (catch Throwable _
       nil)))
 
 (defn to-int [s]
-  (or (to-int-legacy s) (int (to-double-safe s))))
+  (try
+    (Integer/parseInt s)
+    (catch Throwable _
+      (try
+        (-> s evaluate-expression int)
+        (catch Throwable _
+          nil)))))
 
 (defn format-int
   ^String [n]
   (if (nil? n) "" (str n)))
 
 (defn to-double [s]
-  (or (to-double-legacy s) (to-double-safe s)))
+  (try
+    (Double/parseDouble s)
+    (catch Throwable _
+      (try
+        (math/round-with-precision (evaluate-expression s) math/precision-general)
+        (catch Throwable _
+          nil)))))
 
 (def ^:private ^DecimalFormat double-decimal-format
   (doto (DecimalFormat. "0"
