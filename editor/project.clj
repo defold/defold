@@ -96,7 +96,9 @@
                      [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-windows-amd64"]
 
-                     [org.snakeyaml/snakeyaml-engine "1.0"]]
+                     [org.snakeyaml/snakeyaml-engine "1.0"]
+
+                     [net.objecthunter/exp4j "0.4.8"]]
 
   :source-paths      ["src/clj"]
 
