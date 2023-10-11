@@ -1804,24 +1804,28 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void OpenGLHashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
-        uint16_t stream_count = vertex_declaration->m_StreamCount;
-        for (int i = 0; i < stream_count; ++i)
-        {
-            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash,     sizeof(dmhash_t));
-            dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
-            dmHashUpdateBuffer32(state, &stream.m_Size,         sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Offset,       sizeof(stream.m_Offset));
-            dmHashUpdateBuffer32(state, &stream.m_Type,         sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize,    sizeof(stream.m_Normalize));
-        }
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
     static uint32_t OpenGLGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
         return vertex_declaration->m_Stride;
+    }
+
+    static uint32_t OpenGLGetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return streams[i].m_Offset;
+            }
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
     }
 
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)

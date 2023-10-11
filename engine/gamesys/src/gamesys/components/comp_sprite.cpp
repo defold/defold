@@ -133,6 +133,7 @@ namespace dmGameSystem
             const dmGraphics::VertexAttribute* m_Attribute;
             const uint8_t*                     m_ValuePtr;
             uint32_t                           m_ValueByteSize;
+            uint32_t                           m_Offset; // Offset into the vertex
         } m_Infos[dmGraphics::MAX_VERTEX_STREAM_COUNT];
 
         uint32_t m_NumInfos                  : 4; // dmGraphics::MAX_VERTEX_STREAM_COUNT is 8
@@ -622,7 +623,7 @@ namespace dmGameSystem
 
     // Prepares the list of material attributes by getting all the vertex attributes and values for each attribute
     // as specified in the material
-    static void FillMaterialAttributeInfos(dmRender::HMaterial material, SpriteAttributeInfo* infos)
+    static void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vertex_declaration, SpriteAttributeInfo* infos)
     {
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
@@ -635,6 +636,8 @@ namespace dmGameSystem
             info.m_Attribute                = material_attributes + i;
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
 
+            info.m_Offset = dmGraphics::GetVertexStreamOffset(vertex_declaration, info.m_Attribute->m_NameHash);
+
             if (info.m_Attribute->m_SemanticType    == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
                 info.m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
             {
@@ -646,9 +649,11 @@ namespace dmGameSystem
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
         const Point3& p, const Point3& p_local, const Matrix4& w, const float* uv, float page_index, SpriteAttributeInfo* sprite_infos)
     {
+        uint8_t* start = vertices_write_ptr;
         for (int i = 0; i < sprite_infos->m_NumInfos; ++i)
         {
-            SpriteAttributeInfo::Info* info = &sprite_infos->m_Infos[i];
+            const SpriteAttributeInfo::Info* info = &sprite_infos->m_Infos[i];
+            uint8_t* write_ptr = vertices_write_ptr + info->m_Offset;
 
             switch(info->m_Attribute->m_SemanticType)
             {
@@ -657,29 +662,27 @@ namespace dmGameSystem
                     if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
                     {
                         Vector4 wp = w * p;
-                        memcpy(vertices_write_ptr, &wp, info->m_ValueByteSize);
+                        memcpy(write_ptr, &wp, info->m_ValueByteSize);
                     }
                     else if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
                     {
-                        memcpy(vertices_write_ptr, &p_local, info->m_ValueByteSize);
+                        memcpy(write_ptr, &p_local, info->m_ValueByteSize);
                     }
                     else assert(0);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                 {
-                    memcpy(vertices_write_ptr, uv, info->m_ValueByteSize);
+                    memcpy(write_ptr, uv, info->m_ValueByteSize);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
                 {
-                    memcpy(vertices_write_ptr, &page_index, info->m_ValueByteSize);
+                    memcpy(write_ptr, &page_index, info->m_ValueByteSize);
                 } break;
                 default:
                 {
-                    memcpy(vertices_write_ptr, info->m_ValuePtr, info->m_ValueByteSize);
+                    memcpy(write_ptr, info->m_ValuePtr, info->m_ValueByteSize);
                 } break;
             }
-
-            vertices_write_ptr += info->m_ValueByteSize;
         }
     }
 
@@ -1079,7 +1082,7 @@ namespace dmGameSystem
         uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
 
         SpriteAttributeInfo material_attribute_info;
-        FillMaterialAttributeInfos(material, &material_attribute_info);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;

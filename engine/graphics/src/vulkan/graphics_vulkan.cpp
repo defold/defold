@@ -1810,6 +1810,20 @@ bail:
         return vertex_declaration->m_Stride;
     }
 
+    static uint32_t VulkanGetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return streams[i].m_Offset;
+            }
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
+    }
+
     static inline bool IsUniformTextureSampler(const ShaderResourceBinding& uniform)
     {
         return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
@@ -2127,17 +2141,9 @@ bail:
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
     }
 
-    void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    void VulkanHashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
-        uint16_t stream_count = vertex_declaration->m_StreamCount;
-        for (int i = 0; i < stream_count; ++i)
-        {
-            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
-            dmHashUpdateBuffer32(state, &stream.m_Location, sizeof(stream.m_Location));
-            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
-            dmHashUpdateBuffer32(state, &stream.m_Format, sizeof(stream.m_Format));
-        }
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
     static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
