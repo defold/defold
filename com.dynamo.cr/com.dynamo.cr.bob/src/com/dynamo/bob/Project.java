@@ -710,7 +710,12 @@ public class Project {
             }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            if (s.contains("NullPointerException")) {
+                e.printStackTrace(System.err); // E.g. when we happen to do something bad when handling exceptions
+            }
+
             System.err.println(s);
             // Pass on unmodified
             throw e;
@@ -1996,8 +2001,13 @@ run:
         if (val != null && val.trim().length() > 0) {
             resource = this.getResource(val);
         }
-        if (mustExist && resource == null) {
-            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        if (mustExist) {
+            if (resource == null) {
+                throw new IOException(String.format("Resource is null: %s.%s = '%s'", category, key, val==null?"null":val));
+            }
+            if (!resource.exists()) {
+                throw new IOException(String.format("Resource does not exist: %s.%s = '%s'", category, key, resource.getPath()));
+            }
         }
         return resource;
     }

@@ -209,8 +209,7 @@ namespace dmGameSystem
         bool result = dmRender::GetMaterialProgramConstantInfo(material, name_hash, &constant_id, &element_ids, &element_index, &num_components);
         if (result)
         {
-            int32_t location = dmRender::GetMaterialConstantLocation(material, constant_id);
-            if (location >= 0)
+            if (dmRender::GetMaterialConstantLocation(material, constant_id) != dmGraphics::INVALID_UNIFORM_LOCATION)
             {
                 if (constant_id == name_hash)
                 {

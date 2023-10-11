@@ -132,8 +132,9 @@
   [^GL2 gl render-args renderables]
   (doseq [renderable renderables]
     (let [user-data (-> renderable :user-data)
-          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]
-      (render-rect gl (:rect user-data) (if (:selected renderable) colors/selected-outline-color colors/outline-color) page-offset-x)))
+          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))
+          color (colors/renderable-outline-color renderable)]
+      (render-rect gl (:rect user-data) color page-offset-x)))
   (doseq [renderable renderables]
     (let [user-data (-> renderable :user-data)
           page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]

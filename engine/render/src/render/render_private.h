@@ -45,9 +45,9 @@ namespace dmRender
         dmGraphics::TextureFilter m_MagFilter;
         dmGraphics::TextureWrap   m_UWrap;
         dmGraphics::TextureWrap   m_VWrap;
+        dmGraphics::HUniformLocation m_Location;
         float                     m_MaxAnisotropy;
-        int32_t                   m_Location       : 24;
-        int32_t                   m_UnitValueCount : 8;
+        uint8_t                   m_UnitValueCount;
 
         Sampler()
             : m_NameHash(0)
@@ -56,8 +56,8 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_Location(dmGraphics::INVALID_UNIFORM_LOCATION)
             , m_MaxAnisotropy(1.0f)
-            , m_Location(-1)
             , m_UnitValueCount(0)
         {
         }
@@ -88,7 +88,7 @@ namespace dmRender
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmGraphics::HVertexDeclaration          m_VertexDeclaration;
-        dmHashTable64<int32_t>                  m_NameHashToLocation;
+        dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;
         dmArray<uint8_t>                        m_MaterialAttributeValues;
@@ -279,7 +279,6 @@ namespace dmRender
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
     bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
-    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

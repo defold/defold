@@ -71,6 +71,7 @@
                           <AnchorPane prefHeight="100.0" prefWidth="160.0">
                             <children>
                               <SplitPane id="editor-tabs-split" dividerPositions="0.5" orientation="HORIZONTAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                              <fx:include source="quick-help-view.fxml" />
                             </children>
                           </AnchorPane>
                           <AnchorPane id="bottom-pane" prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">

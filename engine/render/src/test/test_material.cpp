@@ -28,7 +28,7 @@ using namespace dmVMath;
 
 namespace dmGraphics
 {
-    extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, int base_register);
+    extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
 }
 
 class dmRenderMaterialTest : public jc_test_base_class
@@ -103,7 +103,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     // test setting constant
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
-    uint32_t tint_loc = dmGraphics::GetUniformLocation(program, "tint");
+    dmGraphics::HUniformLocation tint_loc = dmGraphics::GetUniformLocation(program, "tint");
     ASSERT_EQ(0, tint_loc);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
     const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc);
@@ -232,7 +232,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 
     // using the null graphics device, constant locations are assumed to be in declaration order.
     // test setting constant, no override material
-    uint32_t tint_loc = dmGraphics::GetUniformLocation(program, "tint");
+    dmGraphics::HUniformLocation tint_loc = dmGraphics::GetUniformLocation(program, "tint");
     ASSERT_EQ(0, tint_loc);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
@@ -246,7 +246,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     test_v = Vector4(2.0f, 1.0f, 1.0f, 1.0f);
     dmRender::ClearNamedConstantBuffer(constants);
     dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
-    uint32_t tint_loc_ovr = dmGraphics::GetUniformLocation(program_ovr, "tint");
+    dmGraphics::HUniformLocation tint_loc_ovr = dmGraphics::GetUniformLocation(program_ovr, "tint");
     ASSERT_EQ(1, tint_loc_ovr);
     dmGraphics::EnableProgram(m_GraphicsContext, program_ovr);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material_ovr, ro.m_ConstantBuffer);
