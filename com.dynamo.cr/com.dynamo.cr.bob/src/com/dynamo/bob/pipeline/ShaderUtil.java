@@ -105,6 +105,7 @@ public class ShaderUtil {
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D;
         }
 
@@ -135,6 +136,7 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("uvec2", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2),
                 new ShaderDataTypeConversionEntry("uvec3", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
                 new ShaderDataTypeConversionEntry("uvec4", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
+                new ShaderDataTypeConversionEntry("texture2D", ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
                 new ShaderDataTypeConversionEntry("utexture2D", ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D)
             ));
 

@@ -178,6 +178,9 @@ namespace dmGraphics
     typedef void (*SetRenderTargetAttachmentsFn)(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment);
     typedef void (*SetConstantBufferFn)(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
     typedef HTexture (*GetActiveSwapChainTextureFn)(HContext context);
+    typedef void (*DrawElementsInstancedFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
+    typedef void (*SetVertexDeclarationStepFunctionFn)(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
+    typedef void (*DrawBaseInstanceFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -306,6 +309,9 @@ namespace dmGraphics
         SetRenderTargetAttachmentsFn m_SetRenderTargetAttachments;
         SetConstantBufferFn m_SetConstantBuffer;
         GetActiveSwapChainTextureFn m_GetActiveSwapChainTexture;
+        DrawElementsInstancedFn m_DrawElementsInstanced;
+        SetVertexDeclarationStepFunctionFn m_SetVertexDeclarationStepFunction;
+        DrawBaseInstanceFn m_DrawBaseInstance;
     #endif
     };
 
@@ -435,7 +441,10 @@ namespace dmGraphics
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CopyBufferToTexture); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTargetAttachments); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetActiveSwapChainTexture);
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetActiveSwapChainTexture); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElementsInstanced); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawBaseInstance); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexDeclarationStepFunction);
     #else
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
     #endif

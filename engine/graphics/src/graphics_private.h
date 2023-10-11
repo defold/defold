@@ -20,6 +20,12 @@
 
 namespace dmGraphics
 {
+    enum VertexStepFunction
+    {
+        VERTEX_STEP_VERTEX,
+        VERTEX_STEP_INSTANCE,
+    };
+
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -31,8 +37,8 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint8_t      m_StreamCount;
+        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
+        uint8_t            m_StreamCount;
     };
 
     uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
@@ -80,6 +86,9 @@ namespace dmGraphics
     void     SetRenderTargetAttachments(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment);
     void     SetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
     HTexture GetActiveSwapChainTexture(HContext _context);
+    void     DrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
+    void     SetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
+    void     Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
 
     // Test only functions:
     uint64_t GetDrawCount();

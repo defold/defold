@@ -1284,6 +1284,18 @@ namespace dmGraphics
     {
         return g_functions.m_GetActiveSwapChainTexture(context);
     }
+    void DrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer)
+    {
+        return g_functions.m_DrawElementsInstanced(context, prim_type, first, count, instance_count, base_instance, type, index_buffer);
+    }
+    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance)
+    {
+        return g_functions.m_DrawBaseInstance(context, prim_type, first, count, base_instance);
+    }
+    void SetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function)
+    {
+        return g_functions.m_SetVertexDeclarationStepFunction(context, vertex_declaration, step_function);
+    }
 #endif
 
 #if defined(DM_PLATFORM_IOS)

@@ -982,7 +982,8 @@ bail:
 
         vk_vx_input_description.binding   = 0;
         vk_vx_input_description.stride    = vertexDeclaration->m_Stride;
-        vk_vx_input_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        vk_vx_input_description.inputRate = vertexDeclaration->m_StepFunction == VERTEX_STEP_VERTEX ?
+                                                VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
 
         VkPipelineVertexInputStateCreateInfo vk_vertex_input_info;
         memset(&vk_vertex_input_info, 0, sizeof(vk_vertex_input_info));

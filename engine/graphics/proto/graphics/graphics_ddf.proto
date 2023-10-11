@@ -256,7 +256,8 @@ message ShaderDesc
         SHADER_TYPE_UVEC2           = 15;
         SHADER_TYPE_UVEC3           = 16;
         SHADER_TYPE_UVEC4           = 17;
-        SHADER_TYPE_UTEXTURE2D      = 18;
+        SHADER_TYPE_TEXTURE2D       = 18;
+        SHADER_TYPE_UTEXTURE2D      = 19;
     }
 
     message ResourceBinding

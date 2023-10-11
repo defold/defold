@@ -1169,59 +1169,6 @@ bail:
         context->m_CurrentPipeline = 0;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        /*
-        struct VulkanTexture
-        {
-            struct VulkanHandle
-            {
-                VkImage     m_Image;
-                VkImageView m_ImageView;
-            };
-
-            VulkanHandle   m_Handle;
-            TextureType    m_Type;
-            TextureFormat  m_GraphicsFormat;
-            VkFormat       m_Format;
-            DeviceBuffer   m_DeviceBuffer;
-            uint16_t       m_Width;
-            uint16_t       m_Height;
-            uint16_t       m_Depth;
-            uint16_t       m_OriginalWidth;
-            uint16_t       m_OriginalHeight;
-            uint16_t       m_MipMapCount         : 5;
-            uint16_t       m_TextureSamplerIndex : 10;
-            uint32_t       m_Destroyed           : 1;
-
-            const VulkanResourceType GetType();
-        };
-
-        struct SwapChain
-        {
-            SwapChain(const VkSurfaceKHR     surface,
-                VkSampleCountFlagBits        vk_sample_flag,
-                const SwapChainCapabilities& capabilities,
-                const QueueFamily            queueFamily,
-                VulkanTexture*               resolveTexture);
-
-            dmArray<VkImage>      m_Images;
-            dmArray<VkImageView>  m_ImageViews;
-            VulkanTexture*        m_ResolveTexture;
-            const VkSurfaceKHR    m_Surface;
-            const QueueFamily     m_QueueFamily;
-            VkSurfaceFormatKHR    m_SurfaceFormat;
-            VkSwapchainKHR        m_SwapChain;
-            VkExtent2D            m_ImageExtent;
-            VkSampleCountFlagBits m_SampleCountFlag;
-            uint8_t               m_ImageIndex;
-
-            VkResult Advance(VkDevice vk_device, VkSemaphore);
-            bool     HasMultiSampling();
-
-            VkImage Image()     { return m_Images[m_ImageIndex]; }
-            VkImage ImageView() { return m_ImageViews[m_ImageIndex]; }
-        };
-        */
-
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
         assert(tex_sc);
 
@@ -1456,6 +1403,7 @@ bail:
         dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_StepFunction, sizeof(vertexDeclaration->m_StepFunction));
         dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count, sizeof(vk_sample_count));
         uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
@@ -1814,7 +1762,8 @@ bail:
         dmHashInit64(&decl_hash_state, false);
         VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
-        vd->m_Hash = dmHashFinal64(&decl_hash_state);
+        vd->m_Hash         = dmHashFinal64(&decl_hash_state);
+        vd->m_StepFunction = VERTEX_STEP_VERTEX;
         return vd;
     }
 
@@ -1826,6 +1775,7 @@ bail:
         dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
         vd->m_Stride          = stride;
         vd->m_Hash            = dmHashFinal64(&decl_hash_state);
+        vd->m_StepFunction    = VERTEX_STEP_VERTEX;
         return vd;
     }
 
@@ -1864,9 +1814,10 @@ bail:
         //     This means that we might get side-effects since we are basically binding the first data buffer
         //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
         context->m_MainVertexDeclaration = {0};
-        context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_Inputs.Size();
-        context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
-        context->m_MainVertexDeclaration.m_Hash        = vertex_declaration->m_Hash;
+        context->m_MainVertexDeclaration.m_StreamCount  = vertex_shader->m_Inputs.Size();
+        context->m_MainVertexDeclaration.m_Stride       = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration.m_StepFunction = vertex_declaration->m_StepFunction;
+        context->m_MainVertexDeclaration.m_Hash         = vertex_declaration->m_Hash;
 
         for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
         {
@@ -1905,6 +1856,7 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE    ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_TEXTURE2D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D;
     }
 
@@ -1912,6 +1864,7 @@ bail:
     {
         switch(type)
         {
+            case ShaderDesc::SHADER_TYPE_TEXTURE2D:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
@@ -4083,6 +4036,9 @@ bail:
 
         VkResult res = CreateRenderTarget(context, color_attachments, buffer_types, num_color_attachments, depth_stencil_attachment, rt);
         CHECK_VK_ERROR(res);
+
+        rt->m_ColorAttachmentCount = num_color_attachments;
+
     }
 
     static void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, HUniformLocation base_location)
@@ -4130,6 +4086,42 @@ bail:
         return context->m_CurrentSwapchainTexture;
     }
 
+    static void VulkanDrawElementsInstanced(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+
+        VulkanContext* context = (VulkanContext*) _context;
+
+        assert(context->m_FrameBegun);
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
+        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
+
+        // The 'first' value that comes in is intended to be a byte offset,
+        // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
+        uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
+        vkCmdDrawIndexed(vk_command_buffer, count, instance_count, index_offset, 0, base_instance);
+    }
+
+    static void VulkanDrawBaseInstance(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+        VulkanContext* context = (VulkanContext*) _context;
+        assert(context->m_FrameBegun);
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
+        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
+        vkCmdDraw(vk_command_buffer, count, 1, first, base_instance);
+    }
+
+    static void VulkanSetVertexDeclarationStepFunction(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function)
+    {
+        vertex_declaration->m_StepFunction = step_function;
+    }
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()

@@ -141,10 +141,11 @@ namespace dmGraphics
             // bool        m_Normalize;
         };
 
-        uint64_t    m_Hash;
-        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint16_t    m_StreamCount;
-        uint16_t    m_Stride;
+        uint64_t           m_Hash;
+        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        VertexStepFunction m_StepFunction;
+        uint16_t           m_StreamCount;
+        uint16_t           m_Stride;
     };
 
     struct ScratchBuffer
@@ -174,8 +175,7 @@ namespace dmGraphics
         VkExtent2D     m_Extent;
         const uint16_t m_Id;
         uint8_t        m_IsBound              : 1;
-        uint8_t        m_ColorAttachmentCount : 2;
-        uint8_t                               : 5; // unused
+        uint8_t        m_ColorAttachmentCount : 7;
 
         const VulkanResourceType GetType();
     };
