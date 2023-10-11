@@ -82,25 +82,37 @@ public class ShaderCompilerHelpers {
             writer.println();
         }
 
-        boolean gles =  shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+        int version;
+        boolean gles3Standard;
+        boolean gles;
 
-        boolean gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
-                                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430) {
+            version       = 430;
+            gles          = false;
+            gles3Standard = true;
+        } else {
+            gles = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
-        // Write our directives.
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
-            // Normally, the ES2ToES3Converter would do this
-            writer.println("precision mediump float;");
-        }
+            gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
+                            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
-        if (!gles) {
-            writer.println("#ifndef GL_ES");
-            writer.println("#define lowp");
-            writer.println("#define mediump");
-            writer.println("#define highp");
-            writer.println("#endif");
-            writer.println();
+            version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
+
+            // Write our directives.
+            if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
+                // Normally, the ES2ToES3Converter would do this
+                writer.println("precision mediump float;");
+            }
+
+            if (!gles) {
+                writer.println("#ifndef GL_ES");
+                writer.println("#define lowp");
+                writer.println("#define mediump");
+                writer.println("#define highp");
+                writer.println("#endif");
+                writer.println();
+            }
         }
 
         // We want "correct" line numbers from the GLSL compiler.
@@ -130,7 +142,6 @@ public class ShaderCompilerHelpers {
         String source = source = os.toString().replace("\r", "");
 
         if (gles3Standard) {
-            int version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
             source = es3Result.output;
         }
@@ -172,78 +183,82 @@ public class ShaderCompilerHelpers {
         }
     }
 
-    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
-    {
-        switch(typeAsString)
-        {
-            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
-            default: break;
-        }
-
-        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-    }
-
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
-        int version = 140;
-        if(targetProfile.equals("es")) {
-            version = 310;
-        }
+        Result result;
+        File file_out_spv;
 
-        Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
-        String shaderVersionStr = null;
-        String shaderProfileStr = "";
+        if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
 
-        // If the shader already has a version, we expect it to be already written in valid GLSL for that version
-        if (shaderInfo != null && shaderInfo.version >= version) {
-            shaderVersionStr = Integer.toString(shaderInfo.version);
-            shaderProfileStr = shaderInfo.profile;
-        } else {
-            // Convert to ES3 (or GL 140+)
+            int version = 430;
+
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
 
-            // Update version for SPIR-V (GLES >= 310, Core >= 140)
-            es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
-            if(es3Result.shaderProfile.equals("es")) {
-                es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 310 ? "310" : es3Result.shaderVersion;
-            } else {
-                es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
+            File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".compute");
+            file_in_compute.deleteOnExit();
+            FileUtils.writeByteArrayToFile(file_in_compute, es3Result.output.getBytes());
+
+            file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+            file_out_spv.deleteOnExit();
+
+            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
+                    "-w",
+                    "-fauto-bind-uniforms",
+                    "-fauto-map-locations",
+                    // JG: Do we need to pass in -std flag?
+                    "-fshader-stage=compute",
+                    "-o", file_out_spv.getAbsolutePath(),
+                    file_in_compute.getAbsolutePath());
+        } else {
+            int version = 140;
+            if(targetProfile.equals("es")) {
+                version = 310;
             }
-            shaderVersionStr = es3Result.shaderVersion;
-            shaderProfileStr = es3Result.shaderProfile;
-            shaderSource     = es3Result.output;
+
+            Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
+            String shaderVersionStr = null;
+            String shaderProfileStr = "";
+
+            // If the shader already has a version, we expect it to be already written in valid GLSL for that version
+            if (shaderInfo != null && shaderInfo.version >= version) {
+                shaderVersionStr = Integer.toString(shaderInfo.version);
+                shaderProfileStr = shaderInfo.profile;
+            } else {
+                // Convert to ES3 (or GL 140+)
+                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+
+                // Update version for SPIR-V (GLES >= 310, Core >= 140)
+                es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
+                if(es3Result.shaderProfile.equals("es")) {
+                    es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 310 ? "310" : es3Result.shaderVersion;
+                } else {
+                    es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
+                }
+
+                shaderVersionStr = es3Result.shaderVersion;
+                shaderProfileStr = es3Result.shaderProfile;
+                shaderSource     = es3Result.output;
+            }
+
+            // compile GLSL (ES3 or Desktop 140) to SPIR-V
+            File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
+            file_in_glsl.deleteOnExit();
+            FileUtils.writeByteArrayToFile(file_in_glsl, shaderSource.getBytes());
+
+            file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+            file_out_spv.deleteOnExit();
+
+            String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
+            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
+                    "-w",
+                    "-fauto-bind-uniforms",
+                    "-fauto-map-locations",
+                    "-std=" + shaderVersionStr + shaderProfileStr,
+                    "-fshader-stage=" + spirvShaderStage,
+                    "-o", file_out_spv.getAbsolutePath(),
+                    file_in_glsl.getAbsolutePath());
         }
-
-        // compile GLSL (ES3 or Desktop 140) to SPIR-V
-        File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
-        file_in_glsl.deleteOnExit();
-        FileUtils.writeByteArrayToFile(file_in_glsl, shaderSource.getBytes());
-
-        File file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-        file_out_spv.deleteOnExit();
-
-        String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
-                "-w",
-                "-fauto-bind-uniforms",
-                "-fauto-map-locations",
-                "-std=" + shaderVersionStr + shaderProfileStr,
-                "-fshader-stage=" + spirvShaderStage,
-                "-o", file_out_spv.getAbsolutePath(),
-                file_in_glsl.getAbsolutePath()
-                );
 
         String result_string = getResultString(result);
         if (soft_fail && result_string != null) {
