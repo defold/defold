@@ -132,23 +132,37 @@
     // Wait for the first update to make window inactive and then activate it again
     // It helps to avoid issue when the window opens inactive
     // https://github.com/defold/defold/issues/6709
-    if( !_glfwLibrary.Unbundled )
+    if( _glfwLibrary.FirstUpdate )
     {
-        // Starting from macOS Sonoma (14.0) the old workaround isn't needed
+        // Starting from macOS Sonoma (14.0) it should be solved in two different ways depends 
+        // if it's bundled app or not
+        // https://github.com/defold/defold/issues/8066
         NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
         if (version.majorVersion < 14)
         {
-            ProcessSerialNumber psn = { 0, kCurrentProcess };
-            TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
-            [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
+            [self deactivateProcess];
         }
         else
         {
-            [self activateWindow];
+            if ( _glfwLibrary.Unbundled )
+            {
+                [self deactivateProcess];
+            }
+            else
+            {
+                [self activateWindow];
+            }
         }
 
-        _glfwLibrary.Unbundled = GL_TRUE;
+        _glfwLibrary.FirstUpdate = GL_FALSE;
     }
+}
+
+- (void)deactivateProcess
+{
+    ProcessSerialNumber psn = { 0, kCurrentProcess };
+    TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
+    [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
 }
 
 - (void)activateProcess
@@ -161,6 +175,11 @@
 - (void)activateWindow
 {
     [_glfwWin.window makeKeyAndOrderFront:nil];
+    // Starting from macOS Sonoma (14.0) an extra step needed
+    NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
+    if (version.majorVersion >= 14) {
+        [NSApp activateIgnoringOtherApps:YES];
+    }
     [[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
 }
 
@@ -664,6 +683,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.context = nil;
     _glfwWin.aux_context = nil;
     _glfwWin.delegate = nil;
+    _glfwLibrary.FirstUpdate = GL_TRUE;
 
     _glfwWin.swapInterval = 1;
     _glfwWin.countDown = 1;
@@ -951,8 +971,6 @@ void _glfwPlatformCloseWindow( void )
 
     [_glfwWin.window close];
     _glfwWin.window = nil;
-
-    _glfwLibrary.Unbundled = 0;
 
     // TODO: Probably more cleanup
 }
