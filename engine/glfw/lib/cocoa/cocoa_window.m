@@ -132,10 +132,21 @@
     // Wait for the first update to make window inactive and then activate it again
     // It helps to avoid issue when the window opens inactive
     // https://github.com/defold/defold/issues/6709
-    if( !_glfwLibrary.Unbundled ) {
-        ProcessSerialNumber psn = { 0, kCurrentProcess };
-        TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
-        [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
+    if( !_glfwLibrary.Unbundled )
+    {
+        // Starting from macOS Sonoma (14.0) the old workaround isn't needed
+        NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
+        if (version.majorVersion < 14)
+        {
+            ProcessSerialNumber psn = { 0, kCurrentProcess };
+            TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
+            [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
+        }
+        else
+        {
+            [self activateWindow];
+        }
+
         _glfwLibrary.Unbundled = GL_TRUE;
     }
 }
