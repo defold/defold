@@ -426,6 +426,9 @@ public class BundlerTest {
 
         // These aren't put in the DARC file, so we don't count up
         createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
+        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "");
+        createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
+        createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");

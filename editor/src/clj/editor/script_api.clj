@@ -46,6 +46,33 @@
             (string/join ", "))
        ")"))
 
+(defn- args->html [args]
+  (str "<dl>"
+       (->> args
+            (map (fn [{:keys [name type desc parameters members]}]
+                   (let [nested-args (or parameters members)]
+                     (format "<dt><code>%s%s</code></dt>%s"
+                             (or name "")
+                             (cond
+                               (string? type)
+                               (format " <small>%s</small>" type)
+
+                               (and (vector? type)
+                                    (pos? (count type)))
+                               (format " <small>%s</small>" (string/join "|" type))
+
+                               :else
+                               "")
+                             (if (or desc nested-args)
+                               (format "<dd>%s%s</dd>"
+                                       (or desc "")
+                                       (if nested-args
+                                         (args->html nested-args)
+                                         ""))
+                               "")))))
+            string/join)
+       "</dl>"))
+
 (defn lines->completion-info [lines]
   (letfn [(make-completions [ns-path {:keys [type name desc] :as el}]
             (case type
@@ -56,11 +83,18 @@
                       (:members el)))
 
               "function"
-              (let [{:keys [parameters]} el]
+              (let [{:keys [parameters returns examples]} el]
                 [[ns-path (code-completion/make
                             name
                             :type :function
-                            :doc desc
+                            :doc (str desc
+                                      (when (pos? (count parameters))
+                                        (str "\n\n**Parameters:**<br>" (args->html parameters)))
+                                      (when (pos? (count returns))
+                                        (str "\n\n**Returns:**<br>" (args->html returns)))
+                                      (when (pos? (count examples))
+                                        (str "\n\n**Examples:**<br>\n"
+                                             (string/join "\n\n" (map :desc examples)))))
                             :display-string (str name (build-param-string parameters :display-string))
                             :insert-snippet (str name (build-param-string parameters :snippet)))]])
 
