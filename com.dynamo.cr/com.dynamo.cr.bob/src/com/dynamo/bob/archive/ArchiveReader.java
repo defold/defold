@@ -90,11 +90,11 @@ public class ArchiveReader {
         // Once the hashes are read, the rest of the entries are read.
 
         ManifestData manifestData = null;
-        HashMap<ByteBuffer, ResourceEntry> temp_map = new HashMap<ByteBuffer, ResourceEntry>();
+        HashMap<ByteBuffer, ResourceEntry> hashToResourceLookup = new HashMap<ByteBuffer, ResourceEntry>();
         if (this.manifestFile != null) {    // some tests do not initialize this.manifestFile
             manifestData = ManifestData.parseFrom(this.manifestFile.getData());
             for (ResourceEntry resource : manifestData.getResourcesList()) {
-                temp_map.put(ByteBuffer.wrap(resource.getHash().getData().toByteArray(), 0, hashLength), resource);
+                hashToResourceLookup.put(ByteBuffer.wrap(resource.getHash().getData().toByteArray(), 0, hashLength), resource);
             }
         }
 
@@ -106,7 +106,7 @@ public class ArchiveReader {
             byte[] hash = new byte[HASH_BUFFER_BYTESIZE];
             archiveIndexFile.read(hash, 0, hashLength);
             e.setHash(hash);
-            ResourceEntry resource = temp_map.get(ByteBuffer.wrap(hash, 0, hashLength));
+            ResourceEntry resource = hashToResourceLookup.get(ByteBuffer.wrap(hash, 0, hashLength));
             if (resource != null) {
                 e.setFilename(resource.getUrl());
                 e.setRelativeFilename(resource.getUrl());
