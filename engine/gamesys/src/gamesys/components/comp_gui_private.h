@@ -133,6 +133,9 @@ namespace dmGameSystem
         dmArray<GuiComponent*>                   m_Components;
         dmGraphics::HVertexDeclaration           m_VertexDeclaration;
         dmGraphics::HVertexBuffer                m_VertexBuffer;
+        dmBuffer::StreamDeclaration*             m_BoxVertexStreamDeclaration;
+        uint32_t                                 m_BoxVertexStreamDeclarationCount;
+        uint32_t                                 m_BoxVertexStructSize;
         dmArray<BoxVertex>                       m_ClientVertexBuffer;
         dmGraphics::HTexture                     m_WhiteTexture;
         dmParticle::HParticleContext             m_ParticleContext;
