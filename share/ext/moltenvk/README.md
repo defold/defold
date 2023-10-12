@@ -1,5 +1,17 @@
+# Vulkan SDK
 
-# MoltenVk
+* Download the latest (or a specific) version of the Mac sdk installer .dmg:
+
+    https://vulkan.lunarg.com/sdk/home#mac
+
+## arm64-macos
+
+    cd <path-to-sdk> # e.g ~/sdk/vulkan/1.3.261.1
+    mkdir -p lib/arm64-macos include/arm64-macos
+
+#  MoltenVk source
+
+Optionally if you need to use a debug version of MoltenVK, you can compile it from source.
 
 * Clone from git
 
