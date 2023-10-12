@@ -542,7 +542,7 @@ namespace dmGameSystem
         *mesh_id = dmScript::CheckHashOrString(L, 2);
     }
 
-    /** enable or disable a mesh
+    /*# enable or disable a mesh
      * Enable or disable visibility of a mesh
      *
      * @name model.set_mesh_enabled
@@ -579,7 +579,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /** get the enabled state of a mesh
+    /*# get the enabled state of a mesh
      * Get the enabled state of a mesh
      *
      * @name model.get_mesh_enabled

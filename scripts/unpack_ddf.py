@@ -49,6 +49,7 @@ BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
 BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
 BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['.computec']       = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
 BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
 BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
