@@ -2193,7 +2193,7 @@ bail:
                 res.m_Type                 = ddf->m_Resources[i].m_Type;
                 res.m_ElementCount         = ddf->m_Resources[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
-                res.m_NameHash             = 0;
+                res.m_NameHash             = ddf->m_Resources[i].m_NameHash;
 
                 assert(res.m_Set <= 1);
                 if (IsUniformTextureSampler(res))
