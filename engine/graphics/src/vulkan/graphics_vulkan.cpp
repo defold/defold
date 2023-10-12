@@ -948,6 +948,14 @@ namespace dmGraphics
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
         }
+
+        #ifdef DM_VULKAN_VALIDATION
+        if (context->m_UseValidationLayers)
+        {
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push("VK_KHR_portability_subset");
+        }
+        #endif
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,

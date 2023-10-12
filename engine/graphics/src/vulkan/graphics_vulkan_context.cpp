@@ -136,6 +136,14 @@ namespace dmGraphics
 
          delete[] vk_layer_properties;
 
+
+    #ifdef __MACH__
+        if (!all_layers_found)
+        {
+            dmLogError("Vulkan validation layers have been requested, but none was found. OSX requires that the engine has been built with the environment variable 'DM_VULKAN_VALIDATION=1'.");
+        }
+    #endif
+
          return all_layers_found;
     }
 
@@ -179,7 +187,10 @@ namespace dmGraphics
 
         for (uint16_t i = 0; i < extensionNameCount; ++i)
         {
-            vk_required_extensions.Push(extensionNames[i]);
+            if (extensionNames[i])
+            {
+                vk_required_extensions.Push(extensionNames[i]);
+            }
         }
 
         int32_t enabled_layer_count = 0;
@@ -190,7 +201,10 @@ namespace dmGraphics
 
             for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
             {
-                vk_required_extensions.Push(validationLayerExtensions[i]);
+                if (validationLayerExtensions[i])
+                {
+                    vk_required_extensions.Push(validationLayerExtensions[i]);
+                }
             }
         }
 
@@ -206,6 +220,7 @@ namespace dmGraphics
         vk_instance_create_info.ppEnabledExtensionNames = vk_required_extensions.Begin();
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
         vk_instance_create_info.ppEnabledLayerNames     = validationLayers;
+        vk_instance_create_info.flags                   = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
         VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)

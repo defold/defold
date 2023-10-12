@@ -19,21 +19,13 @@
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 
-/*****************************************************************************************************************
- * JG: When we update to newer MVK we need to do these changes to get validation layers to work (for MVK at least):
- * in g_extension_names:
- *   - add VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
- * use this validation layer:
- *   - static const char* DM_VULKAN_LAYER_VALIDATION = "VK_LAYER_KHRONOS_validation";
- * add this in g_validation_layer_ext:
- *   - VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
- * in vulkan_graphics, we need to add these:
- *   - device_extensions.OffsetCapacity(2);
- *   - device_extensions.Push("VK_KHR_portability_subset");
- *   - device_extensions.Push("VK_KHR_get_physical_device_properties2");
- * in graphics_vulkan_context, need this flag:
- *   - vk_instance_create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
- *****************************************************************************************************************/
+#if defined(__MACH__) && defined(DM_VULKAN_VALIDATION)
+    #define DM_PORTABILITY_EXTENSION_NAME                    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+    #define DM_GET_PHYSICAL_DEVICE_PROPERTIES_EXTENSION_NAME "VK_KHR_get_physical_device_properties2"
+#else
+    #define DM_PORTABILITY_EXTENSION_NAME                    NULL
+    #define DM_GET_PHYSICAL_DEVICE_PROPERTIES_EXTENSION_NAME NULL
+#endif
 
 namespace dmGraphics
 {
@@ -48,6 +40,7 @@ namespace dmGraphics
         VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_MACOS_MVK)
         VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
+        DM_PORTABILITY_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_METAL_EXT)
@@ -57,7 +50,11 @@ namespace dmGraphics
 
     static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
     static const char* g_validation_layers[1];
-    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    static const char* g_validation_layer_ext[]     = {
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+        DM_PORTABILITY_EXTENSION_NAME,
+        DM_GET_PHYSICAL_DEVICE_PROPERTIES_EXTENSION_NAME
+    };
 
     extern VulkanContext* g_VulkanContext;
 
