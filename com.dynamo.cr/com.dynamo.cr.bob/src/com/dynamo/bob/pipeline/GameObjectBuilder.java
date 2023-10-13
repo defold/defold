@@ -103,8 +103,10 @@ public class GameObjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
         for (ComponentDesc cd : b.getComponentsList()) {
-            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project));
-            ifObjectHasDynamicFactory |= !isStatic;
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
+            if (isStatic != null) {
+                ifObjectHasDynamicFactory |= !isStatic;
+            }
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
@@ -133,8 +135,10 @@ public class GameObjectBuilder extends Builder<Void> {
                 genResource.setContent(data);
                 uniqueResources.put(hash, genResource);
             }
-            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input));
-            ifObjectHasDynamicFactory |= !isStatic;
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input);
+            if (isStatic != null) {
+                ifObjectHasDynamicFactory |= !isStatic;
+            }
         }
 
         for (long hash : uniqueResources.keySet()) {
