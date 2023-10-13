@@ -227,7 +227,13 @@ public class ComponentsCounter {
     public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), count);
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, count);
+                }
             }
         }
     }
@@ -236,7 +242,13 @@ public class ComponentsCounter {
         Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, compCounterInputsCount.get(res));
+                }
             }
         }
     }
