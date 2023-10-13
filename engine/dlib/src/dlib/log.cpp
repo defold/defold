@@ -589,7 +589,8 @@ void dmLogUnregisterListener(FLogListener listener)
     {
         if (dmLog::g_Listeners[i] == listener)
         {
-            dmLog::g_Listeners[i] = dmLog::g_Listeners[dmAtomicSub32(&dmLog::g_ListenersCount, 1)];
+            int new_count = dmAtomicSub32(&dmLog::g_ListenersCount, 1) - 1;
+            dmLog::g_Listeners[i] = dmLog::g_Listeners[new_count];
             return;
         }
     }

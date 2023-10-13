@@ -183,6 +183,16 @@ namespace dmGameSystem
         FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
         FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
 
+        // Another way would be to use the vertex declaration, but that currently doesn't have an api
+        // and the buffer is well suited for this.
+        gui_world->m_BoxVertexStreamDeclarationCount = 4;
+        gui_world->m_BoxVertexStreamDeclaration = new dmBuffer::StreamDeclaration[gui_world->m_BoxVertexStreamDeclarationCount];
+        gui_world->m_BoxVertexStreamDeclaration[0] = {VERTEX_STREAM_POSITION,   dmBuffer::VALUE_TYPE_FLOAT32, 3};
+        gui_world->m_BoxVertexStreamDeclaration[1] = {VERTEX_STREAM_TEXCOORD0,  dmBuffer::VALUE_TYPE_FLOAT32, 2};
+        gui_world->m_BoxVertexStreamDeclaration[2] = {VERTEX_STREAM_COLOR,      dmBuffer::VALUE_TYPE_FLOAT32, 4};
+        gui_world->m_BoxVertexStreamDeclaration[3] = {VERTEX_STREAM_PAGE_INDEX, dmBuffer::VALUE_TYPE_FLOAT32, 1};
+        dmBuffer::CalcStructSize(gui_world->m_BoxVertexStreamDeclarationCount, gui_world->m_BoxVertexStreamDeclaration, &gui_world->m_BoxVertexStructSize, 0);
+
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
 
@@ -1229,17 +1239,6 @@ namespace dmGameSystem
         uint32_t vertex_start = gui_world->m_ClientVertexBuffer.Size();
         uint32_t vertex_count = 0;
 
-        // Another way would be to use the vertex declaration, but that currently doesn't have an api
-        // and the buffer is well suited for this.
-        dmBuffer::StreamDeclaration boxvertex_stream_decl[] = {
-            {dmHashString64("position"),  dmBuffer::VALUE_TYPE_FLOAT32, 3},
-            {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_FLOAT32, 2},
-            {dmHashString64("color"),     dmBuffer::VALUE_TYPE_FLOAT32, 4},
-        };
-
-        uint32_t struct_size = 0;
-        dmBuffer::CalcStructSize(DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, &struct_size, 0);
-
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
@@ -1255,9 +1254,9 @@ namespace dmGameSystem
 
             // Ideally, dmBuffer would support dynamic arrays, but for now this is what we do
             dmArray<uint8_t> node_vertices;
-            type->m_GetVertices(&nodectx, DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, struct_size, node_vertices);
+            type->m_GetVertices(&nodectx, gui_world->m_BoxVertexStreamDeclarationCount, gui_world->m_BoxVertexStreamDeclaration, gui_world->m_BoxVertexStructSize, node_vertices);
 
-            uint32_t node_vertex_count = node_vertices.Size() / struct_size;
+            uint32_t node_vertex_count = node_vertices.Size() / gui_world->m_BoxVertexStructSize;
             vertex_count += node_vertex_count;
 
             // Transform the vertices and modify the colors
@@ -1901,7 +1900,7 @@ namespace dmGameSystem
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
             prev_emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
         }
-        
+
         if (prev_node_type == dmGui::NODE_TYPE_TEXT)
         {
             prev_material = GetTextNodeMaterial(gui_context, scene, first_node, (dmRender::HFontMap) prev_font);
