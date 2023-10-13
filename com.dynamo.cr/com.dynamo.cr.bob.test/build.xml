@@ -91,7 +91,7 @@
             <classpath location="${bob.dir}/dist/bob.jar"/>
             <classpath location="${test.tmp.dir}/bob-tests.jar" />
 
-            <!--
+            
             <batchtest>
                 <fileset dir="../com.dynamo.cr.bob.test/src">
                     <include name="**/*Test*.java" />
@@ -101,9 +101,6 @@
                     <exclude name="**/PropertiesTestUtil.java" />
                 </fileset>
             </batchtest>
-            -->
-
-            <test name="com.dynamo.bob.pipeline.ShaderProgramBuilderTest" haltonfailure="yes" />
 
             <!-- How to test individual tests -->
             <!-- <test name="com.dynamo.bob.bundle.test.BundleHelperTest" haltonfailure="yes" /> -->
