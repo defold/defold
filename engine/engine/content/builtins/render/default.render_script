@@ -68,7 +68,7 @@ end
 
 local function update_camera(camera, state)
     camera.proj = camera.projection_fn(camera, state)
-    camera.frustum.frustrum = camera.proj * camera.view
+    camera.frustum.frustum = camera.proj * camera.view
 end
 
 local function update_state(state)
