@@ -140,17 +140,17 @@ public class ManifestTest {
                |  +--/main/dynamic.goc
                |
                +--/main/level1.collectionproxyc
-               |  +--/main/level1.collectionc
-               |     +--/main/dynamic.goc
-               |     +--/main/level1.goc
-               |        +--/main/level1.scriptc
-               |        +--/main/shared_go.goc
-               |
-               +--/main/level2.collectionproxyc
-                  +--/main/level2.collectionc
+                  +--/main/level1.collectionc
                      +--/main/dynamic.goc
-                     +--/main/level2.goc
-                        +--/main/level2.soundc
+                     +--/main/level1.goc
+                     |  +--/main/level1.scriptc
+                     |  +--/main/shared_go.goc
+                     |
+                     +--/main/level2.collectionproxyc
+                        +--/main/level2.collectionc
+                            +--/main/dynamic.goc
+                            +--/main/level2.goc
+                            +--/main/level2.soundc
             */
 
             ResourceNode root = graph.getRootNode();

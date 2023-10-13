@@ -98,15 +98,16 @@ public class ResourceGraph implements IResourceVisitor {
 
         // add resource node to graph
         ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
-        parentNode.addUniqueChild(currentNode);
+        parentNode.addChild(currentNode);
     }
 
     @Override
     public void visitMessage(Message message, IResource resource, IResource parentResource) throws CompileExceptionError {
         if (message instanceof CollectionProxyDesc) {
             CollectionProxyDesc desc = (CollectionProxyDesc)message;
+            ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
+            collectionProxyNode.setType(ResourceNode.Type.CollectionProxy);
             if (desc.getExclude()) {
-                ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
                 collectionProxyNode.setExcludedFlag(true);
             }
         }
@@ -137,8 +138,11 @@ public class ResourceGraph implements IResourceVisitor {
             resourceToNodeLookup.put(currentResource, currentNode);
             pathToNodeLookup.put("/" + currentResource.getPath(), currentNode);
             resourceNodes.add(currentNode);
+            if (currentResource.getPath().endsWith("collectionproxyc")) {
+                currentNode.setType(ResourceNode.Type.CollectionProxy);
+            }
         }
-        parentNode.addUniqueChild(currentNode);
+        parentNode.addChild(currentNode);
         return currentNode;
     }
     public ResourceNode add(ResourceNode resourceNode, ResourceNode parentNode) {

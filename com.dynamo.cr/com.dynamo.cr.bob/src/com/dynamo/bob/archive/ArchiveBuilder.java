@@ -416,7 +416,7 @@ public class ArchiveBuilder {
                 archiveBuilder.add(absolutePath, doCompress, encrypt, false);
             }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath());
-            rootNode.addUniqueChild(currentNode);
+            rootNode.addChild(currentNode);
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
