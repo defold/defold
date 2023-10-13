@@ -133,7 +133,7 @@ def install(args):
         # # we use apt-fast to speed up apt-get downloads
         # # https://github.com/ilikenwf/apt-fast
         # call("sudo add-apt-repository ppa:apt-fast/stable")
-        # call("sudo apt-get update", failonerror=False)
+        call("sudo apt-get update", failonerror=False)
         # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
         # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
         # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
