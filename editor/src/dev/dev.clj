@@ -29,6 +29,7 @@
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
+            [jfx :as jfx]
             [util.coll :refer [pair]])
   (:import [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
@@ -36,6 +37,10 @@
            [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(defn javafx-tree [obj]
+  (jfx/info-tree obj))
 
 (defn workspace []
   0)
@@ -384,7 +389,7 @@
   "Returns a sorted list of [occurrence-count entry]. The list is sorted by
   occurrence count in descending order."
   [coll]
-  (sort (fn [[occurrence-count-a entry-a] [occurrence-count-b entry-b]]
+  (sort (fn [[^long occurrence-count-a entry-a] [^long occurrence-count-b entry-b]]
           (cond (< occurrence-count-a occurrence-count-b) 1
                 (< occurrence-count-b occurrence-count-a) -1
                 (and (instance? Comparable entry-a)
@@ -541,8 +546,8 @@
      :else
      :external)))
 
-(defn- percentage-str [n total]
-  (eutil/format* "%.2f%%" (double (* 100 (/ n total)))))
+(defn- percentage-str [^long n ^long total]
+  (eutil/format* "%.2f%%" (* 100.0 (double (/ n total)))))
 
 (defn successor-pair-stats-by-kind
   "For a given coll of endpoints, group all successors by successor 'type',
@@ -615,7 +620,7 @@
          (into
            []
            (map-indexed
-             (fn [i pair-class]
+             (fn [^long i pair-class]
                (println (inc i) "/" (count pair-class-options))
                (let [this-pair-class? (comp #(= pair-class %) ->external-pair-class)]
                  {:pair-class pair-class
@@ -628,7 +633,7 @@
      (println "Improvements by pair link class:")
      (->> intermediate-results
           (sort-by :indirect-count)
-          (run! (fn [{:keys [pair-class direct-count indirect-count]}]
+          (run! (fn [{:keys [pair-class direct-count ^long indirect-count]}]
                   (let [[source-type source-label target-type target-label] pair-class
                         difference (- original-count indirect-count)]
                     (println (format "  %6s (of which %s direct) %s"
