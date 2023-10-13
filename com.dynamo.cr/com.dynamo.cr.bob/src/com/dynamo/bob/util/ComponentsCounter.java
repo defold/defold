@@ -228,7 +228,7 @@ public class ComponentsCounter {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
                 Storage inputStorage = Storage.load(res);
-                if (inputStorage.isDynamic() || targetStorage.isDynamic()) {
+                if (inputStorage.isDynamic()) {
                     targetStorage.makeDynamic();
                 }
                 else {
@@ -243,7 +243,7 @@ public class ComponentsCounter {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
                 Storage inputStorage = Storage.load(res);
-                if (inputStorage.isDynamic() || targetStorage.isDynamic()) {
+                if (inputStorage.isDynamic()) {
                     targetStorage.makeDynamic();
                 }
                 else {
