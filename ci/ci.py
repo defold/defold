@@ -130,14 +130,14 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # we use apt-fast to speed up apt-get downloads
-        # https://github.com/ilikenwf/apt-fast
-        call("sudo add-apt-repository ppa:apt-fast/stable")
+        # # we use apt-fast to speed up apt-get downloads
+        # # https://github.com/ilikenwf/apt-fast
+        # call("sudo add-apt-repository ppa:apt-fast/stable")
         call("sudo apt-get update", failonerror=False)
-        call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
-        call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
-        call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
-        call("sudo apt-get install -y apt-fast aria2")
+        # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
+        # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
+        # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
+        # call("sudo apt-get install -y apt-fast aria2")
 
         call("sudo apt-get install -y software-properties-common")
 
@@ -166,7 +166,7 @@ def install(args):
             "uuid-dev",
             "xvfb"
         ]
-        aptfast(" ".join(packages))
+        aptget(" ".join(packages))
 
         if args.steam_config_b64:
             # for steamcmd
@@ -182,7 +182,7 @@ def install(args):
                 "lib32gcc1",
                 "hfsprogs"   # for mounting DMG files
             ]
-            aptfast(" ".join(packages))
+            aptget(" ".join(packages))
             setup_steam_config(args)
 
     elif system == "Darwin":

@@ -753,6 +753,9 @@ public class ModelUtil {
         // get the first skeleton
         ModelImporter.Skin skin = scene.skins[0];
         for (Bone bone : skin.bones) {
+            if (bone.index == 0) {
+                bone.name = "root";
+            }
             skeleton.add(bone);
         }
 
