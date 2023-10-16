@@ -64,7 +64,7 @@
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.event ActionEvent]
            [javafx.scene Parent Scene]
-           [javafx.scene.control ColorPicker Control Label Slider TextField ToggleButton]
+           [javafx.scene.control Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
            [javafx.scene.paint Color]
            [javafx.scene.layout VBox]
            [javax.imageio ImageIO]
@@ -106,10 +106,12 @@
 
 (defn editable-controls [^Parent parent]
   (->> parent
-       (tree-seq (constantly true)
+       (tree-seq #(instance? Parent %)
                  #(.getChildrenUnmodifiable ^Parent %))
        (filterv #(and (instance? Control %)
-                      (not (instance? Label %))))))
+                      (not (or (instance? Cell %)
+                               (instance? Label %)
+                               (instance? ScrollBar %)))))))
 
 (defmulti set-control-value! (fn [^Control control _num-value] (class control)))
 
