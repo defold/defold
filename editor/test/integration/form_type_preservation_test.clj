@@ -3,11 +3,12 @@
             [dynamo.graph :as g]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.types :as t]
+            [editor.ui :as ui]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
   (:import [javafx.scene Parent]
            [javafx.scene.control Control Label ScrollPane]
-           [javafx.scene.layout GridPane Pane]))
+           [javafx.scene.layout AnchorPane GridPane]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -44,10 +45,7 @@
                  :fields fields}]
      :values {[:integer] integer
               [:number] number
-              [:vec4] vec4
-              [:table :integer] integer
-              [:table :number] number
-              [:table :vec4] vec4}
+              [:vec4] vec4}
      :form-ops {:user-data {:node-id _node-id}
                 :set set-form-op
                 :clear clear-form-op}}))
@@ -85,55 +83,12 @@
        (filterv #(and (instance? Control %)
                       (not (instance? Label %))))))
 
-(defn- test-numeric-form-widget! [resource-node {:keys [path] :as field} num-value]
-  {:pre [(= 1 (count path))]}
-  (let [prop-kw (first path)
-        project-graph (g/node-id->graph-id resource-node)
-        original-value (g/node-value resource-node prop-kw)
-        [num-field] (:controls field)]
-    (with-open [_ (test-util/make-graph-reverter project-graph)]
-      (test-util/set-control-value! num-field num-value)
-      (let [modified-value (g/node-value resource-node prop-kw)]
-        (is (not= original-value modified-value))
-        (test-util/ensure-number-type-preserving! original-value modified-value)))))
-
-(defn- test-vector-form-widget! [resource-node {:keys [path] :as field} expected-text-field-count]
-  {:pre [(= 1 (count path))]}
-  (let [prop-kw (first path)
-        project-graph (g/node-id->graph-id resource-node)
-        original-value (g/node-value resource-node prop-kw)
-        text-fields (:controls field)
-        check! (fn check! [num-field num-value]
-                 (with-open [_ (test-util/make-graph-reverter project-graph)]
-                   (test-util/set-control-value! num-field num-value)
-                   (let [modified-value (g/node-value resource-node prop-kw)]
-                     (is (not= original-value modified-value))
-                     (is (= (count original-value) (count modified-value)))
-                     (test-util/ensure-number-type-preserving! original-value modified-value))))]
-    (is (= expected-text-field-count (count text-fields)))
-    (doall
-      (map check!
-           text-fields
-           (range 0.11 0.99 0.11)))))
-
-(defmulti test-form-widget! (fn [_resource-node field] (:type field)))
-
-(defmethod test-form-widget! :integer [resource-node field]
-  (test-numeric-form-widget! resource-node field 2))
-
-(defmethod test-form-widget! :number [resource-node field]
-  (test-numeric-form-widget! resource-node field 0.11))
-
-(defmethod test-form-widget! :vec4 [resource-node field]
-  (test-vector-form-widget! resource-node field 4))
-
 (defn- render-form! [view-node]
-  (let [renderer (g/node-value view-node :renderer)
-        form-data (g/node-value view-node :form-data)
-        ui-state (g/node-value view-node :ui-state)]
-    (deref (renderer {:form-data form-data
-                      :ui-state ui-state}))
-    form-data))
+  (let [promise (promise)]
+    (g/node-value view-node :form-view)
+    (ui/run-later
+      (deliver promise true))
+    (deref promise)))
 
 (defn- form-row-vboxes [^Parent form-view-parent]
   (let [^ScrollPane scroll-pane (.lookup form-view-parent "ScrollPane")
@@ -142,6 +97,53 @@
     (eduction
       (filter #(= 2 (GridPane/getColumnIndex %)))
       (.getChildrenUnmodifiable fields-grid-pane))))
+
+(defn- form-row-controls [^Parent form-view-parent ^long row]
+  (-> form-view-parent
+      (form-row-vboxes)
+      (nth row)
+      (test-util/editable-controls)))
+
+(defn- check-text-fields! [resource-node prop-kw new-num-values text-fields-fn]
+  (let [project-graph (g/node-id->graph-id resource-node)
+        view-node (ffirst (g/targets-of resource-node :form-data))
+        original-value (g/node-value resource-node prop-kw)
+
+        check-field!
+        (fn check-field! [field-index new-num-value]
+          (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (let [text-field-count
+                  (do
+                    (render-form! view-node)
+                    (let [text-fields (text-fields-fn)
+                          text-field (get text-fields field-index)]
+                      (when text-field
+                        (test-util/set-control-value! text-field new-num-value))
+                      (count text-fields)))]
+              (let [modified-value (g/node-value resource-node prop-kw)]
+                (when (is (= (count new-num-values) text-field-count))
+                  (is (not= original-value modified-value))
+                  (test-util/ensure-number-type-preserving! original-value modified-value)
+                  (when-not (number? original-value)
+                    (is (= (count original-value) (count modified-value)))))))))]
+    (doall
+      (map-indexed check-field! new-num-values))))
+
+(defn- test-simple-form-widget! [resource-node {:keys [path row] :as _field} form-view-parent new-num-values]
+  (check-text-fields!
+    resource-node (first path) new-num-values
+    #(form-row-controls form-view-parent row)))
+
+(defmulti test-form-widget! (fn [_resource-node field _form-view-parent] (:type field)))
+
+(defmethod test-form-widget! :integer [resource-node field form-view-parent]
+  (test-simple-form-widget! resource-node field form-view-parent [2]))
+
+(defmethod test-form-widget! :number [resource-node field form-view-parent]
+  (test-simple-form-widget! resource-node field form-view-parent [0.11]))
+
+(defmethod test-form-widget! :vec4 [resource-node field form-view-parent]
+  (test-simple-form-widget! resource-node field form-view-parent [2.22 3.33 4.44 5.55]))
 
 (defn- ensure-float-form-fields-preserve-type! [original-property-values]
   (with-clean-system
@@ -156,20 +158,22 @@
                          [prop-kw decorated-value])))
                 original-property-values)
 
-          parent (Pane.)
+          form-view-parent (AnchorPane.)
           project-graph (g/make-graph! :history true :volatility 1)
           view-graph (g/make-graph! :history false :volatility 2)
           resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
-          view-node (cljfx-form-view/make-form-view-node! view-graph parent resource-node nil nil)
-          form-data (render-form! view-node)
-          fields (map (fn [field form-row-vbox]
-                        (assoc field :controls (test-util/editable-controls form-row-vbox)))
-                      (-> form-data :sections first :fields)
-                      (form-row-vboxes parent))]
+          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil)
+          form-data (g/node-value view-node :form-data)
+          fields (->> form-data
+                      (:sections)
+                      (first)
+                      (:fields)
+                      (map-indexed (fn [row field]
+                                     (assoc field :row row))))]
       (is (= 3 (count fields)))
       (doseq [field fields]
         (testing (str "Types preserved after editing " (:path field))
-          (test-form-widget! resource-node field))))))
+          (test-form-widget! resource-node field form-view-parent))))))
 
 (deftest float-form-fields-preserve-type-test
   (testing "Values are 32-bit in generic vectors before editing"
