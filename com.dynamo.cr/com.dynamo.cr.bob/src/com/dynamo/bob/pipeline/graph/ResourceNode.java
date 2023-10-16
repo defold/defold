@@ -32,8 +32,7 @@ public class ResourceNode {
     private String hexDigest = null;
     private boolean excluded = false;
     private Type nodeType = Type.None;
-    protected int useCount = 0;
-    protected int excludeCount = 0;
+    protected boolean inMainBundle = false;
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
 
     public ResourceNode(IResource resource) {
@@ -71,47 +70,31 @@ public class ResourceNode {
     }
 
     public String getPath() {
-        return relativeFilepath;
+        return this.relativeFilepath;
     }
 
     public String getHexDigest() {
-        return hexDigest;
+        return this.hexDigest;
     }
 
     public void setHexDigest(String hexDigest) {
         this.hexDigest = hexDigest;
     }
 
-    public boolean isFullyExcluded() {
-        return useCount == excludeCount;
+    public boolean isInMainBundle() {
+        return this.inMainBundle;
     }
 
     public boolean getExcludedFlag() {
-        return excluded;
+        return this.excluded;
     }
 
     public void setExcludedFlag(boolean excluded) {
         this.excluded = excluded;
     }
 
-    public void setUseCount(int useCount) {
-        this.useCount = useCount;
-    }
-
-    public void setExcludeCount(int excludeCount) {
-        this.excludeCount = excludeCount;
-    }
-
-    public void increaseUseCount() {
-        this.useCount = this.useCount + 1;
-    }
-
-    public void increaseExcludeCount() {
-        this.excludeCount = this.excludeCount + 1;
-    }
-
-    public int getUseCount() {
-        return useCount;
+    public void flagAsUsedInMainBundle() {
+        this.inMainBundle = true;
     }
 
     public void setType(Type type) {
@@ -120,10 +103,6 @@ public class ResourceNode {
 
     public boolean checkType(Type type) {
         return this.nodeType == type;
-    }
-
-    public int getExcludeCount() {
-        return excludeCount;
     }
 
     @Override

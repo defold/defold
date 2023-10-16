@@ -291,7 +291,7 @@ public class ManifestBuilder {
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
-    private HashMap<String, HashSet<String>> pathToDependants = new HashMap<>();
+    private HashMap<ResourceNode, HashSet<ResourceNode>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
@@ -418,7 +418,7 @@ public class ManifestBuilder {
         }
     }
 
-    public HashSet<String> getDependants(String filepath) throws IOException {
+    public HashSet<ResourceNode> getAllDependants(ResourceNode node) throws IOException {
         /* Once a candidate has been found the children, the children, and so
            on are added to the list of dependants. If a CollectionProxy is
            found that resource itself is added to the list of dependants, but
@@ -431,29 +431,26 @@ public class ManifestBuilder {
            LiveUpdate) before that CollectionProxy can be loaded.
         */
 
-        ResourceNode candidate = resourceGraph.getResourceNodeFromPath(filepath);
-
-        if (candidate == null) {
-            return new HashSet<String>();
+        if (node == null) {
+            return new HashSet<ResourceNode>();
         }
 
-        HashSet<String> dependants = pathToDependants.get(filepath);
+        HashSet<ResourceNode> dependants = pathToDependants.get(node);
         if (dependants != null) {
             return dependants;
         }
 
-        dependants = new HashSet<String>();
+        dependants = new HashSet<ResourceNode>();
 
-        for (ResourceNode child : candidate.getChildren()) {
-            String path = child.getPath();
-            dependants.add(path);
+        for (ResourceNode child : node.getChildren()) {
+            dependants.add(child);
 
             if (!child.checkType(ResourceNode.Type.CollectionProxy)) {
-                dependants.addAll(getDependants(path));
+                dependants.addAll(getAllDependants(child));
             }
         }
 
-        pathToDependants.put(filepath, dependants);
+        pathToDependants.put(node, dependants);
 
         return dependants;
     }
@@ -511,13 +508,17 @@ public class ManifestBuilder {
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
             // Since we'll only ever ask collection proxies, we only store those lists
-            ResourceNode proxy = resourceGraph.getResourceNodeFromPath(url);
-            if (proxy != null && proxy.checkType(ResourceNode.Type.CollectionProxy)) {
+            ResourceNode proxyNode = resourceGraph.getResourceNodeFromPath(url);
+            if (proxyNode != null && proxyNode.checkType(ResourceNode.Type.CollectionProxy)) {
                 // We'll only store the dependencies for the excluded collection proxies
-                if (proxy.getExcludedFlag()) {
-                    HashSet<String> proxyDependants = this.getDependants(url);
-                    for (String dependant : proxyDependants) {
-                        ResourceEntry resource = urlToResource.get(dependant);
+                if (proxyNode.getExcludedFlag()) {
+                    HashSet<ResourceNode> allProxyDependants = this.getAllDependants(proxyNode);
+                    for (ResourceNode dependant : allProxyDependants) {
+                        // Exclude resources referenced from the main bundle
+                        if (dependant.isInMainBundle()) {
+                            continue;
+                        }
+                        ResourceEntry resource = urlToResource.get(dependant.getPath());
                         if (resource == null) {
                             continue;
                         }

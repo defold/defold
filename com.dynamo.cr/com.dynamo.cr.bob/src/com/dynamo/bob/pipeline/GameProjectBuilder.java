@@ -428,11 +428,13 @@ public class GameProjectBuilder extends Builder<Void> {
                 // create the resource graphs
                 // the full graph contains all resources in the project
                 // the live update graph contains each resource only once per collection proxy
+                TimeProfiler.start("Generate resource graph");
                 logger.info("Generating the resource graph");
                 long tstart = System.currentTimeMillis();
                 ResourceGraph resourceGraph = createResourceGraph(project);
                 long tend = System.currentTimeMillis();
                 logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
+                TimeProfiler.stop();
 
                 // create full list of resources including the custom resources
                 // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
@@ -444,6 +446,9 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
                 ComponentsCounter.excludeCounterPaths(resources);
 
+                TimeProfiler.start("Create excluded resources");
+                logger.info("Creation of the excluded resources list.");
+                tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
                 List<String> excludedResources = null;
                 if (shouldPublishLU) {
@@ -452,6 +457,9 @@ public class GameProjectBuilder extends Builder<Void> {
                 else {
                     excludedResources = new ArrayList<String>();
                 }
+                tend = System.currentTimeMillis();
+                logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
+                TimeProfiler.stop();
 
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");

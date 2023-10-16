@@ -113,7 +113,6 @@ public class ResourceGraph implements IResourceVisitor {
         }
     }
 
-
     @Override
     public void leave(IResource resource, IResource parentResource) throws CompileExceptionError {
         // do nothing
@@ -186,37 +185,27 @@ public class ResourceGraph implements IResourceVisitor {
         }
     }
 
-    private void calculateResourceNodeUsageCounters(ResourceNode node, int excludedCount) {
-        node.increaseUseCount();
-        if (excludedCount > 0) {
-            node.increaseExcludeCount();
-        }
-        if (node.getExcludedFlag()) {
-            excludedCount++;
-        }
+    private void flagAllNonExcludedResources(ResourceNode node, HashSet<ResourceNode> visited) {
         for (ResourceNode child : node.getChildren()) {
-            calculateResourceNodeUsageCounters(child, excludedCount);
-        }
-        if (node.getExcludedFlag()) {
-            excludedCount--;
+            if (visited.contains(child)) {
+                continue;
+            }
+            child.flagAsUsedInMainBundle();
+            visited.add(child);
+            if (child.checkType(ResourceNode.Type.CollectionProxy) && child.getExcludedFlag()) {
+                continue;
+            }
+            flagAllNonExcludedResources(child, visited);
         }
     }
 
     /**
-     * Calculate resource node usage counters on all entries in the graph. The
-     * resource counters track the number of times a resource is used and how
-     * many times a resource is referenced from an excluded collection proxy.
-     * If the number of usage counts is equal to the number of times the resource
-     * is referenced from an excluded collection the resource can be excluded
-     * from the main archive and moved to a live update archive.
+     * Flag all resource nodes used in the main resource bundle.
+     * Resource nodes without this flag can be excluded from the main archive 
+     * and moved to a live update archive
      */
-    public void calculateResourceNodeUsageCounters() {
-        // reset counters
-        for (ResourceNode node : resourceNodes) {
-            node.setUseCount(0);
-            node.setExcludeCount(0);
-        }
-        calculateResourceNodeUsageCounters(root, 0);
+    public void findAllResourcesReferencedFromMainCollection() {
+        flagAllNonExcludedResources(root, new HashSet<ResourceNode>());
     }
 
     /**
@@ -227,12 +216,13 @@ public class ResourceGraph implements IResourceVisitor {
      * @return List of excluded resources
      */
     public List<String> createExcludedResourcesList() {
-        calculateResourceNodeUsageCounters();
+        findAllResourcesReferencedFromMainCollection();
         List<String> excludedResources = new LinkedList<>();
         for (ResourceNode node : resourceNodes) {
-            if (node.isFullyExcluded()) {
-                excludedResources.add(node.getPath());
+            if (node.isInMainBundle()) {
+                continue;
             }
+            excludedResources.add(node.getPath());
         }
         return excludedResources;
     }
@@ -248,11 +238,8 @@ public class ResourceGraph implements IResourceVisitor {
         generator.writeFieldName("excluded");
         generator.writeBoolean(node.getExcludedFlag());
 
-        generator.writeFieldName("useCount");
-        generator.writeNumber(node.getUseCount());
-
-        generator.writeFieldName("excludeCount");
-        generator.writeNumber(node.getExcludeCount());
+        generator.writeFieldName("isInMainBundle");
+        generator.writeBoolean(node.isInMainBundle());
 
         generator.writeFieldName("children");
         generator.writeStartArray();

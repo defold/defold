@@ -176,7 +176,7 @@ public class ManifestTest {
             graph.add(dynamic_goc, level2_collectionc);
             graph.add(shared_goc,  level1_goc);
 
-            graph.calculateResourceNodeUsageCounters();
+            graph.findAllResourcesReferencedFromMainCollection();
             return graph;
         }
 
