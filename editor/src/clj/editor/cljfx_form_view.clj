@@ -53,7 +53,8 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :as coll])
   (:import [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
@@ -639,7 +640,7 @@
   {:dispatch (assoc on-value-changed :fx/event (into value event))})
 
 (defn- keep-indices [indices coll]
-  (into []
+  (into (coll/empty-with-meta coll)
         (keep-indexed
           (fn [i x]
             (when (indices i) x)))
