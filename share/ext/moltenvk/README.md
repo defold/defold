@@ -4,10 +4,10 @@
 
     https://vulkan.lunarg.com/sdk/home#mac
 
-## arm64-macos
+## Create the packages
 
-    cd <path-to-sdk> # e.g ~/sdk/vulkan/1.3.261.1
-    mkdir -p lib/arm64-macos include/arm64-macos
+    # From the defold root folder:
+    ./share/ext/build.sh moltenvk <platform>
 
 #  MoltenVk source
 
