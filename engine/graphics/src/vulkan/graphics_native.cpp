@@ -19,14 +19,6 @@
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 
-#if defined(__MACH__) && defined(DM_VULKAN_VALIDATION)
-    #define DM_PORTABILITY_EXTENSION_NAME                    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-    #define DM_GET_PHYSICAL_DEVICE_PROPERTIES_EXTENSION_NAME "VK_KHR_get_physical_device_properties2"
-#else
-    #define DM_PORTABILITY_EXTENSION_NAME                    NULL
-    #define DM_GET_PHYSICAL_DEVICE_PROPERTIES_EXTENSION_NAME NULL
-#endif
-
 namespace dmGraphics
 {
     static const char*   g_extension_names[] = {
@@ -40,7 +32,6 @@ namespace dmGraphics
         VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_MACOS_MVK)
         VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
-        DM_PORTABILITY_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_METAL_EXT)
@@ -50,11 +41,7 @@ namespace dmGraphics
 
     static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
     static const char* g_validation_layers[1];
-    static const char* g_validation_layer_ext[]     = {
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-        DM_PORTABILITY_EXTENSION_NAME,
-        DM_GET_PHYSICAL_DEVICE_PROPERTIES_EXTENSION_NAME
-    };
+    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
     extern VulkanContext* g_VulkanContext;
 

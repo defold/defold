@@ -187,21 +187,28 @@ namespace dmGraphics
 
         for (uint16_t i = 0; i < extensionNameCount; ++i)
         {
-            if (extensionNames[i])
-            {
-                vk_required_extensions.Push(extensionNames[i]);
-            }
+            vk_required_extensions.Push(extensionNames[i]);
         }
 
         int32_t enabled_layer_count = 0;
 
-        if (validationLayerCount > 0 && GetValidationSupport(validationLayers, validationLayerCount))
+        if (validationLayerCount > 0)
         {
-            enabled_layer_count = validationLayerCount;
 
-            for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
+        #if defined(__MACH__) && !defined(DM_VULKAN_VALIDATION)
+            dmLogError("Validation layers requested for OSX, but the engine has not been built with the correct library.");
+        #endif
+
+            if (GetValidationSupport(validationLayers, validationLayerCount))
             {
-                if (validationLayerExtensions[i])
+                enabled_layer_count = validationLayerCount;
+
+                vk_required_extensions.OffsetCapacity(1);
+                vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+
+                // TODO: osx needs "VK_KHR_get_physical_device_properties2"
+
+                for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
                 {
                     vk_required_extensions.Push(validationLayerExtensions[i]);
                 }
