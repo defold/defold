@@ -140,7 +140,7 @@ namespace dmGraphics
     #ifdef __MACH__
         if (!all_layers_found)
         {
-            dmLogError("Vulkan validation layers have been requested, but none was found. OSX requires that the engine has been built with the environment variable 'DM_VULKAN_VALIDATION=1'.");
+            dmLogError("Vulkan validation layers have been requested, but none was found. OSX requires that the engine has been built with the '--with-vulkan-validation' build switch.");
         }
     #endif
 
@@ -194,19 +194,18 @@ namespace dmGraphics
 
         if (validationLayerCount > 0)
         {
-
-        #if defined(__MACH__) && !defined(DM_VULKAN_VALIDATION)
-            dmLogError("Validation layers requested for OSX, but the engine has not been built with the correct library.");
-        #endif
-
             if (GetValidationSupport(validationLayers, validationLayerCount))
             {
                 enabled_layer_count = validationLayerCount;
 
+            #ifdef __MACH__
+                vk_required_extensions.OffsetCapacity(2);
+                vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+                vk_required_extensions.Push("VK_KHR_get_physical_device_properties2");
+            #else
                 vk_required_extensions.OffsetCapacity(1);
                 vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-
-                // TODO: osx needs "VK_KHR_get_physical_device_properties2"
+            #endif
 
                 for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
                 {
