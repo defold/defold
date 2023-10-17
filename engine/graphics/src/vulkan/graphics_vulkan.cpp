@@ -1857,13 +1857,15 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE    ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_TEXTURE2D       ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D;
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D      ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
     }
 
     static inline VulkanTexture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
     {
         switch(type)
         {
+            case ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
@@ -1941,11 +1943,23 @@ bail:
                     texture = GetDefaultTexture(g_VulkanContext, res.m_Type);
                 }
 
+                VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                VkSampler image_sampler          = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
+                VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+                {
+                    image_layout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    image_sampler   = 0;
+                    descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+                }
+
                 VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
-                vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                vk_image_info.sampler             = image_sampler;
+                vk_image_info.imageLayout         = image_layout;
                 vk_image_info.imageView           = texture->m_Handle.m_ImageView;
-                vk_image_info.sampler             = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
-                vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+                vk_write_desc_info.descriptorType = descriptor_type;
                 vk_write_desc_info.pImageInfo     = &vk_image_info;
             }
             else
@@ -2368,7 +2382,14 @@ bail:
             // Texture samplers don't need to allocate any memory
             if (IsUniformTextureSampler(res))
             {
-                vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+                {
+                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+                }
+                else
+                {
+                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                }
             }
             else
             {

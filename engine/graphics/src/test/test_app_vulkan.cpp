@@ -215,6 +215,17 @@ static void* EngineCreate(int argc, char** argv)
     fs_shader.m_Source.m_Data  = (uint8_t*) vulkan_assets::fragment_program;
     fs_shader.m_Source.m_Count = sizeof(vulkan_assets::fragment_program);
 
+    dmGraphics::ShaderDesc::ResourceBlock fs_uniform_block = {};
+
+    fs_uniform_block.m_Name     = "inputColor";
+    fs_uniform_block.m_NameHash = dmHashString64(fs_uniform_block.m_Name);
+    fs_uniform_block.m_Type     = dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
+    fs_uniform_block.m_Set      = 0;
+    fs_uniform_block.m_Binding  = 0;
+
+    fs_shader.m_Resources.m_Data  = &fs_uniform_block;
+    fs_shader.m_Resources.m_Count = 1;
+
     dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
     dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
 
@@ -283,6 +294,8 @@ static UpdateResult EngineUpdate(void* _engine)
         return RESULT_EXIT;
     */
 
+    dmGraphics::HTexture sub_pass_0_color = dmGraphics::GetRenderTargetTexture(engine->m_Rendertarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+
     static uint8_t color_r = 0;
     static uint8_t color_g = 80;
     static uint8_t color_b = 140;
@@ -302,8 +315,9 @@ static UpdateResult EngineUpdate(void* _engine)
     dmGraphics::NextRenderPass(engine->m_GraphicsContext);
 
     dmGraphics::EnableProgram(engine->m_GraphicsContext, engine->m_ShaderProgram);
-
     dmGraphics::DisableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
+
+    dmGraphics::EnableTexture(engine->m_GraphicsContext, 0, 0, sub_pass_0_color);
 
     dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, engine->m_VertexDeclaration, engine->m_VertexBuffer);
     dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
