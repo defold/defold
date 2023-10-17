@@ -427,7 +427,6 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 // create the resource graphs
                 // the full graph contains all resources in the project
-                // the live update graph contains each resource only once per collection proxy
                 TimeProfiler.start("Generate resource graph");
                 logger.info("Generating the resource graph");
                 long tstart = System.currentTimeMillis();
