@@ -509,21 +509,19 @@ public class ManifestBuilder {
 
             // Since we'll only ever ask collection proxies, we only store those lists
             ResourceNode proxyNode = resourceGraph.getResourceNodeFromPath(url);
-            if (proxyNode != null && proxyNode.checkType(ResourceNode.Type.CollectionProxy)) {
-                // We'll only store the dependencies for the excluded collection proxies
-                if (proxyNode.getExcludedFlag()) {
-                    HashSet<ResourceNode> allProxyDependants = this.getAllDependants(proxyNode);
-                    for (ResourceNode dependant : allProxyDependants) {
-                        // Exclude resources referenced from the main bundle
-                        if (dependant.isInMainBundle()) {
-                            continue;
-                        }
-                        ResourceEntry resource = urlToResource.get(dependant.getPath());
-                        if (resource == null) {
-                            continue;
-                        }
-                        resourceEntryBuilder.addDependants(resource.getUrlHash());
+            // We'll only store the dependencies for the excluded collection proxies
+            if (proxyNode != null && proxyNode.checkType(ResourceNode.Type.ExcludedCollectionProxy)) {
+                HashSet<ResourceNode> allProxyDependants = this.getAllDependants(proxyNode);
+                for (ResourceNode dependant : allProxyDependants) {
+                    // Exclude resources referenced from the main bundle
+                    if (dependant.isInMainBundle()) {
+                        continue;
                     }
+                    ResourceEntry resource = urlToResource.get(dependant.getPath());
+                    if (resource == null) {
+                        continue;
+                    }
+                    resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
             }
 

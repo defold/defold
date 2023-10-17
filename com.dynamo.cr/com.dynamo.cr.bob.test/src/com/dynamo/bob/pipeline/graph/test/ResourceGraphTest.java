@@ -74,7 +74,7 @@ public class ResourceGraphTest {
         ResourceNode shared_goc = graph.add("/main/shared_go.goc", main_collectionc);
 
         ResourceNode level1_collectionproxyc = graph.add("/main/level1.collectionproxyc", main_goc);
-        level1_collectionproxyc.setExcludedFlag(true);
+        level1_collectionproxyc.setType(ResourceNode.Type.ExcludedCollectionProxy);
         ResourceNode level1_collectionc = graph.add("/main/level1.collectionc", level1_collectionproxyc);
         ResourceNode level1_goc = graph.add("/main/level1.goc", level1_collectionc);
         ResourceNode level1_scriptc = graph.add("/main/level1.scriptc", level1_goc);

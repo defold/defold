@@ -163,7 +163,7 @@ public class ManifestTest {
 
             ResourceNode level1_collectionproxyc = graph.add("/main/level1.collectionproxyc", main_goc);
             ResourceNode level1_collectionc = graph.add("/main/level1.collectionc", level1_collectionproxyc);
-            level1_collectionproxyc.setExcludedFlag(true);
+            level1_collectionproxyc.setType(ResourceNode.Type.ExcludedCollectionProxy);
             ResourceNode level1_goc = graph.add("/main/level1.goc", level1_collectionc);
             ResourceNode level1_scriptc = graph.add("/main/level1.scriptc", level1_goc);
 
@@ -489,6 +489,7 @@ public class ManifestTest {
             }
 
             if (current.getUrl().equals("/main/level1.collectionproxyc")) {
+                printDeps(data, current);
                 assertEquals(4, current.getDependantsCount());
             }
         }

@@ -23,14 +23,14 @@ public class ResourceNode {
 
     public enum Type {
         None,
-        CollectionProxy
+        CollectionProxy,
+        ExcludedCollectionProxy
     }
 
     private String relativeFilepath;
     private ResourceNode parent = null;
     private IResource resource;
     private String hexDigest = null;
-    private boolean excluded = false;
     private Type nodeType = Type.None;
     protected boolean inMainBundle = false;
     private final List<ResourceNode> children = new ArrayList<ResourceNode>();
@@ -40,15 +40,11 @@ public class ResourceNode {
         this.resource = resource;
     }
     public ResourceNode(final String relativeFilepath) {
-        this(relativeFilepath, false);
-    }
-    public ResourceNode(final String relativeFilepath, boolean excluded) {
         if (relativeFilepath.startsWith("/")) {
             this.relativeFilepath = relativeFilepath;
         } else {
             this.relativeFilepath = "/" + relativeFilepath;
         }
-        this.excluded = excluded;
     }
 
     public void addChild(ResourceNode childNode) {
@@ -85,14 +81,6 @@ public class ResourceNode {
         return this.inMainBundle;
     }
 
-    public boolean getExcludedFlag() {
-        return this.excluded;
-    }
-
-    public void setExcludedFlag(boolean excluded) {
-        this.excluded = excluded;
-    }
-
     public void flagAsUsedInMainBundle() {
         this.inMainBundle = true;
     }
@@ -102,7 +90,15 @@ public class ResourceNode {
     }
 
     public boolean checkType(Type type) {
+        // ExcludedCollectionProxy is CollectionProxy but CollectionProxy isn't ExcludedCollectionProxy
+        if (this.nodeType == Type.ExcludedCollectionProxy) {
+            return type == Type.CollectionProxy || type == Type.ExcludedCollectionProxy;
+        }
         return this.nodeType == type;
+    }
+
+    public String getNodeTypeAsString() {
+        return this.nodeType.name();
     }
 
     @Override

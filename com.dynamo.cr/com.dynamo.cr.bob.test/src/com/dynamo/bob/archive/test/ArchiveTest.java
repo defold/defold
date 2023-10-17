@@ -99,7 +99,7 @@ public class ArchiveTest {
     }
     private ResourceNode addExcludedEntry(String filename, String content, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
         ResourceNode current = addEntry(filename, content, archiveBuilder, parent);
-        current.setExcludedFlag(true);
+        current.setType(ResourceNode.Type.ExcludedCollectionProxy);
         return current;
     }
 

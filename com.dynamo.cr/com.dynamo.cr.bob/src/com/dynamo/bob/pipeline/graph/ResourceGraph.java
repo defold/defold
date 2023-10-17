@@ -106,9 +106,11 @@ public class ResourceGraph implements IResourceVisitor {
         if (message instanceof CollectionProxyDesc) {
             CollectionProxyDesc desc = (CollectionProxyDesc)message;
             ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
-            collectionProxyNode.setType(ResourceNode.Type.CollectionProxy);
             if (desc.getExclude()) {
-                collectionProxyNode.setExcludedFlag(true);
+                collectionProxyNode.setType(ResourceNode.Type.ExcludedCollectionProxy);
+            }
+            else {
+                collectionProxyNode.setType(ResourceNode.Type.CollectionProxy);
             }
         }
     }
@@ -192,7 +194,7 @@ public class ResourceGraph implements IResourceVisitor {
             }
             child.flagAsUsedInMainBundle();
             visited.add(child);
-            if (child.checkType(ResourceNode.Type.CollectionProxy) && child.getExcludedFlag()) {
+            if (child.checkType(ResourceNode.Type.ExcludedCollectionProxy)) {
                 continue;
             }
             flagAllNonExcludedResources(child, visited);
@@ -235,8 +237,10 @@ public class ResourceGraph implements IResourceVisitor {
         generator.writeFieldName("hexDigest");
         generator.writeString(node.getHexDigest());
 
-        generator.writeFieldName("excluded");
-        generator.writeBoolean(node.getExcludedFlag());
+        if (!node.checkType(ResourceNode.Type.None)) {
+            generator.writeFieldName("nodeType");
+            generator.writeString(node.getNodeTypeAsString());
+        }
 
         generator.writeFieldName("isInMainBundle");
         generator.writeBoolean(node.isInMainBundle());
