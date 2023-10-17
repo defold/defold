@@ -199,16 +199,25 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    struct TextureCreationParams {
+    enum TextureUsageHint
+    {
+        TEXTURE_USAGE_HINT_NONE      = 0,
+        TEXTURE_USAGE_HINT_SAMPLE    = 1,
+        TEXTURE_USAGE_HINT_TRANSIENT = 2,
+        TEXTURE_USAGE_HINT_INPUT     = 4,
+    };
 
-        TextureCreationParams() :
-            m_Type(TEXTURE_TYPE_2D),
-            m_Width(0),
-            m_Height(0),
-            m_Depth(1),
-            m_OriginalWidth(0),
-            m_OriginalHeight(0),
-            m_MipMapCount(1)
+    struct TextureCreationParams
+    {
+        TextureCreationParams()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(1)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_MipMapCount(1)
+        , m_UsageHintBits(TEXTURE_USAGE_HINT_NONE)
         {}
 
         TextureType m_Type;
@@ -218,6 +227,7 @@ namespace dmGraphics
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint8_t     m_MipMapCount;
+        uint8_t     m_UsageHintBits;
     };
 
     struct TextureParams

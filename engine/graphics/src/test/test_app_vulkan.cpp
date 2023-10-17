@@ -249,6 +249,8 @@ static void* EngineCreate(int argc, char** argv)
         p.m_ColorBufferParams[i].m_Height = 512;
     }
 
+    p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_HINT_INPUT | dmGraphics::TEXTURE_USAGE_HINT_TRANSIENT;
+
     engine->m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext,
         dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
 

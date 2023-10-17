@@ -406,10 +406,16 @@ namespace dmGraphics
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
+        VkImageUsageFlags vk_usage_flags          = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
-        VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1, 1,
-            vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect_flags, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
+        VkResult res = CreateTexture2D(
+            vk_physical_device, vk_device, width, height, 1, 1,
+            vk_sample_count, vk_depth_format, vk_depth_tiling,
+            vk_usage_flags,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            vk_aspect_flags,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
@@ -3222,6 +3228,8 @@ bail:
                     vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
                 }
 
+                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
                 HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, new_texture_color_handle);
                 VkResult res = CreateTexture2D(
@@ -3231,7 +3239,7 @@ bail:
                     VK_SAMPLE_COUNT_1_BIT,
                     vk_color_format,
                     VK_IMAGE_TILING_OPTIMAL,
-                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+                    vk_usage_flags,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT,
                     VK_IMAGE_LAYOUT_UNDEFINED,
@@ -3383,11 +3391,20 @@ bail:
             {
                 VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, rt->m_TextureColor[i]);
 
+                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
-                VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
-                    width, height, texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
-                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
+                VkResult res = CreateTexture2D(
+                    g_VulkanContext->m_PhysicalDevice.m_Device,
+                    g_VulkanContext->m_LogicalDevice.m_Device,
+                    width, height, texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT,
+                    texture_color->m_Format,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    vk_usage_flags,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_PREINITIALIZED,
+                    texture_color);
                 CHECK_VK_ERROR(res);
             }
         }
