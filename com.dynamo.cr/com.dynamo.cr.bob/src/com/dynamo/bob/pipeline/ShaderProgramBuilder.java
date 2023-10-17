@@ -202,8 +202,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
     public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ES2ToES3Converter.ShaderType shaderType)
             throws IOException, CompileExceptionError {
-        List<IResource> inputs                = task.getInputs();
-        IResource in                          = inputs.get(0);
+        IResource in                          = task.input(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
         boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         boolean outputSpirv                   = getOutputSpirvFlag();

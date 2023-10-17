@@ -913,7 +913,7 @@ public class Bob {
                         message = "undefined";
                     }
                 }
-                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().getInputs().get(0),
+                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().input(0),
                         (taskResult.getLineNumber() != -1) ? String.format(":%d", taskResult.getLineNumber()) : "",
                         message));
                 if (verbose) {
