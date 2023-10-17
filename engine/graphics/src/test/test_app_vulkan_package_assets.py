@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, subprocess, os
+import sys, subprocess, os, platform
 
 HEADER_TEMPLATE = """
 #ifndef DM_TEST_APP_VULKAN_ASSETS
@@ -24,7 +24,14 @@ def get_buffer_str(buffer_name, file_path, profile):
 
 	dynamo_home = os.environ['DYNAMO_HOME']
 
-	exe = '%s/ext/bin/arm64-macos/glslc' % dynamo_home
+	platform_str = platform.platform().lower()
+
+	if platform_str.startswith("windows"):
+		platform_str = "x86_64-win32"
+	elif platform_str.startswith("macos"):
+		platform_str = "arm64-macos"
+
+	exe = '%s/ext/bin/%s/glslc' % (dynamo_home, platform_str)
 
 	out_path = file_path + '.spv'
 

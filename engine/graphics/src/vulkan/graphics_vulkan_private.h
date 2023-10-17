@@ -160,6 +160,13 @@ namespace dmGraphics
         uint32_t             m_MappedDataCursor;
     };
 
+    struct SubPass
+    {
+        dmArray<uint8_t> m_ColorAttachments;
+        dmArray<uint8_t> m_InputAttachments;
+        bool             m_DepthStencilAttachment;
+    };
+
     struct RenderTarget
     {
     	RenderTarget(const uint32_t rtId);
@@ -167,7 +174,7 @@ namespace dmGraphics
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_DepthStencilTextureParams;
-
+        SubPass*       m_SubPasses;
         HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture       m_TextureDepthStencil;
         VkRenderPass   m_RenderPass;
@@ -176,6 +183,8 @@ namespace dmGraphics
         const uint16_t m_Id;
         uint8_t        m_IsBound              : 1;
         uint8_t        m_ColorAttachmentCount : 7;
+        uint8_t        m_SubPassCount;
+        uint8_t        m_SubPassIndex;
 
         const VulkanResourceType GetType();
     };

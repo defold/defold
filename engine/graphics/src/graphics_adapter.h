@@ -182,7 +182,7 @@ namespace dmGraphics
     typedef void (*SetVertexDeclarationStepFunctionFn)(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
     typedef void (*DrawBaseInstanceFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
     typedef void (*CreateRenderPassFn)(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
-    typedef void (*NextRenderPassFn)(HContext context);
+    typedef void (*NextRenderPassFn)(HContext context, HRenderTarget render_target);
 #endif
 
     struct GraphicsAdapterFunctionTable

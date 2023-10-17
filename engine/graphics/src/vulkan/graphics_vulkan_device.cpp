@@ -1059,7 +1059,15 @@ bail:
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
+        uint8_t blend_attachment_count = render_target->m_ColorAttachmentCount;
+
+        if (render_target->m_SubPasses)
+        {
+            SubPass& sub_pass_desc = render_target->m_SubPasses[render_target->m_SubPassIndex];
+            blend_attachment_count = sub_pass_desc.m_ColorAttachments.Size();
+        }
+
+        for (int i = 0; i < blend_attachment_count; ++i)
         {
             VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
             blend_attachment.colorWriteMask      = vk_color_write_mask;
@@ -1078,7 +1086,7 @@ bail:
         vk_color_blending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         vk_color_blending.logicOpEnable     = VK_FALSE;
         vk_color_blending.logicOp           = VK_LOGIC_OP_COPY;
-        vk_color_blending.attachmentCount   = render_target->m_ColorAttachmentCount;
+        vk_color_blending.attachmentCount   = blend_attachment_count;
         vk_color_blending.pAttachments      = vk_color_blend_attachments;
         vk_color_blending.blendConstants[0] = 0.0f;
         vk_color_blending.blendConstants[1] = 0.0f;
@@ -1141,7 +1149,7 @@ bail:
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
         vk_pipeline_info.renderPass          = render_target->m_RenderPass;
-        vk_pipeline_info.subpass             = 0;
+        vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 

@@ -11,7 +11,7 @@ layout (binding = 2) uniform UBO {
 } ubo;
 */
 
-layout (input_attachment_index = 0, binding = 0) uniform subpassInput inputColor;
+layout (input_attachment_index = 0, binding = 0, set = 1) uniform subpassInput inputColor;
 
 layout (location = 0) out vec4 outColor;
 

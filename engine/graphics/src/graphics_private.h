@@ -44,9 +44,10 @@ namespace dmGraphics
         uint8_t            m_StreamCount;
     };
 
+    static const uint8_t SUBPASS_EXTERNAL = -1;
+
     struct RenderPassDependency
     {
-        static const uint8_t EXTERNAL = -1;
         uint8_t m_Src;
         uint8_t m_Dst;
     };
@@ -118,7 +119,7 @@ namespace dmGraphics
     void     SetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
     void     Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
     void     CreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params);
-    void     NextRenderPass(HContext context);
+    void     NextRenderPass(HContext context, HRenderTarget render_target);
 
     // Test only functions:
     uint64_t GetDrawCount();

@@ -1300,9 +1300,9 @@ namespace dmGraphics
     {
         return g_functions.m_CreateRenderPass(context, render_target, params);
     }
-    void NextRenderPass(HContext context)
+    void NextRenderPass(HContext context, HRenderTarget render_target)
     {
-        return g_functions.m_NextRenderPass(context);
+        return g_functions.m_NextRenderPass(context, render_target);
     }
 #endif
 

@@ -155,8 +155,9 @@ static void* EngineCreate(int argc, char** argv)
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_VerifyGraphicsCalls = 0;
+    graphics_context_params.m_VerifyGraphicsCalls = 1;
     graphics_context_params.m_RenderDocSupport = 0;
+    graphics_context_params.m_UseValidationLayers = 1;
 
     EngineCtx* engine = &g_EngineCtx;
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
@@ -182,12 +183,12 @@ static void* EngineCreate(int argc, char** argv)
 
     //////////// VERTEX BUFFER ////////////
     const float vertex_data_no_index[] = {
-        -0.5f, -0.5f, // 0.0f, 1.0f,
-         0.5f, -0.5f, // 1.0f, 1.0f,
-        -0.5f,  0.5f, // 0.0f, 0.0f,
-         0.5f, -0.5f, // 1.0f, 1.0f,
-         0.5f,  0.5f, // 1.0f, 0.0f,
-        -0.5f,  0.5f, // 0.0f, 0.0f,
+        -0.5f, -0.5f,
+         0.5f, -0.5f,
+        -0.5f,  0.5f,
+         0.5f, -0.5f,
+         0.5f,  0.5f,
+        -0.5f,  0.5f,
     };
 
     engine->m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
@@ -267,6 +268,16 @@ static void* EngineCreate(int argc, char** argv)
     rp.m_SubPasses[1].m_InputAttachmentIndices      = sub_pass_1_input_attachments;
     rp.m_SubPasses[1].m_InputAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_input_attachments);
 
+    rp.m_DependencyCount = 3;
+    rp.m_Dependencies[0].m_Src = dmGraphics::SUBPASS_EXTERNAL;
+    rp.m_Dependencies[0].m_Dst = 0;
+
+    rp.m_Dependencies[1].m_Src = 0;
+    rp.m_Dependencies[1].m_Dst = 1;
+
+    rp.m_Dependencies[2].m_Src = 1;
+    rp.m_Dependencies[2].m_Dst = dmGraphics::SUBPASS_EXTERNAL;
+
     dmGraphics::CreateRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget, rp);
 
     engine->m_WasCreated++;
@@ -302,7 +313,7 @@ static UpdateResult EngineUpdate(void* _engine)
     static uint8_t color_a = 255;
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
-    dmGraphics::SetRenderTarget(engine->m_GraphicsContext, g_EngineCtx.m_Rendertarget, 0);
+    dmGraphics::SetRenderTarget(engine->m_GraphicsContext, engine->m_Rendertarget, 0);
 
     dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, 512, 512);
     dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
@@ -312,7 +323,7 @@ static UpdateResult EngineUpdate(void* _engine)
                                 (float)color_a,
                                 1.0f, 0);
 
-    dmGraphics::NextRenderPass(engine->m_GraphicsContext);
+    dmGraphics::NextRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget);
 
     dmGraphics::EnableProgram(engine->m_GraphicsContext, engine->m_ShaderProgram);
     dmGraphics::DisableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
@@ -321,7 +332,6 @@ static UpdateResult EngineUpdate(void* _engine)
 
     dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, engine->m_VertexDeclaration, engine->m_VertexBuffer);
     dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
-
 
     dmGraphics::SetRenderTarget(engine->m_GraphicsContext, 0, 0);
 

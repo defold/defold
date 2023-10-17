@@ -348,7 +348,9 @@ namespace dmGraphics
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        rt->m_IsBound = 1;
+        rt->m_IsBound      = 1;
+        rt->m_SubPassIndex = 0;
+
         context->m_CurrentRenderTarget = render_target;
     }
 
@@ -3222,11 +3224,18 @@ bail:
 
                 HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, new_texture_color_handle);
-                VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
+                VkResult res = CreateTexture2D(
+                    g_VulkanContext->m_PhysicalDevice.m_Device,
+                    g_VulkanContext->m_LogicalDevice.m_Device,
                     new_texture_color->m_Width, new_texture_color->m_Height, 1, new_texture_color->m_MipMapCount,
-                    VK_SAMPLE_COUNT_1_BIT, vk_color_format,
-                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, new_texture_color);
+                    VK_SAMPLE_COUNT_1_BIT,
+                    vk_color_format,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    new_texture_color);
                 CHECK_VK_ERROR(res);
 
                 res = TransitionImageLayout(g_VulkanContext->m_LogicalDevice.m_Device,
@@ -4019,12 +4028,22 @@ bail:
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
     }
 
-    static void VulkanNextRenderPass(HContext _context)
+    static void VulkanNextRenderPass(HContext _context, HRenderTarget render_target)
     {
-        VulkanContext* context            = (VulkanContext*) _context;
-        const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
-        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
-        vkCmdNextSubpass(vk_command_buffer, VK_SUBPASS_CONTENTS_INLINE);
+        VulkanContext* context = (VulkanContext*) _context;
+        RenderTarget* rt       = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+        if (rt->m_SubPasses != 0)
+        {
+            const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
+            VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+            vkCmdNextSubpass(vk_command_buffer, VK_SUBPASS_CONTENTS_INLINE);
+            rt->m_SubPassIndex++;
+
+            if (rt->m_SubPassIndex >= rt->m_SubPassCount)
+            {
+                rt->m_SubPassIndex = 0;
+            }
+        }
     }
 
     static void VulkanCreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params)
@@ -4034,10 +4053,11 @@ bail:
 
         assert(rt->m_TextureDepthStencil == 0); // TODO
 
-        if (rt->m_RenderPass != VK_NULL_HANDLE)
-        {
-            DestroyRenderPass(context->m_LogicalDevice.m_Device, rt->m_RenderPass);
-        }
+        DestroyFrameBuffer(context->m_LogicalDevice.m_Device, rt->m_Framebuffer);
+
+        delete[] rt->m_SubPasses;
+        rt->m_SubPasses    = new SubPass[params.m_SubPassCount];
+        rt->m_SubPassCount = params.m_SubPassCount;
 
         VkSubpassDescription vk_sub_passes[MAX_SUBPASSES];
         memset(vk_sub_passes, 0, sizeof(vk_sub_passes));
@@ -4050,6 +4070,14 @@ bail:
             VkAttachmentReference* depth_stencil_attachment_ref = 0;
             VkAttachmentReference* input_attachment_ref         = 0;
 
+            rt->m_SubPasses[i].m_ColorAttachments.SetCapacity(rp_desc.m_ColorAttachmentIndicesCount);
+            rt->m_SubPasses[i].m_ColorAttachments.SetSize(rp_desc.m_ColorAttachmentIndicesCount);
+            memcpy(rt->m_SubPasses[i].m_ColorAttachments.Begin(), rp_desc.m_ColorAttachmentIndices, sizeof(uint8_t) * rp_desc.m_ColorAttachmentIndicesCount);
+
+            rt->m_SubPasses[i].m_InputAttachments.SetCapacity(rp_desc.m_InputAttachmentIndicesCount);
+            rt->m_SubPasses[i].m_InputAttachments.SetSize(rp_desc.m_InputAttachmentIndicesCount);
+            memcpy(rt->m_SubPasses[i].m_InputAttachments.Begin(), rp_desc.m_InputAttachmentIndices, sizeof(uint8_t) * rp_desc.m_InputAttachmentIndicesCount);
+
             if (rp_desc.m_ColorAttachmentIndicesCount > 0)
             {
                 color_attachment_ref = new VkAttachmentReference[rp_desc.m_ColorAttachmentIndicesCount];
@@ -4060,6 +4088,7 @@ bail:
                     color_attachment_ref[j].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 }
             }
+
             if (rp_desc.m_DepthStencilAttachmentIndex)
             {
                 depth_stencil_attachment_ref             = new VkAttachmentReference;
@@ -4087,6 +4116,7 @@ bail:
         uint32_t num_attachments = rt->m_ColorAttachmentCount + (rt->m_TextureDepthStencil ? 1 : 0);
 
         VkAttachmentDescription* vk_attachments = new VkAttachmentDescription[num_attachments];
+        memset(vk_attachments, 0, sizeof(VkAttachmentDescription) * num_attachments);
 
         for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
         {
@@ -4103,24 +4133,20 @@ bail:
             attachment_color.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
 
-        // TODO: Depth
-
-        /*
         VkSubpassDependency* vk_sub_pass_dependencies = new VkSubpassDependency[params.m_DependencyCount];
-        memset(vk_sub_pass_dependencies, 0, sizeof(vk_sub_pass_dependencies));
+        memset(vk_sub_pass_dependencies, 0, sizeof(VkSubpassDependency) * params.m_DependencyCount);
 
         for (int i = 0; i < params.m_DependencyCount; ++i)
         {
-            RenderPassDependency& dep_desc = params.m_Dependencies[i];
-            vk_sub_pass_dependencies[i].srcSubpass      = dep_desc.m_Src == RenderPassDependency::EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Src;
-            vk_sub_pass_dependencies[i].dstSubpass      = dep_desc.m_Dst == RenderPassDependency::EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Dst;
+            const RenderPassDependency& dep_desc = params.m_Dependencies[i];
+            vk_sub_pass_dependencies[i].srcSubpass      = dep_desc.m_Src == SUBPASS_EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Src;
+            vk_sub_pass_dependencies[i].dstSubpass      = dep_desc.m_Dst == SUBPASS_EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Dst;
             vk_sub_pass_dependencies[i].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             vk_sub_pass_dependencies[i].srcAccessMask   = 0;
             vk_sub_pass_dependencies[i].dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             vk_sub_pass_dependencies[i].dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             vk_sub_pass_dependencies[i].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
         }
-        */
 
         VkRenderPassCreateInfo render_pass_create_info = {};
 
@@ -4129,11 +4155,32 @@ bail:
         render_pass_create_info.pAttachments    = vk_attachments;
         render_pass_create_info.subpassCount    = params.m_SubPassCount;
         render_pass_create_info.pSubpasses      = vk_sub_passes;
-        render_pass_create_info.dependencyCount = 0;
-        render_pass_create_info.pDependencies   = 0;
+        render_pass_create_info.dependencyCount = params.m_DependencyCount;
+        render_pass_create_info.pDependencies   = vk_sub_pass_dependencies;
 
         VkResult res = vkCreateRenderPass(context->m_LogicalDevice.m_Device, &render_pass_create_info, 0, &rt->m_RenderPass);
         CHECK_VK_ERROR(res);
+
+        VkImageView fb_attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
+        memset(fb_attachments, 0, sizeof(fb_attachments));
+
+        uint16_t    fb_attachment_count = 0;
+        uint16_t    fb_width            = 0;
+        uint16_t    fb_height           = 0;
+
+        for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
+        {
+            VulkanTexture* color_texture_ptr      = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+            fb_attachments[fb_attachment_count++] = color_texture_ptr->m_Handle.m_ImageView;
+            fb_width                              = rt->m_ColorTextureParams[i].m_Width;
+            fb_height                             = rt->m_ColorTextureParams[i].m_Height;
+        }
+
+        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rt->m_RenderPass, fb_width, fb_height, fb_attachments, (uint8_t) fb_attachment_count, &rt->m_Framebuffer);
+        CHECK_VK_ERROR(res);
+
+        delete[] vk_sub_pass_dependencies;
+        delete[] vk_attachments;
     }
 
     static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment)
