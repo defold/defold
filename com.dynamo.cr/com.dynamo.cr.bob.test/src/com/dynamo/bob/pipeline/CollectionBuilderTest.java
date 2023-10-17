@@ -637,8 +637,8 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
      * Structure:
      * - go
      *   - factory
-     *      - collection
-     *          - sprite
+     *     - go
+     *       - sprite
      * @throws Exception
      */
     @Test

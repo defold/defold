@@ -1386,12 +1386,13 @@ public class Project {
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
+        TimeProfiler.start("Prepare cache");
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
         state = State.load(stateResource);
-
+        TimeProfiler.stop();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
         BundleHelper.throwIfCanceled(monitor);
@@ -1476,8 +1477,10 @@ public class Project {
         }
 
         monitor.done();
+        TimeProfiler.start("Save cache");
         state.save(stateResource);
         fileSystem.saveCache();
+        TimeProfiler.stop();
         return result;
     }
 
