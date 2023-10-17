@@ -3998,6 +3998,123 @@ bail:
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
     }
 
+    static void VulkanNextRenderPass(HContext _context)
+    {
+        VulkanContext* context            = (VulkanContext*) _context;
+        const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        vkCmdNextSubpass(vk_command_buffer, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    static void VulkanCreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        RenderTarget* rt       = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
+
+        assert(rt->m_TextureDepthStencil == 0); // TODO
+
+        if (rt->m_RenderPass != VK_NULL_HANDLE)
+        {
+            DestroyRenderPass(context->m_LogicalDevice.m_Device, rt->m_RenderPass);
+        }
+
+        VkSubpassDescription vk_sub_passes[MAX_SUBPASSES];
+        memset(vk_sub_passes, 0, sizeof(vk_sub_passes));
+
+        for (int i = 0; i < params.m_SubPassCount; ++i)
+        {
+            const RenderPassDescriptor& rp_desc = params.m_SubPasses[i];
+
+            VkAttachmentReference* color_attachment_ref         = 0;
+            VkAttachmentReference* depth_stencil_attachment_ref = 0;
+            VkAttachmentReference* input_attachment_ref         = 0;
+
+            if (rp_desc.m_ColorAttachmentIndicesCount > 0)
+            {
+                color_attachment_ref = new VkAttachmentReference[rp_desc.m_ColorAttachmentIndicesCount];
+
+                for (int j = 0; j < rp_desc.m_ColorAttachmentIndicesCount; ++j)
+                {
+                    color_attachment_ref[j].attachment = rp_desc.m_ColorAttachmentIndices[j];
+                    color_attachment_ref[j].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                }
+            }
+            if (rp_desc.m_DepthStencilAttachmentIndex)
+            {
+                depth_stencil_attachment_ref             = new VkAttachmentReference;
+                depth_stencil_attachment_ref->attachment = rp_desc.m_DepthStencilAttachmentIndex[0];
+                depth_stencil_attachment_ref->layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            }
+            if (rp_desc.m_InputAttachmentIndicesCount > 0)
+            {
+                input_attachment_ref = new VkAttachmentReference[rp_desc.m_InputAttachmentIndicesCount];
+                for (int j = 0; j < rp_desc.m_InputAttachmentIndicesCount; ++j)
+                {
+                    input_attachment_ref[j].attachment = rp_desc.m_InputAttachmentIndices[j];
+                    input_attachment_ref[j].layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                }
+            }
+
+            vk_sub_passes[i].pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+            vk_sub_passes[i].colorAttachmentCount    = rp_desc.m_ColorAttachmentIndicesCount;
+            vk_sub_passes[i].pColorAttachments       = color_attachment_ref;
+            vk_sub_passes[i].pDepthStencilAttachment = depth_stencil_attachment_ref;
+            vk_sub_passes[i].inputAttachmentCount    = rp_desc.m_InputAttachmentIndicesCount;
+            vk_sub_passes[i].pInputAttachments       = input_attachment_ref;
+        }
+
+        uint32_t num_attachments = rt->m_ColorAttachmentCount + (rt->m_TextureDepthStencil ? 1 : 0);
+
+        VkAttachmentDescription* vk_attachments = new VkAttachmentDescription[num_attachments];
+
+        for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
+        {
+            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+
+            VkAttachmentDescription& attachment_color = vk_attachments[i];
+            attachment_color.format         = tex->m_Format;
+            attachment_color.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_color.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+
+        // TODO: Depth
+
+        /*
+        VkSubpassDependency* vk_sub_pass_dependencies = new VkSubpassDependency[params.m_DependencyCount];
+        memset(vk_sub_pass_dependencies, 0, sizeof(vk_sub_pass_dependencies));
+
+        for (int i = 0; i < params.m_DependencyCount; ++i)
+        {
+            RenderPassDependency& dep_desc = params.m_Dependencies[i];
+            vk_sub_pass_dependencies[i].srcSubpass      = dep_desc.m_Src == RenderPassDependency::EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Src;
+            vk_sub_pass_dependencies[i].dstSubpass      = dep_desc.m_Dst == RenderPassDependency::EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Dst;
+            vk_sub_pass_dependencies[i].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            vk_sub_pass_dependencies[i].srcAccessMask   = 0;
+            vk_sub_pass_dependencies[i].dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            vk_sub_pass_dependencies[i].dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            vk_sub_pass_dependencies[i].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        }
+        */
+
+        VkRenderPassCreateInfo render_pass_create_info = {};
+
+        render_pass_create_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        render_pass_create_info.attachmentCount = num_attachments;
+        render_pass_create_info.pAttachments    = vk_attachments;
+        render_pass_create_info.subpassCount    = params.m_SubPassCount;
+        render_pass_create_info.pSubpasses      = vk_sub_passes;
+        render_pass_create_info.dependencyCount = 0;
+        render_pass_create_info.pDependencies   = 0;
+
+        VkResult res = vkCreateRenderPass(context->m_LogicalDevice.m_Device, &render_pass_create_info, 0, &rt->m_RenderPass);
+        CHECK_VK_ERROR(res);
+    }
+
     static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment)
     {
         VulkanContext* context = (VulkanContext*) _context;

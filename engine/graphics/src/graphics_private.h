@@ -20,6 +20,9 @@
 
 namespace dmGraphics
 {
+    static const uint32_t MAX_SUBPASSES            = 4;
+    static const uint32_t MAX_SUBPASS_DEPENDENCIES = 4;
+
     enum VertexStepFunction
     {
         VERTEX_STEP_VERTEX,
@@ -39,6 +42,31 @@ namespace dmGraphics
     {
         VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint8_t            m_StreamCount;
+    };
+
+    struct RenderPassDependency
+    {
+        static const uint8_t EXTERNAL = -1;
+        uint8_t m_Src;
+        uint8_t m_Dst;
+    };
+
+    struct RenderPassDescriptor
+    {
+        uint8_t* m_ColorAttachmentIndices;
+        uint8_t  m_ColorAttachmentIndicesCount;
+        uint8_t* m_DepthStencilAttachmentIndex;
+
+        uint8_t* m_InputAttachmentIndices;
+        uint8_t  m_InputAttachmentIndicesCount;
+    };
+
+    struct CreateRenderPassParams
+    {
+        RenderPassDescriptor m_SubPasses[MAX_SUBPASSES];
+        RenderPassDependency m_Dependencies[MAX_SUBPASS_DEPENDENCIES];
+        uint8_t              m_SubPassCount;
+        uint8_t              m_DependencyCount;
     };
 
     uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
@@ -89,6 +117,8 @@ namespace dmGraphics
     void     DrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
     void     SetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
     void     Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
+    void     CreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params);
+    void     NextRenderPass(HContext context);
 
     // Test only functions:
     uint64_t GetDrawCount();

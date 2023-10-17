@@ -24,6 +24,10 @@
 #include <dlib/time.h>
 #include "../graphics.h"
 
+#include "../graphics_private.h"
+
+#include "test_app_vulkan_assets.h"
+
 // From engine_private.h
 
 enum UpdateResult
@@ -132,7 +136,13 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
-    dmGraphics::HContext m_GraphicsContext;
+    dmGraphics::HContext                    m_GraphicsContext;
+    dmGraphics::HRenderTarget               m_Rendertarget;
+    dmGraphics::HProgram                    m_ShaderProgram;
+    dmGraphics::HVertexDeclaration          m_VertexDeclaration;
+    dmGraphics::HVertexBuffer               m_VertexBuffer;
+    dmGraphics::ShaderDesc::ResourceBinding m_VertexAttributes[1];
+
 } g_EngineCtx;
 
 static void* EngineCreate(int argc, char** argv)
@@ -160,18 +170,96 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_FocusCallbackUserData = 0;
     window_params.m_IconifyCallback = 0;
     window_params.m_IconifyCallbackUserData = 0;
-    window_params.m_Width = 0;
-    window_params.m_Height = 0;
+    window_params.m_Width = 512;
+    window_params.m_Height = 512;
     window_params.m_Samples = 0;
     window_params.m_Title = "TestTitle!";
-    window_params.m_Fullscreen = 1;
+    window_params.m_Fullscreen = 0;
     window_params.m_PrintDeviceInfo = false;
     window_params.m_HighDPI = 0;
 
     (void)dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
 
-    g_EngineCtx.m_WasCreated++;
-    g_EngineCtx.m_TimeStart = dmTime::GetTime();
+    //////////// VERTEX BUFFER ////////////
+    const float vertex_data_no_index[] = {
+        -0.5f, -0.5f, // 0.0f, 1.0f,
+         0.5f, -0.5f, // 1.0f, 1.0f,
+        -0.5f,  0.5f, // 0.0f, 0.0f,
+         0.5f, -0.5f, // 1.0f, 1.0f,
+         0.5f,  0.5f, // 1.0f, 0.0f,
+        -0.5f,  0.5f, // 0.0f, 0.0f,
+    };
+
+    engine->m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+
+    //////////// SHADER ////////////
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+    dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+
+    dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = engine->m_VertexAttributes[0];
+    vx_attribute_position.m_Name         = "pos";
+    vx_attribute_position.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
+    vx_attribute_position.m_ElementCount = 1;
+    vx_attribute_position.m_Binding      = 0;
+
+    dmGraphics::ShaderDesc::Shader vs_shader = {};
+    vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+    vs_shader.m_Source.m_Data  = (uint8_t*) vulkan_assets::vertex_program;
+    vs_shader.m_Source.m_Count = sizeof(vulkan_assets::vertex_program);
+    vs_shader.m_Inputs.m_Data  = engine->m_VertexAttributes;
+    vs_shader.m_Inputs.m_Count = sizeof(engine->m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
+
+    dmGraphics::ShaderDesc::Shader fs_shader = {};
+    fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+    fs_shader.m_Source.m_Data  = (uint8_t*) vulkan_assets::fragment_program;
+    fs_shader.m_Source.m_Count = sizeof(vulkan_assets::fragment_program);
+
+    dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
+    dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+
+    engine->m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
+    engine->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+
+    //////////// RENDER PASS ////////////
+    dmGraphics::RenderTargetCreationParams p = {};
+
+    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        p.m_ColorBufferCreationParams[i].m_Type           = dmGraphics::TEXTURE_TYPE_2D;
+        p.m_ColorBufferCreationParams[i].m_Width          = 512;
+        p.m_ColorBufferCreationParams[i].m_Height         = 512;
+        p.m_ColorBufferCreationParams[i].m_OriginalWidth  = 512;
+        p.m_ColorBufferCreationParams[i].m_OriginalHeight = 512;
+
+        p.m_ColorBufferParams[i].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        p.m_ColorBufferParams[i].m_Width  = 512;
+        p.m_ColorBufferParams[i].m_Height = 512;
+    }
+
+    engine->m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext,
+        dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
+
+    uint8_t sub_pass_0_color_attachments[] = { 0 };
+    uint8_t sub_pass_1_color_attachments[] = { 1 };
+    uint8_t sub_pass_1_input_attachments[] = { 0 };
+
+    dmGraphics::CreateRenderPassParams rp = {};
+    rp.m_SubPassCount = 2;
+
+    rp.m_SubPasses[0].m_ColorAttachmentIndices      = sub_pass_0_color_attachments;
+    rp.m_SubPasses[0].m_ColorAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_0_color_attachments);
+
+    rp.m_SubPasses[1].m_ColorAttachmentIndices      = sub_pass_1_color_attachments;
+    rp.m_SubPasses[1].m_ColorAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_color_attachments);
+
+    rp.m_SubPasses[1].m_InputAttachmentIndices      = sub_pass_1_input_attachments;
+    rp.m_SubPasses[1].m_InputAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_input_attachments);
+
+    dmGraphics::CreateRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget, rp);
+
+    engine->m_WasCreated++;
+    engine->m_TimeStart = dmTime::GetTime();
     return &g_EngineCtx;
 }
 
@@ -190,25 +278,43 @@ static UpdateResult EngineUpdate(void* _engine)
     engine->m_WasRun++;
     uint64_t t = dmTime::GetTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
+    /*
     if (elapsed > 3.0f)
         return RESULT_EXIT;
+    */
 
     static uint8_t color_r = 0;
     static uint8_t color_g = 80;
     static uint8_t color_b = 140;
     static uint8_t color_a = 255;
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
-    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+
+    dmGraphics::SetRenderTarget(engine->m_GraphicsContext, g_EngineCtx.m_Rendertarget, 0);
+
+    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, 512, 512);
     dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                 (float)color_r,
                                 (float)color_g,
                                 (float)color_b,
                                 (float)color_a,
                                 1.0f, 0);
+
+    dmGraphics::NextRenderPass(engine->m_GraphicsContext);
+
+    dmGraphics::EnableProgram(engine->m_GraphicsContext, engine->m_ShaderProgram);
+
+    dmGraphics::DisableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
+
+    dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, engine->m_VertexDeclaration, engine->m_VertexBuffer);
+    dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+
+
+    dmGraphics::SetRenderTarget(engine->m_GraphicsContext, 0, 0);
+
     dmGraphics::Flip(engine->m_GraphicsContext);
 
-    color_b += 2;
-    color_g += 1;
+    // color_b += 2;
+    // color_g += 1;
 
     return RESULT_OK;
 }

@@ -1296,6 +1296,14 @@ namespace dmGraphics
     {
         return g_functions.m_SetVertexDeclarationStepFunction(context, vertex_declaration, step_function);
     }
+    void CreateRenderPass(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params)
+    {
+        return g_functions.m_CreateRenderPass(context, render_target, params);
+    }
+    void NextRenderPass(HContext context)
+    {
+        return g_functions.m_NextRenderPass(context);
+    }
 #endif
 
 #if defined(DM_PLATFORM_IOS)

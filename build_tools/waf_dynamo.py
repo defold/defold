@@ -1811,7 +1811,7 @@ def detect(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):
-        vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
+        vulkan_validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))
         conf.env['STLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
