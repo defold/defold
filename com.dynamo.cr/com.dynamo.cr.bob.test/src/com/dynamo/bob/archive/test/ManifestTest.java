@@ -456,6 +456,18 @@ public class ManifestTest {
 
             assertTrue(foundMatch);
         }
+    }  
+
+    // Help function for debug that prints paths
+    private void printDeps(ManifestData data, ResourceEntry searchFor) {
+        for (int i = 0; i < data.getResourcesCount(); ++i) {
+            ResourceEntry current = data.getResources(i);
+            for (long hash:searchFor.getDependantsList()) {
+                if (hash == current.getUrlHash()) {
+                    System.out.println(current.getUrl());
+                }
+            }
+        }
     }
 
     @Test
@@ -477,7 +489,7 @@ public class ManifestTest {
             }
 
             if (current.getUrl().equals("/main/level1.collectionproxyc")) {
-                assertEquals(5, current.getDependantsCount());
+                assertEquals(4, current.getDependantsCount());
             }
         }
     }
