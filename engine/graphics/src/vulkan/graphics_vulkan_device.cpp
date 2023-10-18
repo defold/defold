@@ -24,7 +24,7 @@ namespace dmGraphics
     {
         t->m_Type                = TEXTURE_TYPE_2D;
         t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = VK_IMAGE_USAGE_SAMPLED_BIT;
+        t->m_DeviceBuffer        = 0;
         t->m_Format              = VK_FORMAT_UNDEFINED;
         t->m_Width               = 0;
         t->m_Height              = 0;
@@ -37,11 +37,14 @@ namespace dmGraphics
     }
 
     RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_TextureDepthStencil(0)
+        : m_SubPasses(0)
+        , m_TextureDepthStencil(0)
         , m_RenderPass(VK_NULL_HANDLE)
         , m_Framebuffer(VK_NULL_HANDLE)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_SubPassCount(0)
+        , m_SubPassIndex(0)
     {
         m_Extent.width  = 0;
         m_Extent.height = 0;
