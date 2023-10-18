@@ -201,10 +201,10 @@ namespace dmGraphics
 
     enum TextureUsageHint
     {
-        TEXTURE_USAGE_HINT_NONE      = 0,
-        TEXTURE_USAGE_HINT_SAMPLE    = 1,
-        TEXTURE_USAGE_HINT_TRANSIENT = 2,
-        TEXTURE_USAGE_HINT_INPUT     = 4,
+        TEXTURE_USAGE_HINT_NONE       = 0,
+        TEXTURE_USAGE_HINT_SAMPLE     = 1,
+        TEXTURE_USAGE_HINT_MEMORYLESS = 2,
+        TEXTURE_USAGE_HINT_INPUT      = 4,
     };
 
     struct TextureCreationParams
@@ -217,7 +217,7 @@ namespace dmGraphics
         , m_OriginalWidth(0)
         , m_OriginalHeight(0)
         , m_MipMapCount(1)
-        , m_UsageHintBits(TEXTURE_USAGE_HINT_NONE)
+        , m_UsageHintBits(TEXTURE_USAGE_HINT_SAMPLE)
         {}
 
         TextureType m_Type;

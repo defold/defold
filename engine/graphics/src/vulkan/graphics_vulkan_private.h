@@ -80,19 +80,20 @@ namespace dmGraphics
             VkImageView m_ImageView;
         };
 
-        VulkanHandle   m_Handle;
-        TextureType    m_Type;
-        TextureFormat  m_GraphicsFormat;
-        VkFormat       m_Format;
-        DeviceBuffer   m_DeviceBuffer;
-        uint16_t       m_Width;
-        uint16_t       m_Height;
-        uint16_t       m_Depth;
-        uint16_t       m_OriginalWidth;
-        uint16_t       m_OriginalHeight;
-        uint16_t       m_MipMapCount         : 5;
-        uint16_t       m_TextureSamplerIndex : 10;
-        uint32_t       m_Destroyed           : 1;
+        VulkanHandle      m_Handle;
+        TextureType       m_Type;
+        TextureFormat     m_GraphicsFormat;
+        VkFormat          m_Format;
+        VkImageUsageFlags m_UsageFlags;
+        DeviceBuffer      m_DeviceBuffer;
+        uint16_t          m_Width;
+        uint16_t          m_Height;
+        uint16_t          m_Depth;
+        uint16_t          m_OriginalWidth;
+        uint16_t          m_OriginalHeight;
+        uint16_t          m_MipMapCount         : 5;
+        uint16_t          m_TextureSamplerIndex : 10;
+        uint32_t          m_Destroyed           : 1;
 
         const VulkanResourceType GetType();
     };

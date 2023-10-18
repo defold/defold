@@ -233,7 +233,7 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
     engine->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
 
-    //////////// RENDER PASS ////////////
+    //////////// RENDER TARGET ////////////
     dmGraphics::RenderTargetCreationParams p = {};
 
     for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
@@ -249,11 +249,11 @@ static void* EngineCreate(int argc, char** argv)
         p.m_ColorBufferParams[i].m_Height = 512;
     }
 
-    p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_HINT_INPUT | dmGraphics::TEXTURE_USAGE_HINT_TRANSIENT;
+    p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_HINT_INPUT | dmGraphics::TEXTURE_USAGE_HINT_MEMORYLESS;
 
-    engine->m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext,
-        dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
+    engine->m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
 
+    //////////// RENDER PASS ////////////
     uint8_t sub_pass_0_color_attachments[] = { 0 };
     uint8_t sub_pass_1_color_attachments[] = { 1 };
     uint8_t sub_pass_1_input_attachments[] = { 0 };
