@@ -229,7 +229,7 @@ public class ResourceGraph implements IResourceVisitor {
         return excludedResources;
     }
 
-    public void writeJSON(ResourceNode node, JsonGenerator generator) throws IOException {
+    public void writeJSON(ResourceNode node, JsonGenerator generator, boolean shouldPublishLU) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName("path");
         generator.writeString(node.getPath());
@@ -242,8 +242,10 @@ public class ResourceGraph implements IResourceVisitor {
             generator.writeString(node.getNodeTypeAsString());
         }
 
-        generator.writeFieldName("isInMainBundle");
-        generator.writeBoolean(node.isInMainBundle());
+        if (shouldPublishLU) {
+            generator.writeFieldName("isInMainBundle");
+            generator.writeBoolean(node.isInMainBundle());
+        }
 
         generator.writeFieldName("children");
         generator.writeStartArray();
@@ -256,15 +258,15 @@ public class ResourceGraph implements IResourceVisitor {
     }
 
     private void writeJSON(Writer writer) throws IOException {
-
+        boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
         JsonGenerator generator = null;
         try {
             generator = (new JsonFactory()).createJsonGenerator(writer);
             generator.useDefaultPrettyPrinter();
             generator.writeStartArray();
-            writeJSON(root, generator);
+            writeJSON(root, generator, shouldPublishLU);
             for (ResourceNode node : resourceNodes) {
-                writeJSON(node, generator);
+                writeJSON(node, generator, shouldPublishLU);
             }
             generator.writeEndArray();
         }
