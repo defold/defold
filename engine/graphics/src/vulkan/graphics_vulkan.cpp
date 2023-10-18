@@ -4055,11 +4055,6 @@ bail:
             VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
             vkCmdNextSubpass(vk_command_buffer, VK_SUBPASS_CONTENTS_INLINE);
             rt->m_SubPassIndex++;
-
-            if (rt->m_SubPassIndex >= rt->m_SubPassCount)
-            {
-                rt->m_SubPassIndex = 0;
-            }
         }
     }
 
