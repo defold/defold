@@ -406,7 +406,7 @@ namespace dmGraphics
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
-        VkImageUsageFlags vk_usage_flags          = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        VkImageUsageFlags vk_usage_flags          = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | depth_stencil_texture_out->m_UsageFlags;
 
         VkResult res = CreateTexture2D(
             vk_physical_device, vk_device, width, height, 1, 1,
@@ -3171,6 +3171,21 @@ bail:
         renderTarget->m_RenderPass = VK_NULL_HANDLE;
     }
 
+    static inline VkImageUsageFlags GetVulkanUsageFromHints(uint8_t hint_bits)
+    {
+        VkImageUsageFlags vk_flags = 0;
+
+    #define APPEND_IF_SET(usage_hint, vk_enum) \
+        if (hint_bits & usage_hint) vk_flags |= vk_enum;
+
+        APPEND_IF_SET(TEXTURE_USAGE_HINT_SAMPLE,     VK_IMAGE_USAGE_SAMPLED_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_HINT_MEMORYLESS, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_HINT_INPUT,      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+    #undef APPEND_IF_SET
+
+        return vk_flags;
+    }
+
     static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
@@ -3228,10 +3243,11 @@ bail:
                     vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
                 }
 
-                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-
                 HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, new_texture_color_handle);
+
+                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
+
                 VkResult res = CreateTexture2D(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_Device,
@@ -3391,7 +3407,7 @@ bail:
             {
                 VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, rt->m_TextureColor[i]);
 
-                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
 
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(
@@ -3460,6 +3476,7 @@ bail:
         tex->m_Height      = params.m_Height;
         tex->m_Depth       = params.m_Depth;
         tex->m_MipMapCount = params.m_MipMapCount;
+        tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
 
         if (params.m_OriginalWidth == 0)
         {
@@ -3726,16 +3743,19 @@ bail:
         {
             assert(!params.m_SubUpdate);
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
-            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
             if (!use_stage_buffer)
             {
-                vk_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
+                vk_usage_flags = 0;
                 vk_memory_type = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             }
+
+            // JG: Investigate - can we use VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT when transient usage is set?
+            vk_usage_flags |= texture->m_UsageFlags;
 
             // Check this format for optimal layout support
             if (VK_FORMAT_UNDEFINED == GetSupportedTilingFormat(vk_physical_device, &vk_format,
