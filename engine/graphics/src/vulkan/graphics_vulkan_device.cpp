@@ -720,6 +720,13 @@ bail:
         vk_memory_alloc_info.memoryTypeIndex = 0;
 
         uint32_t memory_type_index = 0;
+
+        // Lazy / memorless might not be supported on this platform
+        if (vk_memory_flags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT && !GetMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
+        {
+            vk_memory_flags ^= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+        }
+
         if (!GetMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
         {
             res = VK_ERROR_INITIALIZATION_FAILED;
@@ -821,8 +828,8 @@ bail:
 
             attachment_color.format         = colorAttachments[i].m_Format;
             attachment_color.samples        = vk_sample_flags;
-            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_color.loadOp         = colorAttachments[i].m_LoadOp;
+            attachment_color.storeOp        = colorAttachments[i].m_StoreOp;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;

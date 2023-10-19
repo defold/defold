@@ -172,6 +172,10 @@ namespace dmGraphics
     {
     	RenderTarget(const uint32_t rtId);
 
+        AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float          m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_DepthStencilTextureParams;
@@ -207,8 +211,10 @@ namespace dmGraphics
 
     struct RenderPassAttachment
     {
-        VkFormat      m_Format;
-        VkImageLayout m_ImageLayout;
+        VkFormat            m_Format;
+        VkImageLayout       m_ImageLayout;
+        VkAttachmentLoadOp  m_LoadOp;
+        VkAttachmentStoreOp m_StoreOp;
     };
 
     struct QueueFamily

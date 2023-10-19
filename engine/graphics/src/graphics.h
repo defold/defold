@@ -199,6 +199,14 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
+    enum AttachmentOp
+    {
+        ATTACHMENT_OP_DONT_CARE,
+        ATTACHMENT_OP_LOAD,
+        ATTACHMENT_OP_STORE,
+        ATTACHMENT_OP_CLEAR,
+    };
+
     enum TextureUsageHint
     {
         TEXTURE_USAGE_HINT_NONE       = 0,
@@ -278,6 +286,15 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+
+        // TODO: Depth/Stencil
+    #endif
+
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
     };

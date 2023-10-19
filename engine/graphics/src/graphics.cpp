@@ -505,6 +505,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RG32F:              return 64;
         case TEXTURE_FORMAT_RGBA32UI:           return 128;
         case TEXTURE_FORMAT_BGRA8U:             return 32;
+        case TEXTURE_FORMAT_R32UI:              return 32;
         default:
             assert(false && "Unknown texture format");
             return TEXTURE_FORMAT_COUNT;
@@ -1272,9 +1273,9 @@ namespace dmGraphics
     {
         return g_functions.m_CopyBufferToTexture(context, buffer, texture, params);
     }
-    void SetRenderTargetAttachments(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment)
+    void SetRenderTargetAttachments(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, const AttachmentOp* color_attachment_load_ops, const AttachmentOp* color_attachment_store_ops, HTexture depth_stencil_attachment)
     {
-        return g_functions.m_SetRenderTargetAttachments(context, render_target, color_attachments, num_color_attachments, depth_stencil_attachment);
+        return g_functions.m_SetRenderTargetAttachments(context, render_target, color_attachments, num_color_attachments, color_attachment_load_ops, color_attachment_store_ops, depth_stencil_attachment);
     }
     void SetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location)
     {

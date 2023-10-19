@@ -110,7 +110,12 @@ namespace dmGraphics
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_RenderDocSupport        = params.m_RenderDocSupport;
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+    }
+
+    static inline bool IsTextureMemoryless(VulkanTexture* texture)
+    {
+        return texture->m_UsageFlags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
     }
 
     static inline uint32_t GetNextRenderTargetId()
@@ -328,7 +333,13 @@ namespace dmGraphics
         // Clear color
         for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
         {
-            vk_clear_values[i].color.float32[3]     = 1.0f;
+            vk_clear_values[i].color.float32[3] = 1.0f;
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+            vk_clear_values[i].color.float32[0] = rt->m_ColorAttachmentClearValue[i][0];
+            vk_clear_values[i].color.float32[1] = rt->m_ColorAttachmentClearValue[i][1];
+            vk_clear_values[i].color.float32[2] = rt->m_ColorAttachmentClearValue[i][2];
+            vk_clear_values[i].color.float32[3] = rt->m_ColorAttachmentClearValue[i][3];
+    #endif
         }
 
         // Clear depth
@@ -407,12 +418,18 @@ namespace dmGraphics
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
         VkImageUsageFlags vk_usage_flags          = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | depth_stencil_texture_out->m_UsageFlags;
+        VkMemoryPropertyFlags vk_memory_type      = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+        if (IsTextureMemoryless(depth_stencil_texture_out))
+        {
+            vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+        }
 
         VkResult res = CreateTexture2D(
             vk_physical_device, vk_device, width, height, 1, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling,
             vk_usage_flags,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            vk_memory_type,
             vk_aspect_flags,
             VK_IMAGE_LAYOUT_UNDEFINED,
             depth_stencil_texture_out);
@@ -534,14 +551,22 @@ namespace dmGraphics
         RenderPassAttachment* attachment_resolve = 0;
         attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
         attachments[0].m_ImageLayout = context->m_SwapChain->HasMultiSampling() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        attachments[0].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[0].m_StoreOp     = VK_ATTACHMENT_STORE_OP_STORE;
+
         attachments[1].m_Format      = depth_stencil_texture->m_Format;
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachments[1].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].m_StoreOp     = VK_ATTACHMENT_STORE_OP_STORE;
 
         // Set third attachment as framebuffer resolve attachment
         if (context->m_SwapChain->HasMultiSampling())
         {
             attachments[2].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
             attachments[2].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            attachments[2].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachments[2].m_StoreOp     = VK_ATTACHMENT_STORE_OP_STORE;
+
             attachment_resolve = &attachments[2];
         }
 
@@ -827,6 +852,7 @@ namespace dmGraphics
 
                                             // Misc formats
                                             TEXTURE_FORMAT_RGBA32UI,
+                                            TEXTURE_FORMAT_R32UI,
 
                                             // Apparently these aren't supported on macOS/Metal
                                             TEXTURE_FORMAT_RGB_16BPP,
@@ -3085,8 +3111,34 @@ bail:
             case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
             case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
             case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
+            case TEXTURE_FORMAT_R32UI:              return VK_FORMAT_R32_UINT;
             default:                                return VK_FORMAT_UNDEFINED;
         };
+    }
+
+    static inline VkAttachmentStoreOp VulkanStoreOp(AttachmentOp op)
+    {
+        switch(op)
+        {
+            case ATTACHMENT_OP_STORE:     return VK_ATTACHMENT_STORE_OP_STORE;
+            case ATTACHMENT_OP_DONT_CARE: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            default:break;
+        }
+        assert(0);
+        return (VkAttachmentStoreOp) -1;
+    }
+
+    static inline VkAttachmentLoadOp VulkanLoadOp(AttachmentOp op)
+    {
+        switch(op)
+        {
+            case ATTACHMENT_OP_LOAD:      return VK_ATTACHMENT_LOAD_OP_LOAD;
+            case ATTACHMENT_OP_CLEAR:     return VK_ATTACHMENT_LOAD_OP_CLEAR;
+            case ATTACHMENT_OP_DONT_CARE: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            default:break;
+        }
+        assert(0);
+        return (VkAttachmentLoadOp) -1;
     }
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, RenderTarget* rtOut)
@@ -3102,7 +3154,6 @@ bail:
         uint16_t    fb_width            = 0;
         uint16_t    fb_height           = 0;
 
-
         for (int i = 0; i < num_color_textures; ++i)
         {
             VulkanTexture* color_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, color_textures[i]);
@@ -3115,6 +3166,16 @@ bail:
             RenderPassAttachment* rp_attachment_color = &rp_attachments[i];
             rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
+
+            rp_attachment_color->m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            rp_attachment_color->m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
+
+        #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+            rp_attachment_color->m_LoadOp  = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
+            rp_attachment_color->m_StoreOp = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
+
+        #endif
+
             fb_attachments[fb_attachment_count++]     = color_texture_ptr->m_Handle.m_ImageView;
         }
 
@@ -3246,7 +3307,13 @@ bail:
                 HTexture new_texture_color_handle = NewTexture(context, params.m_ColorBufferCreationParams[i]);
                 VulkanTexture* new_texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, new_texture_color_handle);
 
-                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
+                VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
+                VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+                if (IsTextureMemoryless(new_texture_color))
+                {
+                    vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+                }
 
                 VkResult res = CreateTexture2D(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
@@ -3256,7 +3323,7 @@ bail:
                     vk_color_format,
                     VK_IMAGE_TILING_OPTIMAL,
                     vk_usage_flags,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    vk_memory_type,
                     VK_IMAGE_ASPECT_COLOR_BIT,
                     VK_IMAGE_LAYOUT_UNDEFINED,
                     new_texture_color);
@@ -3405,9 +3472,14 @@ bail:
 
             if (rt->m_TextureColor[i])
             {
-                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VulkanTexture* texture_color         = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, rt->m_TextureColor[i]);
+                VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
+                VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-                VkImageUsageFlags vk_usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
+                if (IsTextureMemoryless(texture_color))
+                {
+                    vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+                }
 
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(
@@ -3417,7 +3489,7 @@ bail:
                     texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL,
                     vk_usage_flags,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    vk_memory_type,
                     VK_IMAGE_ASPECT_COLOR_BIT,
                     VK_IMAGE_LAYOUT_PREINITIALIZED,
                     texture_color);
@@ -3470,6 +3542,14 @@ bail:
     {
         VulkanTexture* tex = new VulkanTexture;
         InitializeVulkanTexture(tex);
+
+    #ifdef __MACH__
+        if (params.m_UsageHintBits & dmGraphics::TEXTURE_USAGE_HINT_INPUT &&
+            params.m_UsageHintBits & dmGraphics::TEXTURE_USAGE_HINT_MEMORYLESS)
+        {
+            dmLogWarning("Using both usage hints 'TEXTURE_USAGE_HINT_INPUT' and 'TEXTURE_USAGE_HINT_MEMORYLESS' when creating a texture on MoltenVK is not supported. The texture will not be created as memoryless.");
+        }
+    #endif
 
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
@@ -3728,6 +3808,8 @@ bail:
         }
 
         bool use_stage_buffer = true;
+        bool memoryless = IsTextureMemoryless(texture);
+
 #if defined(DM_PLATFORM_IOS)
         // Can't use a staging buffer for MoltenVK when we upload
         // PVRTC textures.
@@ -3754,8 +3836,12 @@ bail:
                 vk_memory_type = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             }
 
-            // JG: Investigate - can we use VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT when transient usage is set?
             vk_usage_flags |= texture->m_UsageFlags;
+
+            if (memoryless)
+            {
+                vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+            }
 
             // Check this format for optimal layout support
             if (VK_FORMAT_UNDEFINED == GetSupportedTilingFormat(vk_physical_device, &vk_format,
@@ -3766,16 +3852,25 @@ bail:
                 texture->m_MipMapCount = 1;
             }
 
-            VkResult res = CreateTexture2D(vk_physical_device, logical_device.m_Device,
-                texture->m_Width, texture->m_Height, tex_layer_count, texture->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT,
-                vk_format, vk_image_tiling, vk_usage_flags,
-                vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
+            VkResult res = CreateTexture2D(
+                vk_physical_device, logical_device.m_Device,
+                texture->m_Width, texture->m_Height, tex_layer_count, texture->m_MipMapCount,
+                VK_SAMPLE_COUNT_1_BIT,
+                vk_format,
+                vk_image_tiling,
+                vk_usage_flags,
+                vk_memory_type,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                vk_initial_layout,
+                texture);
             CHECK_VK_ERROR(res);
         }
 
-        tex_data_size = (int) ceil((float) tex_data_size / 8.0f);
-
-        CopyToTexture(g_VulkanContext, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
+        if (!memoryless)
+        {
+            tex_data_size = (int) ceil((float) tex_data_size / 8.0f);
+            CopyToTexture(g_VulkanContext, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
+        }
 
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
@@ -4215,7 +4310,7 @@ bail:
         delete[] vk_attachments;
     }
 
-    static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment)
+    static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, const AttachmentOp* color_attachment_load_ops, const AttachmentOp* color_attachment_store_ops, HTexture depth_stencil_attachment)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
@@ -4240,6 +4335,16 @@ bail:
             VulkanTexture* attachment            = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, color_attachments[i]);
             rt->m_ColorTextureParams[i].m_Width  = attachment->m_Width;
             rt->m_ColorTextureParams[i].m_Height = attachment->m_Height;
+
+            if (color_attachment_load_ops)
+                rt->m_ColorBufferLoadOps[i] = color_attachment_load_ops[i];
+            else
+                rt->m_ColorBufferLoadOps[i] = ATTACHMENT_OP_DONT_CARE;
+
+            if (color_attachment_store_ops)
+                rt->m_ColorBufferStoreOps[i] = color_attachment_store_ops[i];
+            else
+                rt->m_ColorBufferStoreOps[i] = ATTACHMENT_OP_STORE;
         }
 
         if (depth_stencil_attachment)

@@ -175,7 +175,7 @@ namespace dmGraphics
     typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
     typedef void (*CopyBufferToTextureFn)(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
-    typedef void (*SetRenderTargetAttachmentsFn)(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, HTexture depth_stencil_attachment);
+    typedef void (*SetRenderTargetAttachmentsFn)(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, const AttachmentOp* color_attachment_load_ops, const AttachmentOp* color_attachment_store_ops, HTexture depth_stencil_attachment);
     typedef void (*SetConstantBufferFn)(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
     typedef HTexture (*GetActiveSwapChainTextureFn)(HContext context);
     typedef void (*DrawElementsInstancedFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
