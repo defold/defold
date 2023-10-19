@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -258,7 +258,7 @@ namespace dmResource
 
     /**
      * Register a resource type
-     * @param factory Factory handle
+     * @param factory [type: dmResource::HFactory] Factory handle
      * @param extension File extension for resource
      * @param context User context
      * @param preload_function Preload function. Optional, 0 if no preloading is used
@@ -497,7 +497,7 @@ namespace dmResource
 
     /*#
      * Returns the canonical path hash of a resource
-     * @param factory Factory handle
+     * @param factory [type: dmResource::HFactory] Factory handle
      * @param resource Resource
      * @param hash Returned hash
      * @return RESULT_OK on success
@@ -515,11 +515,35 @@ namespace dmResource
     typedef Result (*FDecryptResource)(void* buffer, uint32_t buffer_len);
 
     /*#
-     * Returns the canonical path hash of a resource
+     * Registers a custom resource decryption function
      * @name RegisterResourceDecryptionFunction
      * @param decrypt_resource [type: dmResource::FDecryptResource] The decryption function
     */
     void RegisterResourceDecryptionFunction(FDecryptResource decrypt_resource);
+
+    /*#
+     * Adds a file to the resource system
+     * Any request for this path will go through any existing mounts first.
+     * If you wish to provide file overrides, please use the LiveUpdate feature for that.
+     * The file isn't persisted between sessions.
+     *
+     * @name AddFile
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param path [type: const char*] The path of the resource
+     * @param size [type: uint32_t] The size of the resource (in bytes)
+     * @param resource [type: const void*] The resource payload
+     * @return RESULT_OK on success.
+     */
+    Result AddFile(HFactory factory, const char* path, uint32_t size, const void* resource);
+
+    /*#
+     * Removes a previously registered file from the resource system
+     * @name RemoveFile
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param path [type: const char*] The path of the resource
+     * @return RESULT_OK on success.
+     */
+    Result RemoveFile(HFactory factory, const char* path);
 }
 
 #endif // DMSDK_RESOURCE_H
