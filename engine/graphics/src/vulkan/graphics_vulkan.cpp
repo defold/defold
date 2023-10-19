@@ -4310,7 +4310,7 @@ bail:
         delete[] vk_attachments;
     }
 
-    static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, const AttachmentOp* color_attachment_load_ops, const AttachmentOp* color_attachment_store_ops, HTexture depth_stencil_attachment)
+    static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
@@ -4329,37 +4329,25 @@ bail:
         };
 
         BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
-        for (int i = 0; i < num_color_attachments; ++i)
+        for (int i = 0; i < params.m_ColorAttachmentsCount; ++i)
         {
             buffer_types[i]                      = color_buffer_flags[i];
-            VulkanTexture* attachment            = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, color_attachments[i]);
+            VulkanTexture* attachment            = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, params.m_ColorAttachments[i]);
             rt->m_ColorTextureParams[i].m_Width  = attachment->m_Width;
             rt->m_ColorTextureParams[i].m_Height = attachment->m_Height;
+            rt->m_ColorBufferLoadOps[i]          = params.m_ColorAttachmentLoadOps[i];
+            rt->m_ColorBufferStoreOps[i]         = params.m_ColorAttachmentStoreOps[i];
 
-            if (color_attachment_load_ops)
-                rt->m_ColorBufferLoadOps[i] = color_attachment_load_ops[i];
-            else
-                rt->m_ColorBufferLoadOps[i] = ATTACHMENT_OP_DONT_CARE;
-
-            if (color_attachment_store_ops)
-                rt->m_ColorBufferStoreOps[i] = color_attachment_store_ops[i];
-            else
-                rt->m_ColorBufferStoreOps[i] = ATTACHMENT_OP_STORE;
+            if (params.m_ColorAttachmentLoadOps[i] == ATTACHMENT_OP_CLEAR)
+            {
+                memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorAttachmentClearValues[i], sizeof(float) * 4);
+            }
         }
 
-        if (depth_stencil_attachment)
-        {
-            buffer_types[num_color_attachments    ]  = BUFFER_TYPE_DEPTH_BIT;
-            buffer_types[num_color_attachments + 1]  = BUFFER_TYPE_STENCIL_BIT;
-            VulkanTexture* attachment                = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, depth_stencil_attachment);
-            rt->m_DepthStencilTextureParams.m_Width  = attachment->m_Width;
-            rt->m_DepthStencilTextureParams.m_Height = attachment->m_Height;
-        }
-
-        VkResult res = CreateRenderTarget(context, color_attachments, buffer_types, num_color_attachments, depth_stencil_attachment, rt);
+        VkResult res = CreateRenderTarget(context, (HTexture*) params.m_ColorAttachments, buffer_types, params.m_ColorAttachmentsCount, 0, rt);
         CHECK_VK_ERROR(res);
 
-        rt->m_ColorAttachmentCount = num_color_attachments;
+        rt->m_ColorAttachmentCount = params.m_ColorAttachmentsCount;
 
     }
 

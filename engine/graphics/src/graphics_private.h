@@ -70,6 +70,15 @@ namespace dmGraphics
         uint8_t              m_DependencyCount;
     };
 
+    struct SetRenderTargetAttachmentsParams
+    {
+        HTexture     m_ColorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp m_ColorAttachmentLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp m_ColorAttachmentStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float        m_ColorAttachmentClearValues[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        uint32_t     m_ColorAttachmentsCount;
+    };
+
     uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t        GetGraphicsTypeDataSize(Type type);
     const char*     GetGraphicsTypeLiteral(Type type);
@@ -112,7 +121,7 @@ namespace dmGraphics
 
     // Experimental only functions:
     void     CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
-    void     SetRenderTargetAttachments(HContext context, HRenderTarget render_target, HTexture* color_attachments, uint32_t num_color_attachments, const AttachmentOp* color_attachment_load_ops, const AttachmentOp* color_attachment_store_ops, HTexture depth_stencil_attachment);
+    void     SetRenderTargetAttachments(HContext context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params);
     void     SetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
     HTexture GetActiveSwapChainTexture(HContext _context);
     void     DrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
