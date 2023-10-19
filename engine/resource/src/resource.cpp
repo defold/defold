@@ -1312,6 +1312,18 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
+Result AddFile(HFactory factory, const char* path, uint32_t size, const void* resource)
+{
+    dmResourceMounts::HContext mounts = GetMountsContext(factory);
+    return dmResourceMounts::AddFile(mounts, dmHashString64(path), size, resource);
+}
+
+Result RemoveFile(HFactory factory, const char* path)
+{
+    dmResourceMounts::HContext mounts = GetMountsContext(factory);
+    return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
+}
+
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
 {
     return factory->m_LoadMutex;
