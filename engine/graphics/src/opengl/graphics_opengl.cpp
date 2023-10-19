@@ -1793,8 +1793,11 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
-            glDisableVertexAttribArray(i);
-            CHECK_GL_ERROR;
+            if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
+            {
+                glDisableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
+                CHECK_GL_ERROR;
+            }
         }
 
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
