@@ -67,6 +67,28 @@ namespace dmGraphics
         uint32_t                     m_BufferTypeFlags;
     };
 
+    struct OpenglVertexAttribute
+    {
+        dmhash_t m_NameHash;
+        int32_t  m_Location;
+        GLint    m_Count;
+        GLenum   m_Type;
+    };
+
+    struct OpenGLConstantValue
+    {
+        bool    m_ValueSet;
+        // The maximum size of a constant is 64 bytes (4x4 matrix is the largest).
+        uint8_t m_Value[64];
+    };
+
+    struct OpenGLProgram
+    {
+        GLuint                         m_Id;
+        dmArray<OpenglVertexAttribute> m_Attributes;
+        dmArray<OpenGLConstantValue>   m_ConstantValues;
+    };
+
     struct OpenGLContext
     {
         OpenGLContext(const ContextParams& params);
@@ -87,6 +109,7 @@ namespace dmGraphics
         WindowIconifyCallback   m_WindowIconifyCallback;
         void*                   m_WindowIconifyCallbackUserData;
         PipelineState           m_PipelineState;
+        OpenGLProgram*          m_ActiveProgram;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
@@ -141,20 +164,6 @@ namespace dmGraphics
     struct OpenGLShader
     {
         GLuint m_Id;
-    };
-
-    struct OpenglVertexAttribute
-    {
-        dmhash_t m_NameHash;
-        int32_t  m_Location;
-        GLint    m_Count;
-        GLenum   m_Type;
-    };
-
-    struct OpenGLProgram
-    {
-        GLuint                         m_Id;
-        dmArray<OpenglVertexAttribute> m_Attributes;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

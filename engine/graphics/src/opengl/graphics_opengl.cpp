@@ -2122,15 +2122,22 @@ static void LogFrameBufferError(GLenum status)
         return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 
-    static void OpenGLEnableProgram(HContext context, HProgram program)
+    static void OpenGLEnableProgram(HContext _context, HProgram _program)
     {
-        glUseProgram(((OpenGLProgram*) program)->m_Id);
+        OpenGLProgram* program = (OpenGLProgram*) _program;
+        glUseProgram(program->m_Id);
         CHECK_GL_ERROR;
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+        context->m_ActiveProgram = program;
     }
 
-    static void OpenGLDisableProgram(HContext context)
+    static void OpenGLDisableProgram(HContext _context)
     {
         glUseProgram(0);
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+        context->m_ActiveProgram = 0;
     }
 
     static bool TryLinkProgram(HVertexProgram vert_program, HFragmentProgram frag_program)
@@ -2267,14 +2274,51 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static bool StoreConstantValue(HContext context, const void* data, const size_t size, HUniformLocation base_location)
+    {
+        assert(size <= 64);
+
+        OpenGLProgram* program = (OpenGLProgram*)((OpenGLContext*)context)->m_ActiveProgram;
+        assert(program);
+
+        dmArray<OpenGLConstantValue>& values = program->m_ConstantValues;
+        int32_t location = base_location;
+        if (values.Size() < location + 1)
+        {
+            values.SetCapacity(location + 1);
+            values.SetSize(location + 1);
+        }
+
+        OpenGLConstantValue& value = values[location];
+        if (value.m_ValueSet && memcmp(value.m_Value, data, size) == 0)
+        {
+            return true;
+        }
+
+        memcpy(value.m_Value, data, size);
+        value.m_ValueSet = true;
+
+        return false;
+    }
+
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
+        if (StoreConstantValue(context, data, count * 4 * sizeof(GLfloat), base_location))
+        {
+            return;
+        }
+
         glUniform4fv(base_location, count, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
+        if (StoreConstantValue(context, data, count * 16 * sizeof(GLfloat), base_location))
+        {
+            return;
+        }
+
         glUniformMatrix4fv(base_location, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
