@@ -649,7 +649,6 @@ namespace dmGameSystem
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
         const Point3& p, const Point3& p_local, const Matrix4& w, const float* uv, float page_index, SpriteAttributeInfo* sprite_infos)
     {
-        uint8_t* start = vertices_write_ptr;
         for (int i = 0; i < sprite_infos->m_NumInfos; ++i)
         {
             const SpriteAttributeInfo::Info* info = &sprite_infos->m_Infos[i];
