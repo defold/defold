@@ -136,6 +136,14 @@ namespace dmGraphics
 
          delete[] vk_layer_properties;
 
+
+    #ifdef __MACH__
+        if (!all_layers_found)
+        {
+            dmLogError("Vulkan validation layers have been requested, but none was found. OSX requires that the engine has been built with the '--with-vulkan-validation' build switch.");
+        }
+    #endif
+
          return all_layers_found;
     }
 
@@ -184,13 +192,25 @@ namespace dmGraphics
 
         int32_t enabled_layer_count = 0;
 
-        if (validationLayerCount > 0 && GetValidationSupport(validationLayers, validationLayerCount))
+        if (validationLayerCount > 0)
         {
-            enabled_layer_count = validationLayerCount;
-
-            for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
+            if (GetValidationSupport(validationLayers, validationLayerCount))
             {
-                vk_required_extensions.Push(validationLayerExtensions[i]);
+                enabled_layer_count = validationLayerCount;
+
+            #ifdef __MACH__
+                vk_required_extensions.OffsetCapacity(2);
+                vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+                vk_required_extensions.Push("VK_KHR_get_physical_device_properties2");
+            #else
+                vk_required_extensions.OffsetCapacity(1);
+                vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+            #endif
+
+                for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
+                {
+                    vk_required_extensions.Push(validationLayerExtensions[i]);
+                }
             }
         }
 
@@ -206,6 +226,7 @@ namespace dmGraphics
         vk_instance_create_info.ppEnabledExtensionNames = vk_required_extensions.Begin();
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
         vk_instance_create_info.ppEnabledLayerNames     = validationLayers;
+        vk_instance_create_info.flags                   = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
         VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)
