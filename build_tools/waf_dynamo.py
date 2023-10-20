@@ -1778,7 +1778,7 @@ def detect(conf):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LIB_OPENAL'] = ['OpenAL32']
-    elif platform in ('x86_64-linux','js-web','wasm-web'):
+    elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
@@ -1811,8 +1811,7 @@ def detect(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):
-        vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
-        conf.env['STLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
+        conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('arm64-ios','x86_64-ios'):
@@ -1896,3 +1895,4 @@ def options(opt):
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
+    opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')

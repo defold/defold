@@ -79,9 +79,8 @@ def configure(conf):
         if waflib.Options.options.with_vulkan and architecture == 'x86_64':
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
-            # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
-            validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))
-            conf.env.append_value('LINKFLAGS', ['-l', validation and 'vulkan' or 'MoltenVK'])
+            # Link with vulkan.dylib if the flag has been set (see graphics/vulkan/README.md) for more information
+            conf.env.append_value('LINKFLAGS', ['-l', waflib.Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'])
 
             # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
             conf.env.append_value('LINKFLAGS', ['-l', 'c++'])

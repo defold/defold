@@ -19,9 +19,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Comparator;
 
 import com.dynamo.bob.fs.IResource;
@@ -38,6 +37,8 @@ public class Task<T> {
     private List<IResource> outputs = new ArrayList<IResource>();
     private List<String> extraCacheKeys = new ArrayList<String>();
     private Task<?> productOf;
+
+    private HashSet<IResource> inputLookup = new HashSet<IResource>();
 
     public T data;
     private Builder<T> builder;
@@ -72,7 +73,7 @@ public class Task<T> {
         }
 
         public TaskBuilder<T> addInput(IResource input) {
-            if (!task.inputs.contains(input)){
+            if (task.inputLookup.add(input)) {
                 task.inputs.add(input);
             }
             return this;
