@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-DESKTOP_ENTRY_PATH=~/.local/share/applications/defold-editor-test.desktop
+DESKTOP_ENTRY_PATH=~/.local/share/applications/defold-editor.desktop
 PWD=$(pwd)
 
 touch $DESKTOP_ENTRY_PATH
 
 {
   echo "[Desktop Entry]"
-  echo "Name=Defold Editor TEST"
+  echo "Name=Defold Editor"
   echo "Comment=Run Defold Editor"
   echo "Terminal=false"
   echo "Type=Application"
