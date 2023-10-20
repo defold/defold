@@ -75,6 +75,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.url :as url]
+            [editor.util :as util]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -1686,6 +1687,9 @@ If you do not specifically require different script states, consider changing th
                {:label "Show Logs"
                 :command :show-logs}
                {:label :separator}
+               {:label "Create Desktop Entry" 
+                :command :create-desktop-entry}
+               {:label :separator}
                {:label "Documentation"
                 :command :documentation}
                {:label "Support Forum"
@@ -2619,3 +2623,7 @@ If you do not specifically require different script states, consider changing th
   (enabled? [] (disk-availability/available?))
   (run [app-view changes-view prefs workspace project]
        (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs project)))
+
+(handler/defhandler :create-desktop-entry :global
+  (enabled? [] (util/is-linux?))
+  (run [] (process/exec! "scripts/create-desktop-entry.sh") ))
