@@ -22,6 +22,7 @@ import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
 import com.dynamo.bob.tile.ConvexHull2D;
 import com.dynamo.bob.tile.TileSetUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.gamesys.proto.TextureSetProto;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
@@ -346,7 +347,7 @@ public class TextureSetGenerator {
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         layoutRects = clipBorders(layoutRects, extrudeBorders);
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(layoutWidth, layoutHeight, layoutRects, iterator);
 
         vertexData.left.setUseGeometries(use_geometries);
 
@@ -533,12 +534,17 @@ public class TextureSetGenerator {
         return new UVTransform(new Point2d(r.x * xs, 1 - r.y * ys), new Vector2d(xs * r.width, -ys * r.height), r.rotated);
     }
 
-    private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(int width, int height, List<Rect> rects, AnimIterator iterator) {
+    private static Pair<TextureSet.Builder, List<UVTransform>> buildData(int width, int height, List<Rect> rects, AnimIterator iterator) {
         TextureSet.Builder textureSet = TextureSet.newBuilder();
         ArrayList<UVTransform> uvTransforms = new ArrayList<>();
 
         int tileCount = rects.size();
         textureSet.setTileCount(tileCount);
+
+        for (Rect rect : rects) {
+            long hash = MurmurHash.hash64(rect.id);
+            textureSet.addImageNameHashes(hash);
+        }
 
         int quadCount = tileCount;
         while (iterator.nextAnim() != null) {

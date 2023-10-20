@@ -24,6 +24,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 
 import javax.imageio.ImageIO;
 
@@ -166,13 +168,15 @@ public class AtlasUtil {
         String transform(String path);
     }
 
+    private static char PATTERN_SEPARATOR = '=';
+
     private static String[] getReplaceTokens(String pattern) {
         // "=" -> 0 tokens
         // "abc=" -> 1 token:  ["abc"]
         // "=abc" -> 2 tokens: ["", "abc"]
         // "abc==" -> 1 token: ["abc"]
         // "abc=def=" -> 2 tokens: ["abc", "def"]
-        String tokens[] = pattern.split("=");
+        String tokens[] = pattern.split(String.format("%c", PATTERN_SEPARATOR));
         String out[] = new String[]{ "", "" };
 
         for (int i = 0; i < 2 && i < tokens.length; ++i) {
@@ -180,8 +184,6 @@ public class AtlasUtil {
         }
         return out;
     }
-
-    private static char PATTERN_SEPARATOR = '=';
 
     public static void validatePattern(String pattern) throws CompileExceptionError  {
         String trimmed = pattern.trim();
@@ -234,9 +236,8 @@ public class AtlasUtil {
         return s;
     }
 
-    private static String pathToId(String renamePatterns, String path) throws CompileExceptionError {
-        String baseName = FilenameUtils.removeExtension(FilenameUtils.getName(path));
-        return replaceStrings(renamePatterns, baseName);
+    private static String pathToId(String path) throws CompileExceptionError {
+        return FilenameUtils.removeExtension(FilenameUtils.getName(path));
     }
 
     // These are for the Atlas animation (i.e. not for the single frames)
@@ -251,9 +252,8 @@ public class AtlasUtil {
             animDescs.add(new MappedAnimDesc(anim.getId(), frameIds, anim.getPlayback(), anim.getFps(),
                     anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
-        String renamePatterns = atlas.getRenamePatterns();
         for (AtlasImage image : atlas.getImagesList()) {
-            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(renamePatterns, image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
+            MappedAnimDesc animDesc = new MappedAnimDesc(transformer.transform(image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
             animDescs.add(animDesc);
         }
 
@@ -279,20 +279,14 @@ public class AtlasUtil {
         Atlas atlas = builder.build();
 
         List<AtlasImage> atlasImages = collectImages(atlas);
-        List<String> imagePaths = new ArrayList<String>();
+        List<String> imageResourcePaths = new ArrayList<String>();
         List<Integer> imageHullSizes = new ArrayList<Integer>();
         for (AtlasImage image : atlasImages) {
-            imagePaths.add(image.getImage());
+            imageResourcePaths.add(image.getImage());
             imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
         }
-        List<IResource> imageResources = toResources(atlasResource, imagePaths);
+        List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
-        PathTransformer transformer = new PathTransformer() {
-            @Override
-            public String transform(String path) {
-                return project.getResource(path).getPath();
-            }
-        };
 
         try {
             validatePatterns(atlas.getRenamePatterns());
@@ -300,15 +294,46 @@ public class AtlasUtil {
             throw new CompileExceptionError(atlasResource, -1, e.getMessage());
         }
 
-        int imagePathCount = imagePaths.size();
-        for (int i = 0; i < imagePathCount; ++i) {
-            imagePaths.set(i, transformer.transform(imagePaths.get(i)));
+        // The transformer converts paths to basename
+        // It is not allowed to have duplicate names
+        final String renamePatterns = atlas.getRenamePatterns();
+        PathTransformer transformer = new PathTransformer() {
+            @Override
+            public String transform(String path) {
+                String resourcePath = project.getResource(path).getPath();
+                String baseName     = FilenameUtils.getBaseName(resourcePath);
+
+                try {
+                    return replaceStrings(renamePatterns, baseName);
+                } catch (CompileExceptionError e) {
+                    System.err.printf("AtlasUtil: Error transforming path: %s\n", e.getMessage());
+                }
+                return path;
+            }
+        };
+
+        // Make sure we don't accidentally create a duplicate due to the pattern renaming
+
+        List<String> imageNames = new ArrayList<String>();
+        Set<String> uniqueImageNames = new HashSet<String>();
+        int imageCount = imageResourcePaths.size();
+        for (int i = 0; i < imageCount; ++i) {
+
+            String imageName = transformer.transform(imageResourcePaths.get(i));
+            if (uniqueImageNames.contains(imageName)) {
+                String message = String.format("Image name '%s' is not unique. Created from path '%s' and rename patterns '%s'", imageName, imageResourcePaths.get(i), renamePatterns);
+                throw new CompileExceptionError(atlasResource, -1, message);
+            }
+
+            uniqueImageNames.add(imageName);
+            imageNames.add(imageName);
         }
 
+
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);;
-        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageNames);
         try {
-            TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imageNames, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
