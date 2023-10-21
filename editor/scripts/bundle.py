@@ -27,7 +27,6 @@ import subprocess
 import zipfile
 import configparser
 import datetime
-import imp
 import fnmatch
 import urllib
 import urllib.parse
@@ -104,9 +103,20 @@ def extract(file, path, is_mac):
 
 modules = {}
 
+def import_lib(module_name, path):
+    import importlib
+    # Normally a finder would get you the loader and spec.
+    loader = importlib.machinery.SourceFileLoader(module_name, path)
+    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
+    # Basically what import does when there is no loader.create_module().
+    module = importlib.util.module_from_spec(spec)
+    # Now is the time to put the module in sys.modules if you want.
+    # How import initializes the module.
+    loader.exec_module(module)
+
 def download(url):
     if not modules.__contains__('http_cache'):
-        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
+        modules['http_cache'] = import_lib('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
     log('Downloading %s' % (url))
     path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
     if not path:

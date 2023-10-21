@@ -46,6 +46,7 @@ sys.dont_write_bytecode = True
 try:
     import build_vendor
     sys.modules['build_private'] = build_vendor
+    print("Imported %s from %s" % ('build_private', build_vendor.__file__))
 except ModuleNotFoundError:
     pass
 except Exception as e:
