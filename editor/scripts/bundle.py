@@ -27,6 +27,7 @@ import subprocess
 import zipfile
 import configparser
 import datetime
+import importlib
 import fnmatch
 import urllib
 import urllib.parse
@@ -104,7 +105,6 @@ def extract(file, path, is_mac):
 modules = {}
 
 def import_lib(module_name, path):
-    import importlib
     # Normally a finder would get you the loader and spec.
     loader = importlib.machinery.SourceFileLoader(module_name, path)
     spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
