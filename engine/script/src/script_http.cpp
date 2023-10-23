@@ -276,6 +276,10 @@ namespace dmScript
                 params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", params.m_ThreadCount);
                 params.m_UseHttpCache = dmConfigFile::GetInt(config_file, "network.http_cache_enabled", params.m_UseHttpCache);
             }
+#if defined(DM_NO_HTTP_CACHE)
+            params.m_UseHttpCache = 0;
+#endif
+
             g_Service = dmHttpService::New(&params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
         }

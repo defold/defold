@@ -16,7 +16,6 @@
 #define DM_SPINLOCKTYPES_PTHREAD_H
 
 #include <assert.h>
-#include <stdint.h>
 #include <pthread.h>
 namespace dmSpinlock
 {

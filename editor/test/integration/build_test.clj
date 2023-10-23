@@ -179,7 +179,6 @@
                              (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
                              (is (= 3 (count (:bones skeleton))))
-                             (is (= (set (:bone-list mesh-set)) (set (:bone-list animation-set))))
                              (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))
                              (is (contains? targets (:material (first (:materials pb)))))
                              (is (contains? targets (:texture (first (:textures (first (:materials pb)))))))))}]

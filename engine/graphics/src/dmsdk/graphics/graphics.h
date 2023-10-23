@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -86,6 +86,13 @@ namespace dmGraphics
     typedef uintptr_t HIndexBuffer;
 
     /*#
+     * Uniform location handle
+     * @typedef
+     * @name HUniformLocation
+     */
+    typedef int64_t HUniformLocation;
+
+    /*#
      * Vertex declaration handle
      * @typedef
      * @name HVertexDeclaration
@@ -162,6 +169,7 @@ namespace dmGraphics
      * @member TEXTURE_FORMAT_RG16F
      * @member TEXTURE_FORMAT_R32F
      * @member TEXTURE_FORMAT_RG32F
+     * @member TEXTURE_FORMAT_RGBA32UI
      * @member TEXTURE_FORMAT_COUNT
      */
     enum TextureFormat
@@ -198,13 +206,30 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG16F                = 27,
         TEXTURE_FORMAT_R32F                 = 28,
         TEXTURE_FORMAT_RG32F                = 29,
+        // Internal formats (not exposed via script APIs)
+        TEXTURE_FORMAT_RGBA32UI             = 30,
 
         TEXTURE_FORMAT_COUNT
     };
 
+    /*#
+     * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
+     * @name GetRenderTargetAttachment
+     * @param render_target [type: dmGraphics::HRenderTarget] the render target
+     * @param attachment_type [type: dmGraphics::RenderTargetAttachment] the attachment to get
+     * @return attachment [type: dmGraphics::HTexture] the attachment texture
+     */
     HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
-    HandleResult GetTextureHandle(HTexture texture, void** out_handle);
 
+    /*#
+     * Get the native graphics API texture object from an engine texture handle. This depends on the graphics backend and is not
+     * guaranteed to be implemented on the currently running adapter.
+     * @name GetTextureHandle
+     * @param texture [type: dmGraphics::HTexture] the texture handle
+     * @param out_handle [type: void**] a pointer to where the raw object should be stored
+     * @return handle_result [type: dmGraphics::HandleResult] the result of the query
+     */
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle);
 
     /*#
      * @enum

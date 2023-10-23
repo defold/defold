@@ -61,9 +61,10 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
-    static const dmhash_t VERTEX_STREAM_POSITION  = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0 = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR     = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
 
@@ -169,19 +170,31 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_POSITION,  3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_TEXCOORD0, 2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_COLOR,     4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_POSITION,   3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_TEXCOORD0,  2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_COLOR,      4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_PAGE_INDEX, 1, dmGraphics::TYPE_FLOAT, false);
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], VERTEX_STREAM_POSITION,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, 3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], VERTEX_STREAM_TEXCOORD0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, 2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,     dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    4);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   3);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   2);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
+
+        // Another way would be to use the vertex declaration, but that currently doesn't have an api
+        // and the buffer is well suited for this.
+        gui_world->m_BoxVertexStreamDeclarationCount = 4;
+        gui_world->m_BoxVertexStreamDeclaration = new dmBuffer::StreamDeclaration[gui_world->m_BoxVertexStreamDeclarationCount];
+        gui_world->m_BoxVertexStreamDeclaration[0] = {VERTEX_STREAM_POSITION,   dmBuffer::VALUE_TYPE_FLOAT32, 3};
+        gui_world->m_BoxVertexStreamDeclaration[1] = {VERTEX_STREAM_TEXCOORD0,  dmBuffer::VALUE_TYPE_FLOAT32, 2};
+        gui_world->m_BoxVertexStreamDeclaration[2] = {VERTEX_STREAM_COLOR,      dmBuffer::VALUE_TYPE_FLOAT32, 4};
+        gui_world->m_BoxVertexStreamDeclaration[3] = {VERTEX_STREAM_PAGE_INDEX, dmBuffer::VALUE_TYPE_FLOAT32, 1};
+        dmBuffer::CalcStructSize(gui_world->m_BoxVertexStreamDeclarationCount, gui_world->m_BoxVertexStreamDeclaration, &gui_world->m_BoxVertexStructSize, 0);
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
-        gui_world->m_ParticleAttributeInfos.m_NumInfos     = 3;
+        gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -1226,17 +1239,6 @@ namespace dmGameSystem
         uint32_t vertex_start = gui_world->m_ClientVertexBuffer.Size();
         uint32_t vertex_count = 0;
 
-        // Another way would be to use the vertex declaration, but that currently doesn't have an api
-        // and the buffer is well suited for this.
-        dmBuffer::StreamDeclaration boxvertex_stream_decl[] = {
-            {dmHashString64("position"),  dmBuffer::VALUE_TYPE_FLOAT32, 3},
-            {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_FLOAT32, 2},
-            {dmHashString64("color"),     dmBuffer::VALUE_TYPE_FLOAT32, 4},
-        };
-
-        uint32_t struct_size = 0;
-        dmBuffer::CalcStructSize(DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, &struct_size, 0);
-
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
@@ -1252,9 +1254,9 @@ namespace dmGameSystem
 
             // Ideally, dmBuffer would support dynamic arrays, but for now this is what we do
             dmArray<uint8_t> node_vertices;
-            type->m_GetVertices(&nodectx, DM_ARRAY_SIZE(boxvertex_stream_decl), boxvertex_stream_decl, struct_size, node_vertices);
+            type->m_GetVertices(&nodectx, gui_world->m_BoxVertexStreamDeclarationCount, gui_world->m_BoxVertexStreamDeclaration, gui_world->m_BoxVertexStructSize, node_vertices);
 
-            uint32_t node_vertex_count = node_vertices.Size() / struct_size;
+            uint32_t node_vertex_count = node_vertices.Size() / gui_world->m_BoxVertexStructSize;
             vertex_count += node_vertex_count;
 
             // Transform the vertices and modify the colors
@@ -1396,21 +1398,25 @@ namespace dmGameSystem
                 v00.SetColor(pm_color);
                 v00.SetPosition(node_transforms[i] * Point3(0, 0, 0));
                 v00.SetUV(0, 0);
+                v00.SetPageIndex(0);
 
                 BoxVertex v10;
                 v10.SetColor(pm_color);
                 v10.SetPosition(node_transforms[i] * Point3(1, 0, 0));
                 v10.SetUV(1, 0);
+                v10.SetPageIndex(0);
 
                 BoxVertex v01;
                 v01.SetColor(pm_color);
                 v01.SetPosition(node_transforms[i] * Point3(0, 1, 0));
                 v01.SetUV(0, 1);
+                v01.SetPageIndex(0);
 
                 BoxVertex v11;
                 v11.SetColor(pm_color);
                 v11.SetPosition(node_transforms[i] * Point3(1, 1, 0));
                 v11.SetUV(1, 1);
+                v11.SetPageIndex(0);
 
                 gui_world->m_ClientVertexBuffer.Push(v00);
                 gui_world->m_ClientVertexBuffer.Push(v10);
@@ -1423,10 +1429,20 @@ namespace dmGameSystem
                 continue;
             }
 
-            dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
-            dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
-            bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
+            uint32_t frame_index                         = 0;
+            uint32_t page_index                          = 0;
+            dmGui::TextureSetAnimDesc* anim_desc         = dmGui::GetNodeTextureSet(scene, node);
+            dmGameSystemDDF::TextureSet* texture_set_ddf = 0;
+            if (anim_desc)
+            {
+                texture_set_ddf        = (dmGameSystemDDF::TextureSet*) anim_desc->m_TextureSet;
+                frame_index            = dmGui::GetNodeAnimationFrame(scene, node);
+                frame_index            = texture_set_ddf->m_FrameIndices[frame_index];
+                uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
+                page_index             = page_indices[frame_index];
+            }
 
+            bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
             bool flip_u = false;
             bool flip_v = false;
             if (!manually_set_texture)
@@ -1437,9 +1453,6 @@ namespace dmGameSystem
             // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
             {
-                int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
-                frame_index = texture_set_ddf->m_FrameIndices[frame_index];
-
                 const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
 
                 const Matrix4& w = node_transforms[i];
@@ -1472,7 +1485,7 @@ namespace dmGameSystem
                     float y = point[1] * scaleY + 0.5f;
 
                     Vector4 p = w * Point3(x, y, 0.0f);
-                    BoxVertex v(p, uv[0], uv[1], pm_color);
+                    BoxVertex v(p, uv[0], uv[1], pm_color, page_index);
                     gui_world->m_ClientVertexBuffer.Push(v);
                 }
 
@@ -1558,6 +1571,11 @@ namespace dmGameSystem
             v10.SetColor(pm_color);
             v01.SetColor(pm_color);
             v11.SetColor(pm_color);
+
+            v00.SetPageIndex(page_index);
+            v10.SetPageIndex(page_index);
+            v01.SetPageIndex(page_index);
+            v11.SetPageIndex(page_index);
 
             for (int y=0;y<3;y++)
             {
@@ -1677,6 +1695,17 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
+            uint32_t page_index                  = 0;
+            dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
+            if (anim_desc)
+            {
+                dmGameSystemDDF::TextureSet* texture_set_ddf = (dmGameSystemDDF::TextureSet*) anim_desc->m_TextureSet;
+                uint32_t frame_index                         = dmGui::GetNodeAnimationFrame(scene, node);
+                frame_index                                  = texture_set_ddf->m_FrameIndices[frame_index];
+                uint32_t* page_indices                       = texture_set_ddf->m_PageIndices.m_Data;
+                page_index                                   = page_indices[frame_index];
+            }
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
@@ -1779,7 +1808,7 @@ namespace dmGameSystem
                 // make inner vertex
                 float u = 0.5f + innerMultiplier * c;
                 float v = 0.5f + innerMultiplier * s;
-                BoxVertex vInner(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
+                BoxVertex vInner(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
                 // make outer vertex
                 float d;
@@ -1790,7 +1819,7 @@ namespace dmGameSystem
 
                 u = 0.5f + d * c;
                 v = 0.5f + d * s;
-                BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
+                BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
                 // both inner & outer are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
@@ -1871,7 +1900,7 @@ namespace dmGameSystem
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
             prev_emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
         }
-        
+
         if (prev_node_type == dmGui::NODE_TYPE_TEXT)
         {
             prev_material = GetTextNodeMaterial(gui_context, scene, first_node, (dmRender::HFontMap) prev_font);

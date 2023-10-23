@@ -201,6 +201,41 @@ TEST(ModelCrashtest, FindSkinCrash)
     dmModelImporter::DestroyScene(scene);
 }
 
+// #8038 More than one skinned model
+TEST(ModelSkinnedTopNodes, MultipleModels)
+{
+    dmModelImporter::Scene* scene = TestLoading("./src/test/assets/kay/Knight.glb");
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+
+    ASSERT_EQ(1, scene->m_SkinsCount);
+    ASSERT_STREQ("Rig", scene->m_Skins[0].m_Name);
+
+    ASSERT_EQ(57, scene->m_NodesCount);
+    ASSERT_EQ(1, scene->m_RootNodesCount);
+    ASSERT_STREQ("Rig", scene->m_RootNodes[0]->m_Name);
+
+    ASSERT_EQ(15, scene->m_ModelsCount);
+
+    uint32_t num_non_skinned_models = 0;
+    for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
+    {
+        dmModelImporter::Model* model = &scene->m_Models[i];
+        if (model->m_ParentBone)
+        {
+            num_non_skinned_models++;
+
+            ASSERT_TRUE( strcmp("handslot.r", model->m_ParentBone->m_Name) == 0 ||
+                         strcmp("handslot.l", model->m_ParentBone->m_Name) == 0 ||
+                         strcmp("head", model->m_ParentBone->m_Name) == 0 ||
+                         strcmp("chest", model->m_ParentBone->m_Name) == 0 );
+        }
+    }
+
+    ASSERT_EQ(9, num_non_skinned_models);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 
 static int TestStandalone(const char* path)
 {

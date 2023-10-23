@@ -179,11 +179,22 @@ TEST(dmStrings, dmStrError)
     char buf[128];
     // Test with a ENOENT errno code
     dmStrError(buf, sizeof(buf), ENOENT);
+#if defined(DM_NO_ERRNO)
+    char tmpbuf[32];
+    dmSnPrintf(tmpbuf, sizeof(tmpbuf), "Unknown error %d", ENOENT);
+    ASSERT_STREQ(tmpbuf, buf);
+#else
     ASSERT_STREQ("No such file or directory", buf);
+#endif
 
     // Pass in a small buffer
     dmStrError(buf, 4, ENOENT);
+
+#if defined(DM_NO_ERRNO)
+    ASSERT_STREQ("Unk", buf);
+#else
     ASSERT_STREQ("No ", buf);
+#endif
 
     // Pass invalid errno
     dmStrError(buf, sizeof(buf), -1);

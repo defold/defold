@@ -30,6 +30,28 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+
+static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
+{
+    const char* override_path = override ? "/overrides" : "";
+    const char* alternatives[2] = {
+        "build/src/test%s%s",
+        "src/test%s%s"
+    };
+    for (int i = 0; i < DM_ARRAY_SIZE(alternatives); ++i)
+    {
+        char path_buffer[256];
+        dmSnPrintf(path_buffer, sizeof(path_buffer), alternatives[i], override_path, path);
+
+        char host_buffer[256];
+        dmTestUtil::MakeHostPath(host_buffer, sizeof(host_buffer), path_buffer);
+        if (!dmSys::Exists(host_buffer))
+            continue;
+        return dmTestUtil::ReadHostFile(path_buffer, size);
+    }
+    return 0;
+}
+
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
 // ****************************************************************************************************************
@@ -48,7 +70,7 @@ TEST(ArchiveProviderBasic, Registered)
     ASSERT_NE((ArchiveLoader*)0, loader);
 }
 
-// // ****************************************************************************************************************
+// ****************************************************************************************************************
 
 class ArchiveProvidersMulti : public jc_test_base_class
 {
@@ -157,17 +179,6 @@ TEST_F(ArchiveProvidersMulti, GetMounts)
     ASSERT_STREQ("b", result.m_Name);
     ASSERT_EQ(10, result.m_Priority);
 }
-
-static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
-{
-    char path_buffer[256];
-    const char* override_path = override ? "/overrides" : "";
-    const char* host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "build/src/test%s%s", override_path, path);
-    if (!dmSys::Exists(host_path))
-        host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "src/test%s%s", override_path, path);
-    return dmTestUtil::ReadHostFile(host_path, size);
-}
-
 
 TEST_F(ArchiveProvidersMulti, ReadFile)
 {

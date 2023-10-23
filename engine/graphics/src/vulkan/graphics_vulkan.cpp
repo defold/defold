@@ -485,13 +485,18 @@ namespace dmGraphics
         // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
-        RenderTarget* rt           = new RenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
+
+        RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        if (rt == 0x0)
+        {
+            rt                          = new RenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
+            context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        }
+
         rt->m_RenderPass           = context->m_MainRenderPass;
         rt->m_Framebuffer          = context->m_MainFrameBuffers[0];
         rt->m_Extent               = context->m_SwapChain->m_ImageExtent;
         rt->m_ColorAttachmentCount = 1;
-
-        context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
 
         return VK_SUCCESS;
     }
@@ -792,6 +797,7 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_LUMINANCE_ALPHA,
                                             TEXTURE_FORMAT_RGBA,
 
+                                            // Float formats
                                             TEXTURE_FORMAT_RGB16F,
                                             TEXTURE_FORMAT_RGB32F,
                                             TEXTURE_FORMAT_RGBA16F,
@@ -800,6 +806,9 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_RG16F,
                                             TEXTURE_FORMAT_R32F,
                                             TEXTURE_FORMAT_RG32F,
+
+                                            // Misc formats
+                                            TEXTURE_FORMAT_RGBA32UI,
 
                                             // Apparently these aren't supported on macOS/Metal
                                             TEXTURE_FORMAT_RGB_16BPP,
@@ -1469,7 +1478,12 @@ bail:
     {
         assert(size > 0);
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-        DeviceBufferUploadHelper((VulkanContext*) context, data, size, 0, (DeviceBuffer*) buffer);
+
+        if (size > 0)
+        {
+            DeviceBufferUploadHelper((VulkanContext*) context, data, size, 0, buffer);
+        }
+
         return (HIndexBuffer) buffer;
     }
 
@@ -1761,11 +1775,11 @@ bail:
         //     This means that we might get side-effects since we are basically binding the first data buffer
         //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
         context->m_MainVertexDeclaration = {0};
-        context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_InputCount;
+        context->m_MainVertexDeclaration.m_StreamCount = vertex_shader->m_Inputs.Size();
         context->m_MainVertexDeclaration.m_Stride      = vertex_declaration->m_Stride;
         context->m_MainVertexDeclaration.m_Hash        = vertex_declaration->m_Hash;
 
-        for (uint32_t i = 0; i < vertex_shader->m_InputCount; i++)
+        for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
         {
             ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
             VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration.m_Streams[i];
@@ -1796,7 +1810,7 @@ bail:
         return vertex_declaration->m_Stride;
     }
 
-    static inline bool IsUniformTextureSampler(ShaderResourceBinding uniform)
+    static inline bool IsUniformTextureSampler(const ShaderResourceBinding& uniform)
     {
         return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
@@ -1837,21 +1851,21 @@ bail:
         else if (module_type == Program::MODULE_TYPE_FRAGMENT)
         {
             shader_module        = program->m_FragmentModule;
-            uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_UniformCount];
-            dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_UniformCount];
+            uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_Uniforms.Size()];
+            dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_Uniforms.Size()];
         }
         else
         {
             assert(0);
         }
 
-        if (shader_module->m_UniformCount == 0)
+        if (shader_module->m_Uniforms.Size() == 0)
         {
             return;
         }
 
         const uint8_t max_write_descriptors = 16;
-        uint16_t uniforms_to_write          = shader_module->m_UniformCount;
+        uint16_t uniforms_to_write          = shader_module->m_Uniforms.Size();
         uint16_t uniform_to_write_index     = 0;
         uint16_t uniform_index              = 0;
         uint16_t image_to_write_index       = 0;
@@ -1893,8 +1907,10 @@ bail:
             else
             {
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(res.m_Type) * res.m_ElementCount;
+                const uint32_t uniform_size_nonalign    = res.m_DataSize;
                 const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+
+                assert(uniform_size_nonalign > 0);
 
                 // Copy client data to aligned host memory
                 // The data_offset here is the offset into the programs uniform data,
@@ -1944,6 +1960,11 @@ bail:
         const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
         const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
         const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
+
+        if (num_descriptors == 0)
+        {
+            return VK_SUCCESS;
+        }
 
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
         VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, num_descriptors, &vk_descriptor_set_list);
@@ -2153,22 +2174,25 @@ bail:
 
     static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
     {
-        if (ddf->m_Uniforms.m_Count > 0)
+        if (ddf->m_Resources.m_Count > 0)
         {
-            shader->m_Uniforms                 = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
-            shader->m_UniformCount             = ddf->m_Uniforms.m_Count;
+            shader->m_Uniforms.SetCapacity(ddf->m_Resources.m_Count);
+            shader->m_Uniforms.SetSize(ddf->m_Resources.m_Count);
+            memset(shader->m_Uniforms.Begin(), 0, sizeof(ShaderResourceBinding) * ddf->m_Resources.m_Count);
+
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
             uint32_t uniform_buffer_count      = 0;
+            uint32_t total_uniform_count       = 0;
 
-            for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
+            for (uint32_t i=0; i < ddf->m_Resources.m_Count; i++)
             {
                 ShaderResourceBinding& res = shader->m_Uniforms[i];
-                res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
-                res.m_Set                  = ddf->m_Uniforms[i].m_Set;
-                res.m_Type                 = ddf->m_Uniforms[i].m_Type;
-                res.m_ElementCount         = ddf->m_Uniforms[i].m_ElementCount;
-                res.m_Name                 = strdup(ddf->m_Uniforms[i].m_Name);
+                res.m_Binding              = ddf->m_Resources[i].m_Binding;
+                res.m_Set                  = ddf->m_Resources[i].m_Set;
+                res.m_Type                 = ddf->m_Resources[i].m_Type;
+                res.m_ElementCount         = ddf->m_Resources[i].m_ElementCount;
+                res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
                 res.m_NameHash             = 0;
 
                 assert(res.m_Set <= 1);
@@ -2179,21 +2203,40 @@ bail:
                 }
                 else
                 {
-                    res.m_UniformDataIndex     = uniform_buffer_count;
-                    uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type) * res.m_ElementCount, dynamicAlignment);
+                    res.m_BlockMembers.SetCapacity(ddf->m_Resources[i].m_Bindings.m_Count);
+                    res.m_BlockMembers.SetSize(ddf->m_Resources[i].m_Bindings.m_Count);
+
+                    uint32_t uniform_size = 0;
+                    for (uint32_t j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
+                    {
+                        ShaderDesc::ResourceBinding& member  = ddf->m_Resources[i].m_Bindings[j];
+                        res.m_BlockMembers[j].m_Name         = strdup(member.m_Name);
+                        res.m_BlockMembers[j].m_NameHash     = member.m_NameHash;
+                        res.m_BlockMembers[j].m_Type         = member.m_Type;
+                        res.m_BlockMembers[j].m_ElementCount = member.m_ElementCount;
+                        res.m_BlockMembers[j].m_Offset       = uniform_size;
+                        uniform_size += GetShaderTypeSize(member.m_Type) * member.m_ElementCount;
+                    }
+
+                    res.m_UniformDataIndex = uniform_buffer_count;
+                    res.m_DataSize         = uniform_size;
+                    uniform_data_size_aligned += DM_ALIGN(uniform_size, dynamicAlignment);
                     uniform_buffer_count++;
                 }
+
+                total_uniform_count += ddf->m_Resources[i].m_Bindings.m_Count;
             }
 
             shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
             shader->m_TextureSamplerCount    = texture_sampler_count;
+            shader->m_TotalUniformCount      = total_uniform_count;
         }
 
         if (ddf->m_Inputs.m_Count > 0)
         {
-            shader->m_Inputs     = new ShaderResourceBinding[ddf->m_Inputs.m_Count];
-            shader->m_InputCount = ddf->m_Inputs.m_Count;
+            shader->m_Inputs.SetCapacity(ddf->m_Inputs.m_Count);
+            shader->m_Inputs.SetSize(ddf->m_Inputs.m_Count);
 
             for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
             {
@@ -2269,7 +2312,7 @@ bail:
     {
         uint32_t byte_offset         = byte_offset_base;
         uint32_t num_uniform_buffers = 0;
-        for(uint32_t i=0; i < module->m_UniformCount; i++)
+        for(uint32_t i=0; i < module->m_Uniforms.Size(); i++)
         {
             // Process uniform data size
             ShaderResourceBinding& res = module->m_Uniforms[i];
@@ -2287,7 +2330,7 @@ bail:
             {
                 assert(num_uniform_buffers < byte_offset_list_size);
                 byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += GetShaderTypeSize(res.m_Type) * res.m_ElementCount;
+                byte_offset                                 += res.m_DataSize;
                 vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                 num_uniform_buffers++;
             }
@@ -2334,7 +2377,7 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        for (uint32_t i=0; i < vertex_module->m_InputCount; i++)
+        for (uint32_t i=0; i < vertex_module->m_Inputs.Size(); i++)
         {
             dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
         }
@@ -2343,7 +2386,7 @@ bail:
         dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
         program->m_Hash = dmHashFinal64(&program_hash);
 
-        const uint32_t num_uniforms = vertex_module->m_UniformCount + fragment_module->m_UniformCount;
+        const uint32_t num_uniforms = vertex_module->m_Uniforms.Size() + fragment_module->m_Uniforms.Size();
         if (num_uniforms > 0)
         {
             VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
@@ -2362,7 +2405,7 @@ bail:
                 &vs_last_offset, vk_descriptor_set_bindings);
             CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
                 vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
-                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
+                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()]);
 
             program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
             memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
@@ -2371,11 +2414,11 @@ bail:
             memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
             vk_set_create_info[Program::MODULE_TYPE_VERTEX].sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             vk_set_create_info[Program::MODULE_TYPE_VERTEX].pBindings      = vk_descriptor_set_bindings;
-            vk_set_create_info[Program::MODULE_TYPE_VERTEX].bindingCount   = vertex_module->m_UniformCount;
+            vk_set_create_info[Program::MODULE_TYPE_VERTEX].bindingCount   = vertex_module->m_Uniforms.Size();
 
             vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].pBindings    = &vk_descriptor_set_bindings[vertex_module->m_UniformCount];
-            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].bindingCount = fragment_module->m_UniformCount;
+            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].pBindings    = &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()];
+            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].bindingCount = fragment_module->m_Uniforms.Size();
 
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_VERTEX],
@@ -2392,6 +2435,15 @@ bail:
 
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
+        }
+        else
+        {
+            VkPipelineLayoutCreateInfo vk_layout_create_info = {};
+            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            vk_layout_create_info.setLayoutCount = 0;
+            vk_layout_create_info.pSetLayouts    = 0;
+
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
         }
 
         return true;
@@ -2435,18 +2487,20 @@ bail:
 
         DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
-        for (uint32_t i=0; i < shader->m_UniformCount; i++)
+        for (uint32_t i=0; i < shader->m_Uniforms.Size(); i++)
         {
             free(shader->m_Uniforms[i].m_Name);
+
+            for (uint32_t j = 0; j < shader->m_Uniforms[i].m_BlockMembers.Size(); ++j)
+            {
+                free(shader->m_Uniforms[i].m_BlockMembers[j].m_Name);
+            }
         }
 
-        for (uint32_t i=0; i < shader->m_InputCount; i++)
+        for (uint32_t i=0; i < shader->m_Inputs.Size(); i++)
         {
             free(shader->m_Inputs[i].m_Name);
         }
-
-        delete[] shader->m_Inputs;
-        delete[] shader->m_Uniforms;
     }
 
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
@@ -2518,7 +2572,7 @@ bail:
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
         Program* program_ptr = (Program*) prog;
-        return program_ptr->m_VertexModule->m_InputCount;
+        return program_ptr->m_VertexModule->m_Inputs.Size();
     }
 
     // TODO: Move to graphics.cpp
@@ -2548,7 +2602,7 @@ bail:
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
         Program* program_ptr = (Program*) prog;
-        assert(index < program_ptr->m_VertexModule->m_InputCount);
+        assert(index < program_ptr->m_VertexModule->m_Inputs.Size());
         ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
 
         *name_hash     = attr.m_NameHash;
@@ -2563,7 +2617,7 @@ bail:
         assert(prog);
         Program* program_ptr = (Program*) prog;
         assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
-        return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+        return program_ptr->m_VertexModule->m_TotalUniformCount + program_ptr->m_FragmentModule->m_TotalUniformCount;
     }
 
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
@@ -2572,22 +2626,50 @@ bail:
         Program* program_ptr = (Program*) prog;
         ShaderModule* module = program_ptr->m_VertexModule;
 
-        if (index >= program_ptr->m_VertexModule->m_UniformCount)
+        if (index >= program_ptr->m_VertexModule->m_TotalUniformCount)
         {
             module = program_ptr->m_FragmentModule;
-            index -= program_ptr->m_VertexModule->m_UniformCount;
+            index -= program_ptr->m_VertexModule->m_TotalUniformCount;
         }
 
-        if (index >= module->m_UniformCount)
+        if (index >= module->m_TotalUniformCount)
         {
             return 0;
         }
 
-        ShaderResourceBinding* res = &module->m_Uniforms[index];
-        *type = ShaderDataTypeToGraphicsType(res->m_Type);
-        *size = res->m_ElementCount;
+        uint32_t search_index = 0;
+        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+        {
+            if (IsUniformTextureSampler(module->m_Uniforms[i]))
+            {
+                if (search_index == index)
+                {
+                    ShaderResourceBinding* res = &module->m_Uniforms[index];
+                    *type = ShaderDataTypeToGraphicsType(res->m_Type);
+                    *size = res->m_ElementCount;
+                    return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
+                }
+                search_index++;
+            }
+            else
+            {
+                for (int j = 0; j < module->m_Uniforms[i].m_BlockMembers.Size(); ++j)
+                {
+                    if (search_index == index)
+                    {
+                        UniformBlockMember& member = module->m_Uniforms[i].m_BlockMembers[j];
+                        *type = ShaderDataTypeToGraphicsType(member.m_Type);
+                        *size = member.m_ElementCount;
+                        return (uint32_t) dmStrlCpy(buffer, member.m_Name, buffer_size);
+                    }
 
-        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
+                    search_index++;
+                }
+            }
+        }
+
+        assert(0); // Should not happen
+        return 0;
     }
 
     // In OpenGL, there is a single global resource identifier between
@@ -2596,93 +2678,122 @@ bail:
     // of this ourselves. Because of this we pack resource locations
     // for uniforms in a single base register with 15 bits
     // per shader location. If uniform is not found, we return -1 as usual.
-    #define UNIFORM_LOCATION_MAX         0x00007FFF
-    #define UNIFORM_LOCATION_BIT_COUNT   15
-    #define UNIFORM_LOCATION_GET_VS(loc) (loc  & UNIFORM_LOCATION_MAX)
-    #define UNIFORM_LOCATION_GET_FS(loc) ((loc & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BIT_COUNT)) >> UNIFORM_LOCATION_BIT_COUNT)
+    #define UNIFORM_LOCATION_MAX                ((uint64_t) 0xFFFF)
+    #define UNIFORM_LOCATION_GET_VS(loc)        (loc & UNIFORM_LOCATION_MAX)
+    #define UNIFORM_LOCATION_GET_VS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 16)) >> 16)
+    #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
+    #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
     // TODO, comment from the PR (#4544):
     //   "These frequent lookups could be improved by sorting on the key beforehand,
     //   and during lookup, do a lower_bound, to find the item (or not).
     //   E.g see: engine/render/src/render/material.cpp#L446"
-    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, const char* name, uint32_t* index_out)
+    static bool GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
     {
-        assert(uniformCount < UNIFORM_LOCATION_MAX);
-        for (uint32_t i = 0; i < uniformCount; ++i)
+        assert(uniforms.Size() < UNIFORM_LOCATION_MAX);
+        for (uint32_t i = 0; i < uniforms.Size(); ++i)
         {
-            if (dmStrCaseCmp(uniforms[i].m_Name, name) == 0)
+            if (uniforms[i].m_NameHash == name_hash)
             {
                 *index_out = i;
+                *index_member_out = 0;
                 return true;
+            }
+            else
+            {
+                assert(uniforms[i].m_BlockMembers.Size() < UNIFORM_LOCATION_MAX);
+                for (uint32_t j = 0; j < uniforms[i].m_BlockMembers.Size(); ++j)
+                {
+                    if (uniforms[i].m_BlockMembers[j].m_NameHash == name_hash)
+                    {
+                        *index_out = i;
+                        *index_member_out = j;
+                        return true;
+                    }
+                }
             }
         }
 
         return false;
     }
 
-    static int32_t VulkanGetUniformLocation(HProgram prog, const char* name)
+    static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
         ShaderModule* vs     = program_ptr->m_VertexModule;
         ShaderModule* fs     = program_ptr->m_FragmentModule;
-        uint32_t vs_location = UNIFORM_LOCATION_MAX;
-        uint32_t fs_location = UNIFORM_LOCATION_MAX;
-        bool vs_found        = GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, name, &vs_location);
-        bool fs_found        = GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, name, &fs_location);
+
+        uint64_t vs_location        = UNIFORM_LOCATION_MAX,
+                 vs_location_member = UNIFORM_LOCATION_MAX;
+        uint64_t fs_location        = UNIFORM_LOCATION_MAX,
+                 fs_location_member = UNIFORM_LOCATION_MAX;
+
+        HUniformLocation loc = INVALID_UNIFORM_LOCATION;
+        dmhash_t name_hash   = dmHashString64(name);
+        bool vs_found        = GetUniformIndices(vs->m_Uniforms, name_hash, &vs_location, &vs_location_member);
+        bool fs_found        = GetUniformIndices(fs->m_Uniforms, name_hash, &fs_location, &fs_location_member);
 
         if (vs_found || fs_found)
         {
-            return vs_location | (fs_location << UNIFORM_LOCATION_BIT_COUNT);
+            loc = vs_location | vs_location_member << 16 | fs_location << 32 | fs_location_member << 48;
+            assert(loc != INVALID_UNIFORM_LOCATION);
         }
 
-        return -1;
+        return loc;
     }
 
-    static void VulkanSetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    static void VulkanSetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
         assert(g_VulkanContext->m_CurrentProgram);
-        assert(base_register >= 0);
+        assert(base_location != INVALID_UNIFORM_LOCATION);
         Program* program_ptr = (Program*) g_VulkanContext->m_CurrentProgram;
 
-        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(base_register);
-        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(base_register);
+        uint32_t index_vs        = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t index_vs_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t index_fs        = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t index_fs_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
         assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
-            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            UniformBlockMember& member = res.m_BlockMembers[index_vs_member];
+
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
-            uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
+            uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index] + member.m_Offset;
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
-            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            UniformBlockMember& member = res.m_BlockMembers[index_fs_member];
+
             assert(!IsUniformTextureSampler(res));
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
-            uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
+            uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index] + member.m_Offset;
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
         }
     }
 
-    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
         Program* program_ptr = (Program*) g_VulkanContext->m_CurrentProgram;
+        assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(base_register);
-        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(base_register);
+        uint32_t index_vs        = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t index_vs_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t index_fs        = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t index_fs_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
         assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
-            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            assert(index_vs < program_ptr->m_VertexModule->m_Uniforms.Size());
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
@@ -2692,7 +2803,7 @@ bail:
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
-            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            assert(index_fs < program_ptr->m_FragmentModule->m_Uniforms.Size());
             assert(!IsUniformTextureSampler(res));
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
@@ -2701,8 +2812,9 @@ bail:
         }
     }
 
-    static void VulkanSetSampler(HContext context, int32_t location, int32_t unit)
+    static void VulkanSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
+        assert(location != INVALID_UNIFORM_LOCATION);
         assert(context && g_VulkanContext->m_CurrentProgram);
         Program* program_ptr = (Program*) g_VulkanContext->m_CurrentProgram;
 
@@ -2713,7 +2825,7 @@ bail:
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
-            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            assert(index_vs < program_ptr->m_VertexModule->m_Uniforms.Size());
             assert(IsUniformTextureSampler(res));
             program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) unit;
         }
@@ -2721,16 +2833,17 @@ bail:
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
-            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            assert(index_fs < program_ptr->m_FragmentModule->m_Uniforms.Size());
             assert(IsUniformTextureSampler(res));
             program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) unit;
         }
     }
 
     #undef UNIFORM_LOCATION_MAX
-    #undef UNIFORM_LOCATION_BIT_COUNT
     #undef UNIFORM_LOCATION_GET_VS
+    #undef UNIFORM_LOCATION_GET_VS_MEMBER
     #undef UNIFORM_LOCATION_GET_FS
+    #undef UNIFORM_LOCATION_GET_FS_MEMBER
 
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
@@ -2903,6 +3016,7 @@ bail:
             case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
             case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
             case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
+            case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
             default:                                return VK_FORMAT_UNDEFINED;
         };
     }
@@ -3792,10 +3906,43 @@ bail:
         return false;
     }
 
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    static void* VulkanMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+        return buffer_ptr->m_MappedDataPtr;
+    }
+
+    static bool VulkanUnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        return true;
+    }
+
+    static void* VulkanMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+        return buffer_ptr->m_MappedDataPtr;
+    }
+
+    static bool VulkanUnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
+        return true;
+    }
+#endif
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
+        DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(fn_table, Vulkan);
         return fn_table;
     }
 }

@@ -395,26 +395,11 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
-  (when (and (some? texture-page-count)
-             (some? material-max-page-count))
-    (cond
-      (and is-paged-material
-           (zero? texture-page-count))
-      "The Material expects a paged Atlas, but the selected Image is not paged"
-
-      (and (not is-paged-material)
-           (pos? texture-page-count))
-      "The Material does not support paged Atlases, but the selected Image is paged"
-
-      (< material-max-page-count texture-page-count)
-      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
-
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
   (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
     (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
-        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
 (g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-attribute-infos material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")

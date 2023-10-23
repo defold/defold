@@ -176,6 +176,11 @@ void DestroyScene(Scene* scene)
     scene->m_MaterialsCount = 0;
     delete[] scene->m_Materials;
 
+    for (uint32_t i = 0; i < scene->m_DynamicMaterialsCount; ++i)
+        DestroyMaterial(scene->m_DynamicMaterials[i]);
+    scene->m_DynamicMaterialsCount = 0;
+    free((void*)scene->m_DynamicMaterials);
+
     scene->m_BuffersCount = 0;
     delete[] scene->m_Buffers;
 

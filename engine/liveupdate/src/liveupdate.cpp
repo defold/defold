@@ -895,7 +895,6 @@ namespace dmLiveUpdate
 
         if (!g_LiveUpdate.m_ResourceBaseArchive)
         {
-            dmLogInfo("Could not find base .arci/.arcd. Liveupdate disabled");
             return dmExtension::RESULT_OK;
         }
 

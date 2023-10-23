@@ -125,7 +125,8 @@ namespace dmGameSystem
             uint32_t                           m_ValueByteSize;
         } m_Infos[dmGraphics::MAX_VERTEX_STREAM_COUNT];
 
-        uint8_t m_NumInfos;
+        uint32_t m_NumInfos                  : 4; // dmGraphics::MAX_VERTEX_STREAM_COUNT is 8
+        uint32_t m_HasLocalPositionAttribute : 1;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -451,11 +452,17 @@ namespace dmGameSystem
             SpriteAttributeInfo::Info& info = infos->m_Infos[i];
             info.m_Attribute                = material_attributes + i;
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+
+            if (info.m_Attribute->m_SemanticType    == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
+                info.m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
+            {
+                infos->m_HasLocalPositionAttribute = 1;
+            }
         }
     }
 
     static void WriteSpriteVertex(dmRender::HMaterial material, uint8_t* vertices_write_ptr,
-        const Point3& p, const Matrix4& w, const float* uv, float page_index, SpriteAttributeInfo* sprite_infos)
+        const Point3& p, const Point3& p_local, const Matrix4& w, const float* uv, float page_index, SpriteAttributeInfo* sprite_infos)
     {
         for (int i = 0; i < sprite_infos->m_NumInfos; ++i)
         {
@@ -472,7 +479,7 @@ namespace dmGameSystem
                     }
                     else if (info->m_Attribute->m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
                     {
-                        memcpy(vertices_write_ptr, &p, info->m_ValueByteSize);
+                        memcpy(vertices_write_ptr, &p_local, info->m_ValueByteSize);
                     }
                     else assert(0);
                 } break;
@@ -567,15 +574,24 @@ namespace dmGameSystem
                 Point3 p = Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
                 float uv[2];
 
-                if (uv_rotated) {
+                if (uv_rotated)
+                {
                     uv[0] = us[y];
                     uv[1] = vs[x];
-                } else {
+                }
+                else
+                {
                     uv[0] = us[x];
                     uv[1] = vs[y];
                 }
 
-                WriteSpriteVertex(material, vertices + vertex_stride * vx_index, p, transform, uv, page_index, sprite_infos);
+                Point3 p_local;
+                if (sprite_infos->m_HasLocalPositionAttribute)
+                {
+                    p_local = Point3(p.getX() * sprite_size.getX(), p.getY() * sprite_size.getY(), 0.0f);
+                }
+
+                WriteSpriteVertex(material, vertices + vertex_stride * vx_index, p, p_local, transform, uv, page_index, sprite_infos);
                 vx_index++;
             }
         }
@@ -653,7 +669,10 @@ namespace dmGameSystem
             uint32_t* page_indices                              = texture_set_ddf->m_PageIndices.m_Data;
             uint32_t sprite_attribute_count                     = component->m_Resource->m_DDF->m_Attributes.m_Count;
 
-            // Fill in the custom sprite attributes (if specified), otherwise fallck to use the material attributes
+            float sp_width  = component->m_Size.getX();
+            float sp_height = component->m_Size.getY();
+
+            // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
             SpriteAttributeInfo* sprite_attribute_info_ptr = material_attribute_info;
             if (sprite_attribute_count > 0)
             {
@@ -701,7 +720,14 @@ namespace dmGameSystem
                     float x  = points[0] * scaleX; // range -0.5,+0.5
                     float y  = points[1] * scaleY;
                     Point3 p = Point3(x, y, 0.0f);
-                    WriteSpriteVertex(material, vertices + vert * vertex_stride, p, w, uvs, page_index, sprite_attribute_info_ptr);
+                    Point3 p_local;
+
+                    if (sprite_attribute_info_ptr->m_HasLocalPositionAttribute)
+                    {
+                        p_local = Point3(x * sp_width, y * sp_height, 0.0f);
+                    }
+
+                    WriteSpriteVertex(material, vertices + vert * vertex_stride, p, p_local, w, uvs, page_index, sprite_attribute_info_ptr);
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -783,10 +809,23 @@ namespace dmGameSystem
                     Point3 p2 = Point3( 0.5f,  0.5f, 0.0f);
                     Point3 p3 = Point3( 0.5f, -0.5f, 0.0f);
 
-                    WriteSpriteVertex(material, vertices                    , p0, w, &tc[tex_lookup[0] * 2], page_index, sprite_attribute_info_ptr);
-                    WriteSpriteVertex(material, vertices + vertex_stride    , p1, w, &tc[tex_lookup[1] * 2], page_index, sprite_attribute_info_ptr);
-                    WriteSpriteVertex(material, vertices + vertex_stride * 2, p2, w, &tc[tex_lookup[2] * 2], page_index, sprite_attribute_info_ptr);
-                    WriteSpriteVertex(material, vertices + vertex_stride * 3, p3, w, &tc[tex_lookup[4] * 2], page_index, sprite_attribute_info_ptr);
+                    Point3 p0_local;
+                    Point3 p1_local;
+                    Point3 p2_local;
+                    Point3 p3_local;
+
+                    if (sprite_attribute_info_ptr->m_HasLocalPositionAttribute)
+                    {
+                        p0_local = Point3(-0.5f * sp_width, -0.5f * sp_height, 0.0f);
+                        p1_local = Point3(-0.5f * sp_width,  0.5f * sp_height, 0.0f);
+                        p2_local = Point3( 0.5f * sp_width,  0.5f * sp_height, 0.0f);
+                        p3_local = Point3( 0.5f * sp_width, -0.5f * sp_height, 0.0f);
+                    }
+
+                    WriteSpriteVertex(material, vertices                    , p0, p0_local, w, &tc[tex_lookup[0] * 2], page_index, sprite_attribute_info_ptr);
+                    WriteSpriteVertex(material, vertices + vertex_stride    , p1, p1_local, w, &tc[tex_lookup[1] * 2], page_index, sprite_attribute_info_ptr);
+                    WriteSpriteVertex(material, vertices + vertex_stride * 2, p2, p2_local, w, &tc[tex_lookup[2] * 2], page_index, sprite_attribute_info_ptr);
+                    WriteSpriteVertex(material, vertices + vertex_stride * 3, p3, p3_local, w, &tc[tex_lookup[4] * 2], page_index, sprite_attribute_info_ptr);
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
