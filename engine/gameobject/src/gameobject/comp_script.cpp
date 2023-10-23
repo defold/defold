@@ -182,10 +182,10 @@ namespace dmGameObject
         ScriptResult ret = RunScript(GetLuaState(params.m_Context), script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
         if (ret == SCRIPT_RESULT_FAILED)
         {
-            script_instance->m_Inited = 0;
+            script_instance->m_Initialized = 0;
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
-        script_instance->m_Inited = 1;
+        script_instance->m_Initialized = 1;
         return CREATE_RESULT_OK;
     }
 
@@ -211,7 +211,7 @@ namespace dmGameObject
     CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-        if (script_instance->m_Inited)
+        if (script_instance->m_Initialized)
         {
             HScript script = script_instance->m_Script;
             script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF;

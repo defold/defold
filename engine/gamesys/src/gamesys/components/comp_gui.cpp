@@ -832,10 +832,10 @@ namespace dmGameSystem
         {
             // TODO: Translate result
             dmLogError("Error when initializing gui component: %d.", result);
-            gui_component->m_Inited = 0;
+            gui_component->m_Initialized = 0;
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        gui_component->m_Inited = 1;
+        gui_component->m_Initialized = 1;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -2192,7 +2192,7 @@ namespace dmGameSystem
 
     static dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        if (gui_component->m_Inited) {
+        if (gui_component->m_Initialized) {
             gui_component->m_AddedToUpdate = true;
             return dmGameObject::CREATE_RESULT_OK;
         }

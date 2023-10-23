@@ -41,7 +41,7 @@ namespace dmGameSystem
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled       : 1;
         uint8_t                 m_AddedToUpdate : 1;
-        uint8_t                 m_Inited        : 1;
+        uint8_t                 m_Initialized   : 1;
         uint8_t                 m_Padding       : 5;
         dmArray<void*>          m_ResourcePropertyPointers;
     };
