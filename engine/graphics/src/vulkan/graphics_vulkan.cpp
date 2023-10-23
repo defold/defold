@@ -1058,8 +1058,17 @@ bail:
         }
     #endif
 
+        uint16_t extensionNameCount = 0;
+        const char** extensionNames = 0;
+
+    #ifdef DM_VULKAN_VALIDATION
+        const char* portabilityExt = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+        extensionNames             = &portabilityExt;
+        extensionNameCount         = 1;
+    #endif
+
         VkInstance inst;
-        VkResult res = CreateInstance(&inst, 0, 0, 0, 0, 0, 0);
+        VkResult res = CreateInstance(&inst, extensionNames, extensionNameCount, 0, 0, 0, 0);
 
         if (res == VK_SUCCESS)
         {
