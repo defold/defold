@@ -670,47 +670,57 @@ public class ModelUtil {
         }
     }
 
-    private static ModelImporter.Vec4 calcCenter(Scene scene) {
-        ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
-        float count = 0.0f;
-        for (Node root : scene.rootNodes) {
-            ArrayList<Node> modelNodes = new ArrayList<>();
-            findModelNodes(root, modelNodes);
-
-            for (Node modelNode : modelNodes) {
-                center.x += modelNode.local.translation.x;
-                center.y += modelNode.local.translation.y;
-                center.z += modelNode.local.translation.z;
-                count++;
-            }
+    private static void calcCenterNode(Node node, Aabb aabb) {
+        if (node.model != null) {
+            // As a default, we only count nodes with models, as the user
+            // cannot currently see/use the lights or cameras etc that are present in the scene.
+            aabb.expand(node.world.translation.x, node.world.translation.y, node.world.translation.z);
         }
-        center.x /= (float)count;
-        center.z /= (float)count;
-        center.x /= (float)count;
+
+        for (Node child : node.children) {
+            calcCenterNode(child, aabb);
+        }
+    }
+
+    // Currently finds the center point using the world positions of each node
+    private static ModelImporter.Vec4 calcCenter(Scene scene) {
+        Aabb aabb = new Aabb();
+        for (Node root : scene.rootNodes) {
+            calcCenterNode(root, aabb);
+        }
+
+        ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (aabb.isValid())
+            center = aabb.center();
         return center;
     }
 
+    private static void shiftModelsNode(Node node, ModelImporter.Vec4 center) {
+        node.world.translation.x -= center.x;
+        node.world.translation.y -= center.y;
+        node.world.translation.z -= center.z;
+
+        for (Node child : node.children) {
+            shiftModelsNode(child, center);
+        }
+    }
     private static void shiftModels(Scene scene, ModelImporter.Vec4 center) {
         for (Node root : scene.rootNodes) {
-            ArrayList<Node> modelNodes = new ArrayList<>();
-            findModelNodes(root, modelNodes);
-
-            for (Node modelNode : modelNodes) {
-                modelNode.local.translation.x -= center.x;
-                modelNode.local.translation.y -= center.y;
-                modelNode.local.translation.z -= center.z;
-                modelNode.world.translation.x -= center.x;
-                modelNode.world.translation.y -= center.y;
-                modelNode.world.translation.z -= center.z;
-            }
+            shiftModelsNode(root, center);
         }
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
+        ModelImporter.Vec4 center = calcCenter(scene);
+        shiftModels(scene, center); // We might make this optional
+
+        System.out.printf("\nCENTER: %s, %f, %s\n", center.x, center.y, center.z);
+
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());
         return scene;
     }
+
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
         ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
@@ -912,6 +922,16 @@ public class ModelUtil {
             System.out.printf("      local:\n");
             ModelImporter.DebugPrintTransform(bone.node.local, 3);
         }
+        System.out.printf("--------------------------------------------\n");
+
+        System.out.printf("Root Nodes:\n");
+
+        for (Node node : scene.rootNodes) {
+            System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
+            System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
+            ModelImporter.DebugPrintTransform(node.local, 3);
+        }
+
         System.out.printf("--------------------------------------------\n");
 
         System.out.printf("Materials:\n");
