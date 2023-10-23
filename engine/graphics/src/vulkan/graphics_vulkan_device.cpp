@@ -39,8 +39,6 @@ namespace dmGraphics
     RenderTarget::RenderTarget(const uint32_t rtId)
         : m_SubPasses(0)
         , m_TextureDepthStencil(0)
-        , m_RenderPass(VK_NULL_HANDLE)
-        , m_Framebuffer(VK_NULL_HANDLE)
         , m_Id(rtId)
         , m_IsBound(0)
         , m_SubPassCount(0)
@@ -49,6 +47,7 @@ namespace dmGraphics
         m_Extent.width  = 0;
         m_Extent.height = 0;
         memset(m_TextureColor, 0, sizeof(m_TextureColor));
+        memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
     Program::Program()
@@ -1158,7 +1157,7 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
-        vk_pipeline_info.renderPass          = render_target->m_RenderPass;
+        vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
@@ -1245,6 +1244,14 @@ bail:
             vkDestroySampler(vk_device, sampler->m_Sampler, 0);
             sampler->m_Sampler = VK_NULL_HANDLE;
         }
+    }
+
+    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    {
+        DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
+        DestroyRenderPass(vk_device, handle->m_RenderPass);
+        handle->m_Framebuffer = VK_NULL_HANDLE;
+        handle->m_RenderPass = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)

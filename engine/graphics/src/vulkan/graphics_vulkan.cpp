@@ -348,8 +348,8 @@ namespace dmGraphics
 
         VkRenderPassBeginInfo vk_render_pass_begin_info;
         vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        vk_render_pass_begin_info.renderPass          = rt->m_RenderPass;
-        vk_render_pass_begin_info.framebuffer         = rt->m_Framebuffer;
+        vk_render_pass_begin_info.renderPass          = rt->m_Handle.m_RenderPass;
+        vk_render_pass_begin_info.framebuffer         = rt->m_Handle.m_Framebuffer;
         vk_render_pass_begin_info.pNext               = 0;
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
@@ -518,8 +518,8 @@ namespace dmGraphics
             context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         }
 
-        rt->m_RenderPass           = context->m_MainRenderPass;
-        rt->m_Framebuffer          = context->m_MainFrameBuffers[0];
+        rt->m_Handle.m_RenderPass  = context->m_MainRenderPass;
+        rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[0];
         rt->m_Extent               = context->m_SwapChain->m_ImageExtent;
         rt->m_ColorAttachmentCount = 1;
 
@@ -747,6 +747,9 @@ namespace dmGraphics
                         break;
                     case RESOURCE_TYPE_PROGRAM:
                         DestroyProgram(vk_device, &resource.m_Program);
+                        break;
+                    case RESOURCE_TYPE_RENDER_TARGET:
+                        DestroyRenderTarget(vk_device, &resource.m_RenderTarget);
                         break;
                     default:
                         assert(0);
@@ -1213,8 +1216,8 @@ bail:
 
         vkBeginCommandBuffer(context->m_MainCommandBuffers[frame_ix], &vk_command_buffer_begin_info);
 
-        RenderTarget* rt      = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-        rt->m_Framebuffer     = context->m_MainFrameBuffers[frame_ix];
+        RenderTarget* rt             = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[frame_ix];
 
         context->m_FrameBegun      = 1;
         context->m_CurrentPipeline = 0;
@@ -1431,6 +1434,9 @@ bail:
             case RESOURCE_TYPE_PROGRAM:
                 resource_to_destroy.m_Program = ((Program*) resource)->m_Handle;
                 break;
+            case RESOURCE_TYPE_RENDER_TARGET:
+                resource_to_destroy.m_RenderTarget = ((RenderTarget*) resource)->m_Handle;
+                break;
             default:
                 assert(0);
                 break;
@@ -1438,7 +1444,7 @@ bail:
 
         if (resource_list->Full())
         {
-            resource_list->OffsetCapacity(2);
+            resource_list->OffsetCapacity(8);
         }
 
         resource_list->Push(resource_to_destroy);
@@ -3160,7 +3166,7 @@ bail:
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, RenderTarget* rtOut)
     {
-        assert(rtOut->m_Framebuffer == VK_NULL_HANDLE && rtOut->m_RenderPass == VK_NULL_HANDLE);
+        assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE);
         const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
 
         RenderPassAttachment  rp_attachments[num_attachments];
@@ -3212,14 +3218,14 @@ bail:
             fb_attachments[fb_attachment_count++] = depth_stencil_texture_ptr->m_Handle.m_ImageView;
         }
 
-        VkResult res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
+        VkResult res = CreateRenderPass(context->m_LogicalDevice.m_Device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_Handle.m_RenderPass);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
-        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_RenderPass,
-            fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Framebuffer);
+        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rtOut->m_Handle.m_RenderPass,
+            fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Handle.m_Framebuffer);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -3239,14 +3245,11 @@ bail:
         return VK_SUCCESS;
     }
 
-    static void DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
+    static void DestroyRenderTarget(VulkanContext* context, RenderTarget* renderTarget)
     {
-        assert(logicalDevice);
-        assert(renderTarget);
-        DestroyFrameBuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer);
-        DestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass);
-        renderTarget->m_Framebuffer = VK_NULL_HANDLE;
-        renderTarget->m_RenderPass = VK_NULL_HANDLE;
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], renderTarget);
+        renderTarget->m_Handle.m_Framebuffer = VK_NULL_HANDLE;
+        renderTarget->m_Handle.m_RenderPass = VK_NULL_HANDLE;
     }
 
     static inline VkImageUsageFlags GetVulkanUsageFromHints(uint8_t hint_bits)
@@ -3426,7 +3429,7 @@ bail:
             DeleteTexture(rt->m_TextureDepthStencil);
         }
 
-        DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, rt);
+        DestroyRenderTarget(g_VulkanContext, rt);
 
         delete rt;
     }
@@ -3541,7 +3544,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, rt);
+        DestroyRenderTarget(g_VulkanContext, rt);
         VkResult res = CreateRenderTarget(g_VulkanContext,
             rt->m_TextureColor,
             rt->m_ColorAttachmentBufferTypes,
@@ -4197,7 +4200,7 @@ bail:
 
         assert(rt->m_TextureDepthStencil == 0); // TODO
 
-        DestroyFrameBuffer(context->m_LogicalDevice.m_Device, rt->m_Framebuffer);
+        DestroyFrameBuffer(context->m_LogicalDevice.m_Device, rt->m_Handle.m_Framebuffer);
 
         delete[] rt->m_SubPasses;
         rt->m_SubPasses    = new SubPass[params.m_SubPassCount];
@@ -4302,7 +4305,7 @@ bail:
         render_pass_create_info.dependencyCount = params.m_DependencyCount;
         render_pass_create_info.pDependencies   = vk_sub_pass_dependencies;
 
-        VkResult res = vkCreateRenderPass(context->m_LogicalDevice.m_Device, &render_pass_create_info, 0, &rt->m_RenderPass);
+        VkResult res = vkCreateRenderPass(context->m_LogicalDevice.m_Device, &render_pass_create_info, 0, &rt->m_Handle.m_RenderPass);
         CHECK_VK_ERROR(res);
 
         VkImageView fb_attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
@@ -4320,7 +4323,7 @@ bail:
             fb_height                             = rt->m_ColorTextureParams[i].m_Height;
         }
 
-        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rt->m_RenderPass, fb_width, fb_height, fb_attachments, (uint8_t) fb_attachment_count, &rt->m_Framebuffer);
+        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rt->m_Handle.m_RenderPass, fb_width, fb_height, fb_attachments, (uint8_t) fb_attachment_count, &rt->m_Handle.m_Framebuffer);
         CHECK_VK_ERROR(res);
 
         delete[] vk_sub_pass_dependencies;
@@ -4333,9 +4336,9 @@ bail:
 
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
 
-        if (rt->m_Framebuffer != VK_NULL_HANDLE)
+        if (rt->m_Handle.m_Framebuffer != VK_NULL_HANDLE)
         {
-            DestroyRenderTarget(&context->m_LogicalDevice, rt);
+            DestroyRenderTarget(context, rt);
         }
 
         BufferType color_buffer_flags[] = {

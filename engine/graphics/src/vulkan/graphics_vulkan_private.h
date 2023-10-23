@@ -172,6 +172,14 @@ namespace dmGraphics
     {
     	RenderTarget(const uint32_t rtId);
 
+        struct VulkanHandle
+        {
+            VkRenderPass  m_RenderPass;
+            VkFramebuffer m_Framebuffer;
+        };
+
+        VulkanHandle   m_Handle;
+
         AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float          m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -182,14 +190,14 @@ namespace dmGraphics
         SubPass*       m_SubPasses;
         HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture       m_TextureDepthStencil;
-        VkRenderPass   m_RenderPass;
-        VkFramebuffer  m_Framebuffer;
+
         VkExtent2D     m_Extent;
         const uint16_t m_Id;
-        uint8_t        m_IsBound              : 1;
-        uint8_t        m_ColorAttachmentCount : 7;
-        uint8_t        m_SubPassCount;
-        uint8_t        m_SubPassIndex;
+        uint32_t       m_Destroyed            : 1;
+        uint32_t       m_IsBound              : 1;
+        uint32_t       m_ColorAttachmentCount : 7;
+        uint32_t       m_SubPassCount         : 8;
+        uint32_t       m_SubPassIndex         : 8;
 
         const VulkanResourceType GetType();
     };
@@ -324,6 +332,7 @@ namespace dmGraphics
             DeviceBuffer::VulkanHandle  m_DeviceBuffer;
             VulkanTexture::VulkanHandle m_Texture;
             Program::VulkanHandle       m_Program;
+            RenderTarget::VulkanHandle  m_RenderTarget;
         };
         VulkanResourceType m_ResourceType;
     };
@@ -486,6 +495,7 @@ namespace dmGraphics
     void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
     void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle);
+    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle);
 
     // Get functions
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);
