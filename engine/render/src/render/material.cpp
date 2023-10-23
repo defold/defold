@@ -196,8 +196,8 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            uint32_t name_str_length = dmGraphics::GetUniformName(material->m_Program, i, buffer, buffer_size, &type, &num_values);
-            int32_t location         = dmGraphics::GetUniformLocation(material->m_Program, buffer);
+            uint32_t name_str_length              = dmGraphics::GetUniformName(material->m_Program, i, buffer, buffer_size, &type, &num_values);
+            dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(material->m_Program, buffer);
 
             // DEF-2971-hotfix
             // Previously this check was an assert. In Emscripten 1.38.3 they made changes
@@ -206,7 +206,7 @@ namespace dmRender
             // that wasn't used, but after the upgrade these unused uniforms will return -1
             // as location instead. The fix here is to avoid asserting on such values, but
             // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == -1) {
+            if (location == dmGraphics::INVALID_UNIFORM_LOCATION) {
                 continue;
             }
 
@@ -347,7 +347,7 @@ namespace dmRender
         {
             const MaterialConstant& material_constant = constants[i];
             const HConstant constant = material_constant.m_Constant;
-            int32_t location = GetConstantLocation(constant);
+            dmGraphics::HUniformLocation location = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
 
             switch (type)
@@ -475,30 +475,6 @@ namespace dmRender
                 return i;
         }
         return 0xFFFFFFFF;
-    }
-
-    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit)
-    {
-        Sampler* s                            = (Sampler*) sampler;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
-        for (int i = 0; i < dmGraphics::GetNumTextureHandles(texture); ++i)
-        {
-            dmGraphics::EnableTexture(graphics_context, unit, i, texture);
-            if (s->m_Location != -1)
-            {
-                dmGraphics::SetSampler(graphics_context, s->m_Location + i, unit);
-
-                if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                    s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
-                {
-                    dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
-                }
-            }
-            unit++;
-        }
-
-        return unit;
     }
 
     void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
@@ -733,16 +709,16 @@ namespace dmRender
         memcpy(constant_values, values, count * sizeof(dmVMath::Vector4));
     }
 
-    int32_t GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)
+    dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)
     {
-        int32_t* location = material->m_NameHashToLocation.Get(name_hash);
+        dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(name_hash);
         if (location)
         {
             return *location;
         }
         else
         {
-            return -1;
+            return dmGraphics::INVALID_UNIFORM_LOCATION;
         }
     }
 
@@ -752,7 +728,7 @@ namespace dmRender
 
         if (unit < samplers.Size() && name_hash != 0)
         {
-            int32_t* location = material->m_NameHashToLocation.Get(name_hash);
+            dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(name_hash);
             if (location)
             {
                 Sampler& s        = samplers[unit];

@@ -77,11 +77,11 @@ namespace dmRender
         dmVMath::Vector4*                       m_Values;
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
-        int32_t                                 m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
+        dmGraphics::HUniformLocation            m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
         uint16_t                                m_NumValues;
 
         Constant();
-        Constant(dmhash_t name_hash, int32_t location);
+        Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location);
     };
 
     struct MaterialConstant
@@ -229,7 +229,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
-    int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
+    dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);

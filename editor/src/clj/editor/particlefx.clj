@@ -649,26 +649,10 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-
-(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
-  (when (and (some? texture-page-count)
-             (some? material-max-page-count))
-    (cond
-      (and is-paged-material
-           (zero? texture-page-count))
-      "The Material expects a paged Atlas, but the selected Image is not paged"
-
-      (and (not is-paged-material)
-           (pos? texture-page-count))
-      "The Material does not support paged Atlases, but the selected Image is paged"
-
-      (< material-max-page-count texture-page-count)
-      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
-
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
   (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
     (or (prop-resource-error :fatal _node-id :material material "Material")
-        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]

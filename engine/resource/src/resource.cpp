@@ -236,10 +236,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {"archive", "archive", true},
         {"dmanif", "archive", true},
         {"file", "file", true},
-#if defined(__NX__)
-        {"data", "file", false},
-        {"host", "file", false},
-#endif
     };
 
     int num_mounted = 0;

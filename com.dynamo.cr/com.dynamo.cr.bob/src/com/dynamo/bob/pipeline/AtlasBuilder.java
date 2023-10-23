@@ -18,6 +18,17 @@ import java.io.IOException;
 import java.io.ByteArrayOutputStream;
 import java.awt.image.BufferedImage;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -35,12 +46,31 @@ import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.dynamo.proto.DdfMath.Point3;
+
 import com.google.protobuf.ByteString;
+import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
 public class AtlasBuilder extends Builder<TextureImage.Type>  {
 
     private static Logger logger = Logger.getLogger(AtlasBuilder.class.getName());
+
+    private static TextureImage.Type getTexureType(Atlas atlas) {
+        // We can't just look at result of texture generation to decide the image type,
+        // a texture specified with max page size can still generate one page but used with a material that has array samplers
+        // so we need to know this beforehand for both validation and runtime
+        return atlas.getMaxPageWidth() > 0 && atlas.getMaxPageHeight() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
+    }
+
+    private static int getPageCount(List<BufferedImage> images, TextureImage.Type textureType) {
+        int numPages = images.size();
+        // Even though technically a 2D texture image has one page,
+        // it differs conceptually how we treat the image in the engine
+        if (textureType == TextureImage.Type.TYPE_2D) {
+            numPages = 0;
+        }
+        return numPages;
+    }
 
     @Override
     public Task<TextureImage.Type> create(IResource input) throws IOException, CompileExceptionError {
@@ -48,14 +78,11 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         ProtoUtil.merge(input, builder);
         Atlas atlas = builder.build();
 
-        // We can't just look at result of texture generation to decide the image type,
-        // a texture specified with max page size can still generate one page but used with a material that has array samplers
-        // so we need to know this beforehand for both validation and runtime
-        TextureImage.Type atlasBackingImageType = atlas.getMaxPageWidth() > 0 && atlas.getMaxPageHeight() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
+        TextureImage.Type textureImageType = getTexureType(atlas);
 
         TaskBuilder<TextureImage.Type> taskBuilder = Task.<TextureImage.Type>newBuilder(this)
                 .setName(params.name())
-                .setData(atlasBackingImageType)
+                .setData(textureImageType)
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(".texturec"));
@@ -74,41 +101,91 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         return taskBuilder.build();
     }
 
-    @Override
-    public void build(Task<TextureImage.Type> task) throws CompileExceptionError, IOException {
-        TextureSetResult result       = AtlasUtil.generateTextureSet(this.project, task.input(0));
-        TextureImage.Type textureType = task.getData();
-        int numImages                 = result.images.size();
-        int numPages                  = numImages;
+    private static TextureImage generateTextureImage(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws CompileExceptionError, IOException {
+        TextureImage textureImages[] = new TextureImage[images.size()];
 
-        // Even though technically a 2D texture image has one page,
-        // it differs conceptually how we treat the image in the engine
-        if (textureType == TextureImage.Type.TYPE_2D) {
-            numPages = 0;
-        }
-
-        int buildDirLen         = project.getBuildDirectory().length();
-        String texturePath      = task.output(1).getPath().substring(buildDirLen);
-        TextureSet textureSet   = result.builder.setPageCount(numPages).setTexture(texturePath).build();
-
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
-        TextureImage textureImages[] = new TextureImage[numImages];
-
-        for (int i = 0; i < numImages; i++)
+        for (int i = 0; i < images.size(); i++)
         {
             TextureImage texture;
             try {
-                boolean compress = project.option("texture-compression", "false").equals("true");
-                texture = TextureGenerator.generate(result.images.get(i), texProfile, compress);
+                texture = TextureGenerator.generate(images.get(i), texProfile, compress);
             } catch (TextureGeneratorException e) {
-                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+                throw new CompileExceptionError(e.getMessage(), e);
             }
             textureImages[i] = texture;
         }
+        return TextureUtil.createCombinedTextureImage(textureImages, textureType);
+    }
 
-        TextureImage texture = TextureUtil.createCombinedTextureImage(textureImages, textureType);
+    @Override
+    public void build(Task<TextureImage.Type> task) throws CompileExceptionError, IOException {
+        TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.input(0));
+        TextureImage.Type textureImageType = task.getData();
+
+        int buildDirLen         = project.getBuildDirectory().length();
+        String texturePath      = task.output(1).getPath().substring(buildDirLen);
+        TextureSet textureSet   = result.builder.setPageCount(getPageCount(result.images, textureImageType))
+                                                .setTexture(texturePath)
+                                                .build();
+
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
+        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+
+        boolean compress = project.option("texture-compression", "false").equals("true");
+        TextureImage texture = generateTextureImage(result.images, textureImageType, texProfile, compress);
+
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());
+    }
+
+    public static void main(String[] args) throws IOException, CompileExceptionError {
+        System.setProperty("java.awt.headless", "true");
+
+        if (args.length < 4) {
+            System.err.println("Usage: AtlasBuilder atlas-path texture-set-out-path texture-out-path project-path");
+            System.exit(1);
+        }
+
+        String atlasInPath       = args[0];
+        String textureSetOutPath = args[1];
+        String textureOutPath    = args[2];
+        String baseDir           = args[3];
+
+        final File inFile           = new File(atlasInPath);
+        FileInputStream inputStream = new FileInputStream(inFile);
+        InputStreamReader reader    = new InputStreamReader(inputStream);
+
+        Atlas.Builder builder = Atlas.newBuilder();
+        TextFormat.merge(reader, builder);
+        reader.close();
+
+        Atlas atlas = builder.build();
+        TextureImage.Type textureImageType = getTexureType(atlas);
+
+        TextureSetResult result = AtlasUtil.generateTextureSet(atlas, new AtlasUtil.PathTransformer() {
+            @Override
+            public String transform(String path) {
+                String outPath = baseDir + path;
+                return outPath;
+            }
+        });
+
+        Path basedirAbsolutePath = Paths.get(baseDir).toAbsolutePath();
+        Path textureProjectPath  = Paths.get(inFile.getAbsolutePath().replace(".atlas", ".texturec"));
+        Path textureRelativePath = basedirAbsolutePath.relativize(textureProjectPath);
+        String textureProjectStr = "/" + textureRelativePath.toString().replace("\\","/");
+
+        TextureSet textureSet = result.builder.setPageCount(getPageCount(result.images, textureImageType))
+                                        .setTexture(textureProjectStr)
+                                        .build();
+        TextureImage texture = generateTextureImage(result.images, textureImageType, null, false);
+
+        FileOutputStream textureSetOutStream = new FileOutputStream(textureSetOutPath);
+        textureSet.writeTo(textureSetOutStream);
+        textureSetOutStream.close();
+
+        FileOutputStream textureOutStream = new FileOutputStream(textureOutPath);
+        texture.writeTo(textureOutStream);
+        textureOutStream.close();
     }
 }

@@ -34,7 +34,6 @@ mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
 mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
-mkdir -p libexec/arm64-nx64
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -87,6 +86,12 @@ cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
+
+#LIPO
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/lipo libexec/x86_64-macos/lipo
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/lipo libexec/arm64-macos/lipo
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/lipo libexec/x86_64-linux/lipo
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/lipo.exe libexec/x86_64-win32/lipo.exe
 
 copy () {
     cp -v $DYNAMO_HOME/archive/${SHA1}/engine/$1 libexec/$2

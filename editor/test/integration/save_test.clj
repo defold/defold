@@ -262,11 +262,11 @@
                ["/live_update/live_update.settings" #(set-setting! % ["liveupdate" "mode"] "Zip")]]]
     (with-clean-system
       (let [workspace (test-util/setup-scratch-workspace! world)
-            project   (test-util/setup-project! workspace)]
-        (let [xf (comp (map :resource)
-                   (map resource/resource->proj-path)
-                   (filter (complement black-list)))
-              clean? (fn [] (empty? (into [] xf (g/node-value project :dirty-save-data))))]
+            project (test-util/setup-project! workspace)]
+        (let [save-data->proj-path (comp resource/resource->proj-path :resource)
+              xf (comp (map save-data->proj-path)
+                       (filter (complement black-list)))
+              get-dirty-proj-paths (fn [] (into (sorted-set) xf (g/node-value project :dirty-save-data)))]
           ;; This first check is intended to verify that changes to the file
           ;; formats do not cause undue changes to existing content in game
           ;; projects. For example, adding fields to component protobuf
@@ -280,7 +280,7 @@
           ;; added protobuf field has a default value. But more drastic file
           ;; format changes have happened in the past, and you can find other
           ;; examples of :sanitize-fn usage in non-component resource types.
-          (is (clean?))
+          (is (= #{} (get-dirty-proj-paths)))
           (doseq [[path f] paths]
             (testing (format "Verifying %s" path)
               (let [resource (test-util/resource workspace path)
@@ -305,9 +305,9 @@
               (let [node-id (test-util/resource-node project path)]
                 (f node-id)
                 (is (true? (dirty? node-id))))))
-          (is (not (clean?)))
+          (is (= (into (sorted-set) (map first) paths) (get-dirty-proj-paths)))
           (test-util/save-project! project)
-          (is (clean?)))))))
+          (is (= #{} (get-dirty-proj-paths))))))))
 
 (defn- setup-scratch
   [ws-graph]

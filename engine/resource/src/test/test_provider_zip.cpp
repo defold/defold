@@ -80,6 +80,29 @@ const uint32_t EXTRA_FILE_SIZES[] = {
     29
 };
 
+
+
+static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
+{
+    const char* override_path = override ? "/zipfiles" : "";
+    const char* alternatives[2] = {
+        "build/src/test%s%s",
+        "src/test%s%s"
+    };
+    for (int i = 0; i < DM_ARRAY_SIZE(alternatives); ++i)
+    {
+        char path_buffer[256];
+        dmSnPrintf(path_buffer, sizeof(path_buffer), alternatives[i], override_path, path);
+
+        char host_buffer[256];
+        dmTestUtil::MakeHostPath(host_buffer, sizeof(host_buffer), path_buffer);
+        if (!dmSys::Exists(host_buffer))
+            continue;
+        return dmTestUtil::ReadHostFile(path_buffer, size);
+    }
+    return 0;
+}
+
 // ****************************************************************************************************************
 
 TEST(ArchiveProviderBasic, Registered)
@@ -163,16 +186,7 @@ TEST_P(ArchiveProviderZip, GetSize)
     path = "src/test/files/not_exist";
     result = dmResourceProvider::GetFileSize(m_Archive, dmHashString64(path), path, &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_NOT_FOUND, result);
-}
 
-static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
-{
-    char path_buffer[256];
-    const char* override_path = override ? "/zipfiles" : "";
-    const char* host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "build/src/test%s%s", override_path, path);
-    if (!dmSys::Exists(host_path))
-        host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "src/test%s%s", override_path, path);
-    return dmTestUtil::ReadHostFile(host_path, size);
 }
 
 // * Test that the files exist

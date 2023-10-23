@@ -861,15 +861,11 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
         CreateTestMesh(mesh_set, 1, 0, Vector4(0.5f, 0.4f, 0.3f, 0.2f));
         CreateTestMesh(mesh_set, 1, 1, Vector4(1.0f, 0.9f, 0.8f, 0.7f));
 
-        // We create bone lists for both the meshset and animationset,
-        // that is in "inverted" order of the skeleton hirarchy.
         mesh_set->m_BoneList.m_Data = new uint64_t[bone_count];
         mesh_set->m_BoneList.m_Count = bone_count;
-        animation_set->m_BoneList.m_Data = mesh_set->m_BoneList.m_Data;
-        animation_set->m_BoneList.m_Count = bone_count;
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            mesh_set->m_BoneList.m_Data[i] = bone_count-i-1;
+            mesh_set->m_BoneList.m_Data[i] = i;
         }
 }
 

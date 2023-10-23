@@ -33,12 +33,7 @@ namespace dmResourceProviderFile
 
     static bool MatchesUri(const dmURI::Parts* uri)
     {
-        return strcmp(uri->m_Scheme, "file") == 0
-#if defined(__NX__)
-            || strcmp(uri->m_Scheme, "data") == 0
-            || strcmp(uri->m_Scheme, "host") == 0
-#endif
-        ;
+        return strcmp(uri->m_Scheme, "file") == 0;
     }
 
     static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)

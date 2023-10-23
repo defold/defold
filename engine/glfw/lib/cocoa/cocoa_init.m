@@ -243,6 +243,19 @@ int _glfwPlatformInit( void )
     // Setting up menu bar must go exactly here else weirdness ensues
     setUpMenuBar();
 
+    CFStringRef uti;
+    CFBundleRef bundle = CFBundleGetMainBundle();
+    CFURLRef bundleUrl = CFBundleCopyBundleURL(bundle);
+    if (CFURLCopyResourcePropertyForKey(bundleUrl, kCFURLTypeIdentifierKey, &uti, NULL) &&
+        uti && UTTypeConformsTo(uti, kUTTypeApplicationBundle))
+    {
+        _glfwLibrary.Unbundled = GL_FALSE;
+    } 
+    else
+    {
+        _glfwLibrary.Unbundled = GL_TRUE;
+    }
+
     [NSApp finishLaunching];
 
     // Install atexit routine

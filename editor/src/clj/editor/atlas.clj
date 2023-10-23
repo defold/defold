@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,7 +52,7 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
-           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
+           [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
@@ -217,7 +217,15 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str
-            (value (g/fnk [maybe-image-resource] (some-> maybe-image-resource resource/proj-path path->id)))
+            (value (g/fnk [maybe-image-resource rename-patterns]
+                     (let [rename-patterns (if (nil? rename-patterns) "" rename-patterns)
+                           id (some-> maybe-image-resource resource/proj-path path->id)]
+                       (if (nil? id)
+                         nil
+                         (try
+                           (AtlasUtil/replaceStrings rename-patterns id)
+                           (catch Exception _
+                             id))))))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
@@ -251,6 +259,7 @@
 
   (input maybe-image-size g/Any)
   (input image-path->rect g/Any)
+  (input rename-patterns g/Str)
 
   (input child->order g/Any)
   (output order g/Any (g/fnk [_node-id child->order]
@@ -314,7 +323,8 @@
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
     (g/connect atlas-node :image-path->rect image-node :image-path->rect)
-    (g/connect atlas-node :updatable        image-node :animation-updatable)))
+    (g/connect atlas-node :updatable        image-node :animation-updatable)
+    (g/connect atlas-node :rename-patterns  image-node :rename-patterns)))
 
 (defn- attach-image-to-animation [animation-node image-node]
   (concat
@@ -328,7 +338,8 @@
     (g/connect animation-node :child->order     image-node     :child->order)
     (g/connect animation-node :image-path->rect image-node     :image-path->rect)
     (g/connect animation-node :layout-size      image-node     :layout-size)
-    (g/connect animation-node :updatable        image-node     :animation-updatable)))
+    (g/connect animation-node :updatable        image-node     :animation-updatable)
+    (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
 
 (defn- attach-animation-to-atlas [atlas-node animation-node]
   (concat
@@ -345,7 +356,8 @@
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
     (g/connect atlas-node     :layout-size      animation-node :layout-size)
-    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)))
+    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)
+    (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
@@ -401,6 +413,9 @@
   (input anim-data g/Any)
   (input layout-size g/Any)
   (output layout-size g/Any (gu/passthrough layout-size))
+  
+  (input rename-patterns g/Str)
+  (output rename-patterns g/Str (gu/passthrough rename-patterns))
 
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
@@ -438,12 +453,13 @@
 (defn- v3->v2 [v3]
   (subvec v3 0 2))
 
-(g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf]
+(g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
   (cond-> {:margin margin
            :inner-padding inner-padding
            :extrude-borders extrude-borders
            :images (sort-by-and-strip-order img-ddf)
-           :animations anim-ddf}
+           :animations anim-ddf
+           :rename-patterns rename-patterns}
 
           (not= [0.0 0.0] max-page-size)
           (assoc :max-page-width (get max-page-size 0) :max-page-height (get max-page-size 1))))
@@ -473,6 +489,12 @@
                           (filter some?)
                           (not-empty))]
     (g/error-aggregate errors)))
+
+(defn- validate-rename-patterns [node-id rename-patterns]
+  (try
+    (AtlasUtil/validatePatterns rename-patterns)
+    (catch Exception error
+      (validation/prop-error :fatal node-id :rename-patterns identity (.getMessage error)))))
 
 (g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
@@ -699,6 +721,8 @@
   (property max-page-size types/Vec2
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
+  (property rename-patterns g/Str
+            (dynamic error (g/fnk [_node-id rename-patterns] (validate-rename-patterns _node-id rename-patterns))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -730,7 +754,7 @@
   (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
                                                  (if (every? pos? max-page-size)
                                                    (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
-                                                   0))) ; Not a paged atlas. Built as TYPE_2D, not TYPE_2D_ARRAY.
+                                                   texture/non-paged-page-count)))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 
@@ -773,12 +797,13 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
                                                               (validate-extrude-borders _node-id extrude-borders)
-                                                              (validate-max-page-size _node-id max-page-size))))
+                                                              (validate-max-page-size _node-id max-page-size)
+                                                              (validate-rename-patterns _node-id rename-patterns))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
                                                               child-build-errors
@@ -843,6 +868,7 @@
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
       (g/set-property self :max-page-size [(:max-page-width atlas) (:max-page-height atlas)])
+      (g/set-property self :rename-patterns (:rename-patterns atlas))
       (make-image-nodes-in-atlas self image-msgs)
       (map (comp (partial make-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))

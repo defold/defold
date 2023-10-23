@@ -79,6 +79,7 @@ namespace dmGraphics
 
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
 
     enum AssetType
     {
@@ -569,13 +570,13 @@ namespace dmGraphics
     void             GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type);
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
-    uint32_t GetUniformCount(HProgram prog);
-    int32_t  GetUniformLocation(HProgram prog, const char* name);
+    uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
+    uint32_t         GetUniformCount(HProgram prog);
+    HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
-    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    void SetSampler(HContext context, int32_t location, int32_t unit);
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);
@@ -649,7 +650,6 @@ namespace dmGraphics
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);
-
 
     // Asset handle helpers
     const char* GetAssetTypeLiteral(AssetType type);

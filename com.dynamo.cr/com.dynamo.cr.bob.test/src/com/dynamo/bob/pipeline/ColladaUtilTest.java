@@ -412,8 +412,8 @@ public class ColladaUtilTest {
     @Test
     public void testSkeleton() throws Exception {
 
-        String[] boneIds   = {"Bone", "Bone_001", "Bone_002", "Bone_003", "Bone_004"};
-        String[] parentIds =  {null, "Bone", "Bone", "Bone", "Bone"};
+        String[] boneIds   = {"root", "Bone_001", "Bone_002", "Bone_003", "Bone_004"};
+        String[] parentIds =  {null, "root", "root", "root", "root"};
 
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(load("bone_influences.dae"), skeleton, new ArrayList<String>());
@@ -805,29 +805,6 @@ public class ColladaUtilTest {
                 // There should only be animation on the bones specified above.
                 fail("Animation on invalid bone index: " + boneId);
             }
-        }
-    }
-
-    /*
-     * Test that MeshSets and AnimationSets can have bones specified in different order.
-     */
-    @Test
-    public void testBoneList() throws Exception {
-        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
-        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, "", new ArrayList<String>());
-
-        int meshBoneListCount = meshSetBuilder.getBoneListCount();
-        int animBoneListCount = animSetBuilder.getBoneListCount();
-
-        assertEquals(3, meshBoneListCount);
-        assertEquals(3, animBoneListCount);
-
-        for (int i = 0; i < meshBoneListCount; i++) {
-            Long meshBone = meshSetBuilder.getBoneList(i);
-            Long animBone = animSetBuilder.getBoneList(i);
-            assertEquals(meshBone, animBone);
         }
     }
 

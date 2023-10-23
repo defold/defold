@@ -135,6 +135,7 @@ struct ModelJNI
     jfieldID    name;
     jfieldID    meshes;
     jfieldID    index;
+    jfieldID    boneParentName; // String
 };
 
 struct MeshJNI
@@ -329,6 +330,7 @@ static void InitializeJNITypes(JNIEnv* env, TypeInfos* infos)
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(index, "I");
         GET_FLD_ARRAY(meshes, "Mesh");
+        GET_FLD_TYPESTR(boneParentName, "Ljava/lang/String;");
     }
     {
         SETUP_CLASS(MeshJNI, "Mesh");
@@ -524,19 +526,31 @@ static jobject CreateMaterial(JNIEnv* env, const TypeInfos* types, const dmModel
     return obj;
 }
 
-static jobjectArray CreateMaterialsArray(JNIEnv* env, const TypeInfos* types, uint32_t count, const dmModelImporter::Material* materials, dmArray<jobject>& nodes)
+static jobjectArray CreateMaterialsArray(JNIEnv* env, const TypeInfos* types,
+                        uint32_t count, const dmModelImporter::Material* materials,
+                        uint32_t dynamic_count, dmModelImporter::Material** const dynamic_materials,
+                        dmArray<jobject>& nodes)
 {
-    nodes.SetCapacity(count);
-    nodes.SetSize(count);
+    uint32_t total_count = count + dynamic_count;
+    nodes.SetCapacity(total_count);
+    nodes.SetSize(total_count);
 
-    jobjectArray arr = env->NewObjectArray(count, types->m_MaterialJNI.cls, 0);
+    jobjectArray arr = env->NewObjectArray(total_count, types->m_MaterialJNI.cls, 0);
     for (uint32_t i = 0; i < count; ++i)
     {
         const dmModelImporter::Material* material = &materials[i];
         jobject obj = CreateMaterial(env, types, material);
         nodes[material->m_Index] = obj;
-        env->SetObjectArrayElement(arr, i, obj);
+        env->SetObjectArrayElement(arr, material->m_Index, obj);
     }
+    for (uint32_t i = 0; i < dynamic_count; ++i)
+    {
+        const dmModelImporter::Material* material = dynamic_materials[i];
+        jobject obj = CreateMaterial(env, types, material);
+        nodes[material->m_Index] = obj;
+        env->SetObjectArrayElement(arr, material->m_Index, obj);
+    }
+
     return arr;
 }
 
@@ -678,6 +692,7 @@ static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmArray<job
     SET_FARRAY(obj, texCoords1, vcount * mesh->m_TexCoord1NumComponents, mesh->m_TexCoord1);
 
     SET_IARRAY(obj, bones, vcount * 4, mesh->m_Bones);
+
     SET_IARRAY(obj, indices, icount, mesh->m_Indices);
 
     SetFieldObject(env, obj, types->m_MeshJNI.aabb, CreateAabb(env, types, mesh->m_Aabb));
@@ -705,6 +720,7 @@ static jobject CreateModel(JNIEnv* env, const TypeInfos* types, const dmArray<jo
     jobject obj = env->AllocObject(types->m_ModelJNI.cls);
     SetFieldInt(env, obj, types->m_ModelJNI.index, model->m_Index);
     SetFieldString(env, obj, types->m_ModelJNI.name, model->m_Name);
+    SetFieldString(env, obj, types->m_ModelJNI.boneParentName, model->m_ParentBone ? model->m_ParentBone->m_Name: "");
 
     jobjectArray arr = CreateMeshesArray(env, types, materials, model->m_MeshesCount, model->m_Meshes);
     env->SetObjectField(obj, types->m_ModelJNI.meshes, arr);
@@ -916,7 +932,10 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     }
 
     {
-        jobjectArray arr = CreateMaterialsArray(env, &types, scene->m_MaterialsCount, scene->m_Materials, materials);
+        jobjectArray arr = CreateMaterialsArray(env, &types,
+                                    scene->m_MaterialsCount, scene->m_Materials,
+                                    scene->m_DynamicMaterialsCount, scene->m_DynamicMaterials,
+                                    materials);
         env->SetObjectField(obj, types.m_SceneJNI.materials, arr);
         env->DeleteLocalRef(arr);
     }

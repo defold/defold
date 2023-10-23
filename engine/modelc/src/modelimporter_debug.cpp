@@ -114,9 +114,10 @@ static void OutputNodeTree(Node* node, int indent)
 {
     OutputIndent(indent);
     printf("%s: ", node->m_Name);
-    if (node->m_Skin)
-        printf("skin: %s", node->m_Skin->m_Name);
-    printf("\n");
+        if (node->m_Skin)
+            printf("skin: %s", node->m_Skin->m_Name);
+        printf("\n");
+
 
     for (uint32_t i = 0; i < node->m_ChildrenCount; ++i)
     {
@@ -163,7 +164,12 @@ static void OutputMesh(Mesh* mesh, int indent)
 static void OutputModel(Model* model, int indent)
 {
     OutputIndent(indent);
-    printf("%s   meshes count: %u\n", model->m_Name, model->m_MeshesCount);
+    printf("%s   meshes count: %u", model->m_Name, model->m_MeshesCount);
+        if (model->m_ParentBone)
+        {
+            printf("  bone: %s", model->m_ParentBone->m_Name);
+        }
+    printf("\n");
     for (uint32_t i = 0; i < model->m_MeshesCount; ++i)
     {
         Mesh* mesh = &model->m_Meshes[i];
@@ -240,6 +246,11 @@ void DebugScene(Scene* scene)
     for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
     {
         OutputMaterial(&scene->m_Materials[i], 0);
+    }
+
+    for (uint32_t i = 0; i < scene->m_DynamicMaterialsCount; ++i)
+    {
+        OutputMaterial(scene->m_DynamicMaterials[i], 0);
     }
 
     printf("------------------------------\n");

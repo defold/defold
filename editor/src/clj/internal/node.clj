@@ -461,12 +461,23 @@
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
+(defn- output-schema->declared-schema [output-schema]
+  ;; The schema declared using g/deftype is wrapped in a ConditionalSchema also
+  ;; accepting ErrorValues. This ConditionalSchema is in turn wrapped in a Maybe
+  ;; to allow nil values.
+  (let [conditional-schema (:schema output-schema) ; Maybe -> Conditional
+        conditional-cases (:preds-and-schemas conditional-schema)
+        [_ declared-schema] (peek conditional-cases)]
+    declared-schema))
+
 (defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" node-type-name " ) label " label)
-    (println "Output value:" value)
-    (println "Should match:" (s/explain output-schema))
-    (println "But:" error)))
+    (let [output-name (symbol label)
+          declared-schema (output-schema->declared-schema output-schema)]
+      (println "Schema validation failed for output" output-name "on" node-type-name node-id)
+      (println "Output value:" (pr-str value))
+      (println "Should match:" (s/explain declared-schema))
+      (println "But:" (pr-str error)))))
 
 ;;; ----------------------------------------
 ;; Type checking

@@ -14,15 +14,22 @@
 
 (ns editor.code.view
   (:require [cljfx.api :as fx]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.v-box :as fx.v-box]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as mutator]
+            [cljfx.prop :as prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
@@ -32,11 +39,13 @@
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
+            [editor.markdown :as markdown]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
             [editor.view :as view]
@@ -59,16 +68,16 @@
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event EventHandler]
-           [javafx.geometry HPos Point2D VPos]
+           [javafx.geometry HPos Point2D Rectangle2D VPos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
-           [javafx.scene.control Button CheckBox PopupControl Tab TextField]
+           [javafx.scene.control Button CheckBox Tab TextField]
            [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Font FontSmoothingType Text TextAlignment]
-           [javafx.stage Stage]))
+           [javafx.stage PopupWindow Screen Stage]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -99,6 +108,12 @@
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
 (g/deftype VisibleWhitespace (s/enum :all :none :rogue))
+(g/deftype CompletionState {:enabled s/Bool
+                            (s/optional-key :showing) s/Bool
+                            (s/optional-key :completions) [s/Any]
+                            (s/optional-key :selected-index) s/Any
+                            (s/optional-key :show-doc) s/Bool
+                            (s/optional-key :project) s/Int})
 
 (defn- boolean->visible-whitespace [visible?]
   (if visible? :all :rogue))
@@ -702,8 +717,13 @@
 (g/defnk produce-tab-trigger-scope-regions [regions]
   (filterv #(= :tab-trigger-scope (:type %)) regions))
 
-(g/defnk produce-tab-trigger-word-regions-by-scope-id [regions]
-  (group-by :scope-id (filter #(= :tab-trigger-word (:type %)) regions)))
+(g/defnk produce-tab-trigger-regions-by-scope-id [regions]
+  (->> regions
+       (eduction
+         (filter #(let [type (:type %)]
+                    (or (= :tab-trigger-word type)
+                        (= :tab-trigger-exit type)))))
+       (group-by :scope-id)))
 
 (g/defnk produce-visible-cursors [visible-cursor-ranges focus-state]
   (when (= :input-focused focus-state)
@@ -771,12 +791,13 @@
              execution-markers)
         (cond
           (seq active-tab-trigger-scope-ids)
-          (keep (fn [tab-trigger-word-region]
-                  (when (and (contains? active-tab-trigger-scope-ids (:scope-id tab-trigger-word-region))
-                             (not-any? #(data/cursor-range-contains? tab-trigger-word-region %)
+          (keep (fn [tab-trigger-region]
+                  (when (and (contains? active-tab-trigger-scope-ids (:scope-id tab-trigger-region))
+                             (not-any? #(data/cursor-range-contains? tab-trigger-region %)
                                        visible-cursors))
-                    (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
-                (visible-regions-by-type :tab-trigger-word))
+                    (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-region)))
+                (concat (visible-regions-by-type :tab-trigger-word)
+                        (visible-regions-by-type :tab-trigger-exit)))
 
           (not (empty? highlighted-find-term))
           (map (partial cursor-range-draw-info :range nil find-term-occurrence-color)
@@ -855,6 +876,83 @@
     (.addAll children ^Collection cursor-rectangles)
     nil))
 
+(g/defnk produce-completion-context
+  "Returns a map of completion-related information
+
+  The map includes following keys:
+    :context          required, a string indicating a context in which the
+                      completions should be requested, e.g. for a string
+                      \"socket.d\" before cursor the context would be \"socket\"
+    :query            required, a string used for filtering completions, e.g.
+                      for a string \"socket.d\" before cursor the query would
+                      be \"d\"
+    :cursor-ranges    required, replacement ranges that should be used when
+                      accepting the suggestion
+    :trigger          optional trigger character string, e.g. \".\""
+  [lines cursor-ranges]
+  {:pre [(pos? (count cursor-ranges))]}
+  (let [results (mapv (fn [^CursorRange cursor-range]
+                        (let [suggestion-cursor (data/adjust-cursor lines (data/cursor-range-start cursor-range))
+                              line (subs (lines (.-row suggestion-cursor)) 0 (.-col suggestion-cursor))
+                              prefix (re-find #"[a-zA-Z_0-9.]*$" line)
+                              affected-cursor (if (pos? (data/compare-cursor-position
+                                                          (.-from cursor-range)
+                                                          (.-to cursor-range)))
+                                                :to
+                                                :from)
+                              last-dot (string/last-index-of prefix ".")
+                              context (if last-dot (subs prefix 0 last-dot) "")
+                              query (if last-dot (subs prefix (inc ^long last-dot)) prefix)
+                              replacement-range (update cursor-range affected-cursor update :col - (count query))]
+                          [replacement-range context query (if last-dot "." nil)]))
+                      cursor-ranges)]
+    (let [[_ context query trigger] (first results)]
+      (cond-> {:context context
+               :query query
+               :cursor-ranges (mapv first results)}
+              trigger
+              (assoc :trigger trigger)))))
+
+(g/defnk produce-visible-completion-ranges [lines layout completion-context]
+  (data/visible-cursor-ranges lines layout (:cursor-ranges completion-context)))
+
+(defn- find-tab-trigger-scope-region-at-cursor
+  ^CursorRange [tab-trigger-scope-regions ^Cursor cursor]
+  (some (fn [scope-region]
+          (when (data/cursor-range-contains? scope-region cursor)
+            scope-region))
+        tab-trigger-scope-regions))
+
+(defn- find-tab-trigger-region-at-cursor
+  ^CursorRange [tab-trigger-scope-regions tab-trigger-regions-by-scope-id ^Cursor cursor]
+  (when-some [scope-region (find-tab-trigger-scope-region-at-cursor tab-trigger-scope-regions cursor)]
+    (some (fn [region]
+            (when (data/cursor-range-contains? region cursor)
+              region))
+          (get tab-trigger-regions-by-scope-id (:id scope-region)))))
+
+(g/defnk produce-suggested-completions [tab-trigger-scope-regions
+                                        tab-trigger-regions-by-scope-id
+                                        cursor-ranges
+                                        completions
+                                        completion-context]
+  (let [choices-colls (into []
+                            (comp
+                              (map data/CursorRange->Cursor)
+                              (keep (partial find-tab-trigger-region-at-cursor
+                                             tab-trigger-scope-regions
+                                             tab-trigger-regions-by-scope-id))
+                              (keep :choices))
+                            cursor-ranges)
+        unfiltered-completions (if (pos? (count choices-colls))
+                                 (into [] (comp cat (map code-completion/make)) choices-colls)
+                                 (get completions (:context completion-context)))]
+    (vec (popup/fuzzy-option-filter-fn
+           :name
+           :display-string
+           (:query completion-context)
+           unfiltered-completions))))
+
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
@@ -894,9 +992,7 @@
   (property resize-reference ResizeReference (default :top) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
-  (property suggested-completions g/Any (dynamic visible (g/constantly false)))
-  (property suggestions-list-view ListView (dynamic visible (g/constantly false)))
-  (property suggestions-popup PopupControl (dynamic visible (g/constantly false)))
+  (property completion-state CompletionState (default {:enabled false}) (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
@@ -920,6 +1016,9 @@
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
+  (output completion-context g/Any :cached produce-completion-context)
+  (output visible-completion-ranges g/Any :cached produce-visible-completion-ranges)
+  (output suggested-completions g/Any :cached produce-suggested-completions)
   ;; We cache the lines in the view instead of the resource node, since the
   ;; resource node will read directly from disk unless edits have been made.
   (output lines r/Lines :cached (gu/passthrough lines))
@@ -935,7 +1034,7 @@
   (output layout LayoutInfo :cached produce-layout)
   (output matching-braces MatchingBraces :cached produce-matching-braces)
   (output tab-trigger-scope-regions r/Regions :cached produce-tab-trigger-scope-regions)
-  (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
+  (output tab-trigger-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-regions-by-scope-id)
   (output visible-cursors r/Cursors :cached produce-visible-cursors)
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
   (output visible-regions r/Regions :cached produce-visible-regions)
@@ -1059,15 +1158,6 @@
 ;; Code completion
 ;; -----------------------------------------------------------------------------
 
-(defn- suggestion-info [lines cursor-ranges]
-  (when-some [query-cursor-range (data/suggestion-query-cursor-range lines cursor-ranges)]
-    (let [query-text (data/cursor-range-text lines query-cursor-range)]
-      (when-not (string/blank? query-text)
-        (let [contexts (string/split query-text #"\." 2)]
-          (if (= 1 (count contexts))
-            [query-cursor-range "" (contexts 0)]
-            [query-cursor-range (contexts 0) (contexts 1)]))))))
-
 (defn- cursor-bottom
   ^Point2D [^LayoutInfo layout lines ^Cursor adjusted-cursor]
   (let [^Rect r (data/cursor-rect layout lines adjusted-cursor)]
@@ -1077,92 +1167,55 @@
   ^Point2D [^Canvas canvas width height ^Point2D cursor-bottom]
   (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/CENTER (.getX cursor-bottom) (.getY cursor-bottom) true))
 
-(defn- find-tab-trigger-scope-region-at-cursor
-  ^CursorRange [tab-trigger-scope-regions ^Cursor cursor]
-  (some (fn [scope-region]
-          (when (data/cursor-range-contains? scope-region cursor)
-            scope-region))
-        tab-trigger-scope-regions))
+(defn- show-suggestions!
+  ([view-node toggle-doc-if-open]
+   (g/with-auto-evaluation-context evaluation-context
+     (show-suggestions! view-node toggle-doc-if-open evaluation-context)))
+  ([view-node toggle-doc-if-open evaluation-context]
+   (let [new-completions (get-property view-node :suggested-completions evaluation-context)
+         lines (get-property view-node :lines evaluation-context)
+         cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
+         frame-cursor-props (-> {:lines lines
+                                 :cursor-ranges cursor-ranges}
+                                (data/frame-cursor
+                                  (get-property view-node :layout evaluation-context))
+                                (dissoc :lines :cursor-ranges))]
+     (when (pos? (count frame-cursor-props))
+       (set-properties! view-node nil frame-cursor-props))
+     (g/update-property! view-node :completion-state
+                         (fn [{:keys [showing completions] :as completion-state}]
+                           (-> completion-state
+                               (assoc :showing true
+                                      :completions new-completions)
+                               (cond-> (not= new-completions completions)
+                                       (assoc :selected-index nil)
 
-(defn- find-tab-trigger-word-region-at-cursor
-  ^CursorRange [tab-trigger-scope-regions tab-trigger-word-regions-by-scope-id ^Cursor cursor]
-  (when-some [scope-region (find-tab-trigger-scope-region-at-cursor tab-trigger-scope-regions cursor)]
-    (some (fn [word-region]
-            (when (data/cursor-range-contains? word-region cursor)
-              word-region))
-          (get tab-trigger-word-regions-by-scope-id (:id scope-region)))))
+                                       (and showing toggle-doc-if-open)
+                                       (update :show-doc not))))))))
 
-(defn- suggested-completions [view-node]
-  (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)
-        tab-trigger-word-regions-by-scope-id (get-property view-node :tab-trigger-word-regions-by-scope-id)
-        tab-trigger-word-types (into #{}
-                                     (comp (map data/CursorRange->Cursor)
-                                           (keep (partial find-tab-trigger-word-region-at-cursor
-                                                          tab-trigger-scope-regions
-                                                          tab-trigger-word-regions-by-scope-id))
-                                           (map :word-type))
-                                     (get-property view-node :cursor-ranges))]
-    (when-not (or (contains? tab-trigger-word-types :name)
-                  (contains? tab-trigger-word-types :arglist))
-      (get-property view-node :completions))))
-
-(defn- show-suggestions! [view-node]
-  (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    ;; Snapshot completions when the popup is first opened to prevent
-    ;; typed words from showing up in the completions list.
-    (when (nil? (g/node-value view-node :suggested-completions))
-      (g/set-property! view-node :suggested-completions (suggested-completions view-node)))
-
-    (let [lines (get-property view-node :lines)
-          cursor-ranges (get-property view-node :cursor-ranges)
-          [replaced-cursor-range context query] (suggestion-info lines cursor-ranges)
-          query-text (if (empty? context) query (str context \. query))]
-      (if-not (some #(Character/isLetter ^char %) query-text)
-        (when (.isShowing suggestions-popup)
-          (.hide suggestions-popup))
-        (let [completions (g/node-value view-node :suggested-completions)
-              context-completions (get completions context)
-              filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
-          (if (empty? filtered-completions)
-            (when (.isShowing suggestions-popup)
-              (.hide suggestions-popup))
-            (let [^LayoutInfo layout (get-property view-node :layout)
-                  ^Canvas canvas (g/node-value view-node :canvas)
-                  ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)
-                  selected-index (when (seq filtered-completions) 0)
-                  [width height] (popup/update-list-view! suggestions-list-view 200.0 filtered-completions selected-index)
-                  cursor-bottom (cursor-bottom layout lines (data/CursorRange->Cursor replaced-cursor-range))
-                  anchor (pref-suggestions-popup-position canvas width height cursor-bottom)]
-              (if (.isShowing suggestions-popup)
-                (doto suggestions-popup
-                  (.setAnchorX (.getX anchor))
-                  (.setAnchorY (.getY anchor)))
-                (let [font-name (g/node-value view-node :font-name)
-                      font-size (g/node-value view-node :font-size)]
-                  (doto suggestions-list-view
-                    (.setFixedCellSize (data/line-height (.glyph layout)))
-                    (.setStyle (eutil/format* "-fx-font-family: \"%s\"; -fx-font-size: %gpx;" font-name font-size)))
-                  (.show suggestions-popup canvas (.getX anchor) (.getY anchor))))
-              nil)))))))
+(defn- implies-completions?
+  ([view-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (implies-completions? view-node evaluation-context)))
+  ([view-node evaluation-context]
+   (let [{:keys [query trigger]} (get-property view-node :completion-context evaluation-context)]
+     (or (some? trigger) (pos? (count query))))))
 
 (defn- hide-suggestions! [view-node]
-  (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (g/set-property! view-node :suggested-completions nil)
-    (when (.isShowing suggestions-popup)
-      (.hide suggestions-popup))))
+  (g/update-property! view-node :completion-state assoc :showing false :selected-index nil))
 
 (defn- suggestions-shown? [view-node]
-  (if-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (.isShowing suggestions-popup)
-    false))
+  (let [{:keys [enabled showing]} (get-property view-node :completion-state)]
+    (and enabled showing)))
+
+(defn- suggestions-visible? [view-node]
+  (let [{:keys [enabled showing completions]} (get-property view-node :completion-state)]
+    (and enabled showing (pos? (count completions)))))
 
 (defn- selected-suggestion [view-node]
-  (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)
-        ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)]
-    (when (and (some? suggestions-popup)
-               (some? suggestions-list-view)
-               (.isShowing suggestions-popup))
-      (first (ui/selection suggestions-list-view)))))
+  (let [{:keys [enabled showing completions selected-index]} (get-property view-node :completion-state)]
+    (when (and enabled showing (pos? (count completions)))
+      (get completions (or selected-index 0)))))
 
 (defn- in-tab-trigger? [view-node]
   (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)]
@@ -1175,7 +1228,7 @@
 
 (defn- tab-trigger-related-region? [^CursorRange region]
   (case (:type region)
-    (:tab-trigger-scope :tab-trigger-word) true
+    (:tab-trigger-scope :tab-trigger-word :tab-trigger-exit) true
     false))
 
 (defn- exit-tab-trigger! [view-node]
@@ -1186,120 +1239,407 @@
                                      (remove tab-trigger-related-region?)
                                      (get-property view-node :regions))})))
 
-(defn- find-closest-tab-trigger-word-region
-  ^CursorRange [search-direction tab-trigger-scope-regions tab-trigger-word-regions-by-scope-id ^CursorRange cursor-range]
+(defn- find-closest-tab-trigger-regions
+  [search-direction tab-trigger-scope-regions tab-trigger-regions-by-scope-id ^CursorRange cursor-range]
   ;; NOTE: Cursor range collections are assumed to be in ascending order.
   (let [cursor-range->cursor (case search-direction :prev data/cursor-range-start :next data/cursor-range-end)
         from-cursor (cursor-range->cursor cursor-range)]
     (if-some [scope-region (find-tab-trigger-scope-region-at-cursor tab-trigger-scope-regions from-cursor)]
       ;; The cursor range is inside a tab trigger scope region.
       ;; Try to find the next word region inside the scope region.
-      (let [skip-word-region? (case search-direction
-                                :prev #(not (pos? (data/compare-cursor-position from-cursor (cursor-range->cursor %))))
-                                :next #(not (neg? (data/compare-cursor-position from-cursor (cursor-range->cursor %)))))
-            word-regions-in-scope (get tab-trigger-word-regions-by-scope-id (:id scope-region))
-            ordered-word-regions (case search-direction
-                                   :prev (rseq word-regions-in-scope)
-                                   :next word-regions-in-scope)
-            closest-word-region (first (drop-while skip-word-region? ordered-word-regions))]
-        (if (and (some? closest-word-region)
-                 (data/cursor-range-contains? scope-region (cursor-range->cursor closest-word-region)))
-          ;; Return matching word cursor range.
-          (data/sanitize-cursor-range closest-word-region)
+      (let [scope-id (:id scope-region)
+            selected-tab-region (find-tab-trigger-region-at-cursor
+                                  tab-trigger-scope-regions
+                                  tab-trigger-regions-by-scope-id
+                                  from-cursor)
+            selected-index (if selected-tab-region
+                             (case (:type selected-tab-region)
+                               :tab-trigger-word (:index selected-tab-region)
+                               :tab-trigger-exit ##Inf)
+                             (case search-direction
+                               :next ##-Inf
+                               :prev ##Inf))
+            tab-trigger-regions (get tab-trigger-regions-by-scope-id scope-id)
+            index->tab-triggers (->> tab-trigger-regions
+                                     (eduction
+                                       (filter #(= :tab-trigger-word (:type %))))
+                                     (util/group-into (sorted-map) [] :index))]
+        (or
+          ;; find next region by index
+          (when-let [[_ regions] (first (case search-direction
+                                          :next (subseq index->tab-triggers > selected-index)
+                                          :prev (rsubseq index->tab-triggers < selected-index)))]
+            {:regions (mapv data/sanitize-cursor-range regions)})
+          ;; no further regions found: exit if moving forward
+          (when (= :next search-direction)
+            {:regions (or
+                        ;; if there are explicit exit regions, use those
+                        (not-empty
+                          (into []
+                                (keep
+                                  #(when (= :tab-trigger-exit (:type %))
+                                     (data/sanitize-cursor-range %)))
+                                tab-trigger-regions))
+                        ;; otherwise, exit to the end of the scope
+                        [(-> scope-region
+                             data/cursor-range-end-range
+                             data/sanitize-cursor-range)])
+             :exit (into [scope-region] tab-trigger-regions)})
 
-          ;; There are no more word regions inside the scope region.
-          ;; If moving forward, place the cursor at the end of the scope region.
-          ;; Otherwise return unchanged.
-          (case search-direction
-            :prev cursor-range
-            :next (data/sanitize-cursor-range (data/cursor-range-end-range scope-region)))))
+          ;; fallback: return the same range
+          {:regions [cursor-range]}))
 
-      ;; The cursor range is outside of any tab trigger scope ranges. Return unchanged.
-      cursor-range)))
+      ;; The cursor range is outside any tab trigger scope ranges. Return unchanged.
+      {:regions [cursor-range]})))
 
-(defn- select-closest-tab-trigger-word-region! [search-direction view-node]
-  (hide-suggestions! view-node)
+(defn- select-closest-tab-trigger-region! [search-direction view-node]
   (when-some [tab-trigger-scope-regions (not-empty (get-property view-node :tab-trigger-scope-regions))]
-    (let [tab-trigger-word-regions-by-scope-id (get-property view-node :tab-trigger-word-regions-by-scope-id)
-          find-closest-tab-trigger-word-region (partial find-closest-tab-trigger-word-region search-direction tab-trigger-scope-regions tab-trigger-word-regions-by-scope-id)
+    (let [tab-trigger-regions-by-scope-id (get-property view-node :tab-trigger-regions-by-scope-id)
+          find-closest-tab-trigger-regions (partial find-closest-tab-trigger-regions
+                                                    search-direction
+                                                    tab-trigger-scope-regions
+                                                    tab-trigger-regions-by-scope-id)
           cursor-ranges (get-property view-node :cursor-ranges)
-          new-cursor-ranges (mapv find-closest-tab-trigger-word-region cursor-ranges)]
-      (let [exited-tab-trigger-scope-regions (into #{}
-                                                   (filter (fn [^CursorRange scope-region]
-                                                             (let [at-scope-end? (partial data/cursor-range-equals? (data/cursor-range-end-range scope-region))]
-                                                               (some at-scope-end? new-cursor-ranges))))
-                                                   tab-trigger-scope-regions)
-            removed-regions (into exited-tab-trigger-scope-regions
-                                  (comp (map :id)
-                                        (mapcat tab-trigger-word-regions-by-scope-id))
-                                  exited-tab-trigger-scope-regions)
-            regions (get-property view-node :regions)
-            new-regions (into [] (remove removed-regions) regions)]
-        (set-properties! view-node :selection
-                         (cond-> {:cursor-ranges new-cursor-ranges}
-
-                                 (not= (count regions) (count new-regions))
-                                 (assoc :regions new-regions)))))))
-
-(def ^:private prev-tab-trigger! (partial select-closest-tab-trigger-word-region! :prev))
-(def ^:private next-tab-trigger! (partial select-closest-tab-trigger-word-region! :next))
-
-(defn- find-tab-trigger-word-regions [lines suggestion ^CursorRange scope-region]
-  (when-some [tab-trigger-words (some-> suggestion :tab-triggers :select not-empty)]
-    (let [tab-trigger-word-types (some-> suggestion :tab-triggers :types)
-          search-range (case (:type suggestion)
-                         :function (if-some [opening-paren (data/find-next-occurrence lines ["("] (data/cursor-range-start scope-region) true false)]
-                                     (data/->CursorRange (data/cursor-range-end opening-paren)
-                                                         (data/cursor-range-end scope-region))
-                                     scope-region)
-                         scope-region)]
-      (assert (or (nil? tab-trigger-word-types)
-                  (= (count tab-trigger-words)
-                     (count tab-trigger-word-types))))
-      (into []
-            (map-indexed (fn [index word-cursor-range]
-                           (let [tab-trigger-word-type (get tab-trigger-word-types index)]
-                             (cond-> (assoc word-cursor-range
-                                       :type :tab-trigger-word
-                                       :scope-id (:id scope-region))
-
-                                     (some? tab-trigger-word-type)
-                                     (assoc :word-type tab-trigger-word-type)))))
-            (data/find-sequential-words-in-scope lines tab-trigger-words search-range)))))
-
-(defn- accept-suggestion! [view-node]
-  (when-some [selected-suggestion (selected-suggestion view-node)]
-    (let [indent-level-pattern (get-property view-node :indent-level-pattern)
-          indent-string (get-property view-node :indent-string)
-          grammar (get-property view-node :grammar)
-          lines (get-property view-node :lines)
-          cursor-ranges (get-property view-node :cursor-ranges)
+          new-cursor-ranges+exits (mapv find-closest-tab-trigger-regions cursor-ranges)
+          removed-regions (into #{} (mapcat :exit) new-cursor-ranges+exits)
+          new-cursor-ranges (vec (sort (into #{} (mapcat :regions) new-cursor-ranges+exits)))
           regions (get-property view-node :regions)
-          layout (get-property view-node :layout)
-          [replaced-cursor-range] (suggestion-info lines cursor-ranges)
-          replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
-                                 (.col (data/cursor-range-start replaced-cursor-range)))
-          replacement-lines (split-lines (:insert-string selected-suggestion))
-          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines cursor-ranges regions layout replaced-char-count replacement-lines)]
-      (when (some? props)
-        (hide-suggestions! view-node)
-        (let [cursor-ranges (:cursor-ranges props)
-              tab-trigger-scope-regions (map #(assoc % :type :tab-trigger-scope :id (gensym "tab-scope")) cursor-ranges)
-              tab-trigger-word-region-colls (map (partial find-tab-trigger-word-regions (:lines props) selected-suggestion) tab-trigger-scope-regions)
-              tab-trigger-word-regions (apply concat tab-trigger-word-region-colls)
-              new-cursor-ranges (if (seq tab-trigger-word-regions)
-                                  (mapv (comp data/sanitize-cursor-range first) tab-trigger-word-region-colls)
-                                  (mapv data/cursor-range-end-range cursor-ranges))]
-          (set-properties! view-node nil
-                           (cond-> (assoc props :cursor-ranges new-cursor-ranges)
+          new-regions (into [] (remove removed-regions) regions)]
+      (set-properties! view-node :selection
+                       (cond-> {:cursor-ranges new-cursor-ranges}
 
-                                   (seq tab-trigger-word-regions)
-                                   (assoc :regions (vec (sort (concat (remove tab-trigger-related-region? regions)
-                                                                      tab-trigger-scope-regions
-                                                                      tab-trigger-word-regions))))
+                               (not= (count regions) (count new-regions))
+                               (assoc :regions new-regions))))))
 
-                                   true
-                                   (data/frame-cursor layout))))))))
+(def ^:private prev-tab-trigger! #(select-closest-tab-trigger-region! :prev %))
+(def ^:private next-tab-trigger! #(select-closest-tab-trigger-region! :next %))
+
+(defn- accept-suggestion!
+  ([view-node]
+   (when-let [completion (selected-suggestion view-node)]
+     (accept-suggestion! view-node (code-completion/insertion completion))))
+  ([view-node insertion]
+   (let [indent-level-pattern (get-property view-node :indent-level-pattern)
+         indent-string (get-property view-node :indent-string)
+         grammar (get-property view-node :grammar)
+         lines (get-property view-node :lines)
+         regions (get-property view-node :regions)
+         layout (get-property view-node :layout)
+         replacement-cursor-ranges (:cursor-ranges (get-property view-node :completion-context))
+         {:keys [insert-string exit-ranges tab-triggers]} insertion
+         replacement-lines (split-lines insert-string)
+         replacement-line-counts (mapv count replacement-lines)
+         insert-string-index->replacement-lines-cursor
+         (fn insert-string-index->replacement-lines-cursor [^long i]
+           (loop [row 0
+                  col i]
+             (let [^long row-len (replacement-line-counts row)]
+               (if (< row-len col)
+                 (recur (inc row) (dec (- col row-len)))
+                 (data/->Cursor row col)))))
+         insert-string-index-range->cursor-range
+         (fn insert-string-index-range->cursor-range [[from to]]
+           (data/->CursorRange
+             (insert-string-index->replacement-lines-cursor from)
+             (insert-string-index->replacement-lines-cursor to)))
+         ;; cursor ranges and replacements
+         splices (mapv
+                   (fn [replacement-range]
+                     (let [scope-id (gensym "tab-scope")
+                           introduced-regions
+                           (-> [(assoc (insert-string-index-range->cursor-range [0 (count insert-string)])
+                                  :type :tab-trigger-scope
+                                  :id scope-id)]
+                               (cond->
+                                 tab-triggers
+                                 (into
+                                   (comp
+                                     (map-indexed
+                                       (fn [i tab-trigger]
+                                         (let [tab-trigger-contents (assoc (dissoc tab-trigger :ranges)
+                                                                      :type :tab-trigger-word
+                                                                      :scope-id scope-id
+                                                                      :index i)]
+                                           (eduction
+                                             (map (fn [range]
+                                                    (conj (insert-string-index-range->cursor-range range)
+                                                          tab-trigger-contents)))
+                                             (:ranges tab-trigger)))))
+                                     cat)
+                                   tab-triggers)
+
+                                 exit-ranges
+                                 (into
+                                   (map (fn [index-range]
+                                          (assoc (insert-string-index-range->cursor-range index-range)
+                                            :type :tab-trigger-exit
+                                            :scope-id scope-id)))
+                                   exit-ranges))
+                               sort
+                               vec)]
+                       [replacement-range replacement-lines introduced-regions]))
+                   replacement-cursor-ranges)
+         tab-scope-ids (into #{}
+                             (comp
+                               (mapcat (fn [[_ _ regions]]
+                                         regions))
+                               (keep (fn [{:keys [type] :as region}]
+                                       (when (= :tab-trigger-scope type)
+                                         (:id region)))))
+                             splices)
+         introduced-region? (fn [{:keys [type] :as region}]
+                              (case type
+                                :tab-trigger-scope (contains? tab-scope-ids (:id region))
+                                (:tab-trigger-word :tab-trigger-exit) (contains? tab-scope-ids (:scope-id region))
+                                false))
+         props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout splices)]
+     (when (some? props)
+       (hide-suggestions! view-node)
+       (let [cursor-ranges (:cursor-ranges props)
+             regions (:regions props)
+             new-cursor-ranges (cond
+                                 tab-triggers
+                                 (into []
+                                       (comp
+                                         (filter #(and (= :tab-trigger-word (:type %))
+                                                       (zero? ^long (:index %))
+                                                       (tab-scope-ids (:scope-id %))))
+                                         (map data/sanitize-cursor-range))
+                                       regions)
+
+                                 exit-ranges
+                                 (into []
+                                       (comp
+                                         (filter #(and (= :tab-trigger-exit (:type %))
+                                                       (tab-scope-ids (:scope-id %))))
+                                         (map data/sanitize-cursor-range))
+                                       regions)
+
+                                 :else
+                                 (mapv data/cursor-range-end-range cursor-ranges))]
+         (set-properties! view-node nil
+                          (-> props
+                              (assoc :cursor-ranges new-cursor-ranges
+                                     :regions (if tab-triggers
+                                                ;; remove other tab-trigger-related regions
+                                                (into []
+                                                      (remove #(and (tab-trigger-related-region? %)
+                                                                    (not (introduced-region? %))))
+                                                      regions)
+                                                ;; no triggers: remove introduced regions
+                                                (into [] (remove introduced-region?) regions)))
+                              (data/frame-cursor layout))))))))
+
+(def ^:private ext-with-list-view-props
+  (fx/make-ext-with-props
+    {:items (prop/make
+              (mutator/setter (fn [^ListView view [_key items]]
+                                ;; force items change on key change since text
+                                ;; runs are in meta (equality not affected), but
+                                ;; we want to show them when they change anyway
+                                (.setAll (.getItems view) ^Collection items)))
+              fx.lifecycle/scalar)
+     :selected-index (prop/make
+                       (mutator/setter
+                         (fn [^ListView view [_key index]]
+                           (.clearAndSelect (.getSelectionModel view) (or index 0))
+                           (when-not index (.scrollTo view 0))))
+                       fx.lifecycle/scalar)}))
+
+(defn- completion-list-cell-view [completion]
+  (if completion
+    (let [text (:display-string completion)
+          matching-indices (fuzzy-choices/matching-indices completion)]
+      {:graphic (fuzzy-choices/make-matched-text-flow-cljfx text matching-indices)
+       :on-mouse-clicked {:event :accept :completion completion}})
+    {}))
+
+(defn- completion-popup-view
+  [{:keys [completion-state canvas-repaint-info font font-name font-size
+           visible-completion-ranges query screen-bounds]}]
+  (let [{:keys [showing completions selected-index show-doc project]} completion-state
+        item-count (count completions)]
+    (if (or (not showing) (zero? item-count))
+      {:fx/type fxui/ext-value :value nil}
+      (let [{:keys [^Canvas canvas ^LayoutInfo layout lines]} canvas-repaint-info
+            ^Point2D cursor-bottom (or (and (pos? (count visible-completion-ranges))
+                                            (cursor-bottom layout lines (data/cursor-range-start (first visible-completion-ranges))))
+                                       Point2D/ZERO)
+            anchor (.localToScreen canvas cursor-bottom)
+            glyph-metrics (.-glyph layout)
+            ^double cell-height (data/line-height glyph-metrics)
+            max-visible-completions-count 10
+            text (doto (Text.) (.setFont font))
+            min-completions-height (* (min 3 item-count) cell-height)
+            min-completions-width 150.0
+            [^Point2D anchor ^Rectangle2D screen-bounds]
+            (transduce (map (fn [^Rectangle2D bounds]
+                              (pair
+                                (Point2D.
+                                  (-> (.getX anchor)
+                                      (min (- (.getMaxX bounds) min-completions-width))
+                                      (max (.getMinX bounds)))
+                                  (-> (.getY anchor)
+                                      (min (- (.getMaxY bounds) min-completions-height))
+                                      (max (.getMinY bounds))))
+                                bounds)))
+                       (partial min-key #(.distance anchor ^Point2D (key %)))
+                       (pair (Point2D. Double/MAX_VALUE Double/MAX_VALUE) nil)
+                       screen-bounds)
+            max-completions-width (min 700.0 (- (.getMaxX screen-bounds) (.getX anchor)))
+            max-completions-height (min (* cell-height max-visible-completions-count)
+                                        (-> (- (.getMaxY screen-bounds) (.getY anchor))
+                                            (/ cell-height)
+                                            Math/floor
+                                            (* cell-height)))
+            display-string-widths (eduction
+                                    (take 512)
+                                    (map #(-> text
+                                              (doto (.setText (:display-string %)))
+                                              .getLayoutBounds
+                                              .getWidth))
+                                    completions)
+            ^double max-display-string-width (reduce max 0.0 display-string-widths)
+            completions-width (-> (+ 12.0                      ;; paddings
+                                     (if (< max-visible-completions-count item-count)
+                                       10.0                    ;; scroll bar
+                                       0.0)
+                                     ;; clamp
+                                     (max min-completions-width max-display-string-width))
+                                  (min max-completions-width))
+            refresh-key [query completions]
+            selected-completion (completions (or selected-index 0))]
+        {:fx/type fx/ext-let-refs
+         :refs {:content {:fx/type fx.stack-pane/lifecycle
+                          :style-class "flat-list-container"
+                          :stylesheets [(str (io/resource "editor.css"))]
+                          :children
+                          [{:fx/type ext-with-list-view-props
+                            :props {:selected-index [refresh-key selected-index]}
+                            :desc
+                            {:fx/type ext-with-list-view-props
+                             :props {:items [refresh-key completions]}
+                             :desc
+                             {:fx/type fx.ext.list-view/with-selection-props
+                              :props {:on-selected-index-changed {:event :select}}
+                              :desc
+                              {:fx/type fx.list-view/lifecycle
+                               :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
+                               :id "fuzzy-choices-list-view"
+                               :style-class "flat-list-view"
+                               :fixed-cell-size cell-height
+                               :event-filter {:event :completion-list-view-event-filter}
+                               :min-width completions-width
+                               :pref-width completions-width
+                               :max-width completions-width
+                               :min-height min-completions-height
+                               :pref-height (* cell-height item-count)
+                               :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
+                               :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                              :describe completion-list-cell-view}}}}}]}}
+         :desc
+         {:fx/type fx/ext-many
+          :desc
+          (cond->
+            [{:fx/type fxui/with-popup
+              :desc {:fx/type fxui/ext-value :value canvas}
+              :anchor-x (- (.getX anchor) 12.0)
+              :anchor-y (- (.getY anchor) 4.0)
+              :anchor-location :window-top-left
+              :showing showing
+              :auto-fix false
+              :auto-hide true
+              :on-auto-hide {:event :auto-hide}
+              :hide-on-escape false
+              :content [{:fx/type fx/ext-get-ref :ref :content}]}]
+            show-doc
+            (conj
+              (let [pref-doc-width 350.0
+                    doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
+                    spacing 6.0
+                    left-space (- (.getX anchor) spacing)
+                    right-space (- (.getMaxX screen-bounds)
+                                   (+ (.getX anchor) completions-width spacing))
+                    align-right (or (<= pref-doc-width right-space)
+                                    (<= left-space right-space))
+                    doc-width (if align-right
+                                (min pref-doc-width right-space)
+                                (min pref-doc-width left-space))
+                    {:keys [detail doc type]} selected-completion
+                    small-string (when-let [small-text (or detail (some-> type name (string/replace "-" " ")))]
+                                   (format "<small>%s</small>" small-text))
+                    doc-string (when doc
+                                 (case (:type doc)
+                                   :markdown (:value doc)
+                                   :plaintext (format "<pre>%s</pre>" (:value doc))))]
+                {:fx/type fxui/with-popup
+                 :desc {:fx/type fx/ext-get-ref :ref :content}
+                 :anchor-x (let [x (- (.getX anchor) 12.0)]
+                             (if align-right
+                               (+ x completions-width spacing)
+                               (- x doc-width spacing)))
+                 :anchor-y (- (.getY anchor) 5.0)
+                 :anchor-location :window-top-left
+                 :showing true
+                 :auto-fix false
+                 :auto-hide false
+                 :hide-on-escape false
+                 :content [{:fx/type fx.stack-pane/lifecycle
+                            :stylesheets [(str (io/resource "editor.css"))]
+                            :children [{:fx/type fx.region/lifecycle
+                                        :style-class "flat-list-doc-background"}
+                                       (cond->
+                                         {:fx/type markdown/view
+                                          :base-url (:base-url doc)
+                                          :event-filter {:event :doc-event-filter}
+                                          :max-width doc-width
+                                          :max-height doc-max-height
+                                          :project project
+                                          :content (cond
+                                                     (and small-string doc-string) (str small-string "\n\n" doc-string)
+                                                     small-string small-string
+                                                     doc-string doc-string
+                                                     :else "<small>no documentation</small>")}
+                                         (not align-right)
+                                         (assoc :min-width doc-width))]}]})))}}))))
+
+(defn- handle-completion-popup-event [view-node e]
+  (case (:event e)
+    :doc-event-filter
+    (let [e (:fx/event e)]
+      (when (instance? KeyEvent e)
+        (let [^KeyEvent e e
+              ^Node source (.getSource e)
+              ^PopupWindow window (.getWindow (.getScene source))
+              target (.getFocusOwner (.getScene (.getOwnerWindow window)))]
+          (ui/send-event! target e)
+          (.consume e))))
+
+    :auto-hide
+    (hide-suggestions! view-node)
+
+    :completion-list-view-event-filter
+    (let [e (:fx/event e)]
+      (when (instance? KeyEvent e)
+        (let [^KeyEvent e e
+              code (.getCode e)]
+          ;; redirect everything except arrows to canvas
+          (when-not (or (= KeyCode/UP code)
+                        (= KeyCode/DOWN code)
+                        (= KeyCode/PAGE_UP code)
+                        (= KeyCode/PAGE_DOWN code))
+            (ui/send-event! (get-property view-node :canvas) e)
+            (.consume e)))))
+
+    :select
+    (g/update-property! view-node :completion-state
+                        (fn [{:keys [completions] :as completion-state}]
+                          (let [max-index (dec (count completions))]
+                            (if (neg? max-index)
+                              completion-state
+                              (assoc completion-state :selected-index (min ^long (:fx/event e) max-index))))))
+    :accept
+    (accept-suggestion! view-node (code-completion/insertion (:completion e)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1332,25 +1672,25 @@
 
 (defn delete! [view-node delete-type]
   (let [cursor-ranges (get-property view-node :cursor-ranges)
-        cursor-ranges-empty? (every? data/cursor-range-empty? cursor-ranges)
-        single-character-backspace? (and cursor-ranges-empty? (= :delete-before delete-type))
-        undo-grouping (when cursor-ranges-empty? :typing)
+        cursor-ranges-empty (every? data/cursor-range-empty? cursor-ranges)
+        single-character-backspace (and cursor-ranges-empty (= :delete-before delete-type))
+        undo-grouping (when cursor-ranges-empty :typing)
         delete-fn (case delete-type
                     :delete-before data/delete-character-before-cursor
                     :delete-word-before data/delete-word-before-cursor
                     :delete-after data/delete-character-after-cursor
                     :delete-word-after data/delete-word-after-cursor)]
-    (when-not single-character-backspace?
-      (hide-suggestions! view-node))
     (set-properties! view-node undo-grouping
                      (data/delete (get-property view-node :lines)
                                   cursor-ranges
                                   (get-property view-node :regions)
                                   (get-property view-node :layout)
                                   delete-fn))
-    (when (and single-character-backspace?
-               (suggestions-shown? view-node))
-      (show-suggestions! view-node))))
+    (if (and single-character-backspace
+             (suggestions-shown? view-node)
+             (implies-completions? view-node))
+      (show-suggestions! view-node false)
+      (hide-suggestions! view-node))))
 
 (defn toggle-comment! [view-node]
   (set-properties! view-node nil
@@ -1393,7 +1733,7 @@
 
 (defn- tab! [view-node]
   (cond
-    (suggestions-shown? view-node)
+    (suggestions-visible? view-node)
     (accept-suggestion! view-node)
 
     (in-tab-trigger? view-node)
@@ -1417,7 +1757,7 @@
   (run [view-node] (shift-tab! view-node)))
 
 (handler/defhandler :proposals :code-view
-  (run [view-node] (show-suggestions! view-node)))
+  (run [view-node] (show-suggestions! view-node true)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1425,38 +1765,59 @@
   (let [undo-grouping (if (= "\r" typed) :newline :typing)
         selected-suggestion (selected-suggestion view-node)
         grammar (get-property view-node :grammar)
-        lines (get-property view-node :lines)
-        cursor-ranges (get-property view-node :cursor-ranges)
-        [insert-typed? show-suggestions?] (cond
-                                            (and (= "\r" typed) (some? selected-suggestion))
-                                            (do (accept-suggestion! view-node)
-                                                [false false])
+        [insert-typed show-suggestions]
+        (cond
+          (and selected-suggestion
+               (or (= "\r" typed)
+                   (let [commit-characters (or (:commit-characters selected-suggestion)
+                                               (get-in grammar [:commit-characters (:type selected-suggestion)]))]
+                     (contains? commit-characters typed))))
+          (let [insertion (code-completion/insertion selected-suggestion)]
+            (do (accept-suggestion! view-node insertion)
+                [;; insert-typed
+                 (not
+                   ;; exclude typed when...
+                   (or (= typed "\r")
+                       ;; At this point, we know we typed a commit character.
+                       ;; If there are tab stops, and we typed a character
+                       ;; before the tab stop, we assume the commit character
+                       ;; is a shortcut for accepting a completion and jumping
+                       ;; into the tab stop, e.g. foo($1) + "(" => don't
+                       ;; insert. Otherwise, we insert typed, e.g.:
+                       ;; - foo($1) + "{" => the typed character is expected
+                       ;;   to be inside the tab stop, for example, when foo
+                       ;;   expects a hash map
+                       ;; - vmath + "." => the typed character is expected
+                       ;;   to be after the snippet.
+                       (when-let [^long i (->> insertion :tab-triggers first :ranges first first)]
+                         (when (pos? i)
+                           (= typed (subs (:insert-string insertion) (dec i) i))))))
+                 ;; show-suggestions
+                 (not
+                   ;; hide suggestions when entering new scope
+                   (#{"[" "(" "{"} typed))]))
 
-                                            (and (= "(" typed) (= :function (:type selected-suggestion)))
-                                            (do (accept-suggestion! view-node)
-                                                [false false])
+          (data/typing-deindents-line? grammar (get-property view-node :lines) (get-property view-node :cursor-ranges) typed)
+          [true false]
 
-                                            (and (= "." typed) (= :namespace (:type selected-suggestion)))
-                                            (do (accept-suggestion! view-node)
-                                                [true true])
-
-                                            (data/typing-deindents-line? grammar lines cursor-ranges typed)
-                                            [true false]
-
-                                            :else
-                                            [true true])]
-    (when insert-typed?
+          :else
+          [true true])]
+    (when insert-typed
       (when (set-properties! view-node undo-grouping
                              (data/key-typed (get-property view-node :indent-level-pattern)
                                              (get-property view-node :indent-string)
                                              grammar
-                                             lines
-                                             cursor-ranges
+                                             ;; NOTE: don't move :lines and :cursor-ranges
+                                             ;; to the let above the
+                                             ;; [insert-typed show-suggestion] binding:
+                                             ;; accepting suggestions might change them!
+                                             (get-property view-node :lines)
+                                             (get-property view-node :cursor-ranges)
                                              (get-property view-node :regions)
                                              (get-property view-node :layout)
                                              typed))
-        (if show-suggestions?
-          (show-suggestions! view-node)
+        (if (and show-suggestions (implies-completions? view-node))
+          (show-suggestions! view-node false)
           (hide-suggestions! view-node))))))
 
 (defn handle-key-pressed! [view-node ^KeyEvent event]
@@ -2219,7 +2580,7 @@
          (in-tab-trigger? view-node)
          (exit-tab-trigger! view-node)
 
-         (suggestions-shown? view-node)
+         (suggestions-visible? view-node)
          (hide-suggestions! view-node)
 
          (bar-ui-visible?)
@@ -2353,8 +2714,8 @@
     (.setFill gc Color/WHITE)
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
-(defn repaint-view! [view-node elapsed-time {:keys [cursor-visible?] :as _opts}]
-  (assert (boolean? cursor-visible?))
+(defn repaint-view! [view-node elapsed-time {:keys [cursor-visible] :as _opts}]
+  (assert (boolean? cursor-visible))
 
   ;; Since the elapsed time updates at 60 fps, we store it as user-data to avoid transaction churn.
   (g/user-data! view-node :elapsed-time elapsed-time)
@@ -2364,7 +2725,7 @@
     (let [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
                                 (g/node-value view-node :layout evaluation-context)
                                 (g/node-value view-node :gesture-start evaluation-context))
-          props (if-not cursor-visible?
+          props (if-not cursor-visible
                   tick-props
                   (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
                         old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
@@ -2377,11 +2738,14 @@
   ;; Repaint the view.
   (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
         prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-        [resource-node canvas-repaint-info cursor-repaint-info]
+        existing-completion-popup-renderer (g/user-data view-node :completion-popup-renderer)
+
+        [resource-node canvas-repaint-info cursor-repaint-info completion-state]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-node :resource-node evaluation-context)
            (g/node-value view-node :canvas-repaint-info evaluation-context)
-           (g/node-value view-node :cursor-repaint-info evaluation-context)])]
+           (g/node-value view-node :cursor-repaint-info evaluation-context)
+           (g/node-value view-node :completion-state evaluation-context)])]
 
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
@@ -2398,6 +2762,30 @@
         (g/user-data! resource-node :syntax-info syntax-info)
         (repaint-canvas! canvas-repaint-info syntax-info)))
 
+    (when (:enabled completion-state)
+      (let [renderer (or existing-completion-popup-renderer
+                         (g/user-data!
+                           view-node
+                           :completion-popup-renderer
+                           (fx/create-renderer
+                             :error-handler error-reporting/report-exception!
+                             :middleware (comp
+                                           fxui/wrap-dedupe-desc
+                                           (fx/wrap-map-desc #'completion-popup-view))
+                             :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
+            ^Canvas canvas (:canvas canvas-repaint-info)]
+        (g/with-auto-evaluation-context evaluation-context
+          (renderer {:completion-state completion-state
+                     :canvas-repaint-info canvas-repaint-info
+                     :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
+                     :query (:query (g/node-value view-node :completion-context evaluation-context))
+                     :font (g/node-value view-node :font evaluation-context)
+                     :font-name (g/node-value view-node :font-name evaluation-context)
+                     :font-size (g/node-value view-node :font-size evaluation-context)
+                     :window-x (some-> (.getScene canvas) .getWindow .getX)
+                     :window-y (some-> (.getScene canvas) .getWindow .getY)
+                     :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))}))))
+
     ;; Repaint cursors if needed.
     (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
       (g/user-data! view-node :cursor-repaint-info cursor-repaint-info)
@@ -2410,20 +2798,6 @@
         (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
         (when (= 0 (mod repaint-trigger 10))
           (.resetAverageFPS performance-tracker))))))
-
-(defn- make-suggestions-list-view
-  ^ListView [^Canvas canvas]
-  (doto (popup/make-choices-list-view 17.0 (partial popup/make-choices-list-view-cell :display-string))
-    (.addEventFilter KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                       (let [^KeyEvent event event
-                             ^KeyCode code (.getCode event)]
-                         (when-not (or (= KeyCode/UP code)
-                                       (= KeyCode/DOWN code)
-                                       (= KeyCode/PAGE_UP code)
-                                       (= KeyCode/PAGE_DOWN code))
-                           (ui/send-event! canvas event)
-                           (.consume event)))))))
 
 (defn- make-execution-marker-arrow
   ([x y w h]
@@ -2810,12 +3184,10 @@
       (reset! state nil))))
 
 (defn- make-view! [graph parent resource-node opts]
-  (let [{:keys [^Tab tab app-view grammar open-resource-fn]} opts
+  (let [{:keys [^Tab tab app-view grammar open-resource-fn project]} opts
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
-        suggestions-list-view (make-suggestions-list-view canvas)
-        suggestions-popup (popup/make-choices-popup canvas-pane suggestions-list-view)
         undo-grouping-info (pair :navigation (gensym))
         lsp (lsp/get-node-lsp resource-node)
         view-node (setup-view! resource-node
@@ -2828,8 +3200,10 @@
                                              :gutter-view (->CodeEditorGutterView)
                                              :highlighted-find-term (.getValue highlighted-find-term-property)
                                              :line-height-factor 1.2
-                                             :suggestions-list-view suggestions-list-view
-                                             :suggestions-popup suggestions-popup
+                                             :completion-state {:enabled true
+                                                                :showing false
+                                                                :show-doc false
+                                                                :project project}
                                              :undo-grouping-info undo-grouping-info
                                              :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                                              :visible-minimap? (.getValue visible-minimap-property)
@@ -2839,9 +3213,10 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
-        repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time _]
-                                                           (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                                             (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
+        repainter (ui/->timer "repaint-code-editor-view"
+                              (fn [_ elapsed-time _]
+                                (when (and (.isSelected tab) (not (ui/ui-disabled?)))
+                                  (repaint-view! view-node elapsed-time {:cursor-visible true}))))
         dispose-hover! (create-hover! view-node canvas tab)
         dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
@@ -2897,12 +3272,6 @@
                                         (g/node-value app-view :active-tab-pane))
                         (.requestFocus canvas))))))
 
-    ;; Clicking an autocomplete-entry in the suggestions popup accepts it.
-    (.setOnMouseClicked suggestions-list-view
-                        (ui/event-handler event
-                          (when (some? (ui/cell-item-under-mouse event))
-                            (accept-suggestion! view-node))))
-
     ;; Highlight occurrences of search term while find bar is open.
     (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
           find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
@@ -2948,7 +3317,7 @@
     ;; Start repaint timer.
     (ui/timer-start! repainter)
     ;; Initial draw
-    (ui/run-later (repaint-view! view-node 0 {:cursor-visible? true})
+    (ui/run-later (repaint-view! view-node 0 {:cursor-visible true})
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 

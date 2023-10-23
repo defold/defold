@@ -124,21 +124,28 @@ dmResource::Result LoadManifest(const char* path, dmResource::HManifest* out)
     uint32_t manifest_length = 0;
     uint8_t* manifest_buffer = 0x0;
 
+    char mount_path[1024];
+    if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_path, sizeof(mount_path), path))
+    {
+        dmLogError("Could not resolve a mount path '%s'", path);
+        return dmResource::RESULT_RESOURCE_NOT_FOUND;
+    }
+
     uint32_t dummy_file_size = 0;
-    dmSys::ResourceSize(path, &manifest_length);
+    dmSys::ResourceSize(mount_path, &manifest_length);
     dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
     assert(manifest_buffer);
-    dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
+    dmSys::Result sys_result = dmSys::LoadResource(mount_path, manifest_buffer, manifest_length, &dummy_file_size);
 
     if (sys_result != dmSys::RESULT_OK)
     {
         if (sys_result == dmSys::RESULT_NOENT)
         {
-            dmLogError("LoadManifest: No such file %s (%i)", path, sys_result);
+            dmLogError("LoadManifest: No such file %s (%i)", mount_path, sys_result);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
-        dmLogError("LoadManifest: Failed to read manifest %s (%i)", path, sys_result);
+        dmLogError("LoadManifest: Failed to read manifest %s (%i)", mount_path, sys_result);
         dmMemory::AlignedFree(manifest_buffer);
         return dmResource::RESULT_INVALID_DATA;
     }

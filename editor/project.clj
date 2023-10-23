@@ -63,7 +63,7 @@
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
-                     [com.atlassian.commonmark/commonmark         "0.9.0"]
+                     [org.commonmark/commonmark "0.21.0"]
 
                      [com.cognitect.aws/api "0.8.673"]
                      [com.cognitect.aws/endpoints "1.1.12.478"]
@@ -180,7 +180,7 @@
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
                                         ;;[refactor-nrepl "2.4.0"] ;; -- this does not seem to work well together with cider-nrepl 0.24.0 so it might be better to just skip.
                                         [com.billpiel/sayid "0.0.18"]]}
-                      :release {:jvm-opts ["-Ddefold.build=release"]}
+                      :release {:jvm-opts ["-Ddefold.build=release" "-Dclojure.spec.compile-asserts=false"]}
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
@@ -249,6 +249,7 @@
                                                     ;"-XX:+UnlockCommercialFeatures"
                                                     ;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"
+                                                    "-Dclojure.spec.check-asserts=true"
 
                                                     ;; Flags for async-profiler.
                                                     ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
