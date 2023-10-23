@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import zipfile
+import tarfile
 import configparser
 import datetime
 import imp
@@ -127,6 +128,22 @@ def ziptree(path, outfile, directory = None):
 
     zip.close()
     return outfile
+
+def gz_tree(path, outfile, directory=None):
+    # compress files and folders in path to outfile using tar:gz compression
+
+    archive = tarfile.open(outfile, 'w:gz')
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            p = os.path.join(root, f)
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            archive.add(p, an)
+
+    archive.close()
+    return outfile
+
 
 def _get_tag_name(version, channel): # from build.py
     if channel and channel != 'stable' and not channel.startswith('editor-'):
@@ -464,6 +481,16 @@ def create_bundle(options):
 
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
         ziptree(bundle_dir, zipfile, tmp_dir)
+
+        # create additional tar.gz bundle in case of Linux
+        is_linux = 'linux' in platform
+        if is_linux:
+            gz_file = 'target/editor/Defold-%s.tar.gz' % platform
+            if os.path.exists(gz_file):
+                os.remove(gz_file)
+
+            print("Creating '%s' bundle from '%s'" % (gz_file, bundle_dir))
+            gz_tree(bundle_dir, gz_file, tmp_dir)
 
 
 def sign(options):
