@@ -44,6 +44,16 @@ def build(bld):
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 
+def _get_local_ip(self):
+    hostname = socket.gethostname()
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
+    return local_ip
+
 def shutdown(self):
     if not TestContext.is_valid(test_context):
         return
@@ -59,8 +69,7 @@ def shutdown(self):
 
     import server
 
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    local_ip = _get_local_ip(self)
 
     if test_context.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos', 'arm64-macos'):
         local_ip = "localhost"
