@@ -403,4 +403,65 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ShaderDesc.ResourceBinding binding_two = ubo.getBindings(1);
         assertTrue(binding_two.getName().equals("color_two"));
     }
+
+    @Test
+    public void testCompute() throws Exception {
+        String source_no_version =
+            "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
+            "void main() {}";
+
+        String expected =
+            "#version 430\n" +
+            source_no_version +
+            "\n";
+
+        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+
+        List<Message> outputs = build("/test_compute.compute", source_no_version);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+        assert(shaderDesc.getShadersCount() > 0);
+        assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
+        assertEquals(ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE, shaderDesc.getShaderClass());
+
+        // Compute not supported for OSX on GL contexts
+        if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {
+            ShaderDesc.Shader glslShader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            assertNotNull(glslShader);
+            testOutput(expected, glslShader.getSource().toStringUtf8());
+        }
+    }
+
+    @Test
+    public void testStripComments() throws Exception {
+        String shader_base =
+            "#version 430 //Comment0\n" +
+            "#ifndef MY_DEFINE //Comment1\n" +
+            "//Comment2\n" +
+            "#define MY_DEFINE//Comment3\n" +
+            "   uniform vec4 my_uniform;\n" +
+            "#endif\n" +
+            "/*\n" +
+            "Comment block\n" +
+            "*/\n" +
+            "void main(){\n" +
+            "   gl_FragColor = vec4(1.0); //Comment3\n" +
+            "}\n";
+
+        String expected_base =
+            "#version 430 \n" +
+            "#ifndef MY_DEFINE \n" +
+            "\n" +
+            "#define MY_DEFINE\n" +
+            "   uniform vec4 my_uniform;\n" +
+            "#endif\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "void main(){\n" +
+            "   gl_FragColor = vec4(1.0); \n" +
+            "}\n";
+        String result = ShaderUtil.Common.stripComments(shader_base);
+        testOutput(expected_base, result);
+    }
 }

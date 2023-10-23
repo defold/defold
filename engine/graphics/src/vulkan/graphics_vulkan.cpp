@@ -948,6 +948,14 @@ namespace dmGraphics
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
         }
+
+        #ifdef DM_VULKAN_VALIDATION
+        if (context->m_UseValidationLayers)
+        {
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push("VK_KHR_portability_subset");
+        }
+        #endif
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
@@ -2193,7 +2201,7 @@ bail:
                 res.m_Type                 = ddf->m_Resources[i].m_Type;
                 res.m_ElementCount         = ddf->m_Resources[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
-                res.m_NameHash             = 0;
+                res.m_NameHash             = ddf->m_Resources[i].m_NameHash;
 
                 assert(res.m_Set <= 1);
                 if (IsUniformTextureSampler(res))

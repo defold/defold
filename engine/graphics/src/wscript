@@ -63,10 +63,17 @@ def build(bld):
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
         print("platform_supports_feature", bld.env.PLATFORM, 'vulkan')
+
+        vulkan_defines = []
+
+        if waflib.Options.options.with_vulkan_validation:
+            vulkan_defines.append('DM_VULKAN_VALIDATION=1')
+
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'vulkan'] + proto_cpp_includes,
                         use             = 'DDF DLIB',
                         source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + proto_cpp_source,
+                        defines         = vulkan_defines,
                         target          = 'graphics_vulkan')
 
         if bld.env.PLATFORM in ('arm64-nx64',):
@@ -92,7 +99,7 @@ def build(bld):
                         includes = obj.includes,
                         source   = obj.source,
                         use      = obj.use,
-                        defines  = ['DM_EXPERIMENTAL_GRAPHICS_FEATURES'],
+                        defines  = vulkan_defines + ['DM_EXPERIMENTAL_GRAPHICS_FEATURES'],
                         target   = 'graphics_vulkan_experimental')
 
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):

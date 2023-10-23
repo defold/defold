@@ -61,6 +61,17 @@
 
 (def outline-color bright-grey)
 (def selected-outline-color defold-turquoise)
+(def parent-selected-outline-color defold-light-blue)
+
+(defn selection-color [selection-state]
+  (case selection-state
+    :self-selected selected-outline-color
+    :parent-selected parent-selected-outline-color
+    nil))
+
+(defn renderable-outline-color [renderable]
+  (or (selection-color (:selected renderable))
+      outline-color))
 
 ; https://en.wikipedia.org/wiki/HSL_and_HSV
 

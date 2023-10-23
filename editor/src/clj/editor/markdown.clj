@@ -37,6 +37,7 @@
             [editor.workspace :as workspace])
   (:import [java.net URI]
            [javafx.scene.control ScrollPane]
+           [org.commonmark.ext.autolink AutolinkExtension]
            [org.commonmark.internal CustomHtmlBlockParser$Factory]
            [org.commonmark.parser Parser]
            [org.commonmark.renderer.html HtmlRenderer]
@@ -384,6 +385,7 @@
                 ;; Our custom HTML block parser fixes the issue by treating
                 ;; <div> tags the same way it treats <pre>.
                 (.customBlockParserFactory (CustomHtmlBlockParser$Factory.))
+                (.extensions [(AutolinkExtension/create)])
                 (.build)
                 (.parse content))
         html-string (.render (.build (HtmlRenderer/builder)) doc)

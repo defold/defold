@@ -93,14 +93,14 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb MoltenVK-1.2.3 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3 lipo-9ffdea2".split() # sassc-5472db213ec223a67482df2226622be372921847
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 moltenvk-1.3.261.1".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
@@ -1377,10 +1377,13 @@ class Configuration(object):
         full_archive_path = join(sha1, self.channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
+        gz_file = "Defold-%s.tar.gz" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
         zip_path = join(self.defold_root, 'editor', 'target', 'editor', zip_file)
+        gz_path = join(self.defold_root, 'editor', 'target', 'editor', gz_file)
         dmg_path = join(self.defold_root, 'editor', 'target', 'editor', dmg_file)
         if os.path.exists(zip_path): self.upload_to_archive(zip_path, '%s/%s' % (full_archive_path, zip_file))
+        if os.path.exists(gz_path): self.upload_to_archive(gz_path, '%s/%s' % (full_archive_path, gz_file))
         if os.path.exists(dmg_path): self.upload_to_archive(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
         self.wait_uploads()
 
@@ -1618,7 +1621,7 @@ class Configuration(object):
         # Used by www.defold.com/download
         # For example;
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
-        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
+        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
