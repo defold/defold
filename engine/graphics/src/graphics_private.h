@@ -123,12 +123,13 @@ namespace dmGraphics
     void     CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
     void     SetRenderTargetAttachments(HContext context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params);
     void     SetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
-    HTexture GetActiveSwapChainTexture(HContext _context);
+    HTexture GetActiveSwapChainTexture(HContext context);
     void     DrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
     void     SetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
-    void     Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
-    void     CreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params);
+    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
+    void     CreateRenderPass(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
     void     NextRenderPass(HContext context, HRenderTarget render_target);
+    void     SetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
 
     // Test only functions:
     uint64_t GetDrawCount();

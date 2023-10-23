@@ -443,13 +443,13 @@ namespace dmGraphics
         uint32_t                        m_WindowHeight;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
+        uint32_t                        m_NumFramesInFlight    : 1;
         uint32_t                        m_WindowOpened         : 1;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
-        uint32_t                                               : 24;
     };
 
     // Implemented in graphics_vulkan_context.cpp

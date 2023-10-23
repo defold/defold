@@ -183,6 +183,7 @@ namespace dmGraphics
     typedef void (*DrawBaseInstanceFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
     typedef void (*CreateRenderPassFn)(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
     typedef void (*NextRenderPassFn)(HContext context, HRenderTarget render_target);
+    typedef void (*SetFrameInFlightCountFn)(HContext context, uint8_t num_frames_in_flight);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -316,6 +317,7 @@ namespace dmGraphics
         DrawBaseInstanceFn m_DrawBaseInstance;
         CreateRenderPassFn m_CreateRenderPass;
         NextRenderPassFn m_NextRenderPass;
+        SetFrameInFlightCountFn m_SetFrameInFlightCount;
     #endif
     };
 
@@ -450,7 +452,8 @@ namespace dmGraphics
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawBaseInstance); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexDeclarationStepFunction); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CreateRenderPass); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NextRenderPass);
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NextRenderPass); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetFrameInFlightCount);
     #else
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
     #endif

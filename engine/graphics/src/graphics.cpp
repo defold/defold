@@ -1305,6 +1305,10 @@ namespace dmGraphics
     {
         return g_functions.m_NextRenderPass(context, render_target);
     }
+    void SetFrameInFlightCount(HContext context, uint8_t num_frames_in_flight)
+    {
+        return g_functions.m_SetFrameInFlightCount(context, num_frames_in_flight);
+    }
 #endif
 
 #if defined(DM_PLATFORM_IOS)

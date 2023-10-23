@@ -109,6 +109,7 @@ namespace dmGraphics
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_RenderDocSupport        = params.m_RenderDocSupport;
+        m_NumFramesInFlight       = DM_MAX_FRAMES_IN_FLIGHT;
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -1288,7 +1289,7 @@ bail:
         CHECK_VK_ERROR(res);
 
         // Advance frame index
-        context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % DM_MAX_FRAMES_IN_FLIGHT;
+        context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun           = 0;
 
         NativeSwapBuffers(context);
@@ -4452,6 +4453,19 @@ bail:
     {
         vertex_declaration->m_StepFunction = step_function;
     }
+
+    static void VulkanSetFrameInFlightCount(HContext _context, uint8_t num_frames_in_flight)
+    {
+        if (num_frames_in_flight > DM_MAX_FRAMES_IN_FLIGHT)
+        {
+            dmLogWarning("Max number of frames in flight cannot be more than %d.", DM_MAX_FRAMES_IN_FLIGHT);
+            num_frames_in_flight = DM_MAX_FRAMES_IN_FLIGHT;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        context->m_NumFramesInFlight = num_frames_in_flight;
+    }
+
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
