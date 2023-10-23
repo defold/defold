@@ -25,12 +25,22 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
+def import_lib(module_name, path):
+    import importlib
+    # Normally a finder would get you the loader and spec.
+    loader = importlib.machinery.SourceFileLoader(module_name, path)
+    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
+    # Basically what import does when there is no loader.create_module().
+    module = importlib.util.module_from_spec(spec)
+    # Now is the time to put the module in sys.modules if you want.
+    # How import initializes the module.
+    loader.exec_module(module)
+
 # import the vendor specific build setup
 path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_vendor.py')
 if os.path.exists(path):
-    import imp
     sys.dont_write_bytecode = True
-    imp.load_source('waf_dynamo_vendor', path)
+    import_lib('waf_dynamo_vendor', path)
     print("Imported %s from %s" % ('waf_dynamo_vendor', path))
     import waf_dynamo_vendor
     sys.dont_write_bytecode = False
