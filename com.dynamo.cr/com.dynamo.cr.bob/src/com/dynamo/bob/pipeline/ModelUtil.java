@@ -714,8 +714,6 @@ public class ModelUtil {
         ModelImporter.Vec4 center = calcCenter(scene);
         shiftModels(scene, center); // We might make this optional
 
-        System.out.printf("\nCENTER: %s, %f, %s\n", center.x, center.y, center.z);
-
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());
         return scene;
