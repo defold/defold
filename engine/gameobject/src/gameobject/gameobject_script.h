@@ -79,8 +79,9 @@ namespace dmGameObject
         int         m_ContextTableReference;
         uint16_t    m_ComponentIndex;
         HProperties m_Properties;
-        uint16_t    m_Update : 1;
-        uint16_t    m_Padding : 15;
+        uint16_t    m_Update  : 1;
+        uint16_t    m_Init    : 1;
+        uint16_t    m_Padding : 14;
     };
 
     struct CompScriptWorld
