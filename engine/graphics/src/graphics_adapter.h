@@ -170,6 +170,8 @@ namespace dmGraphics
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
+    typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
     typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
     typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
@@ -294,10 +296,12 @@ namespace dmGraphics
         IsAssetHandleValidFn m_IsAssetHandleValid;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        MapVertexBufferFn m_MapVertexBuffer;
-        UnmapVertexBufferFn m_UnmapVertexBuffer;
-        MapIndexBufferFn m_MapIndexBuffer;
-        UnmapIndexBufferFn m_UnmapIndexBuffer;
+        NewComputeProgramFn     m_NewComputeProgram;
+        NewProgramFromComputeFn m_NewProgramFromCompute;
+        MapVertexBufferFn       m_MapVertexBuffer;
+        UnmapVertexBufferFn     m_UnmapVertexBuffer;
+        MapIndexBufferFn        m_MapIndexBuffer;
+        UnmapIndexBufferFn      m_UnmapIndexBuffer;
     #endif
     };
 
@@ -420,6 +424,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \

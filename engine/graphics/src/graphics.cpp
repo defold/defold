@@ -1251,6 +1251,17 @@ namespace dmGraphics
     }
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+
+    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    {
+        return g_functions.m_NewComputeProgram(context, ddf);
+    }
+
+    HProgram NewProgram(HContext context, HComputeProgram compute_program)
+    {
+        return g_functions.m_NewProgramFromCompute(context, compute_program);
+    }
+
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
         return g_functions.m_MapVertexBuffer(buffer, access);

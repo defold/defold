@@ -293,8 +293,11 @@ namespace dmGraphics
         uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         VulkanHandle                    m_Handle;
+
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
+        ShaderModule*                   m_ComputeModule;
+
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         uint8_t                         m_Destroyed : 1;
 
