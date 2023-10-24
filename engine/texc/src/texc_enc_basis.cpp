@@ -60,7 +60,6 @@ namespace dmTexc
             }
         }
         else {
-
             int uastc_level;
             int uastc_rdo_d;
             float uastc_rdo_l;

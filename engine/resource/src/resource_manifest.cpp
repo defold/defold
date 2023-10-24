@@ -12,18 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#else
-#include <alloca.h>
-#endif
-
 #include "resource.h"
 #include "resource_manifest.h"
 #include "resource_manifest_private.h"
 #include "resource_util.h"
 
+#include <dlib/dalloca.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/memory.h>
@@ -31,12 +25,6 @@
 #include <dlib/sys.h>
 #include <dlib/uri.h>
 #include <resource/liveupdate_ddf.h>
-
-#if defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_FMT "%016lx"
-#else
-    #define DM_HASH_FMT "%016llx"
-#endif
 
 namespace dmResource
 {
@@ -246,9 +234,8 @@ static void BuildDigestToUrlMapping(dmResource::HManifest manifest, bool liveupd
 {
     uint32_t hash_length = GetEntryHashLength(manifest);
 
-    uint32_t hash_buffer_length = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA512);
-    char* hash_buffer = (char*)alloca(hash_buffer_length+1); // currently the longest hash
-    hash_buffer[hash_buffer_length] = 0;
+    char* hash_buffer = (char*)alloca(hash_length*2+1); // currently the longest hash
+    hash_buffer[hash_length*2] = 0;
 
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
@@ -266,7 +253,7 @@ static void BuildDigestToUrlMapping(dmResource::HManifest manifest, bool liveupd
             manifest->m_DigestToUrl.SetCapacity((capacity*2)/3, capacity);
         }
 
-        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_length, hash_buffer, hash_buffer_length);
+        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_length, hash_buffer, hash_length*2+1);
 
         dmhash_t digest_hash = dmHashBuffer64(hash_buffer, hash_length*2);
 
@@ -304,5 +291,4 @@ void DebugPrintManifest(dmResource::HManifest manifest)
 
 } // namespace
 
-#undef DM_HASH_FMT
 

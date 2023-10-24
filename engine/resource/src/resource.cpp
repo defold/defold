@@ -18,13 +18,6 @@
 #include <time.h>
 #include <assert.h>
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#else
-#include <alloca.h>
-#endif
-
 #ifdef __linux__
 #include <limits.h>
 #elif defined (__MACH__)
@@ -32,6 +25,7 @@
 #endif
 
 #include <dlib/crypt.h>
+#include <dlib/dalloca.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
