@@ -1545,28 +1545,6 @@ bail:
         return true;
     }
 
-    static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
-    {
-        const uint8_t conversion_table[] = {
-            0,  // SHADER_TYPE_UNKNOWN
-            4,  // SHADER_TYPE_INT
-            4,  // SHADER_TYPE_UINT
-            4,  // SHADER_TYPE_FLOAT
-            8,  // SHADER_TYPE_VEC2
-            12, // SHADER_TYPE_VEC3
-            16, // SHADER_TYPE_VEC4
-            16, // SHADER_TYPE_MAT2
-            36, // SHADER_TYPE_MAT3
-            64, // SHADER_TYPE_MAT4
-            4,  // SHADER_TYPE_SAMPLER2D
-            4,  // SHADER_TYPE_SAMPLER3D
-            4,  // SHADER_TYPE_SAMPLER_CUBE
-            4,  // SHADER_TYPE_SAMPLER_ARRAY_2D
-        };
-
-        return conversion_table[type];
-    }
-
     static inline uint32_t GetGraphicsTypeSize(Type type)
     {
         if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
@@ -2680,51 +2658,6 @@ bail:
         return 0;
     }
 
-    // In OpenGL, there is a single global resource identifier between
-    // fragment and vertex uniforms for a single program. In Vulkan,
-    // a uniform can be present in both shaders so we have to keep track
-    // of this ourselves. Because of this we pack resource locations
-    // for uniforms in a single base register with 15 bits
-    // per shader location. If uniform is not found, we return -1 as usual.
-    #define UNIFORM_LOCATION_MAX                ((uint64_t) 0xFFFF)
-    #define UNIFORM_LOCATION_GET_VS(loc)        (loc & UNIFORM_LOCATION_MAX)
-    #define UNIFORM_LOCATION_GET_VS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 16)) >> 16)
-    #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
-    #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
-
-    // TODO, comment from the PR (#4544):
-    //   "These frequent lookups could be improved by sorting on the key beforehand,
-    //   and during lookup, do a lower_bound, to find the item (or not).
-    //   E.g see: engine/render/src/render/material.cpp#L446"
-    static bool GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
-    {
-        assert(uniforms.Size() < UNIFORM_LOCATION_MAX);
-        for (uint32_t i = 0; i < uniforms.Size(); ++i)
-        {
-            if (uniforms[i].m_NameHash == name_hash)
-            {
-                *index_out = i;
-                *index_member_out = 0;
-                return true;
-            }
-            else
-            {
-                assert(uniforms[i].m_BlockMembers.Size() < UNIFORM_LOCATION_MAX);
-                for (uint32_t j = 0; j < uniforms[i].m_BlockMembers.Size(); ++j)
-                {
-                    if (uniforms[i].m_BlockMembers[j].m_NameHash == name_hash)
-                    {
-                        *index_out = i;
-                        *index_member_out = j;
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
     static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
     {
         assert(prog);
@@ -2846,12 +2779,6 @@ bail:
             program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) unit;
         }
     }
-
-    #undef UNIFORM_LOCATION_MAX
-    #undef UNIFORM_LOCATION_GET_VS
-    #undef UNIFORM_LOCATION_GET_VS_MEMBER
-    #undef UNIFORM_LOCATION_GET_FS
-    #undef UNIFORM_LOCATION_GET_FS_MEMBER
 
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
