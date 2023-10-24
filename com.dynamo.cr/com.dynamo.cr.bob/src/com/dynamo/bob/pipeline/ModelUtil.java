@@ -695,24 +695,29 @@ public class ModelUtil {
         return center;
     }
 
-    private static void shiftModelsNode(Node node, ModelImporter.Vec4 center) {
+    private static void shiftNodes(Node node, ModelImporter.Vec4 center) {
         node.world.translation.x -= center.x;
         node.world.translation.y -= center.y;
         node.world.translation.z -= center.z;
 
         for (Node child : node.children) {
-            shiftModelsNode(child, center);
+            shiftNodes(child, center);
         }
     }
-    private static void shiftModels(Scene scene, ModelImporter.Vec4 center) {
-        for (Node root : scene.rootNodes) {
-            shiftModelsNode(root, center);
+
+    private static void shiftNodes(Scene scene, ModelImporter.Vec4 center) {
+        for (Node node : scene.rootNodes) {
+            shiftNodes(node, center);
+
+            node.local.translation.x -= center.x;
+            node.local.translation.y -= center.y;
+            node.local.translation.z -= center.z;
         }
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
         ModelImporter.Vec4 center = calcCenter(scene);
-        shiftModels(scene, center); // We might make this optional
+        shiftNodes(scene, center); // We might make this optional
 
         // Sort on duration. This allows us to return a list of sorted animation names
         Arrays.sort(scene.animations, new SortAnimations());
