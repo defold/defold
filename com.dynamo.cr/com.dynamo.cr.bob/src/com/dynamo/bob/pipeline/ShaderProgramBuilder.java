@@ -103,7 +103,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return fromProjectOptions || fromProjectProperties;
     }
 
-    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults) {
+    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ES2ToES3Converter.ShaderType shaderType) {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
@@ -117,6 +117,12 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
                 shaderDescBuilder.addShaders(shaderBuildResult.shaderBuilder);
             }
+        }
+
+        if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+            shaderDescBuilder.setShaderClass(ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE);
+        } else {
+            shaderDescBuilder.setShaderClass(ShaderDesc.ShaderClass.SHADER_CLASS_GRAPHICS);
         }
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
@@ -152,7 +158,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             }
         }
 
-        return buildResultsToShaderDescBuildResults(shaderBuildResults);
+        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
     }
 
     // Called from bob
@@ -166,7 +172,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         String finalShaderSource                          = shaderPreprocessor.getCompiledSource();
         IShaderCompiler shaderCompiler                    = project.getShaderCompiler(platformKey);
         ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, resourceOutputPath, isDebug, outputSpirv, false);
-        return buildResultsToShaderDescBuildResults(shaderCompilerResult);
+        return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
     }
 
     static private void handleShaderDescBuildResult(ShaderDescBuildResult result, String resourceOutputPath) throws CompileExceptionError {
@@ -196,8 +202,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
     public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ES2ToES3Converter.ShaderType shaderType)
             throws IOException, CompileExceptionError {
-        List<IResource> inputs                = task.getInputs();
-        IResource in                          = inputs.get(0);
+        IResource in                          = task.input(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
         boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         boolean outputSpirv                   = getOutputSpirvFlag();

@@ -75,8 +75,7 @@ public class ArchiveBuilder {
 
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
-        if (!contains(e)) {
-            lookup.add(e.getRelativeFilename());
+        if (lookup.add(e.getRelativeFilename())) {
             entries.add(e);
         }
     }
@@ -87,10 +86,6 @@ public class ArchiveBuilder {
 
     public void add(String fileName) throws IOException {
         add(fileName, false, false, false);
-    }
-
-    private boolean contains(ArchiveEntry e) {
-        return lookup.contains(e.getRelativeFilename());
     }
 
     public ArchiveEntry getArchiveEntry(int index) {

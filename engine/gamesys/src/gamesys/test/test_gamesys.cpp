@@ -3856,6 +3856,39 @@ TEST_F(MaterialTest, GoGetSetConstants)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+
+TEST_F(ShaderTest, Compute)
+{
+    dmGraphics::ShaderDesc* ddf;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.computec", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, ddf->m_ShaderClass);
+    ASSERT_NE(0, ddf->m_Shaders.m_Count);
+
+    dmGraphics::ShaderDesc::Shader* compute_shader = 0;
+
+    for (int i = 0; i < ddf->m_Shaders.m_Count; ++i)
+    {
+        if (ddf->m_Shaders[i].m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
+            ddf->m_Shaders[i].m_Language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430)
+        {
+            compute_shader = &ddf->m_Shaders[i];
+        }
+    }
+    ASSERT_NE((void*)0, compute_shader);
+
+    // Note: We cannot get this informtion from our shader pipeline for other languages than SPIR-V at the momemnt.
+    //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
+    if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+    {
+        ASSERT_EQ(1,                                        compute_shader->m_Resources.m_Count);
+        ASSERT_EQ(1,                                        compute_shader->m_Resources[0].m_Bindings.m_Count);
+        ASSERT_EQ(dmHashString64("color"),                  compute_shader->m_Resources[0].m_Bindings[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, compute_shader->m_Resources[0].m_Bindings[0].m_Type);
+    }
+}
+
+#endif
 
 int main(int argc, char **argv)
 {

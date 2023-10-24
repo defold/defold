@@ -400,7 +400,9 @@ public class ShaderUtil {
         }
 
         public static enum ShaderType {
-            VERTEX_SHADER, FRAGMENT_SHADER
+            VERTEX_SHADER,
+            FRAGMENT_SHADER,
+            COMPUTE_SHADER,
         };
 
         private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
@@ -432,7 +434,9 @@ public class ShaderUtil {
             // Preprocess the source so we can potentially reduce the workload a bit
             input = Common.stripComments(input);
 
-            int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
+            // Shader sets are explicitly separated between fragment and vertex shaders as 1 and 0,
+            // for compute shaders we always use 0. This makes sure that we stay true to that.
+            int layoutSet = shaderType == ShaderType.FRAGMENT_SHADER ? 1 : 0;
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;

@@ -894,7 +894,7 @@
   (let [results (mapv (fn [^CursorRange cursor-range]
                         (let [suggestion-cursor (data/adjust-cursor lines (data/cursor-range-start cursor-range))
                               line (subs (lines (.-row suggestion-cursor)) 0 (.-col suggestion-cursor))
-                              prefix (re-find #"[a-zA-Z_0-9.]*$" line)
+                              prefix (or (re-find #"[a-zA-Z_][a-zA-Z_0-9.]*$" line) "")
                               affected-cursor (if (pos? (data/compare-cursor-position
                                                           (.-from cursor-range)
                                                           (.-to cursor-range)))

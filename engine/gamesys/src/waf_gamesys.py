@@ -247,7 +247,21 @@ def fragmentprogram_file(self, node):
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
+waflib.Task.task_factory('computeshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeProgramBuilder ${SRC} ${TGT} --platform ${PLATFORM}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
 
+@extension('.compute')
+def fragmentprogram_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
+    shader = self.create_task('computeshader')
+    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
+    shader.set_inputs(node)
+    obj_ext = '.computec'
+    out = node.change_ext(obj_ext)
+    shader.set_outputs(out)
 
 def compile_animationset(task):
     try:

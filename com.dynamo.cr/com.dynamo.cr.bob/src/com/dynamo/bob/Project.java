@@ -710,7 +710,12 @@ public class Project {
             }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            if (s.contains("NullPointerException")) {
+                e.printStackTrace(System.err); // E.g. when we happen to do something bad when handling exceptions
+            }
+
             System.err.println(s);
             // Pass on unmodified
             throw e;
@@ -1371,12 +1376,13 @@ public class Project {
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
+        TimeProfiler.start("Prepare cache");
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
         state = State.load(stateResource);
-
+        TimeProfiler.stop();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
         BundleHelper.throwIfCanceled(monitor);
@@ -1461,8 +1467,10 @@ public class Project {
         }
 
         monitor.done();
+        TimeProfiler.start("Save cache");
         state.save(stateResource);
         fileSystem.saveCache();
+        TimeProfiler.stop();
         return result;
     }
 
@@ -1996,8 +2004,13 @@ run:
         if (val != null && val.trim().length() > 0) {
             resource = this.getResource(val);
         }
-        if (mustExist && resource == null) {
-            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        if (mustExist) {
+            if (resource == null) {
+                throw new IOException(String.format("Resource is null: %s.%s = '%s'", category, key, val==null?"null":val));
+            }
+            if (!resource.exists()) {
+                throw new IOException(String.format("Resource does not exist: %s.%s = '%s'", category, key, resource.getPath()));
+            }
         }
         return resource;
     }
