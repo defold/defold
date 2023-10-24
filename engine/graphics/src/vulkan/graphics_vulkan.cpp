@@ -2789,29 +2789,26 @@ bail:
         Program* program_ptr = (Program*) prog;
         HUniformLocation loc = INVALID_UNIFORM_LOCATION;
         dmhash_t name_hash   = dmHashString64(name);
+        uint64_t loc0        = UNIFORM_LOCATION_MAX;
+        uint64_t loc0_member = UNIFORM_LOCATION_MAX;
 
         if (program_ptr->m_ComputeModule)
         {
-            uint64_t cs_loc        = UNIFORM_LOCATION_MAX;
-            uint64_t cs_loc_member = UNIFORM_LOCATION_MAX;
-
-            if (GetUniformIndices(program_ptr->m_ComputeModule->m_Uniforms, name_hash, &cs_loc, &cs_loc_member))
+            if (GetUniformIndices(program_ptr->m_ComputeModule->m_Uniforms, name_hash, &loc0, &loc0_member))
             {
-                loc = cs_loc | cs_loc_member << 16;
+                loc = loc0 | loc0_member << 16;
                 assert(loc != INVALID_UNIFORM_LOCATION);
             }
         }
         else
         {
-            uint64_t vs_location        = UNIFORM_LOCATION_MAX,
-                     vs_location_member = UNIFORM_LOCATION_MAX;
-            uint64_t fs_location        = UNIFORM_LOCATION_MAX,
-                     fs_location_member = UNIFORM_LOCATION_MAX;
+            uint64_t loc1        = UNIFORM_LOCATION_MAX;
+            uint64_t loc1_member = UNIFORM_LOCATION_MAX;
 
-            if (GetUniformIndices(program_ptr->m_VertexModule->m_Uniforms, name_hash, &vs_location, &vs_location_member) ||
-                GetUniformIndices(program_ptr->m_FragmentModule->m_Uniforms, name_hash, &fs_location, &fs_location_member))
+            if (GetUniformIndices(program_ptr->m_VertexModule->m_Uniforms, name_hash, &loc0, &loc0_member) ||
+                GetUniformIndices(program_ptr->m_FragmentModule->m_Uniforms, name_hash, &loc1, &loc1_member))
             {
-                loc = vs_location | vs_location_member << 16 | fs_location << 32 | fs_location_member << 48;
+                loc = loc0 | loc0_member << 16 | loc1 << 32 | loc1_member << 48;
                 assert(loc != INVALID_UNIFORM_LOCATION);
             }
         }
@@ -2825,19 +2822,19 @@ bail:
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        Program* program_ptr     = (Program*) context->m_CurrentProgram;
-        uint32_t index_vs        = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t index_vs_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t index_fs        = UNIFORM_LOCATION_GET_FS(base_location);
-        uint32_t index_fs_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
-        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+        uint32_t loc0        = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t loc0_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t loc1        = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t loc1_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
+        assert(!(loc0 == UNIFORM_LOCATION_MAX && loc1 == UNIFORM_LOCATION_MAX));
 
         if (program_ptr->m_ComputeModule)
         {
-            if (index_vs != UNIFORM_LOCATION_MAX)
+            if (loc0 != UNIFORM_LOCATION_MAX)
             {
-                ShaderResourceBinding& res = program_ptr->m_ComputeModule->m_Uniforms[index_vs];
-                UniformBlockMember& member = res.m_BlockMembers[index_vs_member];
+                ShaderResourceBinding& res = program_ptr->m_ComputeModule->m_Uniforms[loc0];
+                UniformBlockMember& member = res.m_BlockMembers[loc0_member];
 
                 assert(!IsUniformTextureSampler(res));
                 uint32_t offset_index      = res.m_UniformDataIndex;
@@ -2847,10 +2844,10 @@ bail:
         }
         else
         {
-            if (index_vs != UNIFORM_LOCATION_MAX)
+            if (loc0 != UNIFORM_LOCATION_MAX)
             {
-                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
-                UniformBlockMember& member = res.m_BlockMembers[index_vs_member];
+                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
+                UniformBlockMember& member = res.m_BlockMembers[loc0_member];
 
                 assert(!IsUniformTextureSampler(res));
                 uint32_t offset_index      = res.m_UniformDataIndex;
@@ -2858,10 +2855,10 @@ bail:
                 memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * count);
             }
 
-            if (index_fs != UNIFORM_LOCATION_MAX)
+            if (loc1 != UNIFORM_LOCATION_MAX)
             {
-                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
-                UniformBlockMember& member = res.m_BlockMembers[index_fs_member];
+                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
+                UniformBlockMember& member = res.m_BlockMembers[loc1_member];
 
                 assert(!IsUniformTextureSampler(res));
                 // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
@@ -2879,20 +2876,20 @@ bail:
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         Program* program_ptr     = (Program*) context->m_CurrentProgram;
-        uint32_t index_vs        = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t index_vs_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t index_fs        = UNIFORM_LOCATION_GET_FS(base_location);
-        uint32_t index_fs_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
-        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
+        uint32_t loc0        = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t loc0_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t loc1        = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t loc1_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
+        assert(!(loc0 == UNIFORM_LOCATION_MAX && loc1 == UNIFORM_LOCATION_MAX));
 
         if (program_ptr->m_ComputeModule)
         {
-            if (index_vs != UNIFORM_LOCATION_MAX)
+            if (loc0 != UNIFORM_LOCATION_MAX)
             {
-                ShaderResourceBinding& res = program_ptr->m_ComputeModule->m_Uniforms[index_vs];
-                UniformBlockMember& member = res.m_BlockMembers[index_vs_member];
+                ShaderResourceBinding& res = program_ptr->m_ComputeModule->m_Uniforms[loc0];
+                UniformBlockMember& member = res.m_BlockMembers[loc0_member];
 
-                assert(index_vs < program_ptr->m_ComputeModule->m_Uniforms.Size());
+                assert(loc0 < program_ptr->m_ComputeModule->m_Uniforms.Size());
                 assert(!IsUniformTextureSampler(res));
                 uint32_t offset_index      = res.m_UniformDataIndex;
                 uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index] + member.m_Offset;
@@ -2901,24 +2898,24 @@ bail:
         }
         else
         {
-            if (index_vs != UNIFORM_LOCATION_MAX)
+            if (loc0 != UNIFORM_LOCATION_MAX)
             {
-                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
-                UniformBlockMember& member = res.m_BlockMembers[index_vs_member];
+                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
+                UniformBlockMember& member = res.m_BlockMembers[loc0_member];
 
-                assert(index_vs < program_ptr->m_VertexModule->m_Uniforms.Size());
+                assert(loc0 < program_ptr->m_VertexModule->m_Uniforms.Size());
                 assert(!IsUniformTextureSampler(res));
                 uint32_t offset_index      = res.m_UniformDataIndex;
                 uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index] + member.m_Offset;
                 memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4 * count);
             }
 
-            if (index_fs != UNIFORM_LOCATION_MAX)
+            if (loc1 != UNIFORM_LOCATION_MAX)
             {
-                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
-                UniformBlockMember& member = res.m_BlockMembers[index_fs_member];
+                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
+                UniformBlockMember& member = res.m_BlockMembers[loc1_member];
 
-                assert(index_fs < program_ptr->m_FragmentModule->m_Uniforms.Size());
+                assert(loc1 < program_ptr->m_FragmentModule->m_Uniforms.Size());
                 assert(!IsUniformTextureSampler(res));
                 // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
                 uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
@@ -2940,8 +2937,8 @@ bail:
         assert(program_ptr->m_ComputeModule == 0x0);
 
         uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(location);
-        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(location);
-        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
+        uint32_t loc1  = UNIFORM_LOCATION_GET_FS(location);
+        assert(!(index_vs == UNIFORM_LOCATION_MAX && loc1 == UNIFORM_LOCATION_MAX));
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
@@ -2951,12 +2948,12 @@ bail:
             program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) unit;
         }
 
-        if (index_fs != UNIFORM_LOCATION_MAX)
+        if (loc1 != UNIFORM_LOCATION_MAX)
         {
-            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
-            assert(index_fs < program_ptr->m_FragmentModule->m_Uniforms.Size());
+            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
+            assert(loc1 < program_ptr->m_FragmentModule->m_Uniforms.Size());
             assert(IsUniformTextureSampler(res));
-            program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) unit;
+            program_ptr->m_FragmentModule->m_Uniforms[loc1].m_TextureUnit = (uint16_t) unit;
         }
     }
 
