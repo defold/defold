@@ -234,32 +234,6 @@ namespace dmGraphics
         VkCommandPool m_CommandPool;
     };
 
-    struct UniformBlockMember
-    {
-        char*                      m_Name;
-        uint64_t                   m_NameHash;
-        ShaderDesc::ShaderDataType m_Type;
-        uint32_t                   m_Offset;
-        uint16_t                   m_ElementCount;
-    };
-
-    struct ShaderResourceBinding
-    {
-        char*                       m_Name;
-        uint64_t                    m_NameHash;
-        ShaderDesc::ShaderDataType  m_Type;
-        dmArray<UniformBlockMember> m_BlockMembers;
-        uint32_t                    m_DataSize;
-        uint16_t                    m_ElementCount;
-        uint16_t                    m_Set;
-        uint16_t                    m_Binding;
-        union
-        {
-            uint16_t               m_UniformDataIndex;
-            uint16_t               m_TextureUnit;
-        };
-    };
-
     struct ShaderModule
     {
         uint64_t                       m_Hash;

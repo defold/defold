@@ -28,15 +28,15 @@ import zipfile
 import tarfile
 import configparser
 import datetime
-import imp
 import fnmatch
 import urllib
 import urllib.parse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
+
 # TODO: collect common functions in a more suitable reusable module
 try:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
     sys.dont_write_bytecode = True
     import build_private
 except Exception as e:
@@ -49,6 +49,7 @@ finally:
 
 # defold/build_tools
 import run
+import http_cache
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -103,13 +104,8 @@ def extract(file, path, is_mac):
     else:
         assert False, "Don't know how to extract " + file
 
-modules = {}
-
 def download(url):
-    if not modules.__contains__('http_cache'):
-        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
-    log('Downloading %s' % (url))
-    path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+    path = http_cache.download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
     if not path:
         log('Downloading %s failed' % (url))
     return path
