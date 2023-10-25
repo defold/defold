@@ -55,52 +55,55 @@ message TextureSet
 {
     required string texture                 = 1 [(resource)=true];
 
-    // A hash of the texture name/path
-    optional uint64 texture_hash            = 2;
+    required uint32 width                   = 2;
+    required uint32 height                  = 3;
 
-    repeated TextureSetAnimation animations = 3;
+    // A hash of the texture name/path
+    optional uint64 texture_hash            = 4;
+
+    repeated TextureSetAnimation animations = 5;
 
     // Only used when the source is a tile-source
     // tile_width and tile_height should only be used in tilemap
-    optional uint32 tile_width              = 4;
-    optional uint32 tile_height             = 5;
+    optional uint32 tile_width              = 6;
+    optional uint32 tile_height             = 7;
     // This is the number of rects stored before the animation frames (atlas and tile source)
-    optional uint32 tile_count              = 6; // This is the actual number of unique frames in the set
+    optional uint32 tile_count              = 8; // This is the actual number of unique frames in the set
 
-    repeated float collision_hull_points    = 7;
-    repeated string collision_groups        = 8;
-    repeated ConvexHull convex_hulls        = 9;
+    repeated float collision_hull_points    = 9;
+    repeated string collision_groups        = 10;
+    repeated ConvexHull convex_hulls        = 11;
 
     // Hash mapping from image name to frame index
     // { (hash("image_name0") : 0), (hash("image_name1") : 1) ...}
-    repeated uint64 image_name_hashes       = 10; //  (length == tile_count)
+    repeated uint64 image_name_hashes       = 12; //  (length == tile_count)
 
     // Maps animation frames to frame index
     // It is a flattened array, where each animation has a start and end number of frames
     //    [ tile0, tile1, tile2, ..., animation0_frame_start, ..., animation0_frame_end-1, ]
-    repeated uint32 frame_indices           = 11; // length = tile_count + sum([num_frames(anim) for anim in animations])
+    repeated uint32 frame_indices           = 13; // length = tile_count + sum([num_frames(anim) for anim in animations])
 
     // A series of four float pairs of UV coords, representing quad texture coordinates and
     // allowing for rotation on texture atlases.
     // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
     // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
     // (See TextureSetGenerator.java)
-    required bytes tex_coords               = 12; // (length = (tile_count * 4 * 2))
+    required bytes tex_coords               = 14; // (length = (tile_count * 4 * 2))
 
     // A series of two float pairs of dimensions representing quad texture width and height in texels.
-    optional bytes tex_dims                 = 13; // (length = len(frame_indices) * 2)
+    optional bytes tex_dims                 = 15; // (length = len(frame_indices) * 2)
 
     // One geometry struct per image
-    repeated SpriteGeometry geometries      = 14; // (length == tile_count)
+    repeated SpriteGeometry geometries      = 16; // (length == tile_count)
 
     // If false, uses the legacy code path
-    optional uint32 use_geometries          = 15;
+    optional uint32 use_geometries          = 17;
 
     // Maps animation frames to atlas page index
-    repeated uint32 page_indices            = 16; // (length == tile_count)
+    repeated uint32 page_indices            = 18; // (length == tile_count)
 
     // Number of pages the texture contains. If the texture is non-paged, this value will be zero
     // Note: We currently only need this for validation in bob, the engine can get this
     //       value from the number of images in the texture resource
-    optional uint32 page_count              = 17 [default = 0];
+    optional uint32 page_count              = 19 [default = 0];
 }

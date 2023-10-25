@@ -558,6 +558,9 @@ public class TextureSetGenerator {
         TextureSet.Builder textureSet = TextureSet.newBuilder();
         ArrayList<UVTransform> uvTransforms = new ArrayList<>();
 
+        textureSet.setWidth(width);
+        textureSet.setHeight(height);
+
         int tileCount = rects.size();
         textureSet.setTileCount(tileCount);
 

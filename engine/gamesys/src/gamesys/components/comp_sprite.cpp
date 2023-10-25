@@ -957,40 +957,92 @@ namespace dmGameSystem
 
     static void ResolveUVData(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
     {
-        if (!data->m_UsesGeometries)
+
+    bool debug = false;//data->m_NumTextures > 1;
+if (debug)
+    printf("ResolveUVData\n");
+
+        if (!data->m_UsesGeometries || data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF)
         {
-            // At this point, we know that no image is using sprite trimming
-            // Thus we can use the corresponding quad for each image
+            // We have two use cases:
+            // A) We know that no image is using sprite trimming
+            //    Thus we can use the corresponding quad for each image
+            // B) The first image is a quad, and any remapping
+            //    for any subsequent geometry would yield a wuad anyways.
             ResolveUVDataQuads(data, scratch_uvs, flip_horizontal, flip_vertical);
             return;
         }
 
-        // const dmGameSystemDDF::TextureSet*          texture_set_ddf = data->m_TextureSets[0];
-        // const dmGameSystemDDF::TextureSetAnimation* animation_ddf = data->m_Animations[0];
-        // uint32_t frame_index = data->m_Frames[0];
+    if (debug)
+    {
+        printf("  RECTS:\n");
+        for (uint32_t i = 0; i < data->m_NumTextures; ++i)
+        {
+            printf("  texture %u: ", i);
+            dmArray<float>& uvs = scratch_uvs[i];
+            for (uint32_t j = 0; j < uvs.Size(); ++j)
+            {
+                printf("%f, ", uvs[j]);
+            }
+            printf("\n");
+        }
+    }
 
-        //EnsureSize(*data->m_Uvs[0], );
+        uint32_t num_vertices = data->m_Geometries[0]->m_Vertices.m_Count / 2;
+        float* vertices = data->m_Geometries[0]->m_Vertices.m_Data;
 
-        assert(false && "Not implemented yet");
+        for (uint32_t i = 0; i < data->m_NumTextures; ++i)
+        {
+            uint32_t frame_index = data->m_Frames[i];
+            dmArray<float>& uvs = scratch_uvs[i];
+            EnsureSize(uvs, num_vertices * 2);
 
-        // dmArray<float>& uv0 = *data->m_Uvs[0];
-        // uint32_t num_uvs = uv0.Size() / 2;
-        // for (uint32_t i = 1; i < data->m_NumTextures; ++i)
-        // {
-        //     dmArray<float>& uvs = *data->m_Uvs[i];
+            uint32_t width = data->m_TextureSets[i]->m_Width;
+            uint32_t height = data->m_TextureSets[i]->m_Height;
 
-        //     EnsureSize(uvs, num_uvs*2);
+            const dmGameSystemDDF::SpriteGeometry* geometry = data->m_Geometries[i];
+            float image_width = geometry->m_Width;
+            float image_height = geometry->m_Height;
+            uint32_t center_x = geometry->m_CenterX;
+            uint32_t center_y = geometry->m_CenterY;
 
-        //     for (uint32_t j = 0; j < num_uvs; ++j)
-        //     {
-        //         float u = uv0[j*2+0];
-        //         float v = uv0[j*2+1];
-        //         float uu, vv;
-        //         Remap(u, v, rect, uu, vv);
-        //         uvs[j*2+0] = uu;
-        //         uvs[j*2+1] = vv;
-        //     }
-        // }
+            if (debug)
+                printf("  geom: %d: w/h: %f / %f  cx/cy: %f / %f\n", i, image_width, image_height, geometry->m_CenterX, geometry->m_CenterY);
+            for (uint32_t j = 0; j < num_vertices; ++j)
+            {
+                float posx = center_x + vertices[j*2+0] * image_width;
+                float posy = center_y + vertices[j*2+1] * image_height;
+
+                if (debug)
+                    printf("    pos %u: %f, %f\n", j, posx, posy);
+
+                float u = (center_x + vertices[j*2+0] * image_width) / width;
+                float v = 1.0f - (center_y + -vertices[j*2+1] * image_height) / height;
+                uvs[j*2+0] = u;
+                uvs[j*2+1] = v;
+            }
+
+            for (uint32_t j = 0; j < num_vertices; ++j)
+            {
+                if (debug)
+                    printf("    uv %u: %f, %f\n", j, uvs[j*2+0], uvs[j*2+1]);
+            }
+        }
+
+    if (debug)
+    {
+        printf("  GEOMETRIES:\n");
+        for (uint32_t i = 0; i < data->m_NumTextures; ++i)
+        {
+            printf("  texture %u: ", i);
+            dmArray<float>& uvs = scratch_uvs[i];
+            for (uint32_t j = 0; j < uvs.Size(); ++j)
+            {
+                printf("%f, ", uvs[j]);
+            }
+            printf("\n");
+        }
+    }
     }
 
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteAttributeInfo* material_attribute_info, uint32_t vertex_stride, uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
