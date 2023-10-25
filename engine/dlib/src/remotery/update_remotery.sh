@@ -48,6 +48,7 @@ echo "Applying patch"
 # but we need a patched version to be served from the editor
 cp -v ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/index.html ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/orig.index.html
 (cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/defoldvis.patch)
+(cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/issue-8146.patch)
 cp -v ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/index.html ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/patched.index.html
 mv -v ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/orig.index.html ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/index.html
 
