@@ -32,13 +32,23 @@ message SpriteGeometry
     // The width and height of the image this geometry was generated from
     required uint32 width   = 1;
     required uint32 height  = 2;
+
+    // The center location of the image
+    required float center_x = 3;
+    required float center_y = 4;
+
+    required bool  rotated = 5; // If true, then the image is rotated 90 degrees (ccw)
+
+    // From the atlas image
+    required SpriteTrimmingMode trim_mode = 6 [default = SPRITE_TRIM_MODE_OFF];
+
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
     // Each point is relative to the sprite center
-    repeated float  vertices= 3;
+    repeated float  vertices= 7;
     // A list of 2-tuples, corresponding directly to the vertices
-    repeated float  uvs     = 4;
+    repeated float  uvs     = 8;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
-    repeated uint32 indices = 5;
+    repeated uint32 indices = 9;
 }
 
 message TextureSet

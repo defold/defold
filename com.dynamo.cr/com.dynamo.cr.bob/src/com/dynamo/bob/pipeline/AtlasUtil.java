@@ -260,18 +260,6 @@ public class AtlasUtil {
         return animDescs;
     }
 
-    private static int spriteTrimModeToInt(SpriteTrimmingMode mode) {
-        switch (mode) {
-            case SPRITE_TRIM_MODE_OFF:   return 0;
-            case SPRITE_TRIM_MODE_4:     return 4;
-            case SPRITE_TRIM_MODE_5:     return 5;
-            case SPRITE_TRIM_MODE_6:     return 6;
-            case SPRITE_TRIM_MODE_7:     return 7;
-            case SPRITE_TRIM_MODE_8:     return 8;
-        }
-        return 0;
-    }
-
     public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
         TimeProfiler.start("generateTextureSet");
         Atlas.Builder builder = Atlas.newBuilder();
@@ -280,10 +268,10 @@ public class AtlasUtil {
 
         List<AtlasImage> atlasImages = collectImages(atlas);
         List<String> imageResourcePaths = new ArrayList<String>();
-        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
         for (AtlasImage image : atlasImages) {
             imageResourcePaths.add(image.getImage());
-            imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
+            imageTrimModes.add(image.getSpriteTrimMode());
         }
         List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
@@ -333,7 +321,7 @@ public class AtlasUtil {
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);;
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageNames);
         try {
-            TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imageNames, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, imageNames, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
@@ -368,10 +356,10 @@ public class AtlasUtil {
     public static TextureSetResult generateTextureSet(Atlas atlas, PathTransformer transformer) throws IOException, CompileExceptionError {
         List<AtlasImage> atlasImages = collectImages(atlas);
         List<String> imagePaths = new ArrayList<String>();
-        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
         for (AtlasImage image : atlasImages) {
             imagePaths.add(image.getImage());
-            imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
+            imageTrimModes.add(image.getSpriteTrimMode());
         }
 
         int imagePathCount = imagePaths.size();
@@ -383,7 +371,7 @@ public class AtlasUtil {
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         try {
-            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageHullSizes, imagePaths, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageTrimModes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
