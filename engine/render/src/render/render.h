@@ -38,6 +38,7 @@ namespace dmRender
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
+    typedef struct ComputeProgram*          HComputeProgram;
 
     /**
      * Display profiles handle
@@ -84,7 +85,7 @@ namespace dmRender
         Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location);
     };
 
-    struct MaterialConstant
+    struct RenderConstant
     {
         HConstant           m_Constant;
         dmhash_t            m_ElementIds[4];

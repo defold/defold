@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "memory.h"
+#include "dalloca.h"
 #include <stdlib.h>
 #include <errno.h>
 #if defined(__ANDROID__) || defined(_MSC_VER)
@@ -65,5 +66,4 @@ namespace dmMemory
         #error "dmMemory::AlignedFree not implemented for this platform."
 #endif
     }
-
 }

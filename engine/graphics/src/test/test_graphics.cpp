@@ -484,6 +484,32 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::DeleteFragmentProgram(fp);
 }
 
+TEST_F(dmGraphicsTest, TestComputeProgram)
+{
+    const char* compute_data = ""
+        "#version 430 core\n"
+        "layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n"
+        "layout(location = 0) uniform vec4 my_uniform;\n"
+        "void main() {\n"
+        "}\n";
+
+    dmGraphics::ShaderDesc::Shader compute_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_data, (uint32_t) strlen(compute_data));
+    dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_shader);
+    dmGraphics::HProgram program                  = dmGraphics::NewProgram(m_Context, cp);
+    ASSERT_EQ(1, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "my_uniform"));
+
+    char buffer[64];
+    dmGraphics::Type type;
+    int32_t size;
+    dmGraphics::GetUniformName(program, 0, buffer, 64, &type, &size);
+    ASSERT_STREQ("my_uniform", buffer);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+
+    dmGraphics::DeleteComputeProgram(cp);
+    dmGraphics::DeleteProgram(m_Context, program);
+}
+
 TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
 {
     const char* vertex_data = ""
