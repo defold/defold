@@ -20,13 +20,13 @@
 
 namespace dmRender
 {
-	HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader)
+    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader)
     {
-    	if (!dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
-    	{
-    		dmLogError("Compute programs are not supported on this context.");
-    		return 0;
-    	}
+        if (!dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
+        {
+            dmLogError("Compute programs are not supported on this context.");
+            return 0;
+        }
 
         ComputeProgram* program        = new ComputeProgram();
         program->m_Shader              = shader;

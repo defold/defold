@@ -151,19 +151,19 @@ namespace dmRender
         uint32_t total_constants_count = dmGraphics::GetUniformCount(material->m_Program);
 
         uint32_t constants_count = 0;
-        uint32_t sampler_count   = 0;
-        GetProgramUniformCount(material->m_Program, total_constants_count, &constants_count, &sampler_count);
+        uint32_t samplers_count   = 0;
+        GetProgramUniformCount(material->m_Program, total_constants_count, &constants_count, &samplers_count);
 
-        if ((constants_count + sampler_count) > 0)
+        if ((constants_count + samplers_count) > 0)
         {
-            material->m_NameHashToLocation.SetCapacity((constants_count + sampler_count), (constants_count + sampler_count) * 2);
+            material->m_NameHashToLocation.SetCapacity((constants_count + samplers_count), (constants_count + samplers_count) * 2);
             material->m_Constants.SetCapacity(constants_count);
         }
 
-        if (sampler_count > 0)
+        if (samplers_count > 0)
         {
-            material->m_Samplers.SetCapacity(sampler_count);
-            for (uint32_t i = 0; i < sampler_count; ++i)
+            material->m_Samplers.SetCapacity(samplers_count);
+            for (uint32_t i = 0; i < samplers_count; ++i)
             {
                 material->m_Samplers.Push(Sampler());
             }

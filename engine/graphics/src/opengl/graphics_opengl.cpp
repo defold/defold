@@ -1956,6 +1956,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteComputeProgram(HComputeProgram prog)
     {
+        assert(0 && "Not implemented!");
     }
 
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
