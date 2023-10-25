@@ -651,19 +651,13 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    struct VertexProgram
+    struct ShaderProgram
     {
         char*                m_Data;
         ShaderDesc::Language m_Language;
     };
 
-    struct FragmentProgram
-    {
-        char*                m_Data;
-        ShaderDesc::Language m_Language;
-    };
-
-    static void NullShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
+    static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
 
     struct ShaderBinding
     {
@@ -677,19 +671,33 @@ namespace dmGraphics
 
     struct Program
     {
-        Program(VertexProgram* vp, FragmentProgram* fp)
+        Program(ShaderProgram* vp, ShaderProgram* fp)
         {
             m_Uniforms.SetCapacity(16);
-            m_VP = vp;
-            m_FP = fp;
+            m_Compute = 0;
+            m_VP      = vp;
+            m_FP      = fp;
             if (m_VP != 0x0)
             {
-                GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
-                GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+                GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
+                GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
             }
             if (m_FP != 0x0)
             {
-                GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, NullShaderResourceCallback, (uintptr_t)this);
+                GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
+            }
+        }
+
+        Program(ShaderProgram* compute)
+        {
+            m_Uniforms.SetCapacity(16);
+            m_VP      = 0;
+            m_FP      = 0;
+            m_Compute = compute;
+
+            if (m_Compute != 0x0)
+            {
+                GLSLUniformParse(m_Compute->m_Language, m_Compute->m_Data, ProgramShaderResourceCallback, (uintptr_t) this);
             }
         }
 
@@ -699,13 +707,15 @@ namespace dmGraphics
                 delete[] m_Uniforms[i].m_Name;
         }
 
-        VertexProgram*         m_VP;
-        FragmentProgram*       m_FP;
+        ShaderProgram*         m_VP;
+        ShaderProgram*         m_FP;
+        ShaderProgram*         m_Compute;
+
         dmArray<ShaderBinding> m_Uniforms;
         dmArray<ShaderBinding> m_Attributes;
     };
 
-    static void NullShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
+    static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
     {
         Program* program = (Program*) userdata;
 
@@ -729,17 +739,43 @@ namespace dmGraphics
         binding_array->Push(binding);
     }
 
+    static ShaderProgram* NewShaderProgramFromDDF(ShaderDesc::Shader* ddf)
+    {
+        assert(ddf);
+        ShaderProgram* p = new ShaderProgram();
+        p->m_Data = new char[ddf->m_Source.m_Count+1];
+        memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        p->m_Data[ddf->m_Source.m_Count] = '\0';
+        p->m_Language = ddf->m_Language;
+        return p;
+    }
+
+    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    {
+        return (HComputeProgram) NewShaderProgramFromDDF(ddf);
+    }
+
+    static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
+    {
+        return (HProgram) new Program((ShaderProgram*) compute_program);
+    }
+
+    static void NullDeleteComputeProgram(HComputeProgram prog)
+    {
+        delete (ShaderProgram*) prog;
+    }
+
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        VertexProgram* vertex     = 0x0;
-        FragmentProgram* fragment = 0x0;
+        ShaderProgram* vertex   = 0x0;
+        ShaderProgram* fragment = 0x0;
         if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
         {
-            vertex = (VertexProgram*) vertex_program;
+            vertex = (ShaderProgram*) vertex_program;
         }
         if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
         {
-            fragment = (FragmentProgram*) fragment_program;
+            fragment = (ShaderProgram*) fragment_program;
         }
         return (HProgram) new Program(vertex, fragment);
     }
@@ -751,31 +787,19 @@ namespace dmGraphics
 
     static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-        VertexProgram* p = new VertexProgram();
-        p->m_Data = new char[ddf->m_Source.m_Count+1];
-        memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
-        p->m_Data[ddf->m_Source.m_Count] = '\0';
-        p->m_Language = ddf->m_Language;
-        return (uintptr_t)p;
+        return (HVertexProgram) NewShaderProgramFromDDF(ddf);
     }
 
     static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-        FragmentProgram* p = new FragmentProgram();
-        p->m_Data = new char[ddf->m_Source.m_Count+1];
-        memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
-        p->m_Data[ddf->m_Source.m_Count] = '\0';
-        p->m_Language = ddf->m_Language;
-        return (uintptr_t)p;
+        return (HFragmentProgram) NewShaderProgramFromDDF(ddf);
     }
 
     static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);
         assert(ddf);
-        VertexProgram* p = (VertexProgram*)prog;
+        ShaderProgram* p = (ShaderProgram*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[ddf->m_Source.m_Count];
         memcpy((char*)p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
@@ -786,7 +810,7 @@ namespace dmGraphics
     {
         assert(prog);
         assert(ddf);
-        FragmentProgram* p = (FragmentProgram*)prog;
+        ShaderProgram* p = (ShaderProgram*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[ddf->m_Source.m_Count];
         memcpy((char*)p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
@@ -796,7 +820,7 @@ namespace dmGraphics
     static void NullDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        VertexProgram* p = (VertexProgram*)program;
+        ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
         delete p;
     }
@@ -804,7 +828,7 @@ namespace dmGraphics
     static void NullDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        FragmentProgram* p = (FragmentProgram*)program;
+        ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
         delete p;
     }

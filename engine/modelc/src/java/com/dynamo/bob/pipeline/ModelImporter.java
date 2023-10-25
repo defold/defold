@@ -137,6 +137,14 @@ public class ModelImporter {
             if (y > max.y) max.y = y;
             if (z > max.z) max.z = z;
         }
+
+        public Vec4 center() {
+            return new Vec4((min.x + max.x)*0.5f, (min.y + max.y)*0.5f, (min.z + max.z)*0.5f, 1.0f);
+        }
+
+        public boolean isValid() {
+            return min.x <= max.x && (min.y <= max.y) && (min.z <= max.z);
+        }
     }
     public static class Material {
         public String           name;

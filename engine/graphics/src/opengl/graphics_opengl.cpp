@@ -635,6 +635,7 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
+            case CONTEXT_FEATURE_COMPUTE_SHADER:         return false; // TODO!
         }
         return false;
     }
@@ -1939,6 +1940,23 @@ static void LogFrameBufferError(GLenum status)
     {
         ++context->m_ModificationVersion;
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
+    }
+
+    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        assert(0 && "Not implemented!");
+        return 0;
+    }
+
+    static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
+    {
+        assert(0 && "Not implemented!");
+        return 0;
+    }
+
+    static void OpenGLDeleteComputeProgram(HComputeProgram prog)
+    {
+        assert(0 && "Not implemented!");
     }
 
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)

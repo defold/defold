@@ -46,6 +46,7 @@ sys.dont_write_bytecode = True
 try:
     import build_vendor
     sys.modules['build_private'] = build_vendor
+    print("Imported %s from %s" % ('build_private', build_vendor.__file__))
 except ModuleNotFoundError:
     pass
 except Exception as e:
@@ -442,8 +443,6 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
-
-        self._check_package_path()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -1377,10 +1376,13 @@ class Configuration(object):
         full_archive_path = join(sha1, self.channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
+        gz_file = "Defold-%s.tar.gz" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
         zip_path = join(self.defold_root, 'editor', 'target', 'editor', zip_file)
+        gz_path = join(self.defold_root, 'editor', 'target', 'editor', gz_file)
         dmg_path = join(self.defold_root, 'editor', 'target', 'editor', dmg_file)
         if os.path.exists(zip_path): self.upload_to_archive(zip_path, '%s/%s' % (full_archive_path, zip_file))
+        if os.path.exists(gz_path): self.upload_to_archive(gz_path, '%s/%s' % (full_archive_path, gz_file))
         if os.path.exists(dmg_path): self.upload_to_archive(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
         self.wait_uploads()
 
@@ -1618,7 +1620,7 @@ class Configuration(object):
         # Used by www.defold.com/download
         # For example;
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
-        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
+        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))

@@ -15,12 +15,6 @@
 namespace dmResourceMounts
 {
 
-#if defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_FMT "%016lx"
-#else
-    #define DM_HASH_FMT "%016llx"
-#endif
-
 const char* MOUNTS_FILENAME = "liveupdate.mounts";
 
 const int MAX_NAME_LENGTH = 64;
@@ -642,5 +636,3 @@ dmResource::Result GetDependencies(HContext ctx, const SGetDependenciesParams* r
 }
 
 }
-
-#undef DM_HASH_FMT

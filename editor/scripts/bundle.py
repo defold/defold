@@ -25,17 +25,18 @@ import re
 import shutil
 import subprocess
 import zipfile
+import tarfile
 import configparser
 import datetime
-import imp
 import fnmatch
 import urllib
 import urllib.parse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
+
 # TODO: collect common functions in a more suitable reusable module
 try:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
     sys.dont_write_bytecode = True
     import build_private
 except Exception as e:
@@ -48,6 +49,7 @@ finally:
 
 # defold/build_tools
 import run
+import http_cache
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -102,13 +104,8 @@ def extract(file, path, is_mac):
     else:
         assert False, "Don't know how to extract " + file
 
-modules = {}
-
 def download(url):
-    if not modules.__contains__('http_cache'):
-        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
-    log('Downloading %s' % (url))
-    path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+    path = http_cache.download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
     if not path:
         log('Downloading %s failed' % (url))
     return path
@@ -127,6 +124,22 @@ def ziptree(path, outfile, directory = None):
 
     zip.close()
     return outfile
+
+def gz_tree(path, outfile, directory=None):
+    # compress files and folders in path to outfile using tar:gz compression
+
+    archive = tarfile.open(outfile, 'w:gz')
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            p = os.path.join(root, f)
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            archive.add(p, an)
+
+    archive.close()
+    return outfile
+
 
 def _get_tag_name(version, channel): # from build.py
     if channel and channel != 'stable' and not channel.startswith('editor-'):
@@ -464,6 +477,16 @@ def create_bundle(options):
 
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
         ziptree(bundle_dir, zipfile, tmp_dir)
+
+        # create additional tar.gz bundle in case of Linux
+        is_linux = 'linux' in platform
+        if is_linux:
+            gz_file = 'target/editor/Defold-%s.tar.gz' % platform
+            if os.path.exists(gz_file):
+                os.remove(gz_file)
+
+            print("Creating '%s' bundle from '%s'" % (gz_file, bundle_dir))
+            gz_tree(bundle_dir, gz_file, tmp_dir)
 
 
 def sign(options):

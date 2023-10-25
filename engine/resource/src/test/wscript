@@ -179,7 +179,7 @@ def build(bld):
     bld.program(features     = 'cxx embed test',
                 includes     = '.. ../../proto',
                 defines      = defines,
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 web_libs     = ['library_sys.js'],
                 proto_gen_py = True,
                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],

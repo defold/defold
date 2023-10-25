@@ -168,6 +168,9 @@ namespace dmGraphics
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
+    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
+    typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
+    typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
@@ -302,22 +305,25 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+        NewComputeProgramFn     m_NewComputeProgram;
+        NewProgramFromComputeFn m_NewProgramFromCompute;
+        DeleteComputeProgramFn  m_DeleteComputeProgram;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        MapVertexBufferFn m_MapVertexBuffer;
-        UnmapVertexBufferFn m_UnmapVertexBuffer;
-        MapIndexBufferFn m_MapIndexBuffer;
-        UnmapIndexBufferFn m_UnmapIndexBuffer;
-        CopyBufferToTextureFn m_CopyBufferToTexture;
-        SetRenderTargetAttachmentsFn m_SetRenderTargetAttachments;
-        SetConstantBufferFn m_SetConstantBuffer;
-        GetActiveSwapChainTextureFn m_GetActiveSwapChainTexture;
-        DrawElementsInstancedFn m_DrawElementsInstanced;
+        MapVertexBufferFn                  m_MapVertexBuffer;
+        UnmapVertexBufferFn                m_UnmapVertexBuffer;
+        MapIndexBufferFn                   m_MapIndexBuffer;
+        UnmapIndexBufferFn                 m_UnmapIndexBuffer;
+        CopyBufferToTextureFn              m_CopyBufferToTexture;
+        SetRenderTargetAttachmentsFn       m_SetRenderTargetAttachments;
+        SetConstantBufferFn                m_SetConstantBuffer;
+        GetActiveSwapChainTextureFn        m_GetActiveSwapChainTexture;
+        DrawElementsInstancedFn            m_DrawElementsInstanced;
         SetVertexDeclarationStepFunctionFn m_SetVertexDeclarationStepFunction;
-        DrawBaseInstanceFn m_DrawBaseInstance;
-        CreateRenderPassFn m_CreateRenderPass;
-        NextRenderPassFn m_NextRenderPass;
-        SetFrameInFlightCountFn m_SetFrameInFlightCount;
+        DrawBaseInstanceFn                 m_DrawBaseInstance;
+        CreateRenderPassFn                 m_CreateRenderPass;
+        NextRenderPassFn                   m_NextRenderPass;
+        SetFrameInFlightCountFn            m_SetFrameInFlightCount;
     #endif
     };
 
@@ -437,7 +443,10 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
