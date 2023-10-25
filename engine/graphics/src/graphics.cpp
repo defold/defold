@@ -1286,19 +1286,19 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
-
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-
     HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         return g_functions.m_NewComputeProgram(context, ddf);
     }
-
     HProgram NewProgram(HContext context, HComputeProgram compute_program)
     {
         return g_functions.m_NewProgramFromCompute(context, compute_program);
     }
-
+    void DeleteComputeProgram(HComputeProgram prog)
+    {
+        return g_functions.m_DeleteComputeProgram(prog);
+    }
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
         return g_functions.m_MapVertexBuffer(buffer, access);

@@ -3908,7 +3908,6 @@ bail:
         return false;
     }
 
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -3928,6 +3927,14 @@ bail:
         return (HProgram) program;
     }
 
+    static void VulkanDeleteComputeProgram(HComputeProgram prog)
+    {
+        ShaderModule* shader = (ShaderModule*) prog;
+        DestroyShader(shader);
+        delete shader;
+    }
+
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     static void* VulkanMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;

@@ -192,6 +192,7 @@ namespace dmGraphics
     {
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -563,14 +564,14 @@ namespace dmGraphics
     bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
+    void                 DeleteComputeProgram(HComputeProgram prog);
+
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
-
-    // void                 DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
