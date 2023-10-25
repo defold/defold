@@ -182,7 +182,6 @@ namespace dmGameObject
         ScriptResult ret = RunScript(GetLuaState(params.m_Context), script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
         if (ret == SCRIPT_RESULT_FAILED)
         {
-            script_instance->m_Initialized = 0;
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
         script_instance->m_Initialized = 1;
