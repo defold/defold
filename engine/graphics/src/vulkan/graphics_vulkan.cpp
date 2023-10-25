@@ -2750,7 +2750,7 @@ bail:
         return loc;
     }
 
-    static void WriteConstantData(ShaderModule* module, uint32_t loc, uint32_t loc_member, uint32_t* data_offsets, uint8_t* data_ptr, uint32_t data_size)
+    static void WriteConstantData(ShaderModule* module, uint32_t loc, uint32_t loc_member, uint32_t base_offset, uint8_t* uniform_data_ptr, uint32_t* data_offsets, uint8_t* data_ptr, uint32_t data_size)
     {
         if (loc == UNIFORM_LOCATION_MAX)
         {
@@ -2762,9 +2762,9 @@ bail:
 
         assert(loc < module->m_Uniforms.Size());
         assert(!IsUniformTextureSampler(res));
-        uint32_t offset_index = res.m_UniformDataIndex;
+        uint32_t offset_index = res.m_UniformDataIndex + base_offset;
         uint32_t offset       = data_offsets[offset_index] + member.m_Offset;
-        memcpy(&data_ptr[offset], data_ptr, data_size);
+        memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
     static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
@@ -2782,12 +2782,12 @@ bail:
 
         if (program_ptr->m_ComputeModule)
         {
-            WriteConstantData(program_ptr->m_ComputeModule, loc0, loc0_member, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+            WriteConstantData(program_ptr->m_ComputeModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
         }
         else
         {
-            WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
-            WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+            WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+            WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
         }
     }
 
@@ -2806,12 +2806,12 @@ bail:
 
         if (program_ptr->m_ComputeModule)
         {
-            WriteConstantData(program_ptr->m_ComputeModule, loc0, loc0_member, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+            WriteConstantData(program_ptr->m_ComputeModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
         }
         else
         {
-            WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
-            WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+            WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+            WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
         }
     }
 
