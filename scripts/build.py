@@ -1268,7 +1268,7 @@ class Configuration(object):
         # sign all executables before they get stored in bob
         if self.gcloud_keyfile:
             for exe in find_files(bob_dir, "*.exe"):
-                sign_file('win32', self, exe)
+                sign_file(exe, 'win32', self)
 
         env = self._form_env()
 

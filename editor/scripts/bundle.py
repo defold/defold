@@ -50,7 +50,7 @@ finally:
 # defold/build_tools
 import run
 import http_cache
-from sign import sign_file
+from sign import sign_file, sign_dmg
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -471,14 +471,14 @@ def sign(options):
             jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-                sign_file('macos', options, exe)
+                sign_file(exe, 'macos', options)
             for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-                sign_file('macos', options, lib)
-            sign_file('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-            sign_file('macos', options, os.path.join(sign_dir, "Defold.app"))
+                sign_file(lib, 'macos', options)
+            sign_file(os.path.join(jdk_path, "lib", "jspawnhelper"), 'macos', options)
+            sign_file(os.path.join(sign_dir, "Defold.app"), 'macos', options)
         elif 'win32' in platform:
             for exe in find_files(os.path.join(sign_dir, "Defold"), "*.exe"):
-                sign_file('win32', options, exe)
+                sign_file(exe, 'win32', options)
 
         # create editor bundle with signed files
         os.remove(bundle_file)
@@ -526,13 +526,7 @@ def create_dmg(options, platform):
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    if not options.skip_codesign:
-        certificate = mac_certificate(options.codesigning_identity)
-        if certificate == None:
-            error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
-            sys.exit(1)
-
-        run.command(['codesign', '-s', certificate, dmg_file])
+    sign_dmg(dmg_file, options)
 
 
 def create_installer(options):

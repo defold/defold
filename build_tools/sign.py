@@ -17,13 +17,26 @@ import run
 import os
 import sys
 
-def mac_certificate(codesigning_identity):
-    if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
-        return codesigning_identity
-    else:
-        return None
+def is_valid_codesigning_identity(codesigning_identity):
+    return run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0
 
-def sign_file(platform, options, file):
+
+def sign_dmg(file, options):
+    if options.skip_codesign:
+        return
+
+    if not file:
+        print("You must provide a file to sign")
+        sys.exit(1)
+
+    if not is_valid_codesigning_identity(options.codesigning_identity):
+        error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
+        sys.exit(1)
+
+    run.command(['codesign', '-s', certificate, file])
+
+
+def sign_file(file, platform, options):
     if options.skip_codesign:
         return
 
@@ -58,10 +71,8 @@ def sign_file(platform, options, file):
             file], silent = True)
 
     elif 'macos' in platform:
-        codesigning_identity = options.codesigning_identity
-        certificate = mac_certificate(codesigning_identity)
-        if certificate == None:
-            print("Codesigning certificate not found for signing identity %s" % (codesigning_identity))
+        if not is_valid_codesigning_identity(options.codesigning_identity):
+            print("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
             sys.exit(1)
 
         run.command([
