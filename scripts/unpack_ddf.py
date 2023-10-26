@@ -61,6 +61,7 @@ BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
 BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 
 proto_type_to_string_map = {}
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BYTES]   = 'TYPE_BYTES'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_DOUBLE]  = 'TYPE_DOUBLE'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_ENUM]    = 'TYPE_ENUM'
@@ -95,8 +96,8 @@ def get_descriptor_type(descriptor):
 
 def print_descriptor_default(descriptor, data):
     if descriptor.type == descriptor.TYPE_ENUM:
-        enum_name = descriptor.enum_type.values[data].name
-        print(descriptor.name, ":", enum_name, get_descriptor_type(descriptor))
+        e = descriptor.enum_type.values_by_number.get(data)
+        print(descriptor.name, ":", e.name, get_descriptor_type(descriptor))
     else:
         print(descriptor.name, ":", data, get_descriptor_type(descriptor))
 
@@ -219,4 +220,3 @@ if __name__ == "__main__":
 
         printer = PRINTERS.get(ext, print_message)
         printer(obj)
-
