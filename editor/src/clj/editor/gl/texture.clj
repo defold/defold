@@ -29,6 +29,12 @@
 (set! *warn-on-reflection* true)
 
 (def
+  ^{:doc "Special constant used as the page-count for non-paged textures.
+          A texture can be paged, but only have one page. A value of zero means
+          it is not a paged texture. Built as TYPE_2D, not TYPE_2D_ARRAY."}
+  ^:const ^:long non-paged-page-count 0)
+
+(def
   ^{:doc "This map translates Clojure keywords into OpenGL constants.
           You can use the keywords in texture parameter maps."}
   texture-params

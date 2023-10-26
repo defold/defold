@@ -65,13 +65,8 @@ def transform_texture_name(task, name):
 def transform_tilesource_name(name):
     name = name.replace('.tileset', '.t.texturesetc')
     name = name.replace('.tilesource', '.t.texturesetc')
+    name = name.replace('.atlas', '.t.texturesetc')
     return name
-
-def transform_textureset_filename(task, name):
-    name = name.replace('.tilesource', '.texturec')
-    name = name.replace('.tileset', '.texturec')
-    name = name.replace('.atlas', '.texturec')
-    return transform_texture_name(task, name)
 
 def transform_collection(task, msg):
     for i in msg.instances:
@@ -651,6 +646,26 @@ def render_script_file(self, node):
     task.set_inputs(node)
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
+
+waflib.Task.task_factory('atlas', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.AtlasBuilder ${SRC} ${TGT} ${CONTENT_ROOT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.atlas')
+def tileset_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    atlas = self.create_task('atlas')
+    atlas.env['CLASSPATH'] = os.pathsep.join(classpath)
+    atlas.env['CONTENT_ROOT'] = atlas.generator.content_root
+
+    atlas.set_inputs(node)
+
+    texture_set = node.change_ext('.t.texturesetc')
+    texture = node.change_ext('.texturec')
+
+    atlas.set_outputs([texture_set, texture])
 
 waflib.Task.task_factory('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',

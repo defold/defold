@@ -161,6 +161,7 @@ GLFWGLOBAL struct {
     void *OpenGLFramework;
 
     int Unbundled;
+    int FirstUpdate;
 
     id DesktopMode;
 

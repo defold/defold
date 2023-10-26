@@ -470,7 +470,7 @@
                              1.0)
                            (case manip
                              (:scale-z :scale-xz :scale-yz)
-                             (div-fn (.y delta) (.y start-delta))
+                             (div-fn (.z delta) (.z start-delta))
                              1.0))]
         (for [{:keys [node-id]} original-values]
           (manip-scale evaluation-context node-id scale-factor))))

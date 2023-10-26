@@ -13,47 +13,56 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.field-expression
-  (:require [clojure.string :as string]
-            [editor.math :as math]))
+  (:require [editor.math :as math])
+  (:import [java.math MathContext]
+           [java.text DecimalFormat DecimalFormatSymbols]
+           [java.util Locale]
+           [net.objecthunter.exp4j ExpressionBuilder]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- parsable-number-format [text]
-  (-> text
-      (string/replace \, \.)))
-
-(defn- evaluate-expression [parse-fn precision text]
-  (if-let [matches (re-find #"(.+?)\s*((?<![Ee])[\+\-*/])\s*(.+)" text)]
-    (let [a (parse-fn (parsable-number-format (matches 1)))
-          b (parse-fn (parsable-number-format (matches 3)))
-          op (resolve (symbol (matches 2)))]
-      (math/round-with-precision (op a b) precision))
-    (parse-fn (parsable-number-format text))))
+(defn- evaluate-expression [text]
+  (try
+    (-> (ExpressionBuilder. text) .build .evaluate)
+    (catch Throwable _
+      nil)))
 
 (defn to-int [s]
   (try
-    (int (evaluate-expression #(Integer/parseInt %) 1.0 s))
+    (Integer/parseInt s)
     (catch Throwable _
-      nil)))
+      (try
+        (-> s evaluate-expression int)
+        (catch Throwable _
+          nil)))))
 
 (defn to-long [s]
   (try
-    (long (evaluate-expression #(Long/parseLong %) 1.0 s))
+    (Long/parseLong s)
     (catch Throwable _
-      nil)))
+      (try
+        (-> s evaluate-expression long)
+        (catch Throwable _
+          nil)))))
 
 (defn to-float [s]
   (try
-    (evaluate-expression #(Float/parseFloat %) math/precision-general s)
+    (Float/parseFloat s)
     (catch Throwable _
-      nil)))
+      (try
+        (float (math/round-with-precision (evaluate-expression s) math/precision-general))
+        (catch Throwable _
+          nil)))))
 
 (defn to-double [s]
   (try
-    (evaluate-expression #(Double/parseDouble %) math/precision-general s)
+    (Double/parseDouble s)
     (catch Throwable _
-      nil)))
+      (try
+        (math/round-with-precision (evaluate-expression s) math/precision-general)
+        (catch Throwable _
+          nil)))))
 
 (def ^:private ^:const ^int decimal-point-int (int \.))
 

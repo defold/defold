@@ -18,11 +18,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import java.util.List;
+import java.util.HashSet;
 
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
@@ -72,5 +74,47 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
 
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4 * 2;
         assertEquals(expectedSize, textureImage1.getAlternatives(0).getData().size());
+    }
+
+    @Test
+    public void testAtlasUtilRenameFunction() throws Exception {
+        addImage("/hat_nrm.png", 16, 16);
+        addImage("/shirt_normal.png", 16, 16);
+
+        StringBuilder src = new StringBuilder();
+        src.append("images: {");
+        src.append("  image: \"/hat_nrm.png\"");
+        src.append("}");
+
+        src.append("images: {");
+        src.append("  image: \"/shirt_normal.png\"");
+        src.append("}");
+        src.append("animations {");
+        src.append("id: \"Hello\"");
+        src.append("  images: {");
+        src.append("    image: \"/shirt_normal.png\"");
+        src.append("  }");
+        src.append("}");
+
+        src.append("max_page_width: 16\n");
+        src.append("max_page_height: 16\n");
+        src.append("rename_patterns: \"_nrm=,_normal=,hat=cat\"\n");
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+
+        assertNotNull(textureSet);
+
+        HashSet<String> expectedIds = new HashSet<>();
+        expectedIds.add("Hello");
+        expectedIds.add("cat");
+        expectedIds.add("shirt");
+
+        HashSet<String> ids = new HashSet<>();
+        for (TextureSetAnimation anim : textureSet.getAnimationsList()) {
+            ids.add(anim.getId());
+        }
+
+        assertEquals(expectedIds, ids);
     }
 }

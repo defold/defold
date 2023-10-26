@@ -7,6 +7,9 @@ assignees: ''
 
 ---
 
+_Is it a private platform specific feature? (i.e. would it break your NDA?)<br>
+Then please add your feature request in the corresponding extension repository!_
+
 **Is your feature request related to a problem? Please describe (REQUIRED):**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 

@@ -189,6 +189,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
             default:break;
         }
         return "<unknown dmGraphics::TextureFormat>";
@@ -502,6 +503,7 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RG16F:              return 32;
         case TEXTURE_FORMAT_R32F:               return 32;
         case TEXTURE_FORMAT_RG32F:              return 64;
+        case TEXTURE_FORMAT_RGBA32UI:           return 128;
         default:
             assert(false && "Unknown texture format");
             return TEXTURE_FORMAT_COUNT;
@@ -586,6 +588,7 @@ namespace dmGraphics
         switch(format)
         {
             case dmGraphics::TEXTURE_FORMAT_RGBA:
+            case dmGraphics::TEXTURE_FORMAT_RGBA32UI:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
@@ -1029,19 +1032,19 @@ namespace dmGraphics
     {
         return g_functions.m_GetUniformCount(prog);
     }
-    int32_t  GetUniformLocation(HProgram prog, const char* name)
+    HUniformLocation GetUniformLocation(HProgram prog, const char* name)
     {
         return g_functions.m_GetUniformLocation(prog, name);
     }
-    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        g_functions.m_SetConstantV4(context, data, count, base_register);
+        g_functions.m_SetConstantV4(context, data, count, base_location);
     }
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        g_functions.m_SetConstantM4(context, data, count, base_register);
+        g_functions.m_SetConstantM4(context, data, count, base_location);
     }
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         g_functions.m_SetSampler(context, location, unit);
     }
@@ -1246,6 +1249,25 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
+
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapVertexBuffer(buffer, access);
+    }
+    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    {
+        return g_functions.m_UnmapVertexBuffer(buffer);
+    }
+    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapIndexBuffer(buffer, access);
+    }
+    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    {
+        return g_functions.m_UnmapIndexBuffer(buffer);
+    }
+#endif
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

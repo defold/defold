@@ -2244,7 +2244,7 @@ static void LogFrameBufferError(GLenum status)
         return (uint32_t)uniform_name_length;
     }
 
-    static int32_t OpenGLGetUniformLocation(HProgram prog, const char* name)
+    static HUniformLocation OpenGLGetUniformLocation(HProgram prog, const char* name)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
         GLint location = glGetUniformLocation(program_ptr->m_Id, name);
@@ -2253,7 +2253,7 @@ static void LogFrameBufferError(GLenum status)
             // Clear error if uniform isn't found
             CLEAR_GL_ERROR
         }
-        return (uint32_t) location;
+        return (HUniformLocation) location;
     }
 
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -2264,22 +2264,22 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, int base_register)
+    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        glUniform4fv(base_register, count, (const GLfloat*) data);
+        glUniform4fv(base_location, count, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
+    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
+        glUniformMatrix4fv(base_location, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetSampler(HContext context, int32_t base_register, int32_t unit)
+    static void OpenGLSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         assert(context);
-        glUniform1i(base_register, unit);
+        glUniform1i(location, unit);
         CHECK_GL_ERROR;
     }
 

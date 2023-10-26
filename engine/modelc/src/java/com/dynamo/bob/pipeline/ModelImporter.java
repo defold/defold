@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 
 public class ModelImporter {
 
+    static final String ROOT_BONE_NAME = "root";
     static final String LIBRARY_NAME = "modelc_shared";
 
     static {
@@ -136,6 +137,14 @@ public class ModelImporter {
             if (y > max.y) max.y = y;
             if (z > max.z) max.z = z;
         }
+
+        public Vec4 center() {
+            return new Vec4((min.x + max.x)*0.5f, (min.y + max.y)*0.5f, (min.z + max.z)*0.5f, 1.0f);
+        }
+
+        public boolean isValid() {
+            return min.x <= max.x && (min.y <= max.y) && (min.z <= max.z);
+        }
     }
     public static class Material {
         public String           name;
@@ -183,6 +192,7 @@ public class ModelImporter {
         public String   name;
         public Mesh[]   meshes;
         public int      index;
+        public String   boneParentName; // If set, this is a child of a bone
     }
 
     public static class Bone {
@@ -373,7 +383,10 @@ public class ModelImporter {
 
     private static void DebugPrintModel(Model model, int indent) {
         PrintIndent(indent);
-        System.out.printf("Model: %s\n", model.name);
+        System.out.printf("Model: %s", model.name);
+            if (!model.boneParentName.isEmpty())
+                System.out.printf("  bone: %s", model.boneParentName);
+        System.out.printf("\n");
 
         for (Mesh mesh : model.meshes) {
             DebugPrintMesh(mesh, indent+1);
