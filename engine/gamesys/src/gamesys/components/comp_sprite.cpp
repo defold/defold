@@ -1035,25 +1035,48 @@ if (debug)
             uint32_t height = data->m_TextureSets[i]->m_Height;
 
             const dmGameSystemDDF::SpriteGeometry* geometry = data->m_Geometries[i];
+            bool rotated = geometry->m_Rotated; // if true, rotate 90 deg (CCW)
+            // width/height are not rotated
             float image_width = geometry->m_Width;
             float image_height = geometry->m_Height;
+            if (rotated)
+            {
+                float t = image_width;
+                image_width = image_height;
+                image_height = t;
+            }
+            // center X/Y may be rotated, if the image is stored rotated
             uint32_t center_x = geometry->m_CenterX;
             uint32_t center_y = geometry->m_CenterY;
 
             if (debug)
+            {
+                printf("  texture: %d: w/h: %u / %u\n", i, width, height);
                 printf("  geom: %d: w/h: %f / %f  cx/cy: %f / %f\n", i, image_width, image_height, geometry->m_CenterX, geometry->m_CenterY);
+            }
             for (uint32_t j = 0; j < num_vertices; ++j)
             {
-                float posx = center_x + vertices[j*2+0] * image_width;
-                float posy = center_y + vertices[j*2+1] * image_height;
+                float px = vertices[j*2+0];
+                float py = vertices[j*2+1];
+                if (rotated) // rotate back -90 degrees
+                {
+                    float t = py;
+                    py = -px;
+                    px = t;
+                }
 
                 if (debug)
+                {
+                    float posx = center_x + px * image_width;
+                    float posy = center_y + -py * image_height;
                     printf("    pos %u: %f, %f\n", j, posx, posy);
+                }
 
-                float u = (center_x + vertices[j*2+0] * image_width) / width;
-                float v = 1.0f - (center_y + -vertices[j*2+1] * image_height) / height;
+                float u = (center_x + px * image_width) / width;
+                float v = (center_y + -py * image_height) / height;
+
                 uvs[j*2+0] = u;
-                uvs[j*2+1] = v;
+                uvs[j*2+1] = 1.0f - v;
             }
 
             for (uint32_t j = 0; j < num_vertices; ++j)

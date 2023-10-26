@@ -44,8 +44,9 @@ message SpriteGeometry
 
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
     // Each point is relative to the sprite center
+    // The vertices are not rotated
     repeated float  vertices= 7;
-    // A list of 2-tuples, corresponding directly to the vertices
+    // A list of 2-tuples, corresponding directly to the vertices (deprecated)
     repeated float  uvs     = 8;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
     repeated uint32 indices = 9;
