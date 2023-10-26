@@ -526,7 +526,8 @@ def sign(options):
             sign_file('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
             sign_file('macos', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
-            sign_file('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
+            for exe in find_files(os.path.join(sign_dir, "Defold"), "*.exe"):
+                sign_file('win32', options, exe)
 
         # create editor bundle with signed files
         os.remove(bundle_file)
