@@ -33,7 +33,7 @@ def sign_dmg(file, options):
         error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
         sys.exit(1)
 
-    run.command(['codesign', '-s', certificate, file])
+    run.command(['codesign', '-s', options.codesigning_identity, file])
 
 
 def sign_file(file, platform, options):
@@ -81,5 +81,5 @@ def sign_file(file, platform, options):
             '--force',
             '--options', 'runtime',
             '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
+            '-s', options.codesigning_identity,
             file])
