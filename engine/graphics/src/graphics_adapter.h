@@ -177,16 +177,6 @@ namespace dmGraphics
     typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
     typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
     typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
-    typedef void (*CopyBufferToTextureFn)(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
-    typedef void (*SetRenderTargetAttachmentsFn)(HContext context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params);
-    typedef void (*SetConstantBufferFn)(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
-    typedef HTexture (*GetActiveSwapChainTextureFn)(HContext context);
-    typedef void (*DrawElementsInstancedFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
-    typedef void (*SetVertexDeclarationStepFunctionFn)(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
-    typedef void (*DrawBaseInstanceFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
-    typedef void (*CreateRenderPassFn)(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
-    typedef void (*NextRenderPassFn)(HContext context, HRenderTarget render_target);
-    typedef void (*SetFrameInFlightCountFn)(HContext context, uint8_t num_frames_in_flight);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -314,16 +304,6 @@ namespace dmGraphics
         UnmapVertexBufferFn                m_UnmapVertexBuffer;
         MapIndexBufferFn                   m_MapIndexBuffer;
         UnmapIndexBufferFn                 m_UnmapIndexBuffer;
-        CopyBufferToTextureFn              m_CopyBufferToTexture;
-        SetRenderTargetAttachmentsFn       m_SetRenderTargetAttachments;
-        SetConstantBufferFn                m_SetConstantBuffer;
-        GetActiveSwapChainTextureFn        m_GetActiveSwapChainTexture;
-        DrawElementsInstancedFn            m_DrawElementsInstanced;
-        SetVertexDeclarationStepFunctionFn m_SetVertexDeclarationStepFunction;
-        DrawBaseInstanceFn                 m_DrawBaseInstance;
-        CreateRenderPassFn                 m_CreateRenderPass;
-        NextRenderPassFn                   m_NextRenderPass;
-        SetFrameInFlightCountFn            m_SetFrameInFlightCount;
     #endif
     };
 
@@ -452,17 +432,7 @@ namespace dmGraphics
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CopyBufferToTexture); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetRenderTargetAttachments); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetActiveSwapChainTexture); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElementsInstanced); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawBaseInstance); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexDeclarationStepFunction); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CreateRenderPass); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NextRenderPass); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetFrameInFlightCount);
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
     #else
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
     #endif

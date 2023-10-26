@@ -2400,9 +2400,9 @@ bail:
         return (HFragmentProgram) shader;
     }
 
-    static uint32_t CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
+    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
-        VkDescriptorSetLayoutBinding* vk_bindings_out)
+        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
         uint32_t byte_offset         = byte_offset_base;
         uint32_t num_uniform_buffers = 0;
@@ -2445,7 +2445,7 @@ bail:
             vk_desc.pImmutableSamplers            = 0;
         }
 
-        return byte_offset;
+        *byte_offset_end_out = byte_offset;
     }
 
     static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
@@ -2475,8 +2475,9 @@ bail:
                 program->m_UniformDataOffsets = new uint32_t[num_buffers];
             }
 
-            uint32_t byte_size = CreateProgramUniforms(compute_module, VK_SHADER_STAGE_COMPUTE_BIT,
-                0, program->m_UniformDataOffsets, num_buffers, vk_descriptor_set_bindings);
+            uint32_t byte_size = 0;
+            CreateProgramUniforms(compute_module, VK_SHADER_STAGE_COMPUTE_BIT,
+                0, program->m_UniformDataOffsets, num_buffers, &byte_size, vk_descriptor_set_bindings);
 
             program->m_UniformData = new uint8_t[byte_size];
             memset(program->m_UniformData, 0, byte_size);
@@ -2552,11 +2553,18 @@ bail:
                 program->m_UniformDataOffsets = new uint32_t[num_buffers];
             }
 
-            uint32_t byte_offset = CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT, 0, program->m_UniformDataOffsets, num_buffers, vk_descriptor_set_bindings);
-            byte_offset          = CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT, byte_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers, &vk_descriptor_set_bindings[vertex_module->m_TotalUniformCount]);
+            uint32_t vs_last_offset   = 0;
+            uint32_t fs_last_offset   = 0;
 
-            program->m_UniformData = new uint8_t[byte_offset];
-            memset(program->m_UniformData, 0, byte_offset);
+            CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
+                0, program->m_UniformDataOffsets, num_buffers,
+                &vs_last_offset, vk_descriptor_set_bindings);
+            CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
+                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
+                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()]);
+
+            program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
+            memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
 
             VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
             memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
@@ -3140,6 +3148,7 @@ bail:
         };
     }
 
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     static inline VkAttachmentStoreOp VulkanStoreOp(AttachmentOp op)
     {
         switch(op)
@@ -3164,6 +3173,7 @@ bail:
         assert(0);
         return (VkAttachmentLoadOp) -1;
     }
+#endif
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, RenderTarget* rtOut)
     {
@@ -4188,7 +4198,7 @@ bail:
         return true;
     }
 
-    static void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)
+    void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)
     {
         VulkanContext* context = g_VulkanContext; // (VulkanContext*) _context;
         DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
@@ -4197,6 +4207,7 @@ bail:
         // TODO: We _should_ be able to use the devicebuffer as-is since it already contains the data we need
 
         VkResult res = buffer->MapMemory(context->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
 
         TextureParams _p = params;
         _p.m_Data        = buffer->m_MappedDataPtr;
@@ -4207,7 +4218,7 @@ bail:
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
     }
 
-    static void VulkanNextRenderPass(HContext _context, HRenderTarget render_target)
+    void VulkanNextRenderPass(HContext _context, HRenderTarget render_target)
     {
         VulkanContext* context = (VulkanContext*) _context;
         RenderTarget* rt       = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
@@ -4220,7 +4231,7 @@ bail:
         }
     }
 
-    static void VulkanCreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params)
+    void VulkanCreateRenderPass(HContext _context, HRenderTarget render_target, const CreateRenderPassParams& params)
     {
         VulkanContext* context = (VulkanContext*) _context;
         RenderTarget* rt       = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
@@ -4357,7 +4368,7 @@ bail:
         delete[] vk_attachments;
     }
 
-    static void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params)
+    void VulkanSetRenderTargetAttachments(HContext _context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
@@ -4398,7 +4409,7 @@ bail:
 
     }
 
-    static void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, HUniformLocation base_location)
+    void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, HUniformLocation base_location)
     {
         VulkanContext* context = (VulkanContext*) _context;
         Program* program_ptr   = (Program*) context->m_CurrentProgram;
@@ -4437,13 +4448,13 @@ bail:
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
     }
 
-    static HTexture VulkanGetActiveSwapChainTexture(HContext _context)
+    HTexture VulkanGetActiveSwapChainTexture(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_CurrentSwapchainTexture;
     }
 
-    static void VulkanDrawElementsInstanced(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer)
+    void VulkanDrawElementsInstanced(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -4462,7 +4473,7 @@ bail:
         vkCmdDrawIndexed(vk_command_buffer, count, instance_count, index_offset, 0, base_instance);
     }
 
-    static void VulkanDrawBaseInstance(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance)
+    void VulkanDrawBaseInstance(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -4475,12 +4486,12 @@ bail:
         vkCmdDraw(vk_command_buffer, count, 1, first, base_instance);
     }
 
-    static void VulkanSetVertexDeclarationStepFunction(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function)
+    void VulkanSetVertexDeclarationStepFunction(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function)
     {
         vertex_declaration->m_StepFunction = step_function;
     }
 
-    static void VulkanSetFrameInFlightCount(HContext _context, uint8_t num_frames_in_flight)
+    void VulkanSetFrameInFlightCount(HContext _context, uint8_t num_frames_in_flight)
     {
         if (num_frames_in_flight > DM_MAX_FRAMES_IN_FLIGHT)
         {
@@ -4491,7 +4502,6 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         context->m_NumFramesInFlight = num_frames_in_flight;
     }
-
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()

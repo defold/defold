@@ -20,6 +20,7 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
+#include "graphics_vulkan.h"
 
 namespace dmGraphics
 {
@@ -418,7 +419,7 @@ namespace dmGraphics
         uint32_t                        m_WindowHeight;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
-        uint32_t                        m_NumFramesInFlight    : 1;
+        uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_WindowOpened         : 1;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;

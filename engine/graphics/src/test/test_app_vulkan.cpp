@@ -22,9 +22,10 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include "../graphics.h"
 
+#include "../graphics.h"
 #include "../graphics_private.h"
+#include "../vulkan/graphics_vulkan.h"
 
 #include "test_app_vulkan_assets.h"
 
@@ -280,7 +281,7 @@ static void* EngineCreate(int argc, char** argv)
     rp.m_Dependencies[2].m_Src = 1;
     rp.m_Dependencies[2].m_Dst = dmGraphics::SUBPASS_EXTERNAL;
 
-    dmGraphics::CreateRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget, rp);
+    dmGraphics::VulkanCreateRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget, rp);
 
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetTime();
@@ -325,7 +326,7 @@ static UpdateResult EngineUpdate(void* _engine)
                                 (float)color_a,
                                 1.0f, 0);
 
-    dmGraphics::NextRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget);
+    dmGraphics::VulkanNextRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget);
 
     dmGraphics::EnableProgram(engine->m_GraphicsContext, engine->m_ShaderProgram);
     dmGraphics::DisableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);

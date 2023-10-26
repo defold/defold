@@ -32,15 +32,6 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
-    static const uint32_t MAX_SUBPASSES            = 4;
-    static const uint32_t MAX_SUBPASS_DEPENDENCIES = 4;
-
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_VERTEX,
-        VERTEX_STEP_INSTANCE,
-    };
-
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -54,41 +45,6 @@ namespace dmGraphics
     {
         VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint8_t            m_StreamCount;
-    };
-
-    static const uint8_t SUBPASS_EXTERNAL = -1;
-
-    struct RenderPassDependency
-    {
-        uint8_t m_Src;
-        uint8_t m_Dst;
-    };
-
-    struct RenderPassDescriptor
-    {
-        uint8_t* m_ColorAttachmentIndices;
-        uint8_t  m_ColorAttachmentIndicesCount;
-        uint8_t* m_DepthStencilAttachmentIndex;
-
-        uint8_t* m_InputAttachmentIndices;
-        uint8_t  m_InputAttachmentIndicesCount;
-    };
-
-    struct CreateRenderPassParams
-    {
-        RenderPassDescriptor m_SubPasses[MAX_SUBPASSES];
-        RenderPassDependency m_Dependencies[MAX_SUBPASS_DEPENDENCIES];
-        uint8_t              m_SubPassCount;
-        uint8_t              m_DependencyCount;
-    };
-
-    struct SetRenderTargetAttachmentsParams
-    {
-        HTexture     m_ColorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
-        AttachmentOp m_ColorAttachmentLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
-        AttachmentOp m_ColorAttachmentStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
-        float        m_ColorAttachmentClearValues[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-        uint32_t     m_ColorAttachmentsCount;
     };
 
     struct UniformBlockMember
@@ -181,18 +137,6 @@ namespace dmGraphics
         HOpaqueHandle opaque_handle = GetOpaqueHandle(asset_handle);
         return (T*) container.Get(opaque_handle);
     }
-
-    // Experimental only functions:
-    void     CopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
-    void     SetRenderTargetAttachments(HContext context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params);
-    void     SetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
-    HTexture GetActiveSwapChainTexture(HContext context);
-    void     DrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
-    void     SetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
-    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
-    void     CreateRenderPass(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
-    void     NextRenderPass(HContext context, HRenderTarget render_target);
-    void     SetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
 
     // Test only functions:
     uint64_t GetDrawCount();
