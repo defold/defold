@@ -140,6 +140,24 @@ namespace dmGameSystem
         uint32_t m_HasLocalPositionAttribute : 1;
     };
 
+    const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
+
+    struct TexturesData
+    {
+        TextureSetResource*             m_Resources[MAX_TEXTURE_COUNT];
+        dmGameSystemDDF::TextureSet*    m_TextureSets[MAX_TEXTURE_COUNT];
+        uint32_t                        m_NumTextures;
+
+        // Used after resolving info from all textures
+        dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
+        uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
+        uint32_t                        m_PageIndices[MAX_TEXTURE_COUNT];
+
+        const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
+        const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
+        bool                                        m_UsesGeometries;
+    };
+
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, false);
 
@@ -695,9 +713,18 @@ namespace dmGameSystem
         }
     }
 
+    static void EnsureSize(dmArray<float>& array, uint32_t size)
+    {
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
+        }
+        array.SetSize(size);
+    }
+
     static void CreateVertexDataSlice9(uint8_t* vertices, uint8_t* indices, bool is_indices_16_bit,
         const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset, uint32_t vertex_stride,
-        const float* tc, float texture_width, float texture_height, uint8_t page_index, bool flip_u, bool flip_v,
+        TexturesData* textures, dmArray<float>* scratch_uvs,
+        bool flip_u, bool flip_v,
         SpriteAttributeInfo* sprite_infos)
     {
         // render 9-sliced node
@@ -711,48 +738,98 @@ namespace dmGameSystem
         // 2 *-*-----*-*
         //   | |  w  | |
         // 3 *-*-----*-*
-        float us[4], vs[4], xs[4], ys[4];
 
-        // v are '1-v'
-        xs[0] = ys[0] = 0;
-        xs[3] = ys[3] = 1;
+        for (uint32_t i = 0; i < textures->m_NumTextures; ++i)
+        {
+            uint32_t frame_index = textures->m_Frames[i];
+            dmArray<float>& uvs = scratch_uvs[i];
+            EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+
+            const dmGameSystemDDF::TextureSet*          texture_set_ddf = textures->m_TextureSets[i];
+            const dmGameSystemDDF::TextureSetAnimation* animation_ddf = textures->m_Animations[i];
+            const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
+            const float* tc             = &tex_coords[frame_index * 4 * 2];
+
+            float us[4], vs[4];
+
+            uint32_t texture_width = textures->m_TextureSets[i]->m_Width;
+            uint32_t texture_height = textures->m_TextureSets[i]->m_Height;
+
+            const float su = 1.0f / texture_width;
+            const float sv = 1.0f / texture_height;
+
+            static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+            if(uv_rotated)
+            {
+                const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+                const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+                us[uI[0]] = tc[0];
+                us[uI[1]] = tc[0] + (su * slice9.getW());
+                us[uI[2]] = tc[2] - (su * slice9.getY());
+                us[uI[3]] = tc[2];
+                vs[vI[0]] = tc[1];
+                vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                vs[vI[2]] = tc[5] + (sv * slice9.getZ());
+                vs[vI[3]] = tc[5];
+            }
+            else
+            {
+                const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+                const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+                us[uI[0]] = tc[0];
+                us[uI[1]] = tc[0] + (su * slice9.getX());
+                us[uI[2]] = tc[4] - (su * slice9.getZ());
+                us[uI[3]] = tc[4];
+                vs[vI[0]] = tc[1];
+                vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                vs[vI[2]] = tc[3] - (sv * slice9.getY());
+                vs[vI[3]] = tc[3];
+            }
+
+            // store the full list of uv coords
+            float* us_p = us;
+            float* vs_p = vs;
+            if (uv_rotated)
+            {
+                us_p = vs;
+                vs_p = us;
+            }
+
+            int index = 0;
+            for (int y=0; y<4; ++y)
+            {
+                for (int x=0; x<4; ++x, ++index)
+                {
+                    //float uv[2];
+
+                    // if (uv_rotated)
+                    // {
+                    //     uv[0] = us[y];
+                    //     uv[1] = vs[x];
+                    // }
+                    // else
+                    // {
+                    //     uv[0] = us[x];
+                    //     uv[1] = vs[y];
+                    // }
+
+                    uvs[index*2+0] = us_p[x];
+                    uvs[index*2+1] = vs_p[y];
+                }
+            }
+        }
 
         // disable slice9 computation below a certain dimension
         // (avoid div by zero)
         const float s9_min_dim = 0.001f;
-        const float su         = 1.0f / texture_width;
-        const float sv         = 1.0f / texture_height;
         const float sx         = sprite_size.getX() > s9_min_dim ? 1.0f / sprite_size.getX() : 0;
         const float sy         = sprite_size.getY() > s9_min_dim ? 1.0f / sprite_size.getY() : 0;
 
-        static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-        bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-        if(uv_rotated)
-        {
-            const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
-            const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
-            us[uI[0]] = tc[0];
-            us[uI[1]] = tc[0] + (su * slice9.getW());
-            us[uI[2]] = tc[2] - (su * slice9.getY());
-            us[uI[3]] = tc[2];
-            vs[vI[0]] = tc[1];
-            vs[vI[1]] = tc[1] - (sv * slice9.getX());
-            vs[vI[2]] = tc[5] + (sv * slice9.getZ());
-            vs[vI[3]] = tc[5];
-        }
-        else
-        {
-            const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
-            const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
-            us[uI[0]] = tc[0];
-            us[uI[1]] = tc[0] + (su * slice9.getX());
-            us[uI[2]] = tc[4] - (su * slice9.getZ());
-            us[uI[3]] = tc[4];
-            vs[vI[0]] = tc[1];
-            vs[vI[1]] = tc[1] + (sv * slice9.getW());
-            vs[vI[2]] = tc[3] - (sv * slice9.getY());
-            vs[vI[3]] = tc[3];
-        }
+        float xs[4], ys[4];
+        // v are '1-v'
+        xs[0] = ys[0] = 0;
+        xs[3] = ys[3] = 1;
 
         xs[1] = sx * slice9.getX();
         xs[2] = 1 - sx * slice9.getZ();
@@ -766,26 +843,14 @@ namespace dmGameSystem
             for (int x=0; x<4; x++)
             {
                 Point3 p = Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
-                float uv[2];
-
-                if (uv_rotated)
-                {
-                    uv[0] = us[y];
-                    uv[1] = vs[x];
-                }
-                else
-                {
-                    uv[0] = us[x];
-                    uv[1] = vs[y];
-                }
-
                 Point3 p_local;
                 if (sprite_infos->m_HasLocalPositionAttribute)
                 {
                     p_local = Point3(p.getX() * sprite_size.getX(), p.getY() * sprite_size.getY(), 0.0f);
                 }
 
-                //WriteSpriteVertex(vertices + vertex_stride * vx_index, p, p_local, transform, uv, page_index, sprite_infos);
+                WriteSpriteVertex(vertices + vertex_stride * vx_index, vx_index, p, p_local, transform,
+                            textures->m_NumTextures, scratch_uvs, textures->m_PageIndices, sprite_infos);
                 vx_index++;
             }
         }
@@ -827,24 +892,6 @@ namespace dmGameSystem
             }
         }
     }
-
-    const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
-
-    struct TexturesData
-    {
-        TextureSetResource*             m_Resources[MAX_TEXTURE_COUNT];
-        dmGameSystemDDF::TextureSet*    m_TextureSets[MAX_TEXTURE_COUNT];
-        uint32_t                        m_NumTextures;
-
-        // Used after resolving info from all textures
-        dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
-        uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
-        uint32_t                        m_PageIndices[MAX_TEXTURE_COUNT];
-
-        const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
-        const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
-        bool                                        m_UsesGeometries;
-    };
 
     static void ResolveAnimationData(TexturesData* data, dmhash_t anim_id, uint32_t current_anim_frame_index)
     {
@@ -903,15 +950,7 @@ namespace dmGameSystem
         data->m_UsesGeometries = uses_geometries;
     }
 
-    static void EnsureSize(dmArray<float>& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
-    }
-
-    static void ResolveUVDataQuads(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
+    static void ResolveUVDataFromQuads(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
     {
         static int tex_coord_order[] = {
             0,1,2,2,3,0,    // no flip
@@ -960,23 +999,13 @@ namespace dmGameSystem
         return !data->m_UsesGeometries || data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
     }
 
-    static void ResolveUVData(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
+    static void ResolveUVDataFromGeometry(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
     {
 
     bool debug = false;//data->m_NumTextures > 1;
+
 if (debug)
     printf("ResolveUVData\n");
-
-        if (CanUseQuads(data))
-        {
-            // We have two use cases:
-            // A) We know that no image is using sprite trimming
-            //    Thus we can use the corresponding quad for each image
-            // B) The first image is a quad, and any remapping
-            //    for any subsequent geometry would yield a wuad anyways.
-            ResolveUVDataQuads(data, scratch_uvs, flip_horizontal, flip_vertical);
-            return;
-        }
 
     if (debug)
     {
@@ -1098,9 +1127,6 @@ if (debug)
             // Get the correct animation frames, and other meta data
             ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
 
-            // Calculate the uv coordinates for each texture
-            ResolveUVData(&textures, scratch_uvs, component->m_FlipHorizontal, component->m_FlipVertical);
-
             // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
             uint32_t sprite_attribute_count = component->m_Resource->m_DDF->m_Attributes.m_Count;
             SpriteAttributeInfo* sprite_attribute_info_ptr = material_attribute_info;
@@ -1122,6 +1148,8 @@ if (debug)
 
             if (!CanUseQuads(&textures))
             {
+                ResolveUVDataFromGeometry(&textures, scratch_uvs, component->m_FlipHorizontal, component->m_FlipVertical);
+
                 // Depending on the sprite is flipped or not, we loop the vertices forward or backward
                 // to respect face winding (and backface culling)
                 const dmGameSystemDDF::TextureSetAnimation* animation_ddf = textures.m_Animations[0];
@@ -1199,40 +1227,25 @@ if (debug)
                 //      submitting more vertices than needed.
                 if (component->m_UseSlice9)
                 {
-                    // uint32_t frame_index        = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
-                    // uint32_t page_indices_index = frame_indices[frame_index]; // same deference as "geometry" version
-                    // uint8_t page_index          = (uint8_t) page_indices[page_indices_index];
-                    // const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
-                    // const float* tc             = &tex_coords[frame_index * 4 * 2];
-                    // uint32_t flip_flag          = 0;
+                    int flipx = component->m_FlipHorizontal;
+                    int flipy = component->m_FlipVertical;
+                    CreateVertexDataSlice9(vertices, indices, sprite_world->m_Is16BitIndex,
+                        w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, vertex_stride,
+                        &textures, scratch_uvs, flipx, flipy, sprite_attribute_info_ptr);
 
-                    // // ddf values are guaranteed to be 0 or 1 when saved by the editor
-                    // // component values are guaranteed to be 0 or 1
-                    // if (animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal)
-                    // {
-                    //     flip_flag = 1;
-                    // }
-                    // if (animation_ddf->m_FlipVertical ^ component->m_FlipVertical)
-                    // {
-                    //     flip_flag |= 2;
-                    // }
-
-                    // const int* tex_lookup = &tex_coord_order[flip_flag * 6];
-
-                    // int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
-                    // int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
-                    // CreateVertexDataSlice9(vertices, indices, sprite_world->m_Is16BitIndex,
-                    //     w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, vertex_stride, tc,
-                    //     dmGraphics::GetTextureWidth(texture_set->m_Texture->m_Texture),
-                    //     dmGraphics::GetTextureHeight(texture_set->m_Texture->m_Texture),
-                    //     page_index, flipx, flipy, sprite_attribute_info_ptr);
-
-                    // indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
-                    // vertices      += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
-                    // vertex_offset += SPRITE_VERTEX_COUNT_SLICE9;
+                    indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
+                    vertices      += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
+                    vertex_offset += SPRITE_VERTEX_COUNT_SLICE9;
                 }
                 else
                 {
+                    // We have two use cases:
+                    // A) We know that no image is using sprite trimming
+                    //    Thus we can use the corresponding quad for each image
+                    // B) The first image is a quad, and any remapping
+                    //    for any subsequent geometry would yield a wuad anyways.
+                    ResolveUVDataFromQuads(&textures, scratch_uvs, component->m_FlipHorizontal, component->m_FlipVertical);
+
                     Point3 p0 = Point3(-0.5f, -0.5f, 0.0f);
                     Point3 p1 = Point3(-0.5f,  0.5f, 0.0f);
                     Point3 p2 = Point3( 0.5f,  0.5f, 0.0f);
