@@ -50,6 +50,7 @@ finally:
 # defold/build_tools
 import run
 import http_cache
+from sign import sign_file
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -186,56 +187,6 @@ def remove_readonly_retry(function, path, excinfo):
 def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
-
-def mac_certificate(codesigning_identity):
-    if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
-        return codesigning_identity
-    else:
-        return None
-
-def sign_file(platform, options, file):
-    if options.skip_codesign:
-        return
-    if 'win32' in platform:
-        run.command([
-            'gcloud',
-            'auth',
-            'activate-service-account',
-            '--key-file', options.gcloud_keyfile], silent = True)
-
-        storepass = run.command([
-            'gcloud',
-            'auth',
-            'print-access-token'], silent = True)
-
-        jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
-        keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
-        run.command([
-            'java', '-jar', jsign,
-            '--storetype', 'GOOGLECLOUD',
-            '--storepass', storepass,
-            '--keystore', keystore,
-            '--alias', options.gcloud_keyname,
-            '--certfile', options.gcloud_certfile,
-            '--tsmode', 'RFC3161',
-            '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-            file], silent = True)
-
-    if 'macos' in platform:
-        codesigning_identity = options.codesigning_identity
-        certificate = mac_certificate(codesigning_identity)
-        if certificate == None:
-            print("Codesigning certificate not found for signing identity %s" % (codesigning_identity))
-            sys.exit(1)
-
-        run.command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
-            file])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:

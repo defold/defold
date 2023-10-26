@@ -28,6 +28,8 @@ import release_to_github
 import release_to_steam
 import BuildUtility
 import http_cache
+import fnmatch
+from sign import sign_file
 from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
@@ -179,6 +181,15 @@ def format_lib(name, platform):
     else:
         suffix = '.so'
     return '%s%s%s' % (prefix, name, suffix)
+
+def find_files(root_dir, file_pattern):
+    matches = []
+    for root, dirnames, filenames in os.walk(root_dir):
+        for filename in filenames:
+            fullname = os.path.join(root, filename)
+            if fnmatch.fnmatch(filename, file_pattern):
+                matches.append(fullname)
+    return matches
 
 class ThreadPool(object):
     def __init__(self, worker_count):
@@ -1253,6 +1264,11 @@ class Configuration(object):
             run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
         else:
             self.copy_local_bob_artefacts()
+
+        # sign all executables before they get stored in bob
+        if self.gcloud_keyfile:
+            for exe in find_files(bob_dir, "*.exe"):
+                sign_file('win32', self, exe)
 
         env = self._form_env()
 
