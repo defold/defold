@@ -2292,9 +2292,9 @@ bail:
         return (HFragmentProgram) shader;
     }
 
-    static uint32_t CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
+    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
-        VkDescriptorSetLayoutBinding* vk_bindings_out)
+        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
         uint32_t byte_offset         = byte_offset_base;
         uint32_t num_uniform_buffers = 0;
@@ -2330,7 +2330,7 @@ bail:
             vk_desc.pImmutableSamplers            = 0;
         }
 
-        return byte_offset;
+        *byte_offset_end_out = byte_offset;
     }
 
     static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
@@ -2360,8 +2360,9 @@ bail:
                 program->m_UniformDataOffsets = new uint32_t[num_buffers];
             }
 
-            uint32_t byte_size = CreateProgramUniforms(compute_module, VK_SHADER_STAGE_COMPUTE_BIT,
-                0, program->m_UniformDataOffsets, num_buffers, vk_descriptor_set_bindings);
+            uint32_t byte_size = 0;
+            CreateProgramUniforms(compute_module, VK_SHADER_STAGE_COMPUTE_BIT,
+                0, program->m_UniformDataOffsets, num_buffers, &byte_size, vk_descriptor_set_bindings);
 
             program->m_UniformData = new uint8_t[byte_size];
             memset(program->m_UniformData, 0, byte_size);
@@ -2437,11 +2438,18 @@ bail:
                 program->m_UniformDataOffsets = new uint32_t[num_buffers];
             }
 
-            uint32_t byte_offset = CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT, 0, program->m_UniformDataOffsets, num_buffers, vk_descriptor_set_bindings);
-            byte_offset          = CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT, byte_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers, &vk_descriptor_set_bindings[vertex_module->m_TotalUniformCount]);
+            uint32_t vs_last_offset   = 0;
+            uint32_t fs_last_offset   = 0;
 
-            program->m_UniformData = new uint8_t[byte_offset];
-            memset(program->m_UniformData, 0, byte_offset);
+            CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
+                0, program->m_UniformDataOffsets, num_buffers,
+                &vs_last_offset, vk_descriptor_set_bindings);
+            CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
+                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
+                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()]);
+
+            program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
+            memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
 
             VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
             memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
