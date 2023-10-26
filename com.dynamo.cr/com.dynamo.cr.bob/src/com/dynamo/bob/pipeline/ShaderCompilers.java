@@ -77,8 +77,10 @@ public class ShaderCompilers {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
-            // Compute shaders not supported on osx for OpenGL
-            if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+            // Compute shaders not supported on osx for OpenGL, BUT we need them for the tests.
+            if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
             }
 

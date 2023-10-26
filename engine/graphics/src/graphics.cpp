@@ -272,7 +272,7 @@ namespace dmGraphics
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
         assert(shader_desc);
-        ShaderDesc::Language language = GetShaderProgramLanguage(context);
+        ShaderDesc::Language language = GetShaderProgramLanguage(context, shader_desc->m_ShaderClass);
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -1037,9 +1037,9 @@ namespace dmGraphics
     {
         g_functions.m_DeleteFragmentProgram(prog);
     }
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
-        return g_functions.m_GetShaderProgramLanguage(context);
+        return g_functions.m_GetShaderProgramLanguage(context, shader_class);
     }
     void EnableProgram(HContext context, HProgram program)
     {

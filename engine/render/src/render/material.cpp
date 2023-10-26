@@ -238,7 +238,7 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context, dmGraphics::ShaderDesc::SHADER_CLASS_GRAPHICS) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -271,7 +271,7 @@ namespace dmRender
                 {
                     // Vulkan NDC is [0..1] for z, so we must transform
                     // the projection before setting the constant.
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context, dmGraphics::ShaderDesc::SHADER_CLASS_GRAPHICS) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -308,7 +308,7 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
                 {
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context, dmGraphics::ShaderDesc::SHADER_CLASS_GRAPHICS) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );

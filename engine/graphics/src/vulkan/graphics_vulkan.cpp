@@ -2582,7 +2582,7 @@ bail:
         delete shader;
     }
 
-    static ShaderDesc::Language VulkanGetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language VulkanGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
         return ShaderDesc::LANGUAGE_SPIRV;
     }

@@ -833,7 +833,7 @@ namespace dmGraphics
         delete p;
     }
 
-    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
 #if defined(DM_PLATFORM_VENDOR)
         #if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
@@ -842,6 +842,10 @@ namespace dmGraphics
             #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
         #endif
 #else
+        if (shader_class == ShaderDesc::SHADER_CLASS_COMPUTE)
+        {
+            return ShaderDesc::LANGUAGE_GLSL_SM430;
+        }
         return ShaderDesc::LANGUAGE_GLSL_SM140;
 #endif
     }

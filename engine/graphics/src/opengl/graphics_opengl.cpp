@@ -2126,7 +2126,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLDeleteShader(((OpenGLShader*) program));
     }
 
-    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context)
+    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context, ShaderDesc::ShaderClass shader_class)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles

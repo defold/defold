@@ -48,4 +48,16 @@ namespace dmRender
 
         return (HComputeProgram) program;
     }
+
+    dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
+    {
+        return program->m_Program;
+    }
+
+    void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)
+    {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::DeleteProgram(graphics_context, program->m_Program);
+        delete program;
+    }
 }

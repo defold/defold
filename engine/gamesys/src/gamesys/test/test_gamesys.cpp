@@ -3888,6 +3888,14 @@ TEST_F(ShaderTest, Compute)
     }
 }
 
+TEST_F(ShaderTest, ComputeResource)
+{
+    dmGraphics::HComputeProgram compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.computec", (void**) &compute_program_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE(0, compute_program_res);
+}
 #endif
 
 int main(int argc, char **argv)
