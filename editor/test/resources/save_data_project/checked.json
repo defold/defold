@@ -1,0 +1,6 @@
+{
+	"name": "position",
+	"type": "float32",
+	"count": 3,
+	"data": [0.0, 0.0, 0.0]
+}

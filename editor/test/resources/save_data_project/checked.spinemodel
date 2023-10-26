@@ -1,0 +1,8 @@
+spine_scene: "/checked.spinescene"
+default_animation: "idle"
+skin: "default"
+blend_mode: BLEND_MODE_ADD
+material: "/builtins/materials/sprite.material"
+create_go_bones: true
+playback_rate: 0.5
+offset: 0.1

@@ -1,0 +1,150 @@
+script: ""
+fonts {
+  name: "checked"
+  font: "/checked.font"
+}
+textures {
+  name: "checked"
+  texture: "/checked.atlas"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 1.0
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 1.0
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+    w: 1.0
+  }
+  size {
+    x: 150.0
+    y: 150.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 0.0
+    w: 1.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_MULT
+  texture: "checked/diamond"
+  id: "box"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_STRETCH
+  layer: "layer"
+  inherit_alpha: true
+  slice9 {
+    x: 32.0
+    y: 32.0
+    z: 32.0
+    w: 32.0
+  }
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: true
+  clipping_inverted: true
+  alpha: 0.9
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+  custom_type: 0
+  enabled: true
+  visible: true
+  material: "checked"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 1.0
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+    w: 1.0
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+    w: 1.0
+  }
+  size {
+    x: 64.0
+    y: 64.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 0.6
+    y: 0.6
+    z: 0.6
+    w: 1.0
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_ADD
+  texture: "checked/white"
+  id: "pie"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_ZOOM
+  layer: "layer"
+  inherit_alpha: false
+  outerBounds: PIEBOUNDS_RECTANGLE
+  innerRadius: 16.0
+  perimeterVertices: 32
+  pieFillAngle: 180.0
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.9
+  template_node_child: false
+  size_mode: SIZE_MODE_MANUAL
+  custom_type: 0
+  enabled: true
+  visible: true
+  material: "checked"
+}
+layers {
+  name: "layer"
+}
+material: "/builtins/materials/gui.material"
+layouts {
+  name: "Landscape"
+}
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 512
+particlefxs {
+  name: "checked"
+  particlefx: "/checked.particlefx"
+}
+resources {
+  name: "checked"
+  path: "/checked.spinescene"
+}
+materials {
+  name: "checked"
+  material: "/checked.material"
+}

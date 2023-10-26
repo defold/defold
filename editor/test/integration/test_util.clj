@@ -49,6 +49,7 @@
             [internal.util :as util]
             [service.log :as log]
             [support.test-support :as test-support]
+            [util.fn :as fn]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.awt.image BufferedImage]
@@ -346,7 +347,10 @@
       (let [project (setup-project! workspace)]
         [@g/*the-system* workspace project]))))
 
-(def load-system-and-project (memoize load-system-and-project-raw))
+(def load-system-and-project (fn/memoize load-system-and-project-raw))
+
+(defn evict-cached-system-and-project! [path]
+  (fn/evict-memoized! load-system-and-project path))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}

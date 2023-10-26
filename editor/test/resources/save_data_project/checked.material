@@ -1,0 +1,115 @@
+name: "checked"
+tags: "tile"
+vertex_program: "/checked.vp"
+fragment_program: "/checked.fp"
+vertex_space: VERTEX_SPACE_LOCAL
+vertex_constants {
+  name: "screensize"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1920.0
+    y: 1080.0
+    z: 10.0
+    w: 1.0
+  }
+}
+vertex_constants {
+  name: "viewproj"
+  type: CONSTANT_TYPE_VIEWPROJ
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}
+fragment_constants {
+  name: "screensize"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1920.0
+    y: 1080.0
+    z: 10.0
+    w: 1.0
+  }
+}
+fragment_constants {
+  name: "proj"
+  type: CONSTANT_TYPE_PROJECTION
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}
+samplers {
+  name: "texture0"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+  max_anisotropy: 0.0
+}
+max_page_count: 4
+attributes {
+  name: "position"
+  semantic_type: SEMANTIC_TYPE_POSITION
+  element_count: 3
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "color0"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 4
+  normalize: true
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "texcoord0"
+  semantic_type: SEMANTIC_TYPE_TEXCOORD
+  element_count: 2
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "texpage0"
+  semantic_type: SEMANTIC_TYPE_PAGE_INDEX
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+  }
+}
+attributes {
+  name: "id"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+  }
+}

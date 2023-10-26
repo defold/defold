@@ -27,7 +27,7 @@ Macros currently mean no foreseeable performance gain however."
             [internal.java :as j]
             [util.digest :as digest])
   (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
-           [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor GeneratedMessage$Builder Message ProtocolMessageEnum TextFormat]
+           [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor GeneratedMessage$Builder Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
            [java.nio.charset StandardCharsets]
@@ -706,14 +706,18 @@ Macros currently mean no foreseeable performance gain however."
     (map->pb cls m)
     (pb->bytes)))
 
-(defn read-text-into!
-  ^GeneratedMessage$Builder [^GeneratedMessage$Builder builder input]
+(defn read-pb-into!
+  ^Message$Builder [^Message$Builder builder input]
   (with-open [reader (io/reader input)]
     (TextFormat/merge reader builder)
     builder))
 
+(defn read-pb [^Class cls input]
+  ;; TODO: Make into macro so we can tag the return type.
+  (.build (read-pb-into! (new-builder cls) input)))
+
 (defn read-text [^Class cls input]
-  (pb->map (.build (read-text-into! (new-builder cls) input))))
+  (pb->map (read-pb cls input)))
 
 (defn str->map [^Class cls ^String str]
   (with-open [reader (StringReader. str)]

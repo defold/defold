@@ -1,0 +1,67 @@
+collision_shape: "/checked.convexshape"
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 0.5
+friction: 0.11
+restitution: 0.51
+group: "collision_group"
+mask: "collision_mask"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_BOX
+    position {
+      x: 0.1
+      y: 0.2
+      z: 0.3
+    }
+    rotation {
+      x: 8.7722944E-4
+      y: 0.0017476063
+      z: 0.0026164628
+      w: 0.99999464
+    }
+    index: 0
+    count: 3
+  }
+  shapes {
+    shape_type: TYPE_CAPSULE
+    position {
+      x: 0.1
+      y: 0.2
+      z: 0.3
+    }
+    rotation {
+      x: 8.7722944E-4
+      y: 0.0017476063
+      z: 0.0026164628
+      w: 0.99999464
+    }
+    index: 3
+    count: 2
+  }
+  shapes {
+    shape_type: TYPE_SPHERE
+    position {
+      x: 0.1
+      y: 0.2
+      z: 0.3
+    }
+    rotation {
+      x: 8.7722944E-4
+      y: 0.0017476063
+      z: 0.0026164628
+      w: 0.99999464
+    }
+    index: 5
+    count: 1
+  }
+  data: 5.5
+  data: 6.0
+  data: 6.5
+  data: 5.5
+  data: 12.0
+  data: 5.5
+}
+linear_damping: 0.1
+angular_damping: 0.1
+locked_rotation: true
+bullet: true

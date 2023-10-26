@@ -214,7 +214,9 @@
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                :read-raw-fn read-raw-fn
                :read-fn read-fn
-               :write-fn (partial protobuf/map->str ddf-type))]
+               :write-fn (partial protobuf/map->str ddf-type)
+               :test-info {:type :ddf
+                           :ddf-type ddf-type})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
@@ -230,5 +232,7 @@
                                      disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
                :read-fn read-fn
                :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
-                               settings-core/settings-with-value))]
+                               settings-core/settings-with-value)
+               :test-info {:type :settings
+                           :meta-settings meta-settings})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

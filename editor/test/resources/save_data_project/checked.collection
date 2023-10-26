@@ -1,0 +1,207 @@
+name: "test"
+instances {
+  id: "referenced_go"
+  prototype: "/checked.go"
+  children: "collection_embedded_child_go"
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  component_properties {
+    id: "referenced_script"
+    properties {
+      id: "number"
+      value: "2.0"
+      type: PROPERTY_TYPE_NUMBER
+    }
+    properties {
+      id: "texture"
+      value: "/referenced/images/green.png"
+      type: PROPERTY_TYPE_HASH
+    }
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+collection_instances {
+  id: "referenced"
+  collection: "/referenced/referenced.collection"
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  instance_properties {
+    id: "referenced_go"
+    properties {
+      id: "referenced_script"
+      properties {
+        id: "number"
+        value: "3.0"
+        type: PROPERTY_TYPE_NUMBER
+      }
+      properties {
+        id: "texture"
+        value: "/referenced/images/blue.png"
+        type: PROPERTY_TYPE_HASH
+      }
+    }
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+scale_along_z: 1
+embedded_instances {
+  id: "embedded_go"
+  children: "embedded_child_go"
+  data: "components {\n"
+  "  id: \"referenced_sprite\"\n"
+  "  component: \"/checked.sprite\"\n"
+  "  position {\n"
+  "    x: 0.1\n"
+  "    y: 0.2\n"
+  "    z: 0.3\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 8.7722944E-4\n"
+  "    y: 0.0017476063\n"
+  "    z: 0.0026164628\n"
+  "    w: 0.99999464\n"
+  "  }\n"
+  "  property_decls {\n"
+  "  }\n"
+  "  scale {\n"
+  "    x: 1.1\n"
+  "    y: 1.2\n"
+  "    z: 1.3\n"
+  "  }\n"
+  "}\n"
+  "components {\n"
+  "  id: \"referenced_script\"\n"
+  "  component: \"/checked.script\"\n"
+  "  position {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "    w: 1.0\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"number\"\n"
+  "    value: \"1.0\"\n"
+  "    type: PROPERTY_TYPE_NUMBER\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"texture\"\n"
+  "    value: \"/referenced/images/red.png\"\n"
+  "    type: PROPERTY_TYPE_HASH\n"
+  "  }\n"
+  "  property_decls {\n"
+  "  }\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"embedded_sprite\"\n"
+  "  type: \"sprite\"\n"
+  "  data: \"tile_set: \\\"/checked.atlas\\\"\\n"
+  "default_animation: \\\"diamond\\\"\\n"
+  "material: \\\"/checked.material\\\"\\n"
+  "blend_mode: BLEND_MODE_ALPHA\\n"
+  "\"\n"
+  "  position {\n"
+  "    x: 0.1\n"
+  "    y: 0.2\n"
+  "    z: 0.3\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 8.7722944E-4\n"
+  "    y: 0.0017476063\n"
+  "    z: 0.0026164628\n"
+  "    w: 0.99999464\n"
+  "  }\n"
+  "  scale {\n"
+  "    x: 1.1\n"
+  "    y: 1.2\n"
+  "    z: 1.3\n"
+  "  }\n"
+  "}\n"
+  ""
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+embedded_instances {
+  id: "embedded_child_go"
+  data: ""
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}
+embedded_instances {
+  id: "collection_embedded_child_go"
+  data: ""
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 8.7722944E-4
+    y: 0.0017476063
+    z: 0.0026164628
+    w: 0.99999464
+  }
+  scale3 {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+}

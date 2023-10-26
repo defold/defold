@@ -1,0 +1,34 @@
+tile_set: "/checked.atlas"
+default_animation: "diamond"
+material: "/checked.material"
+blend_mode: BLEND_MODE_ADD
+slice9 {
+  x: 16.0
+  y: 16.0
+  z: 16.0
+  w: 16.0
+}
+size {
+  x: 64.0
+  y: 64.0
+  z: 0.001
+  w: 0.0
+}
+size_mode: SIZE_MODE_MANUAL
+offset: 0.1
+playback_rate: 0.5
+attributes {
+  name: "color0"
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 0.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "id"
+  long_values {
+    v: 12345
+  }
+}

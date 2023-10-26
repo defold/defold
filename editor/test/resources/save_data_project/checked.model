@@ -1,0 +1,7 @@
+mesh: "/builtins/assets/meshes/cube.dae"
+material: "/builtins/materials/model.material"
+textures: "/referenced/images/white.png"
+skeleton: "/builtins/assets/meshes/cube.dae"
+animations: "/builtins/assets/meshes/cube.dae"
+default_animation: "cube"
+name: "checked"
