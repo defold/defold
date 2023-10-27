@@ -79,6 +79,18 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     ));
 
+    private static final Set<String> LIFECYCLE_FUNCTIONS = new HashSet<String>(Arrays.asList(
+        new String[] {
+            "init",
+            "final",
+            "update",
+            "fixed_update",
+            "on_message",
+            "on_input",
+            "on_reload"
+        }
+    ));
+
     private static final Map<Integer, String> QUOTES = new HashMap<Integer, String>() {{
         put(LuaParser.NORMALSTRING, "\"");
         put(LuaParser.CHARSTRING, "'");
@@ -233,6 +245,12 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
+    private void removeTokens(List<Token> tokens) {
+        for (Token token : tokens) {
+            removeToken(token);
+        }
+    }
+
     // returns first function argument only if it's a string, otherwise null
     private String getFirstStringArg(LuaParser.ArgsContext argsCtx) {
         if (argsCtx == null) {
@@ -303,7 +321,7 @@ public class LuaScanner extends LuaParserBaseListener {
     }
 
     /**
-     * Callback from ANTLR when a function is entered. We use this to grab all
+     * Callback from ANTLR when a function call is entered. We use this to grab all
      * require() calls and all go.property() calls.
      */
     @Override
@@ -341,10 +359,34 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
-            for (Token token : tokens) {
-                removeToken(token);
-            }
+            removeTokens(tokens);
+        }
+    }
 
+    /**
+     * Callback from ANTLR when a function is entered. We use this to grab and remove
+     * all empty lifecycle functions. 
+     */
+    @Override
+    public void enterFunctionstat(LuaParser.FunctionstatContext ctx) {
+        TerminalNode funcName = ctx.funcname().NAME(1);
+        TerminalNode objName = null;
+        if (funcName == null) {
+            funcName = ctx.funcname().NAME(0);
+        }
+        else {
+            objName = ctx.funcname().NAME(0);
+        }
+        if (objName == null || objName.getText().equals("_G")) {
+            for(String name: LIFECYCLE_FUNCTIONS) {
+                if (funcName.getText().equals(name)) {
+                    LuaParser.BlockContext blockCtx = ctx.funcbody().block();
+                    if (blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
+                        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
+                        removeTokens(tokens);
+                    }
+                }
+            }
         }
     }
 

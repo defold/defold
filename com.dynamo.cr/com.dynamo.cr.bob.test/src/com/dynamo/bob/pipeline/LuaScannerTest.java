@@ -261,4 +261,143 @@ public class LuaScannerTest {
         assertProperty(properties, "prop4", "material", 3);
     }
 
+    public static String trimLines(String string) {
+        String[] lines = string.split("\\r?\\n");
+        StringBuilder result = new StringBuilder();
+        for (String line : lines) {
+            result.append(line.trim()).append("\n");
+        }
+        return result.toString();
+    }
+
+    @Test
+    public void testRemoveEmptyLifecycleFunctions() throws Exception {
+        // Basic
+        String luaCode = 
+            "local var = 1\n" +
+            "function update(self, dt)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String parsed = scanner.getParsedLua();
+        String expected = 
+            "local var = 1\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, trimLines(parsed));
+
+        // With comment
+        luaCode =
+            "local var = 1\n" +
+            "function on_reload(self)\n" +
+            "-- Some comment\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "\n" +
+            "-- Some comment\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, trimLines(parsed));
+
+
+        // With multiline comment
+        luaCode =
+            "function on_message(self)\n" +
+            "--[[ Some comment\n" +
+            "Some line2]]--\n" +
+            "end\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "\n" +
+            "--[[ Some comment\n" +
+            "Some line2]]--\n" +
+            "\n";
+        assertEquals(expected, trimLines(parsed));
+
+        // With _G
+        luaCode =
+            "function _G.final(self)\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, trimLines(parsed));
+
+        // local function
+        luaCode =
+            "local var = 1\n" +
+            "local init = function(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local init = function(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, trimLines(parsed));
+
+        // local function 2
+        luaCode =
+            "local var = 1\n" +
+            "local function init(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local function init(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, trimLines(parsed));
+
+        // not empty
+        luaCode =
+            "local var = 1\n" +
+            "local function fixed_update(self)\n" +
+            "self.var = 1\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local function fixed_update(self)\n" +
+            "self.var = 1\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, trimLines(parsed));
+    }
+
 }
