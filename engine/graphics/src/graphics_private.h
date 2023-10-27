@@ -87,6 +87,7 @@ namespace dmGraphics
     void            RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*     TextureFormatToString(TextureFormat format);
     bool            GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    Type            ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
 
     static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
     {
@@ -146,6 +147,7 @@ namespace dmGraphics
 
     // Test functions:
     uint64_t GetDrawCount();
+    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

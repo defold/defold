@@ -52,6 +52,7 @@ def build(bld):
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
         excl_pattern.append('**/*.compute')
+        excl_pattern.append('**/*.compute_program')
 
     exported_symbols = ['ResourceTypeGameObject',
                         'ResourceTypeCollection',

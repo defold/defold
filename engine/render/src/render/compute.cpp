@@ -51,6 +51,11 @@ namespace dmRender
 
     dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
     {
+        return program->m_Shader;
+    }
+
+    dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
+    {
         return program->m_Program;
     }
 

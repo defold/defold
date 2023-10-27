@@ -3890,11 +3890,26 @@ TEST_F(ShaderTest, Compute)
 
 TEST_F(ShaderTest, ComputeResource)
 {
-    dmGraphics::HComputeProgram compute_program_res;
-    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.computec", (void**) &compute_program_res);
+    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+
+    dmRender::HComputeProgram compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
 
     ASSERT_EQ(dmResource::RESULT_OK, res);
-    ASSERT_NE(0, compute_program_res);
+    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
+
+    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
+    dmGraphics::HProgram graphics_compute_program       = dmRender::GetComputeProgram(compute_program_res);
+
+    ASSERT_EQ(1, dmGraphics::GetUniformCount(graphics_compute_program));
+
+    char buffer[128] = {};
+    dmGraphics::Type type;
+    int32_t size;
+    dmGraphics::GetUniformName(graphics_compute_program, 0, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("color", buffer);
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
 }
 #endif
 

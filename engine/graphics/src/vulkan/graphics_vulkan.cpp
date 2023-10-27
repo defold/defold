@@ -2611,30 +2611,6 @@ bail:
         return program_ptr->m_VertexModule->m_Inputs.Size();
     }
 
-    // TODO: Move to graphics.cpp
-    static Type ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
-    {
-        switch(shader_type)
-        {
-            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
-            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
-            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
-            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
-            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
-            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
-            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
-            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
-            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
-            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
-            default: break;
-        }
-
-        // Not supported
-        return (Type) 0xffffffff;
-    }
-
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
         Program* program_ptr = (Program*) prog;
