@@ -746,7 +746,6 @@ namespace dmGameSystem
             EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
 
             const dmGameSystemDDF::TextureSet*          texture_set_ddf = textures->m_TextureSets[i];
-            const dmGameSystemDDF::TextureSetAnimation* animation_ddf = textures->m_Animations[i];
             const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
             const float* tc             = &tex_coords[frame_index * 4 * 2];
 
@@ -801,19 +800,6 @@ namespace dmGameSystem
             {
                 for (int x=0; x<4; ++x, ++index)
                 {
-                    //float uv[2];
-
-                    // if (uv_rotated)
-                    // {
-                    //     uv[0] = us[y];
-                    //     uv[1] = vs[x];
-                    // }
-                    // else
-                    // {
-                    //     uv[0] = us[x];
-                    //     uv[1] = vs[y];
-                    // }
-
                     uvs[index*2+0] = us_p[x];
                     uvs[index*2+1] = vs_p[y];
                 }
@@ -1006,7 +992,6 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < data->m_NumTextures; ++i)
         {
-            uint32_t frame_index = data->m_Frames[i];
             dmArray<float>& uvs = scratch_uvs[i];
             EnsureSize(uvs, num_vertices * 2);
 
@@ -1062,13 +1047,6 @@ namespace dmGameSystem
         // The offset for the indices
         uint32_t vertex_offset = sprite_world->m_VerticesWritten;
 
-        static int tex_coord_order[] = {
-            0,1,2,2,3,0,
-            3,2,1,1,0,3,    //h
-            1,0,3,3,2,1,    //v
-            2,3,0,0,1,2     //hv
-        };
-
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
         const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.GetRawObjects()[component_index];
 
@@ -1093,7 +1071,6 @@ namespace dmGameSystem
             float sp_width  = component->m_Size.getX();
             float sp_height = component->m_Size.getY();
 
-            //TextureSetResource* texture_set                     = GetFirstTextureSet(component);
             // Get the correct animation frames, and other meta data
             ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
 
