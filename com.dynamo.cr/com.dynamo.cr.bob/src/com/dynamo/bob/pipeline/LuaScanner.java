@@ -189,12 +189,13 @@ public class LuaScanner extends LuaParserBaseListener {
         tokenStream = new CommonTokenStream(lexer);
         rewriter = new TokenStreamRewriter(tokenStream);
         
-        // remove comments before parsing
+        // remove comments
         tokenStream.fill();
         for (Token token : tokenStream.getTokens()) {
              if (token.getChannel() == LuaLexer.COMMENTS) {
                 int type = token.getType();
                 if (type == LuaLexer.LINE_COMMENT) {
+                    // Single line comment
                     rewriter.replace(token, System.lineSeparator());
                 }
                 else if (type == LuaLexer.COMMENT) {
@@ -203,7 +204,7 @@ public class LuaScanner extends LuaParserBaseListener {
                 }
              }
         }
-        LuaParser parser = new LuaParser(rewriter.getTokenStream());
+        LuaParser parser = new LuaParser(tokenStream);
 
         ParseTreeWalker walker = new ParseTreeWalker();
         walker.walk(this, parser.chunk());
