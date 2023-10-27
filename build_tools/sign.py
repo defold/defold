@@ -37,12 +37,13 @@ def sign_dmg(file, options):
 
 
 def sign_file(file, platform, options):
-    if options.skip_codesign:
-        return
-
     if not file:
         print("You must provide a file to sign")
         sys.exit(1)
+
+    if options.skip_codesign:
+        print("Code signing not enabled. Ignoring file " + file)
+        return
 
     print("Signing file " + file)
     if 'win32' in platform:
@@ -59,7 +60,7 @@ def sign_file(file, platform, options):
 
         jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
         keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
-        run.command([
+        result = run.command([
             'java', '-jar', jsign,
             '--storetype', 'GOOGLECLOUD',
             '--storepass', storepass,
@@ -69,6 +70,10 @@ def sign_file(file, platform, options):
             '--tsmode', 'RFC3161',
             '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
             file], silent = True)
+
+        # make sure to remove the password before displaying the output
+        result = result.replace(storepass, "***")
+        print(result)
 
     elif 'macos' in platform:
         if not is_valid_codesigning_identity(options.codesigning_identity):
