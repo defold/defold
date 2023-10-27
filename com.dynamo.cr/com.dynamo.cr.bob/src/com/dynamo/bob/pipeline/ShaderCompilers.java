@@ -61,7 +61,7 @@ public class ShaderCompilers {
             String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
 
         ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
-
+        // TODO: do my stuff with shaders here on fullShaderSource
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
             if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
                 shaderBuildResults.add(ShaderCompilerHelpers.buildSpirvFromGLSL(fullShaderSource, shaderType, resourceOutputPath, spirvTargetProfile, isDebug, softFail));
