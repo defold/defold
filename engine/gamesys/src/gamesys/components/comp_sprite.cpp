@@ -1001,27 +1001,6 @@ namespace dmGameSystem
 
     static void ResolveUVDataFromGeometry(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
     {
-
-    bool debug = false;//data->m_NumTextures > 1;
-
-if (debug)
-    printf("ResolveUVData\n");
-
-    if (debug)
-    {
-        printf("  RECTS:\n");
-        for (uint32_t i = 0; i < data->m_NumTextures; ++i)
-        {
-            printf("  texture %u: ", i);
-            dmArray<float>& uvs = scratch_uvs[i];
-            for (uint32_t j = 0; j < uvs.Size(); ++j)
-            {
-                printf("%f, ", uvs[j]);
-            }
-            printf("\n");
-        }
-    }
-
         uint32_t num_vertices = data->m_Geometries[0]->m_Vertices.m_Count / 2;
         float* vertices = data->m_Geometries[0]->m_Vertices.m_Data;
 
@@ -1049,27 +1028,16 @@ if (debug)
             uint32_t center_x = geometry->m_CenterX;
             uint32_t center_y = geometry->m_CenterY;
 
-            if (debug)
-            {
-                printf("  texture: %d: w/h: %u / %u\n", i, width, height);
-                printf("  geom: %d: w/h: %f / %f  cx/cy: %f / %f\n", i, image_width, image_height, geometry->m_CenterX, geometry->m_CenterY);
-            }
+
             for (uint32_t j = 0; j < num_vertices; ++j)
             {
                 float px = vertices[j*2+0];
                 float py = vertices[j*2+1];
-                if (rotated) // rotate back -90 degrees
+                if (rotated) // rotate back -90 degrees (CW)
                 {
                     float t = py;
                     py = -px;
                     px = t;
-                }
-
-                if (debug)
-                {
-                    float posx = center_x + px * image_width;
-                    float posy = center_y + -py * image_height;
-                    printf("    pos %u: %f, %f\n", j, posx, posy);
                 }
 
                 float u = (center_x + px * image_width) / width;
@@ -1078,28 +1046,7 @@ if (debug)
                 uvs[j*2+0] = u;
                 uvs[j*2+1] = 1.0f - v;
             }
-
-            for (uint32_t j = 0; j < num_vertices; ++j)
-            {
-                if (debug)
-                    printf("    uv %u: %f, %f\n", j, uvs[j*2+0], uvs[j*2+1]);
-            }
         }
-
-    if (debug)
-    {
-        printf("  GEOMETRIES:\n");
-        for (uint32_t i = 0; i < data->m_NumTextures; ++i)
-        {
-            printf("  texture %u: ", i);
-            dmArray<float>& uvs = scratch_uvs[i];
-            for (uint32_t j = 0; j < uvs.Size(); ++j)
-            {
-                printf("%f, ", uvs[j]);
-            }
-            printf("\n");
-        }
-    }
     }
 
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteAttributeInfo* material_attribute_info, uint32_t vertex_stride, uint8_t** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
