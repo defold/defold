@@ -355,13 +355,16 @@ namespace dmGraphics
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
         vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
-        vk_render_pass_begin_info.clearValueCount = rt->m_ColorAttachmentCount + 1;
-        vk_render_pass_begin_info.pClearValues    = vk_clear_values;
+        vk_render_pass_begin_info.clearValueCount     = rt->m_ColorAttachmentCount + 1;
+        vk_render_pass_begin_info.pClearValues        = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        rt->m_IsBound      = 1;
-        rt->m_SubPassIndex = 0;
+        rt->m_IsBound          = 1;
+        rt->m_SubPassIndex     = 0;
+        rt->m_Scissor.extent   = rt->m_Extent;
+        rt->m_Scissor.offset.x = 0;
+        rt->m_Scissor.offset.y = 0;
 
         context->m_CurrentRenderTarget = render_target;
     }
@@ -2174,12 +2177,7 @@ bail:
                     vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
             }
 
-            VkRect2D vk_scissor;
-            vk_scissor.extent   = current_rt->m_Extent;
-            vk_scissor.offset.x = 0;
-            vk_scissor.offset.y = 0;
-
-            vkCmdSetScissor(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], 0, 1, &vk_scissor);
+            vkCmdSetScissor(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], 0, 1, &current_rt->m_Scissor);
 
             context->m_ViewportChanged = 0;
         }
@@ -3024,12 +3022,15 @@ bail:
         g_VulkanContext->m_PipelineState.m_DepthTestFunc = func;
     }
 
-    static void VulkanSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void VulkanSetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
-        // While scissors are obviously supported in vulkan, we don't expose it
-        // to the users via render scripts so it's a bit hard to test.
-        // Leaving it unsupported for now.
-        assert(0 && "Not supported");
+        VulkanContext* context              = (VulkanContext*) _context;
+        context->m_ViewportChanged          = 1;
+        RenderTarget* current_rt            = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        current_rt->m_Scissor.extent.width  = width;
+        current_rt->m_Scissor.extent.height = height;
+        current_rt->m_Scissor.offset.x      = x;
+        current_rt->m_Scissor.offset.y      = y;
     }
 
     static void VulkanSetStencilMask(HContext context, uint32_t mask)
@@ -4396,6 +4397,12 @@ bail:
             rt->m_ColorBufferLoadOps[i]          = params.m_ColorAttachmentLoadOps[i];
             rt->m_ColorBufferStoreOps[i]         = params.m_ColorAttachmentStoreOps[i];
 
+            if (params.m_SetDimensions)
+            {
+                rt->m_ColorTextureParams[i].m_Width  = params.m_Width;
+                rt->m_ColorTextureParams[i].m_Height = params.m_Height;
+            }
+
             if (params.m_ColorAttachmentLoadOps[i] == ATTACHMENT_OP_CLEAR)
             {
                 memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorAttachmentClearValues[i], sizeof(float) * 4);
@@ -4473,7 +4480,7 @@ bail:
         vkCmdDrawIndexed(vk_command_buffer, count, instance_count, index_offset, 0, base_instance);
     }
 
-    void VulkanDrawBaseInstance(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance)
+    void VulkanDrawBaseInstance(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -4483,7 +4490,7 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
-        vkCmdDraw(vk_command_buffer, count, 1, first, base_instance);
+        vkCmdDraw(vk_command_buffer, count, instance_count, first, base_instance);
     }
 
     void VulkanSetVertexDeclarationStepFunction(HContext, HVertexDeclaration vertex_declaration, VertexStepFunction step_function)

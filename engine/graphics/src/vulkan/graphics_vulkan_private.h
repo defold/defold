@@ -193,6 +193,8 @@ namespace dmGraphics
         HTexture       m_TextureDepthStencil;
 
         VkExtent2D     m_Extent;
+        VkRect2D       m_Scissor;
+
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;

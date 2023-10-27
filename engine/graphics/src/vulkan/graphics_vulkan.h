@@ -58,6 +58,9 @@ namespace dmGraphics
         AttachmentOp m_ColorAttachmentStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorAttachmentClearValues[MAX_BUFFER_COLOR_ATTACHMENTS][4];
         uint32_t     m_ColorAttachmentsCount;
+        uint32_t     m_Width;
+        uint32_t     m_Height;
+        bool         m_SetDimensions;
     };
 
 	void     VulkanCopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
@@ -66,7 +69,7 @@ namespace dmGraphics
     HTexture VulkanGetActiveSwapChainTexture(HContext context);
     void     VulkanDrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
     void     VulkanSetVertexDeclarationStepFunction(HContext context, HVertexDeclaration vertex_declaration, VertexStepFunction step_function);
-    void     VulkanDrawBaseInstance(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t base_instance);
+    void     VulkanDrawBaseInstance(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance);
     void     VulkanCreateRenderPass(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
     void     VulkanNextRenderPass(HContext context, HRenderTarget render_target);
     void     VulkanSetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
