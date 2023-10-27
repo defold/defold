@@ -323,7 +323,10 @@
   (:animation-ids content))
 
 (g/defnk produce-material-ids [content]
-  (:material-ids content))
+  (let [ret (:material-ids content)]
+    (if (zero? (count ret))
+      ["default"]
+      ret)))
 
 (defn- index-oob [vs is comp-count]
   (> (* comp-count (reduce max 0 is)) (count vs)))

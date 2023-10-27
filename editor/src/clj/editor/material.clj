@@ -470,6 +470,37 @@
                       :error (g/->error _node-id :attributes :fatal nil error-message)))))
         attributes))
 
+(g/defnode TextureBinding
+  (property sampler-name g/Str)
+  (property image-resource resource/Resource
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
+                                    [:gpu-texture-generator :gpu-texture-generator]
+                                    [:build-targets :build-targets]))))
+  (input gpu-texture-generator g/Any)
+  (input build-targets g/Any :array)
+  (output build-targets g/Any (gu/passthrough build-targets))
+  (output texture-binding-info g/Any
+    (g/fnk [_node-id sampler-name image-resource ^:try gpu-texture-generator :as info]
+      (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
+
+(defn- update-texture-bindings [evaluation-context material old-value new-value]
+  ;; Note: we don't process changed samplers because for texture bindings we only care about sampler names
+  (when-let [{:keys [added removed renamed]} (util/order-agnostic-diff-by-map-key old-value new-value :name)]
+    (let [binding-infos (g/node-value material :texture-binding-infos evaluation-context)
+          old-sampler-name+order->binding-info (util/multi-index-by-map-key binding-infos :sampler-name)]
+      (concat
+        (for [[[sampler-name]] added]
+          (g/make-nodes (g/node-id->graph-id material) [texture-binding [TextureBinding :sampler-name sampler-name]]
+            (g/connect texture-binding :_node-id material :nodes)
+            (g/connect texture-binding :texture-binding-info material :texture-binding-infos)
+            (g/connect texture-binding :build-targets material :model-dep-build-targets)))
+        (for [[old-sampler-name+order [new-sampler-name]] renamed]
+          (g/set-property (:_node-id (old-sampler-name+order->binding-info old-sampler-name+order))
+            :sampler-name new-sampler-name))
+        (for [[sampler-name+order _] removed]
+          (g/delete-node (:_node-id (old-sampler-name+order->binding-info sampler-name+order))))))))
+
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -495,7 +526,10 @@
   (property attributes g/Any (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers g/Any (dynamic visible (g/constantly false)))
+  (property samplers g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (update-texture-bindings evaluation-context self old-value new-value))))
   (property tags g/Any (dynamic visible (g/constantly false)))
   (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 
@@ -505,6 +539,9 @@
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
+  (input texture-binding-infos g/Any :array)
+  (input model-dep-build-targets g/Any :array)
+  (output model-dep-build-targets g/Any (gu/passthrough model-dep-build-targets))
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 
@@ -512,7 +549,8 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output shader ShaderLifecycle :cached produce-shader)
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
-  (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
+  (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos)
+  (output texture-binding-infos g/Any (gu/passthrough texture-binding-infos)))
 
 (defn- make-sampler [name]
   (assoc default-sampler :name name))

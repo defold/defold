@@ -249,3 +249,65 @@
         partitions (partition 10 (map dedupe-fn (concat original-items additional-items)))]
     (is (every? (partial elements-identical? (first partitions))
                 partitions))))
+
+(deftest order-agnostic-diff-test
+  (are [old-coll new-coll expected-diff]
+    (= expected-diff (util/order-agnostic-diff-by-map-key old-coll new-coll :key))
+
+    [{:key 1}
+     {:key 2}]
+    [{:key 2}
+     {:key 1}]
+    nil
+
+    nil
+    [{:key 1 :extra true}]
+    {:added {[1 0] {:extra true}}}
+
+    [{:key 1}
+     {:key 2}]
+    [{:key 2}]
+    {:removed {[1 0] {}}}
+
+    [{:key 1}
+     {:key 2}]
+    [{:key 2}
+     {:key 1 :x 4}]
+    {:changed {[1 0] [{} {:x 4}]}}
+
+    [{:key 1}
+     {:key 2 :extra true}]
+    [{:key 1}
+     {:key 3 :extra true}]
+    {:renamed {[2 0] [3 0]}}
+
+    [{:key 1 :extra true}
+     {:key 4}
+     {:key 2}]
+    [{:key 2 :extra true}
+     {:key 5}
+     {:key 3}]
+    {:added {[3 0] {}}
+     :changed {[2 0] [{} {:extra true}]}
+     :removed {[1 0] {:extra true}}
+     :renamed {[4 0] [5 0]}}))
+
+(deftest order-agnostic-identity-diff-test
+  (are [old-coll new-coll expected-diff]
+    (= expected-diff (util/order-agnostic-diff-by-identity old-coll new-coll))
+    [1 2] [1 3]
+    {:renamed {[2 0] [3 0]}}
+
+    [1 1] [1]
+    {:removed {[1 1] true}}
+
+    [1 2] [1 3 2]
+    {:added {[3 0] true}}
+
+    [1 4] [1 2 3]
+    {:added {[3 0] true}
+     :renamed {[4 0] [2 0]}}
+
+    [1 2 3] [1 4]
+    {:removed {[3 0] true}
+     :renamed {[2 0] [4 0]}}))
