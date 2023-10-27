@@ -322,7 +322,7 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
     opts = []
 
     opts.append('--platform=%s' % platform)
-    opts.append(create_gcloud_code_signing_options(gcloud_keyfile, gcloud_certfile))
+    opts.extend(create_gcloud_code_signing_options(gcloud_keyfile, gcloud_certfile))
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -380,7 +380,7 @@ def build_bob(channel, branch = None, gcloud_keyfile = None, gcloud_certfile = N
     args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
-    opts.append(create_gcloud_code_signing_options(gcloud_keyfile, gcloud_certfile))
+    opts.extend(create_gcloud_code_signing_options(gcloud_keyfile, gcloud_certfile))
 
     cmd = ' '.join(args + opts)
     call(cmd)
