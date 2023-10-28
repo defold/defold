@@ -48,6 +48,7 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.antlr.v4.runtime.TokenStreamRewriter;
 
 public class LuaScanner extends LuaParserBaseListener {
 
@@ -96,8 +97,8 @@ public class LuaScanner extends LuaParserBaseListener {
         put(LuaParser.CHARSTRING, "'");
     }};
 
-    private StringBuffer parsedBuffer = null;
     private CommonTokenStream tokenStream = null;
+    private TokenStreamRewriter rewriter;
 
     private List<String> modules = new ArrayList<String>();
     private List<Property> properties = new ArrayList<Property>();
@@ -180,20 +181,38 @@ public class LuaScanner extends LuaParserBaseListener {
         modules.clear();
         properties.clear();
 
-        parsedBuffer = new StringBuffer(str);
-
         // set up the lexer and parser
         // walk the generated parse tree from the
         // first Lua chunk
 
         LuaLexer lexer = new LuaLexer(CharStreams.fromString(str));
         tokenStream = new CommonTokenStream(lexer);
+        rewriter = new TokenStreamRewriter(tokenStream);
+        
+        // Remove comments in rewriter
+        tokenStream.fill();
+        for (Token token : tokenStream.getTokens()) {
+             if (token.getChannel() == LuaLexer.COMMENTS) {
+                int type = token.getType();
+                if (type == LuaLexer.LINE_COMMENT) {
+                    // Single line comment
+                    rewriter.replace(token, System.lineSeparator());
+                }
+                else if (type == LuaLexer.COMMENT) {
+                    // Multiline comment
+                    rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
+                }
+             }
+        }
+
+        // parse code
         LuaParser parser = new LuaParser(tokenStream);
         ParseTreeWalker walker = new ParseTreeWalker();
         walker.walk(this, parser.chunk());
+        String resultText = rewriter.getText();
         TimeProfiler.stop();
         // return the parsed string
-        return parsedBuffer.toString();
+        return resultText;
     }
 
     /**
@@ -201,7 +220,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * @return The parsed Lua code
      */
     public String getParsedLua() {
-        return parsedBuffer.toString();
+        return rewriter.getText();
     }
 
     /**
@@ -238,11 +257,7 @@ public class LuaScanner extends LuaParserBaseListener {
 
     // replace the token with an empty string
     private void removeToken(Token token) {
-        int from = token.getStartIndex();
-        int to = from + token.getText().length() - 1;
-        for(int i = from; i <= to; i++) {
-            parsedBuffer.replace(i, i + 1, " ");
-        }
+        rewriter.delete(token);
     }
 
     private void removeTokens(List<Token> tokens) {
@@ -302,22 +317,6 @@ public class LuaScanner extends LuaParserBaseListener {
             }
         }
         return true;
-    }
-
-    /**
-     * Callback from ANTLR when a Lua chunk is encountered. We start from the
-     * main chunk when we call parse() above. This means that the ChunkContext
-     * will span the entire file and encompass all ANTLR tokens.
-     * We use this callback to remove all comments.
-     */
-    @Override
-    public void enterChunk(LuaParser.ChunkContext ctx) {
-        List<Token> tokens = getTokens(ctx);
-        for(Token token : tokens) {
-            if (token.getChannel() == LuaLexer.COMMENT) {
-                removeToken(token);
-            }
-        }
     }
 
     /**
