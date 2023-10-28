@@ -1265,11 +1265,6 @@ class Configuration(object):
         else:
             self.copy_local_bob_artefacts()
 
-        # sign all executables before they get stored in bob
-        if self.gcloud_keyfile:
-            for exe in find_files(bob_dir, "*.exe"):
-                sign_file(exe, 'win32', self)
-
         env = self._form_env()
 
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
@@ -1279,8 +1274,26 @@ class Configuration(object):
 
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
+        # compile protobuf and java and copy binary files
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
+        # Sign all executables before they get stored in bob. Note that here is
+        # a bit of double work done here in build_bob() as files are copied
+        # multiple times:
+        #
+        # 1. /scripts/copy.sh will copy files such as luajit, glslc and
+        #    spriv-cross from dynamo_home to bob
+        # 2. the Ant target "compile" which is run above is also copying the
+        #    files from dynamo_home to bob
+        # 3. the Ant target "compile-bob-light" which "compile" depends on is
+        #    also copying the files!
+        #
+        # This is why we must wait until this point to sign the files
+        if self.gcloud_keyfile:
+            for exe in find_files(bob_dir, "*.exe"):
+                sign_file(exe, 'win32', self)
+
+        # generate bob.jar
         run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
         if not self.skip_tests:
