@@ -2587,6 +2587,11 @@ bail:
         return ShaderDesc::LANGUAGE_SPIRV;
     }
 
+    static ShaderDesc::Language VulkanGetProgramLanguage(HProgram program)
+    {
+        return ShaderDesc::LANGUAGE_SPIRV;
+    }
+
     static void VulkanEnableProgram(HContext context, HProgram program)
     {
         g_VulkanContext->m_CurrentProgram = (Program*) program;

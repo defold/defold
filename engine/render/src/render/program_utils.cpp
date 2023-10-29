@@ -73,7 +73,7 @@ namespace dmRender
         dmVMath::Vector4* default_values = 0;
         uint32_t sampler_index = 0;
 
-        bool program_language_glsl = IsContextLanguageGlsl(dmGraphics::GetShaderProgramLanguage(graphics_context));
+        bool program_language_glsl = IsContextLanguageGlsl(dmGraphics::GetProgramLanguage(program));
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {

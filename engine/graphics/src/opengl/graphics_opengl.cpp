@@ -1891,6 +1891,7 @@ static void LogFrameBufferError(GLenum status)
         }
         OpenGLShader* shader = new OpenGLShader();
         shader->m_Id         = shader_id;
+        shader->m_Language   = ddf->m_Language;
         return shader;
     }
 
@@ -2016,7 +2017,8 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        program->m_Id = p;
+        program->m_Id       = p;
+        program->m_Language = vertex_shader->m_Language;
 
         BuildAttributes(program);
         return (HProgram) program;
@@ -2124,6 +2126,11 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
         OpenGLDeleteShader(((OpenGLShader*) program));
+    }
+
+    static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)
+    {
+        return ((OpenGLProgram*) program)->m_Language;
     }
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context)

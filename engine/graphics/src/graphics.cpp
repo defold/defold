@@ -1037,6 +1037,10 @@ namespace dmGraphics
     {
         g_functions.m_DeleteFragmentProgram(prog);
     }
+    ShaderDesc::Language GetProgramLanguage(HProgram program)
+    {
+        return g_functions.m_GetProgramLanguage(program);
+    }
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
     {
         return g_functions.m_GetShaderProgramLanguage(context);
