@@ -571,7 +571,7 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
-    void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {

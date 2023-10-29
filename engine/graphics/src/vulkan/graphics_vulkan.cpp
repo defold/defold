@@ -2219,7 +2219,7 @@ bail:
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
     }
 
-    void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
         uint16_t stream_count = vertex_declaration->m_StreamCount;
         for (int i = 0; i < stream_count; ++i)
@@ -4197,6 +4197,15 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
         return true;
+    }
+
+    ///////////////////////////
+    // graphics_vulkan.h impls:
+    ///////////////////////////
+
+    HContext VulkanGetContext()
+    {
+        return g_VulkanContext;
     }
 
     void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)

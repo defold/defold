@@ -63,6 +63,7 @@ namespace dmGraphics
         bool         m_SetDimensions;
     };
 
+    HContext VulkanGetContext();
 	void     VulkanCopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
     void     VulkanSetRenderTargetAttachments(HContext context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params);
     void     VulkanSetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
