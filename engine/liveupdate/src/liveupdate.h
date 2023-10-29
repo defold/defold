@@ -48,6 +48,7 @@ namespace dmLiveUpdate
         RESULT_FORMAT_ERROR              = -9,
         RESULT_IO_ERROR                  = -10,
         RESULT_INVAL                     = -11,
+        RESULT_NOT_INITIALIZED           = -12,
         RESULT_UNKNOWN                   = -1000,
     };
 
