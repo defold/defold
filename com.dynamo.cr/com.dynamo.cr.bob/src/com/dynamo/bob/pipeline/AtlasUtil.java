@@ -353,25 +353,45 @@ public class AtlasUtil {
         return images;
     }
 
-    public static TextureSetResult generateTextureSet(Atlas atlas, PathTransformer transformer) throws IOException, CompileExceptionError {
+    // For unit tests only
+    public static TextureSetResult generateTextureSet(Atlas atlas, PathTransformer pathTransformer) throws IOException, CompileExceptionError {
         List<AtlasImage> atlasImages = collectImages(atlas);
         List<String> imagePaths = new ArrayList<String>();
+        List<String> imageNames = new ArrayList<String>();
         List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
+
+        final String renamePatterns = atlas.getRenamePatterns();
+        AtlasUtil.PathTransformer nameTransformer = new AtlasUtil.PathTransformer() {
+            @Override
+            public String transform(String path) {
+                String baseName = FilenameUtils.getBaseName(path);
+
+                try {
+                    return AtlasUtil.replaceStrings(renamePatterns, baseName);
+                } catch (CompileExceptionError e) {
+                    System.err.printf("AtlasUtil: Error transforming path: %s\n", e.getMessage());
+                }
+                return path;
+            }
+        };
+
         for (AtlasImage image : atlasImages) {
             imagePaths.add(image.getImage());
+            imageNames.add(nameTransformer.transform(image.getImage()));
             imageTrimModes.add(image.getSpriteTrimMode());
         }
 
         int imagePathCount = imagePaths.size();
         for (int i = 0; i < imagePathCount; ++i) {
-            imagePaths.set(i, transformer.transform(imagePaths.get(i)));
+            imagePaths.set(i, pathTransformer.transform(imagePaths.get(i)));
         }
 
         List<BufferedImage> imageDatas = loadImagesFromPaths(imagePaths);
-        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
-        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
+
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, nameTransformer);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageNames);
         try {
-            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageTrimModes, imagePaths, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageTrimModes, imageNames, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
