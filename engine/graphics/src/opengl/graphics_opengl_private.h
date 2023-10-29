@@ -140,7 +140,8 @@ namespace dmGraphics
 
     struct OpenGLShader
     {
-        GLuint m_Id;
+        GLuint               m_Id;
+        ShaderDesc::Language m_Language;
     };
 
     struct OpenglVertexAttribute
@@ -154,6 +155,7 @@ namespace dmGraphics
     struct OpenGLProgram
     {
         GLuint                         m_Id;
+        ShaderDesc::Language           m_Language;
         dmArray<OpenglVertexAttribute> m_Attributes;
     };
 }
