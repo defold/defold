@@ -681,10 +681,12 @@ namespace dmGraphics
             {
                 GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
+                m_Language = m_VP->m_Language;
             }
             if (m_FP != 0x0)
             {
                 GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
+                m_Language = m_FP->m_Language;
             }
         }
 
@@ -698,6 +700,7 @@ namespace dmGraphics
             if (m_Compute != 0x0)
             {
                 GLSLUniformParse(m_Compute->m_Language, m_Compute->m_Data, ProgramShaderResourceCallback, (uintptr_t) this);
+                m_Language = compute->m_Language;
             }
         }
 
@@ -706,6 +709,8 @@ namespace dmGraphics
             for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
                 delete[] m_Uniforms[i].m_Name;
         }
+
+        ShaderDesc::Language   m_Language;
 
         ShaderProgram*         m_VP;
         ShaderProgram*         m_FP;
@@ -831,6 +836,11 @@ namespace dmGraphics
         ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
         delete p;
+    }
+
+    static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
+    {
+        return ((ShaderProgram*) program)->m_Language;
     }
 
     static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context)

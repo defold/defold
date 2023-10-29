@@ -107,6 +107,7 @@ namespace dmGraphics
     typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
+    typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
@@ -233,6 +234,7 @@ namespace dmGraphics
         ReloadFragmentProgramFn m_ReloadFragmentProgram;
         DeleteVertexProgramFn m_DeleteVertexProgram;
         DeleteFragmentProgramFn m_DeleteFragmentProgram;
+        GetProgramLanguageFn m_GetProgramLanguage;
         GetShaderProgramLanguageFn m_GetShaderProgramLanguage;
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
@@ -361,6 +363,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetShaderProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \

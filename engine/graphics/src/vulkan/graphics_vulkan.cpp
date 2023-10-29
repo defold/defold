@@ -2700,6 +2700,11 @@ bail:
         return ShaderDesc::LANGUAGE_SPIRV;
     }
 
+    static ShaderDesc::Language VulkanGetProgramLanguage(HProgram program)
+    {
+        return ShaderDesc::LANGUAGE_SPIRV;
+    }
+
     static void VulkanEnableProgram(HContext context, HProgram program)
     {
         g_VulkanContext->m_CurrentProgram = (Program*) program;
@@ -2859,9 +2864,9 @@ bail:
         {
             uint64_t loc1        = UNIFORM_LOCATION_MAX;
             uint64_t loc1_member = UNIFORM_LOCATION_MAX;
-
-            if (GetUniformIndices(program_ptr->m_VertexModule->m_Uniforms, name_hash, &loc0, &loc0_member) ||
-                GetUniformIndices(program_ptr->m_FragmentModule->m_Uniforms, name_hash, &loc1, &loc1_member))
+            bool loc0_found      = GetUniformIndices(program_ptr->m_VertexModule->m_Uniforms, name_hash, &loc0, &loc0_member);
+            bool loc1_found      = GetUniformIndices(program_ptr->m_FragmentModule->m_Uniforms, name_hash, &loc1, &loc1_member);
+            if (loc0_found || loc1_found)
             {
                 loc = loc0 | loc0_member << 16 | loc1 << 32 | loc1_member << 48;
                 assert(loc != INVALID_UNIFORM_LOCATION);

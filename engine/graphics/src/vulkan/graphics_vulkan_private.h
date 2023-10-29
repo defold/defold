@@ -298,6 +298,7 @@ namespace dmGraphics
         ShaderModule*                   m_FragmentModule;
         ShaderModule*                   m_ComputeModule;
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
+        ShaderDesc::Language            m_Language;
         uint8_t                         m_Destroyed : 1;
 
         const VulkanResourceType GetType();
