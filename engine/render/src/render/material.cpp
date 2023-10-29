@@ -146,7 +146,7 @@ namespace dmRender
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
     }
 
-    void CreateConstants(HMaterial material)
+    void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)
     {
         uint32_t total_constants_count = dmGraphics::GetUniformCount(material->m_Program);
 
@@ -169,7 +169,7 @@ namespace dmRender
             }
         }
 
-        SetMaterialConstantValues(material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
+        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
@@ -190,7 +190,7 @@ namespace dmRender
 
         CreateAttributes(graphics_context, m);
         CreateVertexDeclaration(graphics_context, m);
-        CreateConstants(m);
+        CreateConstants(graphics_context, m);
 
         return (HMaterial)m;
     }

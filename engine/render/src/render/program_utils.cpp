@@ -53,7 +53,16 @@ namespace dmRender
         *samplers_count_out = samplers_count;
     }
 
-    void SetMaterialConstantValues(dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
+    static inline bool IsContextLanguageGlsl(dmGraphics::ShaderDesc::Language language)
+    {
+        return language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM120 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;
+    }
+
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
         dmGraphics::Type type;
         const uint32_t buffer_size = 128;
@@ -63,6 +72,8 @@ namespace dmRender
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
         uint32_t sampler_index = 0;
+
+        bool program_language_glsl = IsContextLanguageGlsl(dmGraphics::GetShaderProgramLanguage(graphics_context));
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
@@ -82,18 +93,35 @@ namespace dmRender
 
             assert(name_str_length > 0);
 
-            // For uniform arrays, OpenGL returns the name as "uniform[0]",
-            // but we want to identify it as the base name instead.
-            for (int j = 0; j < name_str_length; ++j)
+            if (program_language_glsl)
             {
-                if (buffer[j] == '[')
+                // For uniform arrays, OpenGL returns the name as "uniform[0]",
+                // but we want to identify it as the base name instead.
+                for (int j = 0; j < name_str_length; ++j)
                 {
-                    buffer[j] = 0;
-                    break;
+                    if (buffer[j] == '[')
+                    {
+                        buffer[j] = 0;
+                        break;
+                    }
                 }
             }
 
             dmhash_t name_hash = dmHashString64(buffer);
+
+            // We check if we already have a constant registered for this name.
+            // This will happen on NON-OPENGL context when there is a constant with the same name
+            // in both the vertex and the fragment program. This forces the behavior of constants to be exactly like
+            // OpenGL, where a uniform is in global scope between the shader stages.
+            //
+            // JG: A note here, since the materials have different vertex / fragment constant tables,
+            //     we imply that you can have different constant values between them but that is not possible
+            //     for OpenGL. For other adapters however, uniforms can either be bound independent or shared regardless of name.
+            //     For now we unfortunately have to adhere to how GL works..
+            if (!program_language_glsl && name_hash_to_location.Get(name_hash) != 0)
+            {
+                continue;
+            }
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
