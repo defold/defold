@@ -131,6 +131,7 @@ platforms:
         flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
         linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
+        swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
         symbols:        ["AudioDecoderTremolo"]
@@ -156,6 +157,9 @@ platforms:
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
 
   arm64-osx:
     context:
@@ -163,6 +167,7 @@ platforms:
         flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        swiftFlags:     ["-target", "arm-apple-darwin19"]
 
   x86_64-osx:
     context:
@@ -170,12 +175,18 @@ platforms:
         flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        swiftFlags:     ["-target", "x86_64-apple-darwin19"]
 
   x86-osx:
     # Intentionally left empty to allow users to have old versions in their manifests
 
   ios:
-    # It's here to whitelist this as a platform, currently used for general settings
+    context:
+      swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
+
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
 
   arm64-ios:
     env:
@@ -200,6 +211,7 @@ platforms:
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
+        swiftFlags: ["-target", "arm64-apple-ios11.0"]
 
     exePrefix: ''
     exeExt: ''
@@ -244,6 +256,7 @@ platforms:
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
+        swiftFlags: ["-target", "x86_64-apple-ios11.0-simulator"]
 
     exePrefix: ''
     exeExt: ''
