@@ -23,10 +23,8 @@
 // #define STB_IMAGE_WRITE_IMPLEMENTATION
 // #include <stb/stb_image_write.h>
 
-#include <basis/encoder/basisu_enc.h>
-#include <basis/encoder/basisu_comp.h>
-#include <basis/encoder/basisu_frontend.h>
-
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize2.h"
 
 namespace dmTexc
 {
@@ -70,6 +68,7 @@ namespace dmTexc
     {
         uint32_t size = width * height * 4;
         uint8_t* base_image = new uint8_t[size];
+
         if (!ConvertToRGBA8888((uint8_t*)data, width, height, pixel_format, base_image))
         {
             delete[] base_image;
@@ -102,22 +101,36 @@ namespace dmTexc
         }
     }
 
-    static uint8_t* GenMipMapDefault(Texture* texture, int miplevel, const basisu::image& origimage, uint32_t mip_width, uint32_t mip_height, ColorSpace color_space)
+    static uint8_t* ResizeImage(Texture* texture, const uint8_t* orig_data, uint32_t orig_width, uint32_t orig_height,
+                                                       uint32_t mip_width, uint32_t mip_height, ColorSpace color_space)
     {
         (void)texture;
-        (void)miplevel;
         uint32_t num_channels = 4;
-        uint32_t size = mip_width * mip_height * num_channels;
+        //uint32_t size = mip_width * mip_height * num_channels;
         uint8_t* mip_data = new uint8_t[mip_width * mip_height * num_channels];
 
-        basisu::image mipimage(mip_width, mip_height);
+        // PF_A8B8G8R8/PF_R8G8B8A8
+        stbir_pixel_layout pixel_layout = texture->m_PixelFormat == PF_R8G8B8A8 ? STBIR_RGBA : STBIR_ABGR;
 
-        bool srgb = false;
-        const char* filter = "tent";
-        basisu::image_resample(origimage, mipimage, srgb, filter);
+        uint8_t* mip = 0;
+        if (color_space == CS_LRGB)
+        {
+            mip = stbir_resize_uint8_linear(orig_data, (int)orig_width, (int)orig_height, (int)(num_channels * orig_width),
+                                          mip_data, (int)mip_width, (int)mip_height, (int)(num_channels * mip_width),
+                                          pixel_layout);
+        }
+        else
+        {
+            mip = stbir_resize_uint8_srgb(orig_data, (int)orig_width, (int)orig_height, (int)(num_channels * orig_width),
+                                          mip_data, (int)mip_width, (int)mip_height, (int)(num_channels * mip_width),
+                                          pixel_layout);
+        }
 
-        basisu::color_rgba* basisimage = mipimage.get_ptr();
-        memcpy(mip_data, basisimage, size);
+        if (mip != mip_data)
+        {
+            delete[] mip_data;
+            mip_data = mip;
+        }
 
         // char name[256];
         // stbi_flip_vertically_on_write(true);
@@ -132,14 +145,13 @@ namespace dmTexc
 
     static bool GenMipMapsDefault(Texture* texture)
     {
-        uint32_t width = texture->m_Width;
-        uint32_t height = texture->m_Height;
+        uint32_t mip0_width = texture->m_Width;
+        uint32_t mip0_height = texture->m_Height;
+        uint32_t width = mip0_width;
+        uint32_t height = mip0_height;
 
         // We make a straight unaltered copy of the input data as the first mip level
         uint8_t* mip0 = texture->m_Mips[0].m_Data;
-
-        basisu::image origimage;
-        origimage.init(mip0, width, height, 4);
 
         int level = 0;
         while (width * height != 1)
@@ -149,7 +161,8 @@ namespace dmTexc
             width = dmMath::Max(1U, width);
             height = dmMath::Max(1U, height);
 
-            uint8_t* mipmap = GenMipMapDefault(texture, level, origimage, width, height, texture->m_ColorSpace);
+            uint8_t* mipmap = ResizeImage(texture, mip0, mip0_width, mip0_height,
+                                                         width, height, texture->m_ColorSpace);
             level++;
 
             TextureData mip_level;
@@ -165,23 +178,14 @@ namespace dmTexc
 
     static bool ResizeDefault(Texture* texture, uint32_t width, uint32_t height)
     {
-        uint32_t num_channels = 4;
-        uint32_t new_size = width * height * num_channels;
-        uint8_t* new_data = new uint8_t[new_size];
         uint8_t* mip0 = texture->m_Mips[0].m_Data;
 
-        basisu::image origimage;
-        origimage.init(mip0, texture->m_Width, texture->m_Height, num_channels);
-
-        basisu::image mipimage(width, height);
-        basisu::image_resample(origimage, mipimage);
-
-        basisu::color_rgba* basisimage = mipimage.get_ptr();
-        memcpy(new_data, basisimage, new_size);
+        uint8_t* new_data = ResizeImage(texture, mip0, texture->m_Width, texture->m_Height,
+                                                       width, height, texture->m_ColorSpace);
 
         delete[] texture->m_Mips[0].m_Data;
         texture->m_Mips[0].m_Data = new_data;
-        texture->m_Mips[0].m_ByteSize = new_size;
+        texture->m_Mips[0].m_ByteSize = width * height * 4;
         texture->m_Mips[0].m_Width = width;
         texture->m_Mips[0].m_Height = height;
         texture->m_Width = width;

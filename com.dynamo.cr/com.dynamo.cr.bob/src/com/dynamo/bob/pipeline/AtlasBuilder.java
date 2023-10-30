@@ -39,6 +39,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -102,6 +103,7 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
     }
 
     private static TextureImage generateTextureImage(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws CompileExceptionError, IOException {
+        TimeProfiler.start("AtlasBuilder.generateTextureImage");
         TextureImage textureImages[] = new TextureImage[images.size()];
 
         for (int i = 0; i < images.size(); i++)
@@ -114,7 +116,9 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
             }
             textureImages[i] = texture;
         }
-        return TextureUtil.createCombinedTextureImage(textureImages, textureType);
+        TextureImage out = TextureUtil.createCombinedTextureImage(textureImages, textureType);
+        TimeProfiler.stop();
+        return out;
     }
 
     @Override

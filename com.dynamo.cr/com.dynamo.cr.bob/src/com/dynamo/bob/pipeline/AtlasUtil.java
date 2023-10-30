@@ -119,6 +119,8 @@ public class AtlasUtil {
     }
 
     public static List<AtlasImage> collectImages(Atlas atlas) {
+        TimeProfiler.start("AtlasUtil.collectImages");
+
         Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<AtlasImageSortKey, AtlasImage>();
         List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
@@ -138,6 +140,7 @@ public class AtlasUtil {
                 }
             }
         }
+        TimeProfiler.stop();
         return images;
     }
 
@@ -150,6 +153,8 @@ public class AtlasUtil {
     }
 
     public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException, CompileExceptionError {
+        TimeProfiler.start("AtlasUtil.loadImages");
+
         List<BufferedImage> images = new ArrayList<BufferedImage>(resources.size());
 
         for (IResource resource : resources) {
@@ -159,6 +164,7 @@ public class AtlasUtil {
             }
             images.add(image);
         }
+        TimeProfiler.stop();
         return images;
     }
 

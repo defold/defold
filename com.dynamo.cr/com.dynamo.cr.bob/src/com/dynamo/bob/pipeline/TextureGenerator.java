@@ -226,6 +226,8 @@ public class TextureGenerator {
 
     private static TextureImage.Image generateFromColorAndFormat(String name, BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
 
+        TimeProfiler.start("generateFromColorAndFormat");
+
         int width = image.getWidth();
         int height = image.getHeight();
         int componentCount = colorModel.getNumComponents();
@@ -235,9 +237,7 @@ public class TextureGenerator {
 
         int dataSize = width * height * 4;
 
-
         ByteBuffer buffer_input = getByteBuffer(image);
-
 
         // convert from protobuf specified compressionlevel to texc int
         texcCompressionLevel = compressionLevelLUT.get(compressionLevel);
@@ -282,10 +282,12 @@ public class TextureGenerator {
             throw new TextureGeneratorException("Invalid texture format.");
         }
 
+        TimeProfiler.start("TEXC_Create");
         Pointer texture = TexcLibrary.TEXC_Create(name, width, height, PixelFormat.A8B8G8R8, ColorSpace.SRGB, texcCompressionType, buffer_input);
         if (texture == null) {
             throw new TextureGeneratorException("Failed to create texture");
         }
+        TimeProfiler.stop();
 
         try {
 
@@ -322,37 +324,52 @@ public class TextureGenerator {
 
             // Premultiply before scale so filtering cannot introduce colour artefacts.
             if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+                TimeProfiler.start("TEXC_PreMultiplyAlpha");
                 if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
+                TimeProfiler.stop();
             }
 
             if (width != newWidth || height != newHeight) {
+                TimeProfiler.start("TEXC_Resize");
                 if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
                     throw new TextureGeneratorException("could not resize texture to POT");
                 }
+                TimeProfiler.stop();
             }
 
             // Loop over all axis that should be flipped.
             for (FlipAxis flip : flipAxis) {
+                TimeProfiler.start("TEXC_Flip");
                 if (!TexcLibrary.TEXC_Flip(texture, flip.getValue())) {
                     throw new TextureGeneratorException("could not flip on " + flip.toString());
                 }
+                TimeProfiler.stop();
             }
 
             if (generateMipMaps) {
+                TimeProfiler.start("TEXC_GenMipMaps");
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
+                TimeProfiler.stop();
             }
+
+            TimeProfiler.start("TEXC_Encode");
             if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads)) {
                 throw new TextureGeneratorException("could not encode");
             }
+            TimeProfiler.stop();
 
             int bufferSize = TexcLibrary.TEXC_GetTotalDataSize(texture);
+            TimeProfiler.start("ByteBuffer.allocateDirect");
             ByteBuffer buffer_output = ByteBuffer.allocateDirect(bufferSize);
+            TimeProfiler.stop();
+            TimeProfiler.start("TEXC_GetData");
             dataSize = TexcLibrary.TEXC_GetData(texture, buffer_output, bufferSize);
             buffer_output.limit(dataSize);
+            TimeProfiler.stop();
 
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);

@@ -23,6 +23,7 @@ import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 import com.dynamo.bob.tile.ConvexHull2D;
 import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.gamesys.proto.TextureSetProto;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -298,6 +299,8 @@ public class TextureSetGenerator {
                 AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
                boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
 
+        TimeProfiler.start("calculateLayout");
+
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
         // Store rectangle order as the AnimIterator interface relies on stable frame indices.
@@ -356,6 +359,8 @@ public class TextureSetGenerator {
                 vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layoutWidth, layoutHeight));
             }
         }
+
+        TimeProfiler.stop();
         return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layouts, innerPadding, extrudeBorders));
     }
 
@@ -404,10 +409,15 @@ public class TextureSetGenerator {
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
             float maxPageSizeW, float maxPageSizeH) {
 
+        TimeProfiler.start("TextureSetGenerator.generate");
+
+        TimeProfiler.start("rectanglesFromImages");
         List<Rect> imageRects = rectanglesFromImages(images, paths);
+        TimeProfiler.stop();
 
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
+        TimeProfiler.start("buildConvexHull");
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
         int use_geometries = 0;
         for (int i = 0; i < images.size(); ++i) {
@@ -415,6 +425,7 @@ public class TextureSetGenerator {
             use_geometries |= imageHullSizes.get(i) > 0 ? 1 : 0;
             imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
         }
+        TimeProfiler.stop();
 
         // The layout step will expand the rect, and possibly rotate them
         TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
@@ -428,19 +439,27 @@ public class TextureSetGenerator {
                 BufferedImage image = images.get(rect.index);
 
                 if (innerPadding > 0) {
+                    TimeProfiler.start("createPaddedImage");
                     image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
+                    TimeProfiler.stop();
                 }
                 if (extrudeBorders > 0) {
+                    TimeProfiler.start("extrudeBorders");
                     image = TextureUtil.extrudeBorders(image, extrudeBorders);
+                    TimeProfiler.stop();
                 }
                 if (rect.rotated) {
+                    TimeProfiler.start("rotateImage");
                     image = rotateImage(image);
+                    TimeProfiler.stop();
                 }
 
                 layoutImages.add(image);
             }
 
+            TimeProfiler.start("composite");
             BufferedImage imgOut = composite(layoutImages, layout.getWidth(), layout.getHeight(), layoutRects);
+            TimeProfiler.stop();
             result.images.add(imgOut);
             /*
             // For debugging page generation
@@ -455,6 +474,7 @@ public class TextureSetGenerator {
             */
         }
 
+        TimeProfiler.stop();
         return result;
     }
 
