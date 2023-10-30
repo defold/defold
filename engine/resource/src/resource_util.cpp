@@ -172,7 +172,7 @@ void PrintHash(const uint8_t* hash, uint32_t len)
 {
     for (uint32_t i = 0; i < len; ++i)
     {
-        printf("%02X", hash[i]);
+        printf("%02x", hash[i]);
     }
 }
 

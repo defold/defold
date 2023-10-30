@@ -20,6 +20,18 @@
 
 namespace dmGraphics
 {
+    // In OpenGL, there is a single global resource identifier between
+    // fragment and vertex uniforms for a single program. In Vulkan,
+    // a uniform can be present in both shaders so we have to keep track
+    // of this ourselves. Because of this we pack resource locations
+    // for uniforms in a single base register with 15 bits
+    // per shader location. If uniform is not found, we return -1 as usual.
+    #define UNIFORM_LOCATION_MAX                ((uint64_t) 0xFFFF)
+    #define UNIFORM_LOCATION_GET_VS(loc)        (loc & UNIFORM_LOCATION_MAX)
+    #define UNIFORM_LOCATION_GET_VS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 16)) >> 16)
+    #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
+    #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
+
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -35,19 +47,71 @@ namespace dmGraphics
         uint8_t      m_StreamCount;
     };
 
-    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t        GetGraphicsTypeDataSize(Type type);
-    const char*     GetGraphicsTypeLiteral(Type type);
-    void            InstallAdapterVendor();
-    PipelineState   GetDefaultPipelineState();
-    Type            GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
-    void            SetForceFragmentReloadFail(bool should_fail);
-    void            SetForceVertexReloadFail(bool should_fail);
-    void            SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    bool            IsTextureFormatCompressed(TextureFormat format);
-    bool            IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
-    void            RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
-    const char*     TextureFormatToString(TextureFormat format);
+    struct UniformBlockMember
+    {
+        char*                      m_Name;
+        uint64_t                   m_NameHash;
+        ShaderDesc::ShaderDataType m_Type;
+        uint32_t                   m_Offset;
+        uint16_t                   m_ElementCount;
+    };
+
+    struct ShaderResourceBinding
+    {
+        char*                       m_Name;
+        uint64_t                    m_NameHash;
+        ShaderDesc::ShaderDataType  m_Type;
+        dmArray<UniformBlockMember> m_BlockMembers;
+        uint32_t                    m_DataSize;
+        uint16_t                    m_ElementCount;
+        uint16_t                    m_Set;
+        uint16_t                    m_Binding;
+        union
+        {
+            uint16_t               m_UniformDataIndex;
+            uint16_t               m_TextureUnit;
+        };
+    };
+
+    uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t             GetGraphicsTypeDataSize(Type type);
+    const char*          GetGraphicsTypeLiteral(Type type);
+    void                 InstallAdapterVendor();
+    PipelineState        GetDefaultPipelineState();
+    Type                 GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
+    void                 SetForceFragmentReloadFail(bool should_fail);
+    void                 SetForceVertexReloadFail(bool should_fail);
+    void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    bool                 IsTextureFormatCompressed(TextureFormat format);
+    bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
+    void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+    const char*          TextureFormatToString(TextureFormat format);
+    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+
+    static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
+    {
+        const uint8_t conversion_table[] = {
+            0,  // SHADER_TYPE_UNKNOWN
+            4,  // SHADER_TYPE_INT
+            4,  // SHADER_TYPE_UINT
+            4,  // SHADER_TYPE_FLOAT
+            8,  // SHADER_TYPE_VEC2
+            12, // SHADER_TYPE_VEC3
+            16, // SHADER_TYPE_VEC4
+            16, // SHADER_TYPE_MAT2
+            36, // SHADER_TYPE_MAT3
+            64, // SHADER_TYPE_MAT4
+            4,  // SHADER_TYPE_SAMPLER2D
+            4,  // SHADER_TYPE_SAMPLER3D
+            4,  // SHADER_TYPE_SAMPLER_CUBE
+            4,  // SHADER_TYPE_SAMPLER_ARRAY_2D
+        };
+
+        assert(((int) type) < DM_ARRAY_SIZE(conversion_table));
+
+        return conversion_table[type];
+    }
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {

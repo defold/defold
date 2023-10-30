@@ -46,6 +46,7 @@ sys.dont_write_bytecode = True
 try:
     import build_vendor
     sys.modules['build_private'] = build_vendor
+    print("Imported %s from %s" % ('build_private', build_vendor.__file__))
 except ModuleNotFoundError:
     pass
 except Exception as e:
@@ -442,8 +443,6 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
-
-        self._check_package_path()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:

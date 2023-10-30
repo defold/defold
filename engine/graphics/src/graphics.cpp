@@ -543,11 +543,15 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
             case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
             case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
+            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
             case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
+            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             default: break;
         }
 
@@ -768,6 +772,39 @@ namespace dmGraphics
             rgba+=4;
             rgb+=3;
         }
+    }
+
+    // TODO, comment from the PR (#4544):
+    //   "These frequent lookups could be improved by sorting on the key beforehand,
+    //   and during lookup, do a lower_bound, to find the item (or not).
+    //   E.g see: engine/render/src/render/material.cpp#L446"
+    bool GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
+    {
+        assert(uniforms.Size() < UNIFORM_LOCATION_MAX);
+        for (uint32_t i = 0; i < uniforms.Size(); ++i)
+        {
+            if (uniforms[i].m_NameHash == name_hash)
+            {
+                *index_out = i;
+                *index_member_out = 0;
+                return true;
+            }
+            else
+            {
+                assert(uniforms[i].m_BlockMembers.Size() < UNIFORM_LOCATION_MAX);
+                for (uint32_t j = 0; j < uniforms[i].m_BlockMembers.Size(); ++j)
+                {
+                    if (uniforms[i].m_BlockMembers[j].m_NameHash == name_hash)
+                    {
+                        *index_out = i;
+                        *index_member_out = j;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     void DeleteContext(HContext context)
@@ -1003,6 +1040,10 @@ namespace dmGraphics
     void DeleteFragmentProgram(HFragmentProgram prog)
     {
         g_functions.m_DeleteFragmentProgram(prog);
+    }
+    ShaderDesc::Language GetProgramLanguage(HProgram program)
+    {
+        return g_functions.m_GetProgramLanguage(program);
     }
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
     {
@@ -1253,7 +1294,18 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
-
+    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    {
+        return g_functions.m_NewComputeProgram(context, ddf);
+    }
+    HProgram NewProgram(HContext context, HComputeProgram compute_program)
+    {
+        return g_functions.m_NewProgramFromCompute(context, compute_program);
+    }
+    void DeleteComputeProgram(HComputeProgram prog)
+    {
+        return g_functions.m_DeleteComputeProgram(prog);
+    }
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
