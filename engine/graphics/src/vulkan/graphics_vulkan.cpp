@@ -4443,7 +4443,7 @@ bail:
 
     }
 
-    void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, HUniformLocation base_location)
+    void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, uint32_t buffer_offset, HUniformLocation base_location)
     {
         VulkanContext* context = (VulkanContext*) _context;
         Program* program_ptr   = (Program*) context->m_CurrentProgram;
@@ -4458,6 +4458,8 @@ bail:
         uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_location);
         uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_location);
 
+        uint8_t* buffer_ptr = (uint8_t*) buffer->m_MappedDataPtr + buffer_offset;
+
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
@@ -4465,7 +4467,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, res.m_DataSize);
+            memcpy(&program_ptr->m_UniformData[offset], buffer_ptr, res.m_DataSize);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -4476,7 +4478,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, res.m_DataSize);
+            memcpy(&program_ptr->m_UniformData[offset], buffer_ptr, res.m_DataSize);
         }
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
@@ -4574,28 +4576,6 @@ bail:
                 }
             }
         }
-
-        /*
-        for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
-        {
-            ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
-            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding].m_Streams[i];
-
-            stream.m_NameHash = input.m_NameHash;
-            stream.m_Location = input.m_Binding;
-            stream.m_Format   = VK_FORMAT_R8_UNORM;
-
-            for (int j = 0; j < vertex_declaration->m_StreamCount; ++j)
-            {
-                if (vertex_declaration->m_Streams[j].m_NameHash == input.m_NameHash)
-                {
-                    stream.m_Offset = vertex_declaration->m_Streams[j].m_Offset;
-                    stream.m_Format = vertex_declaration->m_Streams[j].m_Format;
-                    break;
-                }
-            }
-        }
-        */
     }
 
     void VulkanDisableVertexDeclaration(HContext _context, uint32_t binding)

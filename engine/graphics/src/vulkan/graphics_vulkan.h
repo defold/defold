@@ -66,7 +66,7 @@ namespace dmGraphics
     HContext VulkanGetContext();
 	void     VulkanCopyBufferToTexture(HContext context, HVertexBuffer buffer, HTexture texture, const TextureParams& params);
     void     VulkanSetRenderTargetAttachments(HContext context, HRenderTarget render_target, const SetRenderTargetAttachmentsParams& params);
-    void     VulkanSetConstantBuffer(HContext context, HVertexBuffer buffer, HUniformLocation base_location);
+    void     VulkanSetConstantBuffer(HContext context, HVertexBuffer buffer, uint32_t buffer_offset, HUniformLocation base_location);
     HTexture VulkanGetActiveSwapChainTexture(HContext context);
     void     VulkanDrawElementsInstanced(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t base_instance, Type type, HIndexBuffer index_buffer);
     void     VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration _vertex_declaration, uint32_t binding, HVertexBuffer _vertex_buffer, HProgram program);
