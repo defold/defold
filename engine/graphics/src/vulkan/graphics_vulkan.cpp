@@ -1457,16 +1457,21 @@ bail:
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
-        Program* program, RenderTarget* rt, HVertexDeclaration vertexDeclaration)
+        Program* program, RenderTarget* rt, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_StepFunction, sizeof(vertexDeclaration->m_StepFunction));
         dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count, sizeof(vk_sample_count));
+
+        for (int i = 0; i < vertexDeclarationCount; ++i)
+        {
+            dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration[i]->m_Hash, sizeof(vertexDeclaration[i]->m_Hash));
+            dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration[i]->m_StepFunction, sizeof(vertexDeclaration[i]->m_StepFunction));
+        }
+
         uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
         Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
@@ -1481,7 +1486,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, rt, &new_pipeline);
+            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1834,9 +1839,9 @@ bail:
 
     static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        VulkanContext* context              = (VulkanContext*) _context;
-        context->m_CurrentVertexBuffer      = (DeviceBuffer*) vertex_buffer;
-        context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
+        VulkanContext* context                 = (VulkanContext*) _context;
+        context->m_CurrentVertexBuffer[0]      = (DeviceBuffer*) vertex_buffer;
+        context->m_CurrentVertexDeclaration[0] = (VertexDeclaration*) vertex_declaration;
     }
 
     static void VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
@@ -1845,23 +1850,23 @@ bail:
         Program* program_ptr        = (Program*) program;
         ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration, vertex_buffer);
+        VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration[0], vertex_buffer);
 
         // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
         //     Basically we create fake bindings if a stream isn't defined in the vertex declaration, because otherwise
         //     the MVK driver will complain that we haven't defined all bindings in the shader.
         //     This means that we might get side-effects since we are basically binding the first data buffer
         //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
-        context->m_MainVertexDeclaration = {0};
-        context->m_MainVertexDeclaration.m_StreamCount  = vertex_shader->m_Inputs.Size();
-        context->m_MainVertexDeclaration.m_Stride       = vertex_declaration->m_Stride;
-        context->m_MainVertexDeclaration.m_StepFunction = vertex_declaration->m_StepFunction;
-        context->m_MainVertexDeclaration.m_Hash         = vertex_declaration->m_Hash;
+        context->m_MainVertexDeclaration[0] = {0};
+        context->m_MainVertexDeclaration[0].m_StreamCount  = vertex_shader->m_Inputs.Size();
+        context->m_MainVertexDeclaration[0].m_Stride       = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration[0].m_StepFunction = vertex_declaration->m_StepFunction;
+        context->m_MainVertexDeclaration[0].m_Hash         = vertex_declaration->m_Hash;
 
         for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
         {
             ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
-            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration.m_Streams[i];
+            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[0].m_Streams[i];
 
             stream.m_NameHash = input.m_NameHash;
             stream.m_Location = input.m_Binding;
@@ -1881,7 +1886,7 @@ bail:
 
     static void VulkanDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
-        ((VulkanContext*) context)->m_CurrentVertexDeclaration = 0;
+        memset(((VulkanContext*) context)->m_CurrentVertexDeclaration, 0, sizeof(VertexDeclaration*) * MAX_VERTEX_BUFFERS);
     }
 
     static uint32_t VulkanGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
@@ -2102,9 +2107,20 @@ bail:
 
     static void DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
-        DeviceBuffer* vertex_buffer = context->m_CurrentVertexBuffer;
         Program* program_ptr        = context->m_CurrentProgram;
         VkDevice vk_device          = context->m_LogicalDevice.m_Device;
+
+        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]            = {};
+        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS] = {};
+        uint32_t num_vx_buffers                               = 0;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexBuffer[i])
+            {
+                vk_buffers[num_vx_buffers++] = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+            }
+        }
 
         // Ensure there is room in the descriptor allocator to support this draw call
         const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
@@ -2191,7 +2207,7 @@ bail:
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
-            program_ptr, current_rt, context->m_CurrentVertexDeclaration);
+            program_ptr, current_rt, context->m_CurrentVertexDeclaration, num_vx_buffers);
 
         if (pipeline != context->m_CurrentPipeline)
         {
@@ -2213,10 +2229,7 @@ bail:
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Handle.m_Buffer, 0, vk_index_type);
         }
 
-        // Bind the vertex buffers
-        VkBuffer vk_vertex_buffer             = vertex_buffer->m_Handle.m_Buffer;
-        VkDeviceSize vk_vertex_buffer_offsets = 0;
-        vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
+        vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
     }
 
     static void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
@@ -4452,7 +4465,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, buffer->m_MemorySize);
+            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, res.m_DataSize);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -4463,7 +4476,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, buffer->m_MemorySize);
+            memcpy(&program_ptr->m_UniformData[offset], buffer->m_MappedDataPtr, res.m_DataSize);
         }
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
@@ -4523,6 +4536,75 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         context->m_NumFramesInFlight = num_frames_in_flight;
     }
+
+    void VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration _vertex_declaration, uint32_t binding, HVertexBuffer _vertex_buffer, HProgram program)
+    {
+        VulkanContext* context                       = (VulkanContext*) _context;
+        Program* program_ptr                         = (Program*) program;
+        ShaderModule* vertex_shader                  = program_ptr->m_VertexModule;
+        DeviceBuffer* vertex_buffer                  = (DeviceBuffer*) _vertex_buffer;
+        VertexDeclaration* vertex_declaration        = (VertexDeclaration*) _vertex_declaration;
+
+        context->m_MainVertexDeclaration[binding]                = {0};
+        context->m_MainVertexDeclaration[binding].m_StreamCount  = vertex_declaration->m_StreamCount;
+        context->m_MainVertexDeclaration[binding].m_Stride       = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration[binding].m_StepFunction = vertex_declaration->m_StepFunction;
+        context->m_MainVertexDeclaration[binding].m_Hash         = vertex_declaration->m_Hash;
+
+        context->m_CurrentVertexBuffer[binding]                  = vertex_buffer;
+        context->m_CurrentVertexDeclaration[binding]             = &context->m_MainVertexDeclaration[binding];
+
+        uint32_t stream_ix = 0;
+
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
+        {
+            for (int j = 0; j < vertex_shader->m_Inputs.Size(); ++j)
+            {
+                ShaderResourceBinding& input = vertex_shader->m_Inputs[j];
+
+                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
+                {
+                    VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding].m_Streams[stream_ix];
+                    stream.m_NameHash = input.m_NameHash;
+                    stream.m_Location = input.m_Binding;
+                    stream.m_Format   = vertex_declaration->m_Streams[i].m_Format;
+                    stream.m_Offset   = vertex_declaration->m_Streams[i].m_Offset;
+                    stream_ix++;
+                    break;
+                }
+            }
+        }
+
+        /*
+        for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
+        {
+            ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
+            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding].m_Streams[i];
+
+            stream.m_NameHash = input.m_NameHash;
+            stream.m_Location = input.m_Binding;
+            stream.m_Format   = VK_FORMAT_R8_UNORM;
+
+            for (int j = 0; j < vertex_declaration->m_StreamCount; ++j)
+            {
+                if (vertex_declaration->m_Streams[j].m_NameHash == input.m_NameHash)
+                {
+                    stream.m_Offset = vertex_declaration->m_Streams[j].m_Offset;
+                    stream.m_Format = vertex_declaration->m_Streams[j].m_Format;
+                    break;
+                }
+            }
+        }
+        */
+    }
+
+    void VulkanDisableVertexDeclaration(HContext _context, uint32_t binding)
+    {
+        VulkanContext* context                       = (VulkanContext*) _context;
+        context->m_CurrentVertexBuffer[binding]      = 0;
+        context->m_CurrentVertexDeclaration[binding] = 0;
+    }
+
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
