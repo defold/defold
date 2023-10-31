@@ -138,6 +138,7 @@ platforms:
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
+        swiftVersion:   "5"
 
     exePrefix: ''
     exeExt: ''
@@ -183,6 +184,7 @@ platforms:
   ios:
     context:
       swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
+      swiftVersion:   "5"
 
     emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
     emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
