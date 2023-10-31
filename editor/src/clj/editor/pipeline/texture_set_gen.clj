@@ -103,6 +103,10 @@
   (-> (TextureSetProto$SpriteGeometry/newBuilder rect-sprite-geometry-template)
       (.setWidth width)
       (.setHeight height)
+      (.setCenterX 0)
+      (.setCenterY 0)
+      (.setRotated false)
+      (.setTrimMode Tile$SpriteTrimmingMode/SPRITE_TRIM_MODE_OFF)
       (.build)))
 
 (defn- make-image-sprite-geometry
