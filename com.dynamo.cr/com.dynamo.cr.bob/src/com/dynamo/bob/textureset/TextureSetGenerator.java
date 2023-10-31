@@ -188,6 +188,7 @@ public class TextureSetGenerator {
     }
 
     // Pass in the original image (no padding or extrude borders)
+    // Used by the editor
     public static SpriteGeometry buildConvexHull(BufferedImage image, SpriteTrimmingMode trimMode) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
 
