@@ -4237,7 +4237,7 @@ bail:
 
     void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)
     {
-        VulkanContext* context = g_VulkanContext; // (VulkanContext*) _context;
+        VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
 
@@ -4250,8 +4250,15 @@ bail:
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         CHECK_VK_ERROR(res);
 
-        const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
-        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        VkCommandBuffer vk_command_buffer;
+        CreateCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
+
+        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+        CHECK_VK_ERROR(res);
 
         uint8_t layer_count = texture->m_Depth;
         uint32_t slice_size = buffer->m_MemorySize / layer_count;
@@ -4278,6 +4285,18 @@ bail:
         vkCmdCopyBufferToImage(vk_command_buffer, buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count, vk_copy_regions);
+
+        vkEndCommandBuffer(vk_command_buffer);
+
+        VkSubmitInfo vk_submit_info = {};
+        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vk_submit_info.commandBufferCount = 1;
+        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
+
+        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+        CHECK_VK_ERROR(res);
+
+        vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
