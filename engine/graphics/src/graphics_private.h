@@ -73,20 +73,21 @@ namespace dmGraphics
         };
     };
 
-    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t        GetGraphicsTypeDataSize(Type type);
-    const char*     GetGraphicsTypeLiteral(Type type);
-    void            InstallAdapterVendor();
-    PipelineState   GetDefaultPipelineState();
-    Type            GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
-    void            SetForceFragmentReloadFail(bool should_fail);
-    void            SetForceVertexReloadFail(bool should_fail);
-    void            SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    bool            IsTextureFormatCompressed(TextureFormat format);
-    bool            IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
-    void            RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
-    const char*     TextureFormatToString(TextureFormat format);
-    bool            GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t             GetGraphicsTypeDataSize(Type type);
+    const char*          GetGraphicsTypeLiteral(Type type);
+    void                 InstallAdapterVendor();
+    PipelineState        GetDefaultPipelineState();
+    Type                 GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
+    void                 SetForceFragmentReloadFail(bool should_fail);
+    void                 SetForceVertexReloadFail(bool should_fail);
+    void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    bool                 IsTextureFormatCompressed(TextureFormat format);
+    bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
+    void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+    const char*          TextureFormatToString(TextureFormat format);
+    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
 
     static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
     {

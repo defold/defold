@@ -164,16 +164,36 @@ namespace dmGraphics
             return true;
         }
 
-        const char* keyword = GetKeyword(language, binding_type);
-        const char* word_end = buffer;
-        const char* word_start = buffer;
-        uint32_t size = 0;
-        while (*word_end != '\0')
-        {
-            NextWord(&word_start, &word_end, &size);
+        const char* keyword    = GetKeyword(language, binding_type);
+        const char* line_end   = buffer;
+        const char* line_start = buffer;
+        const char* word_start = 0;
+        const char* word_end   = 0;
 
-            if (size > 0)
+        uint32_t size = 0;
+        while (*line_end != '\0')
+        {
+            line_end   = SkipLine(line_start) + 1;
+            word_start = line_start;
+            word_end   = line_start;
+
+        #if 0
+            char line_buf[256];
+            size_t line_len = line_end - line_start;
+            memcpy(line_buf, line_start, line_len);
+            line_buf[line_len] = '\0';
+            printf("LINE: %s", line_buf);
+        #endif
+
+            while(word_start < line_end)
             {
+                NextWord(&word_start, &word_end, &size);
+
+                if (size == 0 || word_start >= line_end)
+                {
+                    break;
+                }
+
                 if (STRNCMP(keyword, word_start, size))
                 {
                     Type type;
@@ -202,18 +222,16 @@ namespace dmGraphics
                         }
 
                         cb(binding_type, word_start, size-1, type, uniform_size, userdata);
+                        break;
                     }
                     else
                     {
                         return false;
                     }
                 }
-                else
-                {
-                    word_start = SkipWS(SkipLine(word_end));
-                    word_end = word_start;
-                }
             }
+
+            line_start = line_end;
         }
         return true;
     }

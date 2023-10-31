@@ -444,8 +444,6 @@ class Configuration(object):
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
 
-        self._check_package_path()
-
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.ext)

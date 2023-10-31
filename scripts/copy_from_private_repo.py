@@ -49,6 +49,7 @@ LOCAL_PATTERNS.append('dist/')
 LOCAL_PATTERNS.append('build/')
 LOCAL_PATTERNS.append('editor/target/classes/')
 LOCAL_PATTERNS.append('dynamo_home')
+LOCAL_PATTERNS.append('local_sdks')
 
 def is_local_file(path):
     for pattern in LOCAL_PATTERNS:
