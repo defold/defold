@@ -144,6 +144,9 @@ struct EngineCtx
     dmGraphics::HVertexBuffer               m_VertexBuffer;
     dmGraphics::ShaderDesc::ResourceBinding m_VertexAttributes[1];
 
+    dmGraphics::HTexture                    m_CopyBufferToTextureTexture;
+    dmGraphics::HVertexBuffer               m_CopyBufferToTextureBuffer;
+
 } g_EngineCtx;
 
 static void* EngineCreate(int argc, char** argv)
@@ -283,6 +286,47 @@ static void* EngineCreate(int argc, char** argv)
 
     dmGraphics::VulkanCreateRenderPass(engine->m_GraphicsContext, engine->m_Rendertarget, rp);
 
+    //////////// COPY BUFFER TO TEXTURE ////////////
+    {
+        dmGraphics::TextureCreationParams tp = {};
+        tp.m_Width                           = 128;
+        tp.m_Height                          = 128;
+        tp.m_OriginalWidth                   = 128;
+        tp.m_OriginalHeight                  = 128;
+        engine->m_CopyBufferToTextureTexture = dmGraphics::NewTexture(engine->m_GraphicsContext, tp);
+
+        dmGraphics::TextureParams p = {};
+        p.m_Width    = 128;
+        p.m_Height   = 128;
+        p.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
+        dmGraphics::SetTexture(engine->m_CopyBufferToTextureTexture, p);
+
+        engine->m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::VulkanSetVertexBufferUsage(engine->m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_USAGE_TRANSFER);
+
+        dmGraphics::SetVertexBufferData(engine->m_CopyBufferToTextureBuffer, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        uint8_t* pixels = (uint8_t*) dmGraphics::MapVertexBuffer(engine->m_GraphicsContext, engine->m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+
+        for (int i = 0; i < 128; i++)
+        {
+            for (int j = 0; j < 128; j++)
+            {
+                float u = ((float) j) / (float) 128;
+                float v = ((float) i) / (float) 128;
+
+                uint32_t ix = (i * 128 + j) * 4;
+                pixels[ix + 0] = (uint8_t) (u * 255.0f);
+                pixels[ix + 1] = 0;
+                pixels[ix + 2] = (uint8_t) (v * 255.0f);
+                pixels[ix + 3] = 255;
+            }
+        }
+
+        dmGraphics::UnmapVertexBuffer(engine->m_GraphicsContext, engine->m_CopyBufferToTextureBuffer);
+    }
+
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetTime();
     return &g_EngineCtx;
@@ -308,17 +352,29 @@ static UpdateResult EngineUpdate(void* _engine)
         return RESULT_EXIT;
     */
 
+    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+    //////////// COPY BUFFER TO TEXTURE TEST ////////////
+#if 1
+    dmGraphics::TextureParams copy_params = {};
+    copy_params.m_Width                   = dmGraphics::GetTextureWidth(engine->m_CopyBufferToTextureTexture);
+    copy_params.m_Height                  = dmGraphics::GetTextureHeight(engine->m_CopyBufferToTextureTexture);
+    dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, engine->m_CopyBufferToTextureBuffer, engine->m_CopyBufferToTextureTexture, copy_params);
+#endif
+
+    //////////// SUBPASS TEST ////////////
+#if 0
     dmGraphics::HTexture sub_pass_0_color = dmGraphics::GetRenderTargetTexture(engine->m_Rendertarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+
+    dmGraphics::SetRenderTarget(engine->m_GraphicsContext, engine->m_Rendertarget, 0);
+
+    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, 512, 512);
 
     static uint8_t color_r = 0;
     static uint8_t color_g = 80;
     static uint8_t color_b = 140;
     static uint8_t color_a = 255;
-    dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
-    dmGraphics::SetRenderTarget(engine->m_GraphicsContext, engine->m_Rendertarget, 0);
-
-    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, 512, 512);
     dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                 (float)color_r,
                                 (float)color_g,
@@ -337,6 +393,7 @@ static UpdateResult EngineUpdate(void* _engine)
     dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
 
     dmGraphics::SetRenderTarget(engine->m_GraphicsContext, 0, 0);
+#endif
 
     dmGraphics::Flip(engine->m_GraphicsContext);
 
