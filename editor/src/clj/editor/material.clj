@@ -471,18 +471,23 @@
         attributes))
 
 (g/defnode TextureBinding
+  ;; Note: sampler-name property should not be set on this node. Instead, it
+  ;; should only be modified by setting samplers in the owning MaterialNode.
   (property sampler-name g/Str)
-  (property image-resource resource/Resource
-    (set (fn [evaluation-context self old-value new-value]
-           (project/resource-setter evaluation-context self old-value new-value
-                                    [:gpu-texture-generator :gpu-texture-generator]
-                                    [:build-targets :build-targets]))))
+  (property image resource/Resource
+            (value (gu/passthrough image-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :image-resource]
+                                            [:gpu-texture-generator :gpu-texture-generator]
+                                            [:build-targets :build-targets]))))
+  (input image-resource resource/Resource)
   (input gpu-texture-generator g/Any)
   (input build-targets g/Any :array)
   (output build-targets g/Any (gu/passthrough build-targets))
   (output texture-binding-info g/Any
-    (g/fnk [_node-id sampler-name image-resource ^:try gpu-texture-generator :as info]
-      (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
+          (g/fnk [_node-id sampler-name image ^:try gpu-texture-generator :as info]
+            (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
 
 (defn- update-texture-bindings [evaluation-context material old-value new-value]
   ;; Note: we don't process changed samplers because for texture bindings we only care about sampler names
@@ -494,7 +499,7 @@
           (g/make-nodes (g/node-id->graph-id material) [texture-binding [TextureBinding :sampler-name sampler-name]]
             (g/connect texture-binding :_node-id material :nodes)
             (g/connect texture-binding :texture-binding-info material :texture-binding-infos)
-            (g/connect texture-binding :build-targets material :model-dep-build-targets)))
+            (g/connect texture-binding :build-targets material :texture-dep-build-targets)))
         (for [[old-sampler-name+order [new-sampler-name]] renamed]
           (g/set-property (:_node-id (old-sampler-name+order->binding-info old-sampler-name+order))
             :sampler-name new-sampler-name))
@@ -540,8 +545,8 @@
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
   (input texture-binding-infos g/Any :array)
-  (input model-dep-build-targets g/Any :array)
-  (output model-dep-build-targets g/Any (gu/passthrough model-dep-build-targets))
+  (input texture-dep-build-targets g/Any :array)
+  (output texture-dep-build-targets g/Any (gu/passthrough texture-dep-build-targets))
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 

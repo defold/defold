@@ -41,7 +41,7 @@
       (is (= original-materials (test-util/prop node-id :materials)))
       (let [p (-> (properties/coalesce [(g/node-value node-id :_properties)])
                   :properties
-                  :__sampler__tex2__default)]
+                  :__sampler__diffuse__default)]
         (properties/set-values! p [original-texture]))))
   (testing "Loading textures renames them to match the material"
     (test-util/with-loaded-project "test/resources/model_migration_project"

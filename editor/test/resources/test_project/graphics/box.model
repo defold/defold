@@ -6,4 +6,8 @@ name: "box"
 materials {
   name: "default"
   material: "/graphics/simple.material"
+  textures {
+    sampler: "tex0"
+    texture: "/graphics/block.png"
+  }
 }

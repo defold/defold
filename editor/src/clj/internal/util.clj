@@ -764,7 +764,7 @@
                               (let [old-item (old-key+order->item key+order ::not-found)]
                                 (when-not (identical? ::not-found old-item)
                                   (when-not (= old-item new-item)
-                                    [key+order [old-item new-item]])))))
+                                    (pair key+order [old-item new-item]))))))
                       new-key+order->item)
 
         ;; detect renames

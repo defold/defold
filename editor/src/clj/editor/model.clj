@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.model
-  (:require [clojure.string :as str]
+  (:require [clojure.set :as set]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
             [editor.build-target :as bt]
@@ -101,13 +102,12 @@
                       v (source k)
                       acc-path (conj acc-path k)]
                   (if (vector? v)
-                    (reduce
-                      (fn [acc i]
-                        (let [item (v i)
-                              acc-path (conj acc-path i)]
+                    (reduce-kv
+                      (fn [acc i item]
+                        (let [acc-path (conj acc-path i)]
                           (fill-from-key-path acc item acc-path (inc key-path-index) key-path)))
                       acc
-                      (range (count v)))
+                      v)
                     (fill-from-key-path acc v acc-path (inc key-path-index) key-path))))))]
     (persistent!
       (reduce
@@ -151,8 +151,10 @@
             pb-msg (select-keys pb-msg [:materials :default-animation])
             dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
             deps-by-source (into {}
-                                 (map #(let [res (:resource %)]
-                                         [(resource/proj-path (:resource res)) res]))
+                                 (map (fn [build-target]
+                                        (let [build-resource (:resource build-target)
+                                              source-resource (:resource build-resource)]
+                                          [(resource/proj-path source-resource) build-resource])))
                                  dep-build-targets)
             dep-resources (res-fields->resources pb-msg deps-by-source
                                                  [:rig-scene
@@ -177,54 +179,54 @@
             (fn [unit-index {:keys [name] :as sampler}]
               (when-let [{tex-fn :f tex-args :args} (sampler-name->gpu-texture-generator name)]
                 (let [request-id [_node-id unit-index]
-                      params     (material/sampler->tex-params sampler)
-                      texture    (tex-fn tex-args request-id params unit-index)]
+                      params (material/sampler->tex-params sampler)
+                      texture (tex-fn tex-args request-id params unit-index)]
                   [name texture]))))
           samplers)))
 
-(g/defnk produce-scene [_node-id scene mesh-material-ids scene-infos :as m]
-  (let [name->scene-info (into {}
-                               (map (juxt :name identity))
-                               scene-infos)
-        material-index->scene-info (into {}
-                                         (keep-indexed
-                                           (fn [i name]
-                                             (when-let [info (name->scene-info name)]
-                                               [i info])))
-                                         mesh-material-ids)]
-    (if (not scene)
+(g/defnk produce-scene [_node-id scene mesh-material-ids material-scene-infos]
+  (if (not scene)
+    {:aabb geom/empty-bounding-box
+     :renderable {:passes [pass/selection]}}
+    (let [{:keys [renderable aabb]} scene
+          material-index->meshes (->> renderable :user-data :meshes (group-by :material-index))
+          name->material-scene-info (into {}
+                                          (map (juxt :name identity))
+                                          material-scene-infos)
+          material-index->material-scene-info (into {}
+                                                    (keep-indexed
+                                                      (fn [i name]
+                                                        (when-let [info (name->material-scene-info name)]
+                                                          [i info])))
+                                                    mesh-material-ids)]
       {:aabb geom/empty-bounding-box
-       :renderable {:passes [pass/selection]}}
-      (let [{:keys [renderable aabb]} scene
-            material-index->meshes (->> renderable :user-data :meshes (group-by :material-index))]
-        {:aabb aabb
-         :renderable {:passes [pass/selection]}
-         :children
-         (into (:children scene [])
-               (keep (fn [[material-index meshes]]
-                       (when-let [{:keys [shader vertex-space gpu-textures]}
-                                  ;; If we have no material associated with the index,
-                                  ;; we mirror the engine behavior by picking the first one:
-                                  ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
-                                  (or (material-index->scene-info material-index)
-                                      (first scene-infos))]
-                         {:node-id _node-id
-                          :aabb aabb
-                          :renderable (-> renderable
-                                          (dissoc :children)
-                                          (assoc-in [:user-data :shader] shader)
-                                          (assoc-in [:user-data :vertex-space] vertex-space)
-                                          (assoc-in [:user-data :textures] gpu-textures)
-                                          (assoc-in [:user-data :meshes] meshes)
-                                          (update :batch-key
-                                                  (fn [old-key]
-                                                    ;; We can only batch-render models that use
-                                                    ;; :vertex-space-world. In :vertex-space-local
-                                                    ;; we must supply individual transforms for
-                                                    ;; each model instance in the shader uniforms.
-                                                    (when (= :vertex-space-world vertex-space)
-                                                      [old-key shader gpu-textures]))))})))
-               material-index->meshes)}))))
+       :renderable {:passes [pass/selection]}
+       :children
+       (into (:children scene [])
+             (keep (fn [[material-index meshes]]
+                     (when-let [{:keys [shader vertex-space gpu-textures]}
+                                ;; If we have no material associated with the index,
+                                ;; we mirror the engine behavior by picking the first one:
+                                ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
+                                (or (material-index->material-scene-info material-index)
+                                    (first material-scene-infos))]
+                       {:node-id _node-id
+                        :aabb aabb
+                        :renderable (-> renderable
+                                        (dissoc :children)
+                                        (assoc-in [:user-data :shader] shader)
+                                        (assoc-in [:user-data :vertex-space] vertex-space)
+                                        (assoc-in [:user-data :textures] gpu-textures)
+                                        (assoc-in [:user-data :meshes] meshes)
+                                        (update :batch-key
+                                                (fn [old-key]
+                                                  ;; We can only batch-render models that use
+                                                  ;; :vertex-space-world. In :vertex-space-local
+                                                  ;; we must supply individual transforms for
+                                                  ;; each model instance in the shader uniforms.
+                                                  (when (= :vertex-space-world vertex-space)
+                                                    [old-key shader gpu-textures]))))})))
+             material-index->meshes)})))
 
 (g/defnk produce-bones [skeleton-bones animations-bones]
   (or animations-bones skeleton-bones))
@@ -266,18 +268,23 @@
                                  (for [[from-label to-label] [[:_node-id :source-id]
                                                               [:texture-binding-infos :texture-binding-infos]
                                                               [:resource :material-resource]
-                                                              [:model-dep-build-targets :dep-build-targets]
+                                                              [:texture-dep-build-targets :dep-build-targets]
                                                               [:build-targets :dep-build-targets]
                                                               [:samplers :samplers]
                                                               [:shader :shader]
                                                               [:vertex-space :vertex-space]]]
                                    (g/connect override-material-node from-label self to-label))))))))))))
   (input source-id g/NodeID :cascade-delete)
-  ;; related to material
   (input material-resource resource/Resource)
   (input texture-binding-infos g/Any)
 
   (property textures Textures
+            (value (g/fnk [texture-binding-infos]
+                     (mapv
+                       (fn [{:keys [sampler-name image]}]
+                         {:sampler sampler-name
+                          :texture image})
+                       texture-binding-infos)))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [texture-binding-infos (g/node-value self :texture-binding-infos evaluation-context)]
                      (when-not (g/error-value? texture-binding-infos)
@@ -290,12 +297,11 @@
                                :let [node-id (or (material-sampler-name+order->node-id model-sampler-name+order)
                                                  (material-sampler-name+order->node-id (get renames model-sampler-name+order)))]
                                :when node-id]
-                           (g/set-property node-id :image-resource resource))))))))
-  ;; related to textures
+                           (g/set-property node-id :image resource))))))))
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
-  (output scene-info g/Any (g/fnk [shader vertex-space gpu-textures name :as info] info))
+  (output material-scene-info g/Any (g/fnk [shader vertex-space gpu-textures name :as info] info))
   (output material-binding-info g/Any (g/fnk [_node-id name material ^:try texture-binding-infos :as info]
                                         (if (g/error-value? texture-binding-infos)
                                           (assoc info :texture-binding-infos [])
@@ -314,7 +320,7 @@
             (g/set-property binding :textures textures)
             (g/connect binding :_node-id self :nodes)
             (g/connect binding :dep-build-targets self :dep-build-targets)
-            (g/connect binding :scene-info self :scene-infos)
+            (g/connect binding :material-scene-info self :material-scene-infos)
             (g/connect binding :material-binding-info self :material-binding-infos)))
         (for [[old-material-binding-name+order [_ {:keys [material textures]}]] changed
               :let [binding (:_node-id (old-material-binding-name+order->info old-material-binding-name+order))]
@@ -357,59 +363,57 @@
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
   (let [model-node-id _node-id
-        mesh-id? (set mesh-material-ids)
-        proto-ids (into #{} (map :name) material-binding-infos)
-        new-props (-> []
-                      ;; existing materials / textures:
-                      (into
-                        (mapcat
-                          (fn [{:keys [_node-id material name texture-binding-infos]}]
-                            (let [should-be-deleted (not (mesh-id? name))]
-                              (into [[(keyword (str "__material__" name))
-                                      (cond-> {:node-id _node-id
-                                               :label name
-                                               :type resource/Resource
-                                               :value (cond-> material should-be-deleted (or fake-resource))
-                                               :error (or
-                                                        (when should-be-deleted
-                                                          (g/->error _node-id :materials :warning material
-                                                                     (format "'%s' is not defined in the mesh. Clear the field to delete it."
-                                                                             name)))
-                                                        (prop-resource-error :fatal _node-id :materials material "Material"))
-                                               :prop-kw :material
-                                               :edit-type {:type resource/Resource
-                                                           :ext "material"
-                                                           :clear-fn (fn [_ _]
-                                                                       (remove-material model-node-id name))}}
-                                              should-be-deleted
-                                              (assoc :original-value fake-resource))]]
-                                    (map (fn [{:keys [_node-id sampler-name image-resource]}]
-                                           [(keyword (str "__sampler__" sampler-name "__" name))
-                                            {:node-id _node-id
-                                             :label sampler-name
-                                             :type resource/Resource
-                                             :value image-resource
-                                             :prop-kw :image-resource
-                                             :edit-type {:type resource/Resource
-                                                         :ext (conj image/exts "cubemap")}}]))
-                                    texture-binding-infos))))
-                        material-binding-infos)
-                      ;; required materials that are not defined:
-                      (into
-                        (comp
-                          (remove proto-ids)
-                          (map (fn [id-to-add]
-                                 [(keyword (str "__material__" id-to-add))
-                                  {:node-id _node-id
-                                   :label id-to-add
-                                   :value nil
-                                   :type resource/Resource
-                                   :error (prop-resource-error :fatal _node-id :material nil "Material")
-                                   :edit-type {:type resource/Resource
-                                               :ext "material"
-                                               :set-fn (fn [_evaluation-context id _old new]
-                                                         (add-material id id-to-add new))}}])))
-                        mesh-material-ids))]
+        mesh-material-names (if (g/error-value? mesh-material-ids) #{} (set mesh-material-ids))
+        proto-material-name->material-binding-info (into {} (map (juxt :name identity)) material-binding-infos)
+        proto-material-names (into #{} (map :name) material-binding-infos)
+        all-material-names (set/union mesh-material-names proto-material-names)
+        new-props
+        (into []
+              (mapcat
+                (fn [material-name]
+                  (if-let [{:keys [_node-id material name texture-binding-infos]} (proto-material-name->material-binding-info material-name)]
+                    ;; material exists
+                    (let [should-be-deleted (not (mesh-material-names name))]
+                      (into [[(keyword (str "__material__" name))
+                              (cond-> {:node-id _node-id
+                                       :label name
+                                       :type resource/Resource
+                                       :value (cond-> material should-be-deleted (or fake-resource))
+                                       :error (or
+                                                (when should-be-deleted
+                                                  (g/->error _node-id :materials :warning material
+                                                             (format "'%s' is not defined in the mesh. Clear the field to delete it."
+                                                                     name)))
+                                                (prop-resource-error :fatal _node-id :materials material "Material"))
+                                       :prop-kw :material
+                                       :edit-type {:type resource/Resource
+                                                   :ext "material"
+                                                   :clear-fn (fn [_ _]
+                                                               (remove-material model-node-id name))}}
+                                      should-be-deleted
+                                      (assoc :original-value fake-resource))]]
+                            (map (fn [{:keys [_node-id sampler-name image]}]
+                                   [(keyword (str "__sampler__" sampler-name "__" name))
+                                    {:node-id _node-id
+                                     :label sampler-name
+                                     :type resource/Resource
+                                     :value image
+                                     :prop-kw :image
+                                     :edit-type {:type resource/Resource
+                                                 :ext (conj image/exts "cubemap")}}]))
+                            texture-binding-infos))
+                    ;; material does not exist
+                    [[(keyword (str "__material__" material-name))
+                      {:node-id _node-id
+                       :label material-name
+                       :value nil
+                       :type resource/Resource
+                       :error (prop-resource-error :fatal _node-id :material nil "Material")
+                       :edit-type {:type resource/Resource
+                                   :ext "material"
+                                   :set-fn (fn [_evaluation-context id _old new]
+                                             (add-material id material-name new))}}]])))
+              (sort all-material-names))]
     (-> _declared-properties
         (update :properties into new-props)
         (update :display-order into (map first) new-props))))
@@ -444,13 +448,13 @@
                 {:name name
                  :material material
                  :textures (mapv
-                             (fn [{:keys [sampler-name image-resource]}]
+                             (fn [{:keys [sampler-name image]}]
                                {:sampler sampler-name
-                                :texture image-resource})
+                                :texture image})
                              texture-binding-infos)})
               material-binding-infos)))
   (input scene g/Any)
-  (input scene-infos g/Any :array)
+  (input material-scene-infos g/Any :array)
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]

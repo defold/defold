@@ -10,6 +10,6 @@ vertex_constants {
   name: "world"
   type: CONSTANT_TYPE_WORLD
 }
-textures: "tex0"
-textures: "tex1"
-textures: "tex2"
+textures: "diffuse"
+textures: "normal"
+textures: "specular"
