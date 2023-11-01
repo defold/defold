@@ -555,7 +555,7 @@ namespace dmGraphics
         RenderPassAttachment* attachment_resolve = 0;
         attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
         attachments[0].m_ImageLayout = context->m_SwapChain->HasMultiSampling() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        attachments[0].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[0].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_LOAD;
         attachments[0].m_StoreOp     = VK_ATTACHMENT_STORE_OP_STORE;
 
         attachments[1].m_Format      = depth_stencil_texture->m_Format;
@@ -4651,6 +4651,12 @@ bail:
         context->m_CurrentVertexDeclaration[binding] = 0;
     }
 
+    void VulkanSetPipelineState(HContext _context, PipelineState ps)
+    {
+        VulkanContext* context     = (VulkanContext*) _context;
+        context->m_PipelineState   = ps;
+        context->m_ViewportChanged = 1;
+    }
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
