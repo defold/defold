@@ -55,8 +55,8 @@ namespace dmEngineService
 
     struct ResourceHandlerParams
     {
-        void*     m_Factory;
-        void*     m_Regist;
+        dmResource::HFactory      m_Factory;
+        dmGameObject::HRegister   m_Regist;
     };
 }
 

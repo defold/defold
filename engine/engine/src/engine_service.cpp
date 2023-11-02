@@ -636,11 +636,11 @@ namespace dmEngineService
         return SendResourceData(request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount);
     }
 
-    static bool DynamicTextureIteratorFunction(dmhash_t gui_id, dmhash_t name_hash, uint32_t size, void* user_ctx)
+    static bool DynamicTextureIteratorFunction(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx)
     {
         dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
         const char* texture_name = dmHashReverseSafe64(name_hash);
-        const char* gui_name = dmHashReverseSafe64(gui_id);
+        const char* gui_name = dmHashReverseSafe64(gui_res_id);
         char full_name[512];
         dmSnPrintf(full_name, sizeof(full_name), "%s\n%s", gui_name, texture_name);
         return SendResourceData(request, &full_name[0], "GuiDynamicTexture", size, 0, 1);
@@ -690,13 +690,11 @@ namespace dmEngineService
             return;
         }
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
-        dmResource::HFactory factory = (dmResource::HFactory)params->m_Factory;
-        dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
+        dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
 
         // Collect dynamic textures from gui
-        dmGameObject::HRegister regist = (dmGameObject::HRegister)params->m_Regist;
         dmGameObject::SceneNode root;
-        if (!dmGameObject::TraverseGetRoot(regist, &root))
+        if (!dmGameObject::TraverseGetRoot(params->m_Regist, &root))
         {
             return;
         }

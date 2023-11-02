@@ -2827,10 +2827,10 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
     }
 
-    void IterateDynamicTextures(dmhash_t gui_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx)
+    void IterateDynamicTextures(dmhash_t gui_res_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx)
     {
         GuiComponent* component = (GuiComponent*)node->m_Component;
-        IterateDynamicTextures(gui_id, component->m_Scene, callback, user_ctx);
+        IterateDynamicTextures(gui_res_id, component->m_Scene, callback, user_ctx);
     }
 
     template <typename T2>

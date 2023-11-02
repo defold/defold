@@ -32,9 +32,9 @@ namespace dmGameSystem
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
     void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
-    // Used only for engine_service.cpp for resource profiling
-    typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
-    void IterateDynamicTextures(dmhash_t gui_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx);
+    // Used only in engine_service.cpp for resource profiling
+    typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
+    void IterateDynamicTextures(dmhash_t gui_res_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H
