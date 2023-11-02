@@ -36,8 +36,9 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")
           original-materials (test-util/prop node-id :materials)
-          original-texture (get-in original-materials [0 :textures 0 :texture])]
-      (test-util/prop! node-id :materials (assoc-in original-materials [0 :textures 0 :texture] original-texture))
+          original-texture (get-in original-materials [0 :textures 0 :texture])
+          texture-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :texture-binding-infos 0 :_node-id])]
+      (test-util/prop! texture-binding-id :image original-texture)
       (is (= original-materials (test-util/prop node-id :materials)))
       (let [p (-> (properties/coalesce [(g/node-value node-id :_properties)])
                   :properties
@@ -51,19 +52,18 @@
         (is (g/node-value node-id :dirty?))
         (is (= #{"tex_foo" "tex_bar" "tex_baz"}
                (->> (g/node-value node-id :resource)
-                    slurp
-                    (protobuf/str->map ModelProto$ModelDesc)
+                    (protobuf/read-text ModelProto$ModelDesc)
                     :materials
-                    (eduction
-                      (mapcat :textures)
-                      (map :sampler))
-                    (into #{}))))
+                    (into #{}
+                          (comp
+                            (mapcat :textures)
+                            (map :sampler))))))
         (is (= #{"tex0" "tex1" "tex2"}
-               (->> (g/node-value node-id :materials)
-                    (eduction
-                      (mapcat :textures)
-                      (map :sampler))
-                    (into #{}))))))))
+               (into #{}
+                     (comp
+                       (mapcat :textures)
+                       (map :sampler))
+                     (g/node-value node-id :materials))))))))
 
 (deftest animations
   (test-util/with-loaded-project
@@ -92,11 +92,10 @@
 
       (testing "at least 1 material is required"
         (is (not (g/error-value? (g/node-value node-id :build-targets))))
-        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
-          (test-util/with-prop [node-id :materials [{:name "default"
-                                                     :material v
-                                                     :textures []}]]
-            (is (g/error-value? (g/node-value node-id :build-targets))))))
+        (let [material-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+          (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+            (test-util/with-prop [material-binding-id :material v]
+              (is (g/error-value? (g/node-value node-id :build-targets)))))))
 
       (testing "default-animation should be empty string or a valid animation"
         (is (nil? (test-util/prop-error node-id :animations)))

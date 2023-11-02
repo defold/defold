@@ -307,42 +307,16 @@
                                           (assoc info :texture-binding-infos [])
                                           info))))
 
-(defn- update-materials [evaluation-context self old-value new-value]
-  (when-let [{:keys [added removed changed renamed]} (util/order-agnostic-diff-by-map-key old-value new-value :name)]
-    (let [old-material-binding-infos (g/node-value self :material-binding-infos evaluation-context)
-          old-material-binding-name+order->info (util/multi-index-by-map-key old-material-binding-infos :name)]
-      (concat
-        (for [[[name] {:keys [material textures]}] added]
-          (g/make-nodes (g/node-id->graph-id self) [binding [MaterialBinding :name name]]
-            ;; We need to ensure material is applied first, so we don't lose the textures
-            ;; since model sampler names are matched against the material-defined samplers
-            (g/set-property binding :material material)
-            (g/set-property binding :textures textures)
-            (g/connect binding :_node-id self :nodes)
-            (g/connect binding :dep-build-targets self :dep-build-targets)
-            (g/connect binding :material-scene-info self :material-scene-infos)
-            (g/connect binding :material-binding-info self :material-binding-infos)))
-        (for [[old-material-binding-name+order [_ {:keys [material textures]}]] changed
-              :let [binding (:_node-id (old-material-binding-name+order->info old-material-binding-name+order))]
-              tx [(g/set-property binding :material material)
-                  (g/set-property binding :textures textures)]]
-          tx)
-        (for [[old-material-binding-name+order [new-material-binding-name]] renamed]
-          (g/set-property (:_node-id (old-material-binding-name+order->info old-material-binding-name+order))
-            :name new-material-binding-name))
-        (for [[material-binding-name+order] removed]
-          (g/delete-node (:_node-id (old-material-binding-name+order->info material-binding-name+order))))))))
-
-(defn- add-material [model-node-id material-name material-resource]
-  (g/update-property model-node-id :materials conj {:name material-name
-                                                    :material material-resource
-                                                    :textures []}))
-
-(defn- remove-material [model-node-id material-name]
-  (g/update-property model-node-id
-                     :materials
-                     (fn [materials]
-                       (filterv #(not= material-name (:name %)) materials))))
+(defn- create-material-binding-tx [model-node-id name material textures]
+  (g/make-nodes (g/node-id->graph-id model-node-id) [binding [MaterialBinding :name name]]
+    ;; We need to ensure material is applied first, so we don't lose the textures
+    ;; since model sampler names are matched against the material-defined samplers
+    (g/set-property binding :material material)
+    (g/set-property binding :textures textures)
+    (g/connect binding :_node-id model-node-id :nodes)
+    (g/connect binding :dep-build-targets model-node-id :dep-build-targets)
+    (g/connect binding :material-scene-info model-node-id :material-scene-infos)
+    (g/connect binding :material-binding-info model-node-id :material-binding-infos)))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -389,7 +363,7 @@
                                        :edit-type {:type resource/Resource
                                                    :ext "material"
                                                    :clear-fn (fn [_ _]
-                                                               (remove-material model-node-id name))}}
+                                                               (g/delete-node _node-id))}}
                                       should-be-deleted
                                       (assoc :original-value fake-resource))]]
                             (map (fn [{:keys [_node-id sampler-name image]}]
@@ -411,8 +385,8 @@
                        :error (prop-resource-error :fatal _node-id :material nil "Material")
                        :edit-type {:type resource/Resource
                                    :ext "material"
-                                   :set-fn (fn [_evaluation-context id _old new]
-                                             (add-material id material-name new))}}]])))
+                                   :set-fn (fn [_evaluation-context _id _old new]
+                                             (create-material-binding-tx model-node-id material-name new []))}}]])))
               (sort all-material-names))]
     (-> _declared-properties
         (update :properties into new-props)
@@ -435,13 +409,8 @@
                                   (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types})))
-  (property materials Materials
-            (value (gu/passthrough materials-value))
-            (set (fn [evaluation-context self old-value new-value]
-                   (update-materials evaluation-context self old-value new-value)))
-            (dynamic visible (g/constantly false)))
   (input material-binding-infos g/Any :array)
-  (output materials-value Materials :cached
+  (output materials Materials :cached
           (g/fnk [material-binding-infos]
             (mapv
               (fn [{:keys [name material texture-binding-infos]}]
@@ -524,19 +493,19 @@
   (output _properties g/Properties :cached produce-model-properties))
 
 (defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials]}]
-  (g/set-property self
-    :name name
-    :default-animation default-animation
-    :mesh (workspace/resolve-resource resource mesh)
-    :materials (mapv (fn [{:keys [material textures] :as material-desc}]
-                       (assoc material-desc
-                         :material (workspace/resolve-resource resource material)
-                         :textures (mapv (fn [{:keys [texture] :as texture-desc}]
-                                           (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
-                                         textures)))
-                     materials)
-    :skeleton (workspace/resolve-resource resource skeleton)
-    :animations (workspace/resolve-resource resource animations)))
+  (concat
+    (g/set-property self
+      :name name
+      :default-animation default-animation
+      :mesh (workspace/resolve-resource resource mesh)
+      :skeleton (workspace/resolve-resource resource skeleton)
+      :animations (workspace/resolve-resource resource animations))
+    (for [{:keys [name material textures]} materials
+          :let [material (workspace/resolve-resource resource material)
+                textures (mapv (fn [{:keys [texture] :as texture-desc}]
+                                 (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
+                               textures)]]
+      (create-material-binding-tx self name material textures))))
 
 (defn- sanitize-model [{:keys [material textures materials] :as pb}]
   (-> pb
