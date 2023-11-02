@@ -42,10 +42,15 @@ choco install openjdk17
 
 <details><summary>Linux...</summary><p>
   
-Or install from apt-get:
+Or install using `apt-get`:
 
 ```
 > sudo apt-get install openjdk-17-jdk
+```
+
+Or install using `dnf`:
+```
+> sudo dnf install java-17-openjdk-devel
 ```
 </p></details>
 
@@ -217,7 +222,7 @@ Download and install using `apt-get`:
 
 Download and install using `dnf`:
 ```
-> sudo dnf install java-17-openjdk-devel python3-pip python3-cffi python3-setuptools openssl-devel openssl libtool autoconf automake gcc gcc-c++ clang glibc-devel make libuuid-devel libXi-devel openal-soft-devel mesa-libGL-devel mesa-libGLw-devel freeglut-devel ncurses-devel ncurses-compat-libs
+> sudo dnf install python3-pip python3-cffi python3-setuptools openssl-devel openssl libtool autoconf automake gcc gcc-c++ clang glibc-devel make libuuid-devel libXi-devel openal-soft-devel mesa-libGL-devel mesa-libGLw-devel freeglut-devel ncurses-devel ncurses-compat-libs
 ```
 </p></details>
 
