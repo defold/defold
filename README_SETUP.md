@@ -95,7 +95,12 @@ choco install python
 </p></details>
 
 <details><summary>Linux...</summary><p>
-  
+
+On some systems, you may need to configure the `python` command to default to Python 3:
+```
+> sudo alternatives --install /usr/bin/python python /usr/bin/python3 1
+```
+
 You also need `easy_install` to install additional packages.
 </p></details>
 
