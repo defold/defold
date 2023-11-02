@@ -214,6 +214,11 @@ Download and install using `apt-get`:
 ```sh
 > sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev libncurses5
 ```
+
+Download and install using `dnf`:
+```
+> sudo dnf install java-17-openjdk-devel python3-pip python3-cffi python3-setuptools openssl-devel openssl libtool autoconf automake gcc gcc-c++ clang glibc-devel make libuuid-devel libXi-devel openal-soft-devel mesa-libGL-devel mesa-libGLw-devel freeglut-devel ncurses-devel ncurses-compat-libs
+```
 </p></details>
 
 ---
