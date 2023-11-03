@@ -113,6 +113,31 @@
     {"binary_values" :runtime-only
      "name_hash" :runtime-only}}
 
+   'dmGuiDDF.NodeDesc
+   {["gui" "nodes" "[TYPE_BOX]"]
+    {"custom_type" :unused
+     "font" :unused
+     "innerRadius" :unused
+     "line_break" :unused
+     "outerBounds" :unused
+     "outline" :unused
+     "outline_alpha" :unused
+     "overridden_fields" :unused
+     "particlefx" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "shadow" :unused
+     "shadow_alpha" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "template" :unused
+     "text" :unused
+     "text_leading" :unused
+     "text_tracking" :unused
+     "type" :allowed-default}}
+
    'dmGuiDDF.SceneDesc
    {:default
     {"spine_scenes" :deprecated}} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
@@ -132,8 +157,9 @@
    'dmMath.Vector4
    (into {}
          (map #(pair % {"w" :padding}))
-         #{["label" "size"]
-           ["sprite" "size"]})
+         [["gui" "nodes" "[TYPE_BOX]" "color"]
+          ["label" "size"]
+          ["sprite" "size"]])
 
    'dmModelDDF.ModelDesc
    {:default
@@ -163,7 +189,7 @@
 
 (s/def ::class-java-symbol symbol?)
 (s/def ::resource-type-ext (s/and string? valid-resource-ext?))
-(s/def ::ignore-reason #{:deprecated :padding :runtime-only :unimplemented :unused})
+(s/def ::ignore-reason #{:allowed-default :deprecated :padding :runtime-only :unimplemented :unused})
 
 (s/def ::setting-path-token (s/and string? setting-valid-path-token?))
 (s/def ::setting-path (s/coll-of ::setting-path-token :kind vector?))
