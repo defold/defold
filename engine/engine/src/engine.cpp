@@ -1346,6 +1346,7 @@ bail:
     {
         Engine* engine = (Engine*)user_data;
         int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+        window_height -= 1; // mouse position uses [0; size - 1] instead of [1, size]
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
