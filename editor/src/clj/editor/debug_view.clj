@@ -47,7 +47,7 @@
 (def ^:private break-label "Break")
 (def ^:private continue-label "Continue")
 (def ^:private detach-debugger-label "Detach Debugger")
-(def ^:private start-debugger-label "Start / Attach")
+(def ^:private start-debugger-label "Start/Attach")
 (def ^:private step-into-label "Step Into")
 (def ^:private step-out-label "Step Out")
 (def ^:private step-over-label "Step Over")
