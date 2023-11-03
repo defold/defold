@@ -52,6 +52,10 @@
 (def ^:private pb-type-field-names
   {'dmGuiDDF.NodeDesc "type"})
 
+;; TODO: Add type fields from all union protobuf types.
+
+;; TODO: Why isn't "nodes -> [TYPE_TEXT] -> template_node_child" reported as missing?
+
 (def ^:private pb-ignored-fields
   {'dmGameObjectDDF.CollectionDesc
    {:default
@@ -125,7 +129,6 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :unused
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -139,7 +142,109 @@
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
-     "type" :allowed-default}}
+     "type" :allowed-default}
+
+    ["gui" "nodes" "[TYPE_PIE]"]
+    {"custom_type" :unused
+     "font" :unused
+     "line_break" :unused
+     "outline" :unused
+     "outline_alpha" :unused
+     "particlefx" :unused
+     "shadow" :unused
+     "shadow_alpha" :unused
+     "slice9" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "template" :unused
+     "text" :unused
+     "text_leading" :unused
+     "text_tracking" :unused}
+
+    ["gui" "nodes" "[TYPE_TEXT]"]
+    {"clipping_inverted" :unused
+     "clipping_mode" :unused
+     "clipping_visible" :unused
+     "custom_type" :unused
+     "innerRadius" :unused
+     "outerBounds" :unused
+     "particlefx" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "size_mode" :unused
+     "slice9" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "template" :unused
+     "texture" :unused}
+
+    ["gui" "nodes" "[TYPE_TEMPLATE]"]
+    {"adjust_mode" :unused
+     "blend_mode" :unused
+     "clipping_inverted" :unused
+     "clipping_mode" :unused
+     "clipping_visible" :unused
+     "custom_type" :unused
+     "font" :unused
+     "innerRadius" :unused
+     "line_break" :unused
+     "material" :unused
+     "outerBounds" :unused
+     "outline" :unused
+     "outline_alpha" :unused
+     "particlefx" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "pivot" :unused
+     "shadow" :unused
+     "shadow_alpha" :unused
+     "size" :unused
+     "size_mode" :unused
+     "slice9" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "text" :unused
+     "text_leading" :unused
+     "text_tracking" :unused
+     "texture" :unused
+     "visible" :unused
+     "xanchor" :unused
+     "yanchor" :unused}
+
+    ["gui" "nodes" "[TYPE_PARTICLEFX]"]
+    {"blend_mode" :unused
+     "clipping_inverted" :unused
+     "clipping_mode" :unused
+     "clipping_visible" :unused
+     "custom_type" :unused
+     "font" :unused
+     "innerRadius" :unused
+     "line_break" :unused
+     "outerBounds" :unused
+     "outline" :unused
+     "outline_alpha" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "pivot" :unused
+     "shadow" :unused
+     "shadow_alpha" :unused
+     "size" :unused
+     "slice9" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "template" :unused
+     "text" :unused
+     "text_leading" :unused
+     "text_tracking" :unused
+     "texture" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
@@ -455,7 +560,7 @@
               (pos? (count field-frequencies))
               (assoc type-token field-frequencies)))))
 
-(defmulti value-path-frequencies (fn [resource] (-> resource resource/resource-type :test-info :type)))
+(defmulti ^:private value-path-frequencies (fn [resource] (-> resource resource/resource-type :test-info :type)))
 
 (defmethod value-path-frequencies :code [resource]
   {["lines"] (if (string/blank? (slurp resource)) 0 1)})
