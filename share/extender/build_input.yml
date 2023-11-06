@@ -114,10 +114,11 @@ platforms:
 
   osx:
     env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_13_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
@@ -192,10 +193,11 @@ platforms:
 
   arm64-ios:
     env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_16_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
@@ -239,8 +241,8 @@ platforms:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_16_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
