@@ -380,7 +380,6 @@ def build_bob(channel, branch = None):
     args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
-    opts.extend(create_gcloud_code_signing_options(gcloud_keyfile, gcloud_certfile))
 
     cmd = ' '.join(args + opts)
     call(cmd)
