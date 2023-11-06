@@ -216,6 +216,7 @@ namespace dmGraphics
         TEXTURE_USAGE_HINT_SAMPLE     = 1,
         TEXTURE_USAGE_HINT_MEMORYLESS = 2,
         TEXTURE_USAGE_HINT_INPUT      = 4,
+        TEXTURE_USAGE_HINT_COLOR      = 8,
     };
 
     struct TextureCreationParams

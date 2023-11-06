@@ -259,6 +259,16 @@ namespace dmGraphics
 
         for (uint32_t i=0; i < swap_chain_image_count; i++)
         {
+            /*
+            res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
+                    swapChain->m_Images[i],
+                    VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PREINITIALIZED);
+            */
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
             VkImageViewCreateInfo vk_create_info_image_view;
             memset((void*)&vk_create_info_image_view, 0, sizeof(vk_create_info_image_view));
 

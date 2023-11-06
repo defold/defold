@@ -146,7 +146,7 @@ namespace dmGraphics
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.descriptorSetCount = setCount;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
         vk_descriptor_set_alloc.descriptorPool     = pool.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
@@ -834,6 +834,11 @@ bail:
             attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_color.finalLayout    = colorAttachments[i].m_ImageLayout;
 
+            if (colorAttachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            {
+                attachment_color.initialLayout = colorAttachments[i].m_ImageLayoutInitial;
+            }
+
             VkAttachmentReference& ref = vk_attachment_color_ref[i];
             ref.attachment = i;
             ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -1185,12 +1190,12 @@ bail:
             handle->m_PipelineLayout = VK_NULL_HANDLE;
         }
 
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        for (int i = 0; i < handle->m_DescriptorSetLayoutsCount; ++i)
         {
-            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            if (handle->m_DescriptorSetLayouts[i] != VK_NULL_HANDLE)
             {
-                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
-                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayouts[i], 0);
+                handle->m_DescriptorSetLayouts[i] = VK_NULL_HANDLE;
             }
         }
     }

@@ -26,6 +26,10 @@ namespace dmGraphics
 
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
         VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+        #if defined(DM_EXPERIMENTAL_GRAPHICS_FEATURES)
+            // TODO: This should be configurable
+            VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME,
+        #endif
     #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
         VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_XCB_KHR)

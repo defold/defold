@@ -553,10 +553,18 @@ namespace dmGraphics
         // Create main render pass with two attachments
         RenderPassAttachment  attachments[3];
         RenderPassAttachment* attachment_resolve = 0;
-        attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
-        attachments[0].m_ImageLayout = context->m_SwapChain->HasMultiSampling() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        attachments[0].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_LOAD;
-        attachments[0].m_StoreOp     = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[0].m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
+        attachments[0].m_ImageLayout        = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        attachments[0].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
+
+        if (context->m_SwapChain->HasMultiSampling())
+        {
+            attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachments[0].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachments[0].m_ImageLayout        = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
 
         attachments[1].m_Format      = depth_stencil_texture->m_Format;
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -566,10 +574,11 @@ namespace dmGraphics
         // Set third attachment as framebuffer resolve attachment
         if (context->m_SwapChain->HasMultiSampling())
         {
-            attachments[2].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
-            attachments[2].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-            attachments[2].m_LoadOp      = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachments[2].m_StoreOp     = VK_ATTACHMENT_STORE_OP_STORE;
+            attachments[2].m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
+            attachments[2].m_ImageLayout        = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            attachments[2].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachments[2].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[2].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
             attachment_resolve = &attachments[2];
         }
@@ -1501,7 +1510,14 @@ bail:
 
     static HVertexBuffer VulkanNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        VkBufferUsageFlags usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        if (buffer_usage & BUFFER_USAGE_TRANSFER)
+        {
+            usage_flags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            usage_flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        }
+
+        DeviceBuffer* buffer = new DeviceBuffer(usage_flags);
 
         if (size > 0)
         {
@@ -1565,7 +1581,14 @@ bail:
 
     static HIndexBuffer VulkanNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        VkBufferUsageFlags usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if (buffer_usage & BUFFER_USAGE_TRANSFER)
+        {
+            usage_flags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            usage_flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        }
+
+        DeviceBuffer* buffer = new DeviceBuffer(usage_flags);
 
         if (size > 0)
         {
@@ -1898,6 +1921,8 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE    ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_TEXTURE2D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D      ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_UIMAGE2D        ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D         ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
     }
 
@@ -1907,9 +1932,11 @@ bail:
         {
             case ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
+            case ShaderDesc::SHADER_TYPE_IMAGE2D:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
+            case ShaderDesc::SHADER_TYPE_UIMAGE2D:
             case ShaderDesc::SHADER_TYPE_UTEXTURE2D:      return context->m_DefaultTexture2D32UI;
             default:break;
         }
@@ -1918,7 +1945,8 @@ bail:
 
     static void UpdateDescriptorSets(
         VkDevice            vk_device,
-        VkDescriptorSet     vk_descriptor_set,
+        VkDescriptorSet*    vk_descriptor_sets,
+        uint32_t            vk_descriptor_sets_count,
         Program*            program,
         Program::ModuleType module_type,
         ScratchBuffer*      scratch_buffer,
@@ -1966,7 +1994,7 @@ bail:
             VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
             vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext            = 0;
-            vk_write_desc_info.dstSet           = vk_descriptor_set;
+            vk_write_desc_info.dstSet           = vk_descriptor_sets[res.m_Set];
             vk_write_desc_info.dstBinding       = res.m_Binding;
             vk_write_desc_info.dstArrayElement  = 0;
             vk_write_desc_info.descriptorCount  = 1;
@@ -2065,12 +2093,25 @@ bail:
         }
 
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, num_descriptors, &vk_descriptor_set_list);
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayouts, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, num_descriptors, &vk_descriptor_set_list);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
+        UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, program_ptr,
+            Program::MODULE_TYPE_VERTEX, scratch_buffer,
+            alignment, dynamic_offsets);
+        UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, program_ptr,
+            Program::MODULE_TYPE_FRAGMENT, scratch_buffer,
+            alignment, dynamic_offsets);
+
+        vkCmdBindDescriptorSets(vk_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
+            0, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, vk_descriptor_set_list,
+            num_uniform_buffers, dynamic_offsets);
+
+        /*
         VkDescriptorSet vs_set = vk_descriptor_set_list[Program::MODULE_TYPE_VERTEX];
         VkDescriptorSet fs_set = vk_descriptor_set_list[Program::MODULE_TYPE_FRAGMENT];
 
@@ -2085,6 +2126,7 @@ bail:
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
             0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
             num_uniform_buffers, dynamic_offsets);
+        */
 
         return VK_SUCCESS;
     }
@@ -2296,7 +2338,6 @@ bail:
                 res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
                 res.m_NameHash             = ddf->m_Resources[i].m_NameHash;
 
-                assert(res.m_Set <= 1);
                 if (IsUniformTextureSampler(res))
                 {
                     res.m_TextureUnit = texture_sampler_count;
@@ -2497,6 +2538,7 @@ bail:
         vk_set_create_info.pBindings    = vk_descriptor_set_bindings;
         vk_set_create_info.bindingCount = compute_module->m_TotalUniformCount;
 
+        /*
         vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
             &vk_set_create_info, 0, &program->m_Handle.m_DescriptorSetLayout[0]);
 
@@ -2508,6 +2550,164 @@ bail:
 
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
         delete[] vk_descriptor_set_bindings;
+        */
+    }
+
+    /*
+    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
+        uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
+        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
+    {
+        uint32_t byte_offset         = byte_offset_base;
+        uint32_t num_uniform_buffers = 0;
+        for(uint32_t i=0; i < module->m_Uniforms.Size(); i++)
+        {
+            // Process uniform data size
+            ShaderResourceBinding& res = module->m_Uniforms[i];
+            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
+
+            // Process samplers
+            VkDescriptorType vk_descriptor_type;
+
+            // Texture samplers don't need to allocate any memory
+            if (IsUniformTextureSampler(res))
+            {
+                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+                {
+                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+                }
+                else
+                {
+                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                }
+            }
+            else
+            {
+                assert(num_uniform_buffers < byte_offset_list_size);
+                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
+                byte_offset                                 += res.m_DataSize;
+                vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                num_uniform_buffers++;
+            }
+
+            // Process descriptor layout
+            VkDescriptorSetLayoutBinding& vk_desc = vk_bindings_out[i];
+            vk_desc.binding                       = module->m_Uniforms[i].m_Binding;
+            vk_desc.descriptorType                = vk_descriptor_type;
+            vk_desc.descriptorCount               = 1;
+            vk_desc.stageFlags                    = vk_stage_flag;
+            vk_desc.pImmutableSamplers            = 0;
+        }
+
+        *byte_offset_end_out = byte_offset;
+    }
+    */
+
+    struct DescriptorSetResources
+    {
+        dmArray<VkDescriptorSetLayoutBinding>* m_Bindings;
+        VkDescriptorSetLayoutCreateInfo        m_CreateInfo;
+        uint8_t                                m_SetIndex;
+    };
+
+    static VkDescriptorSetLayoutBinding* FindDescriptorBinding(DescriptorSetResources* resources, uint32_t set, uint32_t binding)
+    {
+        if (resources->m_SetIndex == (uint8_t) set)
+        {
+            for (int i = 0; i < resources->m_Bindings->Size(); ++i)
+            {
+                if (resources->m_Bindings->Begin()[i].binding == binding)
+                {
+                    return &resources->m_Bindings->Begin()[i];
+                }
+            }
+        }
+        return 0x0;
+    }
+
+    static DescriptorSetResources* GetDescriptorSetResources(dmArray<DescriptorSetResources>& sets, uint8_t set)
+    {
+        for (int i = 0; i < sets.Size(); ++i)
+        {
+            if (sets[i].m_SetIndex == set)
+            {
+                return &sets[i];
+            }
+        }
+        return 0;
+    }
+
+    static void FillDescriptorSets(ShaderModule* module, dmArray<DescriptorSetResources>& sets, VkShaderStageFlags stage_flag,
+        uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t* byte_offset_end_out)
+    {
+        uint32_t byte_offset         = byte_offset_base;
+        uint32_t num_uniform_buffers = 0;
+
+        dmLogInfo("FillDescriptorSets");
+
+        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+        {
+            ShaderResourceBinding& res = module->m_Uniforms[i];
+            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
+
+            dmLogInfo("  set_count= %d", sets.Size());
+            dmLogInfo("SET=%d, BINDING=%d", res.m_Set, res.m_Binding);
+
+            DescriptorSetResources* set = GetDescriptorSetResources(sets, res.m_Set);
+
+            if (set == 0x0)
+            {
+                sets.OffsetCapacity(1);
+                DescriptorSetResources new_set = {};
+                new_set.m_Bindings = new dmArray<VkDescriptorSetLayoutBinding>();
+                new_set.m_SetIndex = res.m_Set;
+                sets.Push(new_set);
+                set = &sets[sets.Size()-1];
+            }
+
+            if (FindDescriptorBinding(set, res.m_Set, res.m_Binding))
+            {
+                dmLogInfo("Binding found!");
+                continue;
+            }
+
+            if (set->m_Bindings->Full())
+            {
+                set->m_Bindings->OffsetCapacity(4);
+            }
+
+            VkDescriptorType vk_descriptor_type;
+
+            if (IsUniformTextureSampler(res))
+            {
+                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+                {
+                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+                }
+                else
+                {
+                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                }
+            }
+            else
+            {
+                vk_descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+
+                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
+                byte_offset                                 += res.m_DataSize;
+            }
+                
+            VkDescriptorSetLayoutBinding binding = {};
+            binding.binding            = module->m_Uniforms[i].m_Binding;
+            binding.descriptorType     = vk_descriptor_type;
+            binding.descriptorCount    = 1;
+            binding.stageFlags         = stage_flag;
+            binding.pImmutableSamplers = 0;
+
+            set->m_Bindings->Push(binding);
+        }
+
+        *byte_offset_end_out = byte_offset;
     }
 
     static void CreateGraphicsProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
@@ -2552,6 +2752,57 @@ bail:
         const uint32_t num_uniforms = vertex_module->m_Uniforms.Size() + fragment_module->m_Uniforms.Size();
         if (num_uniforms > 0)
         {
+            const uint32_t num_buffers = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
+
+            if (num_buffers > 0)
+            {
+                program->m_UniformDataOffsets = new uint32_t[num_buffers];
+            }
+
+            uint32_t vs_last_offset = 0;
+            uint32_t fs_last_offset = 0;
+
+            dmArray<DescriptorSetResources> descriptor_sets;
+            FillDescriptorSets(vertex_module,   descriptor_sets, VK_SHADER_STAGE_VERTEX_BIT, 0, program->m_UniformDataOffsets, &vs_last_offset);
+            FillDescriptorSets(fragment_module, descriptor_sets, VK_SHADER_STAGE_FRAGMENT_BIT, vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], &fs_last_offset);
+
+            uint32_t uniform_size  = vs_last_offset + fs_last_offset;
+            program->m_UniformData = new uint8_t[uniform_size];
+            memset(program->m_UniformData, 0, uniform_size);
+
+            uint32_t num_sets = descriptor_sets.Size();
+
+            VkDescriptorSetLayoutCreateInfo* set_create_info = new VkDescriptorSetLayoutCreateInfo[num_sets];
+            memset(set_create_info, 0, sizeof(VkDescriptorSetLayoutCreateInfo) * num_sets);
+
+            program->m_Handle.m_DescriptorSetLayoutsCount = num_sets;
+            program->m_Handle.m_DescriptorSetLayouts      = new VkDescriptorSetLayout[num_sets];
+
+            for (int i = 0; i < num_sets; ++i)
+            {
+                set_create_info[i].sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+                set_create_info[i].pBindings    = descriptor_sets[i].m_Bindings->Begin();
+                set_create_info[i].bindingCount = descriptor_sets[i].m_Bindings->Size();
+
+                vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device, &set_create_info[i], 0, &program->m_Handle.m_DescriptorSetLayouts[i]);
+            }
+
+            VkPipelineLayoutCreateInfo vk_layout_create_info;
+            memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
+            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            vk_layout_create_info.setLayoutCount = program->m_Handle.m_DescriptorSetLayoutsCount;
+            vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
+
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+
+            for (int i = 0; i < num_sets; ++i)
+            {
+                delete descriptor_sets[i].m_Bindings;
+            }
+
+            delete[] set_create_info;
+
+            /*
             VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
             const uint32_t num_buffers  = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
 
@@ -2570,9 +2821,21 @@ bail:
                 vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
                 &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()]);
 
-            program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
-            memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
+            uint32_t uniform_size = vs_last_offset + fs_last_offset;
 
+            program->m_UniformData = new uint8_t[uniform_size];
+            memset(program->m_UniformData, 0, uniform_size);
+
+            uint32_t num_sets = vertex_module->m_SetCount + fragment_module->m_SetCount;
+
+            VkDescriptorSetLayoutCreateInfo* vk_set_create_info = new VkDescriptorSetLayoutCreateInfo[num_sets];
+            memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
+
+            delete[] vk_set_create_info;
+            delete[] vk_descriptor_set_bindings;
+            */
+
+            /*
             VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
             memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
             vk_set_create_info[Program::MODULE_TYPE_VERTEX].sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -2586,6 +2849,7 @@ bail:
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_VERTEX],
                 0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_VERTEX]);
+
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_FRAGMENT],
                 0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_FRAGMENT]);
@@ -2593,11 +2857,12 @@ bail:
             VkPipelineLayoutCreateInfo vk_layout_create_info;
             memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
             vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            vk_layout_create_info.setLayoutCount = Program::MODULE_TYPE_COUNT;
+            vk_layout_create_info.setLayoutCount = // Program::MODULE_TYPE_COUNT;
             vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayout;
 
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
+            */
         }
         else
         {
@@ -3190,7 +3455,7 @@ bail:
     }
 #endif
 
-    static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, RenderTarget* rtOut)
+    static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, uint32_t width, uint32_t height, RenderTarget* rtOut)
     {
         assert(rtOut->m_Handle.m_Framebuffer == VK_NULL_HANDLE && rtOut->m_Handle.m_RenderPass == VK_NULL_HANDLE);
         const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
@@ -3200,8 +3465,8 @@ bail:
 
         VkImageView fb_attachments[num_attachments];
         uint16_t    fb_attachment_count = 0;
-        uint16_t    fb_width            = 0;
-        uint16_t    fb_height           = 0;
+        uint16_t    fb_width            = width;
+        uint16_t    fb_height           = height;
 
         for (int i = 0; i < num_color_textures; ++i)
         {
@@ -3214,8 +3479,8 @@ bail:
 
             RenderPassAttachment* rp_attachment_color = &rp_attachments[i];
             rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
-
             rp_attachment_color->m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             rp_attachment_color->m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
@@ -3223,9 +3488,24 @@ bail:
             rp_attachment_color->m_LoadOp  = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
             rp_attachment_color->m_StoreOp = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
 
+            if (rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
+            {
+                /*
+                VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+                    context->m_LogicalDevice.m_CommandPool,
+                    context->m_LogicalDevice.m_GraphicsQueue,
+                    color_texture_ptr->m_Handle.m_Image,
+                    VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                CHECK_VK_ERROR(res);
+
+                rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                */
+
+                rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            }
         #endif
 
-            fb_attachments[fb_attachment_count++]     = color_texture_ptr->m_Handle.m_ImageView;
+            fb_attachments[fb_attachment_count++] = color_texture_ptr->m_Handle.m_ImageView;
         }
 
         if (depth_stencil_texture)
@@ -3288,6 +3568,7 @@ bail:
         APPEND_IF_SET(TEXTURE_USAGE_HINT_SAMPLE,     VK_IMAGE_USAGE_SAMPLED_BIT);
         APPEND_IF_SET(TEXTURE_USAGE_HINT_MEMORYLESS, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
         APPEND_IF_SET(TEXTURE_USAGE_HINT_INPUT,      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_HINT_COLOR,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
     #undef APPEND_IF_SET
 
         return vk_flags;
@@ -3430,7 +3711,7 @@ bail:
 
         if (color_index > 0 || has_depth || has_stencil)
         {
-            VkResult res = CreateRenderTarget(g_VulkanContext, texture_color, buffer_types, color_index, texture_depth_stencil, rt);
+            VkResult res = CreateRenderTarget(g_VulkanContext, texture_color, buffer_types, color_index, texture_depth_stencil, fb_width, fb_height, rt);
             CHECK_VK_ERROR(res);
         }
 
@@ -3575,7 +3856,9 @@ bail:
             rt->m_TextureColor,
             rt->m_ColorAttachmentBufferTypes,
             rt->m_ColorAttachmentCount,
-            rt->m_TextureDepthStencil, rt);
+            rt->m_TextureDepthStencil,
+            width, height,
+            rt);
         CHECK_VK_ERROR(res);
     }
 
@@ -4222,19 +4505,6 @@ bail:
         return g_VulkanContext;
     }
 
-    void VulkanSetVertexBufferUsage(HVertexBuffer _buffer, uint32_t flags)
-    {
-        DeviceBuffer* buffer = (DeviceBuffer*) _buffer;
-        assert(buffer->m_Handle.m_Buffer == VK_NULL_HANDLE);
-
-        buffer->m_Usage = 0;
-        if (flags & BUFFER_USAGE_TRANSFER)
-        {
-            buffer->m_Usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            buffer->m_Usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        }
-    }
-
     void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -4295,6 +4565,8 @@ bail:
 
         res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
         CHECK_VK_ERROR(res);
+
+        vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue); // TODO: Proper syncronization
 
         vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
 
@@ -4480,6 +4752,15 @@ bail:
             BUFFER_TYPE_COLOR3_BIT,
         };
 
+        uint32_t rt_width  = 0;
+        uint32_t rt_height = 0;
+
+        if (params.m_SetDimensions)
+        {
+            rt_width  = params.m_Width;
+            rt_height = params.m_Height;
+        }
+
         BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
         for (int i = 0; i < params.m_ColorAttachmentsCount; ++i)
         {
@@ -4496,13 +4777,20 @@ bail:
                 rt->m_ColorTextureParams[i].m_Height = params.m_Height;
             }
 
+            rt_width  = rt->m_ColorTextureParams[i].m_Width;
+            rt_height = rt->m_ColorTextureParams[i].m_Height;
+
             if (params.m_ColorAttachmentLoadOps[i] == ATTACHMENT_OP_CLEAR)
             {
                 memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorAttachmentClearValues[i], sizeof(float) * 4);
             }
         }
 
-        VkResult res = CreateRenderTarget(context, (HTexture*) params.m_ColorAttachments, buffer_types, params.m_ColorAttachmentsCount, 0, rt);
+        VkResult res = CreateRenderTarget(context,
+            (HTexture*) params.m_ColorAttachments,
+            buffer_types,
+            params.m_ColorAttachmentsCount,
+            0, rt_width, rt_height, rt);
         CHECK_VK_ERROR(res);
 
         rt->m_ColorAttachmentCount = params.m_ColorAttachmentsCount;

@@ -225,6 +225,7 @@ namespace dmGraphics
     {
         VkFormat            m_Format;
         VkImageLayout       m_ImageLayout;
+        VkImageLayout       m_ImageLayoutInitial;
         VkAttachmentLoadOp  m_LoadOp;
         VkAttachmentStoreOp m_StoreOp;
     };
@@ -287,8 +288,9 @@ namespace dmGraphics
 
         struct VulkanHandle
         {
-            VkDescriptorSetLayout m_DescriptorSetLayout[MODULE_TYPE_COUNT];
-            VkPipelineLayout      m_PipelineLayout;
+            VkDescriptorSetLayout* m_DescriptorSetLayouts;
+            VkPipelineLayout       m_PipelineLayout;
+            uint8_t                m_DescriptorSetLayoutsCount;
         };
 
         uint64_t                        m_Hash;
