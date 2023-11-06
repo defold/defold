@@ -92,7 +92,7 @@
     :help "Open the Engine Profiler in a web browser."}
 
    :engine-resource-profiler
-   {:ui-handler :engine-profile-show
+   {:ui-handler :engine-resource-profile-show
     :help "Open the Engine Resource Profiler in a web browser."}
 
    :fetch-libraries
