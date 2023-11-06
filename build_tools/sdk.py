@@ -65,10 +65,10 @@ ANDROID_NDK_VERSION='25b'
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.18362.0"
-VERSION_WINDOWS_MSVC_2019="14.25.28610"
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(VERSION_WINDOWS_MSVC_2019)
-PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(VERSION_WINDOWS_SDK_10)
+VERSION_WINDOWS_SDK_10="10.0.20348.0"
+VERSION_WINDOWS_MSVC_2022="14.37.32822"
+PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_2022}"
+PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
 
 ## **********************************************************************************************
 ## used by build.py
