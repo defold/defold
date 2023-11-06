@@ -28,8 +28,6 @@ import release_to_github
 import release_to_steam
 import BuildUtility
 import http_cache
-import fnmatch
-from sign import sign_file
 from datetime import datetime
 from urllib.parse import urlparse
 from glob import glob
@@ -181,15 +179,6 @@ def format_lib(name, platform):
     else:
         suffix = '.so'
     return '%s%s%s' % (prefix, name, suffix)
-
-def find_files(root_dir, file_pattern):
-    matches = []
-    for root, dirnames, filenames in os.walk(root_dir):
-        for filename in filenames:
-            fullname = os.path.join(root, filename)
-            if fnmatch.fnmatch(filename, file_pattern):
-                matches.append(fullname)
-    return matches
 
 class ThreadPool(object):
     def __init__(self, worker_count):
@@ -1274,26 +1263,8 @@ class Configuration(object):
 
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        # compile protobuf and java and copy binary files
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
-        # Sign all executables before they get stored in bob. Note that here is
-        # a bit of double work done here in build_bob() as files are copied
-        # multiple times:
-        #
-        # 1. /scripts/copy.sh will copy files such as luajit, glslc and
-        #    spriv-cross from dynamo_home to bob
-        # 2. the Ant target "compile" which is run above is also copying the
-        #    files from dynamo_home to bob
-        # 3. the Ant target "compile-bob-light" which "compile" depends on is
-        #    also copying the files!
-        #
-        # This is why we must wait until this point to sign the files
-        if self.gcloud_keyfile:
-            for exe in find_files(bob_dir, "*.exe"):
-                sign_file(exe, 'win32', self)
-
-        # generate bob.jar
         run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
         if not self.skip_tests:

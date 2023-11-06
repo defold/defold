@@ -376,7 +376,7 @@ def install_ext(platform = None):
 
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
-def build_bob(channel, branch = None, gcloud_keyfile = None, gcloud_certfile = None):
+def build_bob(channel, branch = None):
     args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
@@ -573,13 +573,7 @@ def main(argv):
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            gcloud_certfile = None
-            gcloud_keyfile = None
-            if args.gcloud_service_key:
-                gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
-                gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
-                b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
-            build_bob(engine_channel, branch = branch, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
+            build_bob(engine_channel, branch = branch)
         elif command == "sdk":
             build_sdk(engine_channel)
         elif command == "smoke":
