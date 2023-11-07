@@ -182,7 +182,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.fine("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -732,7 +732,9 @@ public class Bob {
         }
 
         boolean verbose = cmd.hasOption('v');
-        LogHelper.setVerboseLogging(verbose);
+
+        LogHelper.setVerboseLogging(verbose);  // It doesn't iterate over all loggers (including the bob logger)
+        LogHelper.configureLogger(logger);     // It was created before the log helper was set to be verbose
 
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
