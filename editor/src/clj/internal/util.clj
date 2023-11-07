@@ -697,6 +697,90 @@
             (vswap! unique-volatile conj item)
             item)))))
 
+(defn name-index
+  "Create an index for items' names that, while identify the items, are not
+  guaranteed to be unique within the coll
+
+  Returns a map of [name name-order] => item-index
+
+  Args:
+    coll           nil or vector of items
+    get-name-fn    fn that extracts the item's name"
+  [coll get-name-fn]
+  {:pre [(or (nil? coll) (vector? coll))]}
+  (let [n (count coll)]
+    (loop [i 0
+           name->order (transient {})
+           name+order->index (transient {})]
+      (if (= i n)
+        (persistent! name+order->index)
+        (let [item (coll i)
+              name (get-name-fn item)
+              order (long (name->order name 0))]
+          (recur (inc i)
+                 (assoc! name->order name (inc order))
+                 (assoc! name+order->index (pair name order) i)))))))
+
+(defn detect-the-renames [old-name-index new-name-index]
+  (into {}
+        (mapv (fn [removed-entry added-entry]
+                (pair (val removed-entry) (val added-entry)))
+              (filterv (comp not new-name-index key) old-name-index)
+              (filterv (comp not old-name-index key) new-name-index))))
+
+(defn detect-the-same-names [old-name-index new-name-index]
+  (into {}
+        (keep (fn [old-entry]
+                (when-let [new-index (new-name-index (key old-entry))]
+                  (pair (val old-entry) new-index))))
+        old-name-index))
+
+(defn detect-all-name-connections [old-name-index new-name-index]
+  (into (detect-the-renames old-name-index new-name-index)
+        (detect-the-same-names old-name-index new-name-index)))
+
+(detect-the-renames
+  (name-index ["a" "b" "c"] identity)
+  (name-index ["b" "c" "b"] identity))
+(detect-the-same-names
+  (name-index ["a" "b" "c"] identity)
+  (name-index ["b" "c" "b"] identity))
+(detect-all-name-connections
+  (name-index ["a" "b" "c"] identity)
+  (name-index ["b" "c" "b"] identity))
+
+;;;
+
+(defn detect-renames [old-coll old-call-get-name-fn new-coll new-coll-get-name-fn]
+  (let [old-name-index (name-index old-coll old-call-get-name-fn)
+        new-name-index (name-index new-coll new-coll-get-name-fn)]
+    (mapv (fn [removed-entry added-entry]
+            (pair (val removed-entry) (val added-entry)))
+          (filterv (comp not new-name-index key) old-name-index)
+          (filterv (comp not old-name-index key) new-name-index))))
+
+(defn detect-same-names [old-coll old-key new-coll new-key]
+  (let [old-name-index (name-index old-coll old-key)
+        new-name-index (name-index new-coll new-key)]
+    (into []
+          (keep (fn [old-entry]
+                  (when-let [new-index (new-name-index (key old-entry))]
+                    (pair (val old-entry) new-index))))
+          old-name-index)))
+
+
+(defn apply-detected-renames [old-coll old-coll-set-name-fn new-coll new-coll-get-name-fn renames]
+  (reduce
+    (fn [old-coll [old-coll-index new-coll-index]]
+      (update old-coll old-coll-index old-coll-set-name-fn (new-coll-get-name-fn (new-coll new-coll-index))))
+    old-coll
+    renames))
+
+(defn apply-renames [old-coll old-call-get-name-fn new-coll new-coll-get-name-fn old-coll-set-name-fn]
+  (apply-detected-renames old-coll old-coll-set-name-fn new-coll new-coll-get-name-fn
+                          (detect-renames old-coll old-call-get-name-fn
+                                          new-coll new-coll-get-name-fn)))
+
 (defn multi-index
   "Create an index for items' \"soft\" ids that, while identify the items,
   are not guaranteed to be unique within the coll

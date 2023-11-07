@@ -38,11 +38,11 @@
           original-materials (test-util/prop node-id :materials)
           original-texture (get-in original-materials [0 :textures 0 :texture])
           texture-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :texture-binding-infos 0 :_node-id])]
-      (test-util/prop! texture-binding-id :image original-texture)
+      (test-util/prop! texture-binding-id :texture original-texture)
       (is (= original-materials (test-util/prop node-id :materials)))
       (let [p (-> (properties/coalesce [(g/node-value node-id :_properties)])
                   :properties
-                  :__sampler__diffuse__default)]
+                  :__sampler__0__0)]
         (properties/set-values! p [original-texture]))))
   (testing "Loading textures renames them to match the material"
     (test-util/with-loaded-project "test/resources/model_migration_project"

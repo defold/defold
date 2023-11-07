@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
             [editor.build-target :as bt]
+            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -66,11 +67,7 @@
                               (update :material resource/resource->proj-path)
                               (update :textures
                                       (fn [textures]
-                                        (into []
-                                              (keep (fn [texture]
-                                                      (when-let [resource (:texture texture)]
-                                                        (assoc texture :texture (resource/proj-path resource)))))
-                                              textures)))))
+                                        (mapv #(update % :texture resource/proj-path) textures)))))
                         materials)
            :skeleton (resource/resource->proj-path skeleton)
            :animations (resource/resource->proj-path animations)
@@ -170,9 +167,9 @@
 
 (g/defnk produce-gpu-textures [_node-id samplers texture-binding-infos :as m]
   (let [sampler-name->gpu-texture-generator (into {}
-                                                  (keep (fn [{:keys [sampler-name gpu-texture-generator]}]
+                                                  (keep (fn [{:keys [sampler gpu-texture-generator]}]
                                                           (when gpu-texture-generator
-                                                            [sampler-name gpu-texture-generator])))
+                                                            [sampler gpu-texture-generator])))
                                                   texture-binding-infos)]
     (into {}
           (keep-indexed
@@ -240,7 +237,35 @@
     :material (s/maybe (s/protocol resource/Resource))
     :textures [TTexture]}])
 
+(g/defnode TextureBinding
+  (property sampler g/Str (default ""))
+  (property texture resource/Resource
+            (value (gu/passthrough texture-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :texture-resource]
+                                            [:gpu-texture-generator :gpu-texture-generator]
+                                            [:build-targets :build-targets]))))
+  (input texture-resource resource/Resource)
+  (input gpu-texture-generator g/Any)
+  (input build-targets g/Any :array)
+  (output build-targets g/Any (gu/passthrough build-targets))
+  (output texture-binding-info g/Any
+          (g/fnk [_node-id sampler texture ^:try gpu-texture-generator :as info]
+            (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
+
+(defn- detect-and-apply-renames [texture-binding-infos samplers]
+  (let [texture-binding-info-name-index (util/name-index texture-binding-infos :sampler)
+        sampler-name-index (util/name-index samplers :name)
+        renames (util/detect-the-renames texture-binding-info-name-index sampler-name-index)]
+    (reduce
+      (fn [texture-binding-infos [texture-binding-index sampler-index]]
+        (update texture-binding-infos texture-binding-index assoc :sampler (:name (samplers sampler-index))))
+      texture-binding-infos
+      renames)))
+
 (g/defnode MaterialBinding
+  (inherits core/Scope)
   (input dep-build-targets g/Any :array)
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
@@ -250,73 +275,56 @@
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (concat
-                     (when old-value
-                       (g/delete-node (g/node-value self :source-id evaluation-context)))
-                     (when new-value
-                       (let [{:keys [tx-data node-id]} (project/connect-resource-node
-                                                         evaluation-context
-                                                         (project/get-project (:basis evaluation-context) self)
-                                                         new-value
-                                                         self [])]
-                         (concat
-                           tx-data
-                           (g/override
-                             node-id {}
-                             (fn [_evaluation-context id-mapping]
-                               (let [override-material-node (get id-mapping node-id)]
-                                 (for [[from-label to-label] [[:_node-id :source-id]
-                                                              [:texture-binding-infos :texture-binding-infos]
-                                                              [:resource :material-resource]
-                                                              [:texture-dep-build-targets :dep-build-targets]
-                                                              [:build-targets :dep-build-targets]
-                                                              [:samplers :samplers]
-                                                              [:shader :shader]
-                                                              [:vertex-space :vertex-space]]]
-                                   (g/connect override-material-node from-label self to-label))))))))))))
-  (input source-id g/NodeID :cascade-delete)
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :material-resource]
+                                            [:build-targets :dep-build-targets]
+                                            [:samplers :samplers]
+                                            [:shader :shader]
+                                            [:vertex-space :vertex-space]))))
   (input material-resource resource/Resource)
-  (input texture-binding-infos g/Any)
-
-  (property textures Textures
-            (value (g/fnk [texture-binding-infos]
-                     (mapv
-                       (fn [{:keys [sampler-name image]}]
-                         {:sampler sampler-name
-                          :texture image})
-                       texture-binding-infos)))
-            (set (fn [evaluation-context self _old-value new-value]
-                   (let [texture-binding-infos (g/node-value self :texture-binding-infos evaluation-context)]
-                     (when-not (g/error-value? texture-binding-infos)
-                       (let [material-sampler-names (mapv :sampler-name texture-binding-infos)
-                             model-sampler-names (mapv :sampler new-value)
-                             renames (:renamed (util/order-agnostic-diff-by-identity model-sampler-names material-sampler-names))
-                             material-sampler-name+order->node-id (util/multi-index texture-binding-infos :sampler-name :_node-id)
-                             model-sampler-name+order->resource (util/multi-index new-value :sampler :texture)]
-                         (for [[model-sampler-name+order resource] model-sampler-name+order->resource
-                               :let [node-id (or (material-sampler-name+order->node-id model-sampler-name+order)
-                                                 (material-sampler-name+order->node-id (get renames model-sampler-name+order)))]
-                               :when node-id]
-                           (g/set-property node-id :image resource))))))))
+  (input texture-binding-infos g/Any :array)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
-
   (output material-scene-info g/Any (g/fnk [shader vertex-space gpu-textures name :as info] info))
-  (output material-binding-info g/Any (g/fnk [_node-id name material ^:try texture-binding-infos :as info]
-                                        (if (g/error-value? texture-binding-infos)
-                                          (assoc info :texture-binding-infos [])
-                                          info))))
+  (output material-binding-info g/Any (g/fnk [_node-id name material ^:try samplers ^:try texture-binding-infos :as info]
+                                        (cond
+                                          (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
+                                          (g/error-value? samplers) (dissoc info :samplers)
+                                          :else (update info :texture-binding-infos detect-and-apply-renames samplers)))))
+
+(defmethod material/notify-samplers-targets ::MaterialBinding [evaluation-context _material-node material-binding-node old-value new-value]
+  (let [texture-binding-infos (g/node-value material-binding-node :texture-binding-infos evaluation-context)
+        tb-name-index (util/name-index texture-binding-infos :sampler)
+        old-name-index (util/name-index old-value :name)
+        new-name-index (util/name-index new-value :name)
+        old-value-index->new-value-index (util/detect-the-renames old-name-index new-name-index)]
+    (into []
+          (mapcat
+            (fn [[tb-index old-value-index]]
+              (when-let [new-value-index (old-value-index->new-value-index old-value-index)]
+                (g/set-property
+                  (:_node-id (texture-binding-infos tb-index))
+                  :sampler (:name (new-value new-value-index))))))
+          (util/detect-all-name-connections tb-name-index old-name-index))))
+
+(defn- create-texture-binding-tx [material-binding sampler texture]
+  (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding
+                                                                         :sampler sampler
+                                                                         :texture texture]]
+    (g/connect texture-binding :_node-id material-binding :nodes)
+    (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
+    (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
 (defn- create-material-binding-tx [model-node-id name material textures]
-  (g/make-nodes (g/node-id->graph-id model-node-id) [binding [MaterialBinding :name name]]
-    ;; We need to ensure material is applied first, so we don't lose the textures
-    ;; since model sampler names are matched against the material-defined samplers
-    (g/set-property binding :material material)
-    (g/set-property binding :textures textures)
-    (g/connect binding :_node-id model-node-id :nodes)
-    (g/connect binding :dep-build-targets model-node-id :dep-build-targets)
-    (g/connect binding :material-scene-info model-node-id :material-scene-infos)
-    (g/connect binding :material-binding-info model-node-id :material-binding-infos)))
+  (g/make-nodes (g/node-id->graph-id model-node-id) [material-binding [MaterialBinding
+                                                                       :name name
+                                                                       :material material]]
+    (g/connect material-binding :_node-id model-node-id :nodes)
+    (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
+    (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
+    (g/connect material-binding :material-binding-info model-node-id :material-binding-infos)
+    (for [{:keys [sampler texture]} textures]
+      (create-texture-binding-tx material-binding sampler texture))))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -343,54 +351,88 @@
         all-material-names (set/union mesh-material-names proto-material-names)
         new-props
         (into []
-              (mapcat
-                (fn [material-name]
-                  (if-let [{:keys [_node-id material name texture-binding-infos]} (proto-material-name->material-binding-info material-name)]
-                    ;; material exists
-                    (let [should-be-deleted (not (mesh-material-names name))]
-                      (into [[(keyword (str "__material__" name))
-                              (cond-> {:node-id _node-id
-                                       :label name
-                                       :type resource/Resource
-                                       :value (cond-> material should-be-deleted (or fake-resource))
-                                       :error (or
-                                                (when should-be-deleted
-                                                  (g/->error _node-id :materials :warning material
-                                                             (format "'%s' is not defined in the mesh. Clear the field to delete it."
-                                                                     name)))
-                                                (prop-resource-error :fatal _node-id :materials material "Material"))
-                                       :prop-kw :material
-                                       :edit-type {:type resource/Resource
-                                                   :ext "material"
-                                                   :clear-fn (fn [_ _]
-                                                               (g/delete-node _node-id))}}
-                                      should-be-deleted
-                                      (assoc :original-value fake-resource))]]
-                            (map (fn [{:keys [_node-id sampler-name image]}]
-                                   [(keyword (str "__sampler__" sampler-name "__" name))
-                                    {:node-id _node-id
-                                     :label sampler-name
-                                     :type resource/Resource
-                                     :value image
-                                     :prop-kw :image
-                                     :edit-type {:type resource/Resource
-                                                 :ext (conj image/exts "cubemap")}}]))
-                            texture-binding-infos))
-                    ;; material does not exist
-                    [[(keyword (str "__material__" material-name))
-                      {:node-id _node-id
-                       :label material-name
-                       :value nil
-                       :type resource/Resource
-                       :error (prop-resource-error :fatal _node-id :material nil "Material")
-                       :edit-type {:type resource/Resource
-                                   :ext "material"
-                                   :set-fn (fn [_evaluation-context _id _old new]
-                                             (create-material-binding-tx model-node-id material-name new []))}}]])))
+              (comp
+                (map-indexed
+                  (fn [index material-name]
+                    (let [material-prop-key (keyword (str "__material__" index))]
+                      (if-let [{:keys [_node-id material name texture-binding-infos samplers]} (proto-material-name->material-binding-info material-name)]
+                        ;; material exists
+                        (let [sampler-name-index (util/name-index samplers :name)
+                              texture-binding-name-index (util/name-index texture-binding-infos :sampler)
+                              all-sampler-name+orders (set/union
+                                                        (set (keys sampler-name-index))
+                                                        (set (keys texture-binding-name-index)))
+                              should-be-deleted (not (mesh-material-names name))
+                              material-binding-node-id _node-id]
+                          (into [[material-prop-key
+                                  (cond-> {:node-id material-binding-node-id
+                                           :label name
+                                           :type resource/Resource
+                                           :value (cond-> material should-be-deleted (or fake-resource))
+                                           :error (or
+                                                    (when should-be-deleted
+                                                      (g/->error material-binding-node-id :materials :warning material
+                                                                 (format "'%s' is not defined in the mesh. Clear the field to delete it."
+                                                                         name)))
+                                                    (prop-resource-error :fatal material-binding-node-id :materials material "Material"))
+                                           :prop-kw :material
+                                           :edit-type {:type resource/Resource
+                                                       :ext "material"
+                                                       :clear-fn (fn [_ _]
+                                                                   (g/delete-node material-binding-node-id))}}
+                                          should-be-deleted
+                                          (assoc :original-value fake-resource))]]
+                                (map-indexed
+                                  (fn [binding-index sampler-name+order]
+                                    (let [texture-binding-prop-key (keyword (str "__sampler__" index "__" binding-index))]
+                                      ;; texture binding exists
+                                      (if-let [texture-binding-index (texture-binding-name-index sampler-name+order)]
+                                        (let [{:keys [sampler texture _node-id]} (texture-binding-infos texture-binding-index)
+                                              texture-binding-should-be-deleted (and samplers (not (sampler-name-index sampler-name+order)))]
+                                          [texture-binding-prop-key
+                                           (cond-> {:node-id _node-id
+                                                    :label sampler
+                                                    :type resource/Resource
+                                                    :value (cond-> texture texture-binding-should-be-deleted (or fake-resource))
+                                                    :prop-kw :texture
+                                                    :error (when texture-binding-should-be-deleted
+                                                             (g/->error _node-id :texture :warning texture
+                                                                        (format "'%s' is not defined in the material. Clear the field to delete it."
+                                                                                sampler)))
+                                                    :edit-type {:type resource/Resource
+                                                                :ext (conj image/exts "cubemap")
+                                                                :clear-fn (fn [_ _] (g/delete-node _node-id))}}
+                                                   texture-binding-should-be-deleted
+                                                   (assoc :original-value fake-resource))])
+                                        ;; texture binding does not exist
+                                        (let [sampler (key sampler-name+order)]
+                                          [texture-binding-prop-key
+                                           {:node-id material-binding-node-id
+                                            :label sampler
+                                            :value nil
+                                            :type resource/Resource
+                                            :edit-type {:type resource/Resource
+                                                        :ext (conj image/exts "cubemap")
+                                                        :set-fn (fn [_ _ _ new] (create-texture-binding-tx material-binding-node-id sampler new))}}])))))
+                                (sort-by key all-sampler-name+orders)))
+                        ;; material does not exist
+                        [[material-prop-key
+                          {:node-id _node-id
+                           :label material-name
+                           :value nil
+                           :type resource/Resource
+                           :error (prop-resource-error :fatal _node-id :material nil "Material")
+                           :edit-type {:type resource/Resource
+                                       :ext "material"
+                                       :set-fn (fn [_evaluation-context _id _old new]
+                                                 (create-material-binding-tx model-node-id material-name new []))}}]]))))
+                cat)
               (sort all-material-names))]
     (-> _declared-properties
         (update :properties into new-props)
         (update :display-order into (map first) new-props))))
+
+#_(g/clear-system-cache!)
 
 (g/defnode ModelNode
   (inherits resource-node/ResourceNode)
@@ -416,11 +458,11 @@
               (fn [{:keys [name material texture-binding-infos]}]
                 {:name name
                  :material material
-                 :textures (mapv
-                             (fn [{:keys [sampler-name image]}]
-                               {:sampler sampler-name
-                                :texture image})
-                             texture-binding-infos)})
+                 :textures (into []
+                                 (keep (fn [{:keys [sampler texture]}]
+                                         (when texture
+                                           {:sampler sampler :texture texture})))
+                                 texture-binding-infos)})
               material-binding-infos)))
   (input scene g/Any)
   (input material-scene-infos g/Any :array)
