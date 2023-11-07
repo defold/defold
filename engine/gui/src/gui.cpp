@@ -1146,6 +1146,20 @@ namespace dmGui
         }
     }
 
+    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            uint32_t size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
+            bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
+            if (!result) {
+                break;
+            }
+        }
+    }
+
     static uint16_t GetLayerIndex(HScene scene, InternalNode* node)
     {
         if (node->m_Node.m_LayerHash == DEFAULT_LAYER && node->m_ParentIndex != INVALID_INDEX)

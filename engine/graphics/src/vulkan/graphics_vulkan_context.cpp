@@ -26,6 +26,53 @@ namespace dmGraphics
 {
     static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = 0x0;
 
+    static void GetExtensions(dmArray<VkExtensionProperties>& extensions)
+    {
+        uint32_t count = 0;
+        VkResult result = vkEnumerateInstanceExtensionProperties(0, &count, 0);
+        if (result != VK_SUCCESS) {
+            dmLogInfo("vkEnumerateInstanceExtensionProperties (%d) failed: %d", __LINE__, result);
+            return;
+        }
+
+        extensions.SetCapacity(count);
+        extensions.SetSize(count);
+
+        // Get the extensions
+        result = vkEnumerateInstanceExtensionProperties(0, &count, extensions.Begin());
+        if (result != VK_SUCCESS) {
+            dmLogInfo("vkEnumerateInstanceExtensionProperties (%d) failed: %d", __LINE__, result);
+            return;
+        }
+
+    }
+
+    static bool IsSupported(const dmArray<VkExtensionProperties>& extensions, const char* name)
+    {
+        for (uint32_t i = 0; i < extensions.Size(); ++i)
+        {
+            const VkExtensionProperties& extension = extensions[i];
+            if (strcmp(extension.extensionName, name) == 0)
+                return true;
+        }
+        return false;
+    }
+
+    static bool AddIfSupported(const dmArray<VkExtensionProperties>& supported_extensions, const char* extension, dmArray<const char*>& extensions)
+    {
+        if (!IsSupported(supported_extensions, extension))
+        {
+            dmLogWarning("%s was not supported", extension);
+            return false;
+        }
+
+        if (extensions.Full())
+            extensions.OffsetCapacity(4);
+        extensions.Push(extension);
+        return true;
+    }
+
+
     // This functions is invoked by the vulkan layer whenever
     // it has something to say, which can be info, warnings, errors and such.
     // Only used when validation layers are enabled.
@@ -52,49 +99,18 @@ namespace dmGraphics
         return VK_FALSE;
     }
 
-    static bool ValidateRequiredExtensions(const char** extensionNames, const uint8_t extensionCount)
+    static bool ValidateRequiredExtensions(const dmArray<VkExtensionProperties>& extensions, const dmArray<const char*>& required_extensions)
     {
-        uint32_t vk_extension_count              = 0;
-        VkExtensionProperties* vk_extension_list = 0;
-
-        if (vkEnumerateInstanceExtensionProperties(NULL, &vk_extension_count, NULL) != VK_SUCCESS)
+        bool result = true;
+        for (uint32_t i = 0; i < required_extensions.Size(); ++i)
         {
-            return false;
-        }
-
-        vk_extension_list = new VkExtensionProperties[vk_extension_count];
-
-        if (vkEnumerateInstanceExtensionProperties(NULL, &vk_extension_count, vk_extension_list) != VK_SUCCESS)
-        {
-            delete[] vk_extension_list;
-            return false;
-        }
-
-        uint16_t extensions_found = 0;
-
-        for (uint32_t req_ext = 0; req_ext < extensionCount; req_ext++)
-        {
-            uint16_t extensions_found_save = extensions_found;
-            const char* req_ext_name = extensionNames[req_ext];
-            for (uint32_t vk_ext = 0; vk_ext < vk_extension_count; vk_ext++)
+            if (!IsSupported(extensions, required_extensions[i]))
             {
-                const char* vk_ext_name = vk_extension_list[vk_ext].extensionName;
-                if (strcmp(req_ext_name, vk_ext_name) == 0)
-                {
-                    extensions_found++;
-                    break;
-                }
-            }
-
-            if (extensions_found_save == extensions_found)
-            {
-                dmLogError("Vulkan instance extension '%s' is not supported.", req_ext_name);
+                dmLogError("Vulkan instance extension '%s' is not supported", required_extensions[i]);
+                result = false;
             }
         }
-
-        delete[] vk_extension_list;
-
-        return extensions_found == extensionCount;
+        return result;
     }
 
     static bool GetValidationSupport(const char** validationLayers, const uint16_t validationLayersCount)
@@ -196,6 +212,12 @@ namespace dmGraphics
         }
 
         int32_t enabled_layer_count = 0;
+        dmArray<VkExtensionProperties> extensions;
+        GetExtensions(extensions);
+
+        // Static to keep life time while adding it to an array and passing it along
+        static const char* VK_KHR_get_physical_device_properties2_str = "VK_KHR_get_physical_device_properties2";
+        static const char* VK_KHR_portability_enumeration_str = "VK_KHR_portability_enumeration";
 
         if (validationLayerCount > 0)
         {
@@ -203,24 +225,21 @@ namespace dmGraphics
             {
                 enabled_layer_count = validationLayerCount;
 
+                AddIfSupported(extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, vk_required_extensions);
             #ifdef __MACH__
-                vk_required_extensions.OffsetCapacity(2);
-                vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-                vk_required_extensions.Push("VK_KHR_get_physical_device_properties2");
+                AddIfSupported(extensions, VK_KHR_get_physical_device_properties2_str, vk_required_extensions);
             #else
-                vk_required_extensions.OffsetCapacity(2);
-                vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-                vk_required_extensions.Push("VK_KHR_portability_enumeration");
+                AddIfSupported(extensions, VK_KHR_portability_enumeration_str, vk_required_extensions);
             #endif
 
                 for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
                 {
-                    vk_required_extensions.Push(validationLayerExtensions[i]);
+                    AddIfSupported(extensions, validationLayerExtensions[i], vk_required_extensions);
                 }
             }
         }
 
-        if (!ValidateRequiredExtensions(vk_required_extensions.Begin(), vk_required_extensions.Size()))
+        if (!ValidateRequiredExtensions(extensions, vk_required_extensions))
         {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
