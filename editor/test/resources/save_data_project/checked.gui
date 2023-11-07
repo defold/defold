@@ -299,21 +299,21 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
-    y: 0.0
-    z: 0.0
+    x: 0.1
+    y: 0.2
+    z: 0.3
     w: 1.0
   }
   rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
+    x: 0.1
+    y: 0.2
+    z: 0.3
     w: 1.0
   }
   scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
+    x: 1.1
+    y: 1.2
+    z: 1.3
     w: 1.0
   }
   size {
@@ -330,7 +330,7 @@ nodes {
   }
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
-  text: "template"
+  text: "modified"
   font: "checked"
   id: "template/text"
   xanchor: XANCHOR_NONE
@@ -356,6 +356,10 @@ nodes {
   alpha: 1.0
   outline_alpha: 1.0
   shadow_alpha: 1.0
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 8
   template_node_child: true
   text_leading: 1.0
   text_tracking: 0.0

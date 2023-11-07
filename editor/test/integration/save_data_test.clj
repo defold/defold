@@ -26,8 +26,10 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.util :as util]
-            [util.coll :refer [pair]])
-  (:import [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]))
+            [util.coll :as coll :refer [pair]]
+            [util.text-util :as text-util])
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -53,8 +55,6 @@
   {'dmGuiDDF.NodeDesc "type"})
 
 ;; TODO: Add type fields from all union protobuf types.
-
-;; TODO: Why isn't "nodes -> [TYPE_TEXT] -> template_node_child" reported as missing?
 
 (def ^:private pb-ignored-fields
   {'dmGameObjectDDF.CollectionDesc
@@ -263,11 +263,23 @@
     {"d" :padding}}
 
    'dmMath.Vector4
-   (into {}
-         (map #(pair % {"w" :padding}))
-         [["gui" "nodes" "[TYPE_BOX]" "color"]
-          ["label" "size"]
-          ["sprite" "size"]])
+   {["gui" "nodes" :* "color"]
+    {"w" :padding}
+
+    ["gui" "nodes" :* "position"]
+    {"w" :non-editable}
+
+    ["gui" "nodes" :* "rotation"]
+    {"w" :non-editable}
+
+    ["gui" "nodes" :* "scale"]
+    {"w" :non-editable}
+
+    ["label" "size"]
+    {"w" :padding}
+
+    ["sprite" "size"]
+    {"w" :padding}}
 
    'dmModelDDF.ModelDesc
    {:default
@@ -283,6 +295,25 @@
      "name_indirections" :runtime-only
      "texture" :unimplemented}}}) ; Default texture resources not supported yet.
 
+(defn- pb-filter-match [pb-filters pb-path]
+  (let [pb-path-token-count (count pb-path)
+        matched (->> pb-filters
+                     (filterv (fn [pb-filter]
+                                (and (not= :default pb-filter)
+                                     (= pb-path-token-count (count pb-filter))
+                                     (every? true?
+                                             (map (fn [filter-token path-token]
+                                                    (or (= :* filter-token)
+                                                        (= filter-token path-token)))
+                                                  pb-filter
+                                                  pb-path))))))]
+    (case (count matched)
+      0 :default
+      1 (first matched)
+      (throw (ex-info "The pb-path matches more than one filter in the pb-ignored-fields map."
+                      {:pb-path pb-path
+                       :matched matched})))))
+
 (defn- valid-resource-ext? [str]
   (re-matches #"^[a-z0-9_]+$" str))
 
@@ -297,7 +328,8 @@
 
 (s/def ::class-java-symbol symbol?)
 (s/def ::resource-type-ext (s/and string? valid-resource-ext?))
-(s/def ::ignore-reason #{:allowed-default :deprecated :padding :runtime-only :unimplemented :unused})
+(s/def ::ignore-reason #{:allowed-default :deprecated :non-editable :padding :runtime-only :unimplemented :unused})
+(s/def ::ignore-reason-set (s/coll-of ::ignore-reason :kind set?))
 
 (s/def ::setting-path-token (s/and string? setting-valid-path-token?))
 (s/def ::setting-path (s/coll-of ::setting-path-token :kind vector?))
@@ -305,7 +337,7 @@
 (s/def ::ext->setting->ignore-reason (s/map-of ::resource-type-ext ::setting->ignore-reason))
 
 (s/def ::pb-field-name (s/and string? pb-valid-field-name?))
-(s/def ::pb-path-token (s/and string? (s/or :field pb-valid-field-name? :type pb-valid-type-token?)))
+(s/def ::pb-path-token (s/or :wildcard #{:*} :identifier (s/and string? (s/or :field pb-valid-field-name? :type pb-valid-type-token?))))
 (s/def ::pb-path (s/cat :ext ::resource-type-ext :field-path (s/* ::pb-path-token)))
 (s/def ::pb-path-token->ignore-reason (s/map-of ::pb-path-token ::ignore-reason))
 (s/def ::pb-filter (s/or :default #{:default} :path ::pb-path))
@@ -319,6 +351,36 @@
 (deftest pb-ignored-fields-declaration-test
   (is (s/valid? ::class->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::class->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
+
+(deftest silent-migrations-test
+  (test-util/with-loaded-project project-path
+    (testing "collection"
+      (let [uniform-scale-collection (test-util/resource-node project "/silently_migrated/uniform_scale.collection")
+            referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
+            embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
+            referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
+        (is (= collection/CollectionInstanceNode (g/node-type* referenced-collection)))
+        (is (= collection/EmbeddedGOInstanceNode (g/node-type* embedded-go)))
+        (is (= collection/ReferencedGOInstanceNode (g/node-type* referenced-go)))
+        (is (= [2.0 2.0 2.0] (g/node-value referenced-collection :scale)))
+        (is (= [2.0 2.0 2.0] (g/node-value embedded-go :scale)))
+        (is (= [2.0 2.0 2.0] (g/node-value referenced-go :scale)))))
+
+    (testing "material"
+      (let [legacy-textures-material (test-util/resource-node project "/silently_migrated/legacy_textures.material")]
+        (is (= [{:filter-mag :filter-mode-mag-linear
+                 :filter-min :filter-mode-min-linear
+                 :max-anisotropy 1.0
+                 :name "albedo"
+                 :wrap-u :wrap-mode-clamp-to-edge
+                 :wrap-v :wrap-mode-clamp-to-edge}
+                {:filter-mag :filter-mode-mag-linear
+                 :filter-min :filter-mode-min-linear
+                 :max-anisotropy 1.0
+                 :name "normal"
+                 :wrap-u :wrap-mode-clamp-to-edge
+                 :wrap-v :wrap-mode-clamp-to-edge}]
+               (g/node-value legacy-textures-material :samplers)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
@@ -335,7 +397,7 @@
       (compare (count a) (count b))
       value-comparison)))
 
-(def ^:private sorted-coll-set (sorted-set-by coll-value-comparator))
+(def ^:private empty-sorted-coll-set (sorted-set-by coll-value-comparator))
 
 (defn- editable-file-resource? [resource]
   (and (resource/file-resource? resource)
@@ -348,12 +410,22 @@
         (filter #(:write-fn (val %)))
         (workspace/get-resource-type-map workspace :editable)))
 
-(defn- checked-resources [workspace]
-  (->> (workspace/find-resource workspace "/")
-       (resource/children)
-       (filter editable-file-resource?)
-       (sort-by (juxt resource/type-ext resource/proj-path))
-       (vec)))
+(defn- checked-resources
+  ([workspace]
+   (checked-resources workspace nil))
+  ([workspace pred]
+   (let [root-level-editable-file-resources
+         (->> (workspace/find-resource workspace "/")
+              (resource/children)
+              (filter editable-file-resource?))
+
+         filtered-resources
+         (cond->> root-level-editable-file-resources
+                  pred (filter pred))]
+
+     (->> filtered-resources
+          (sort-by (juxt resource/type-ext resource/proj-path))
+          (vec)))))
 
 (defn- list-message [message items]
   (string/join "\n" (cons message (map #(str "  " %) items))))
@@ -469,11 +541,9 @@
 (defn- pb-enum-field-desc-empty-frequencies-raw [^Descriptors$FieldDescriptor enum-field-desc pb-path]
   (let [owner-pb-desc (.getContainingType enum-field-desc)
         enum-desc (.getEnumType enum-field-desc)
-
         pb-filter->type-token->ignore-reason (get pb-ignored-fields (pb-descriptor-key owner-pb-desc))
-        type-token->ignore-reason (or (get pb-filter->type-token->ignore-reason pb-path)
-                                      (get pb-filter->type-token->ignore-reason :default)
-                                      {})]
+        pb-filter (pb-filter-match (keys pb-filter->type-token->ignore-reason) pb-path)
+        type-token->ignore-reason (get pb-filter->type-token->ignore-reason pb-filter {})]
     (into (sorted-map)
           (keep (fn [enum-value-desc]
                   (let [type-token (pb-type-token enum-value-desc)]
@@ -510,21 +580,28 @@
     :else
     0))
 
-(defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc pb-path]
-  {:pre [(s/valid? ::pb-path pb-path)]}
+(comment
+  (pb-filter-match (keys (pb-ignored-fields 'dmGraphics.VertexAttribute #_ 'dmMath.Vector4))
+                   ["gui" "nodes" "[TYPE_PIE]" "position"]))
+
+(defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc pb-path included-ignore-reasons]
+  {:pre [(s/valid? ::pb-path pb-path)
+         (s/valid? ::ignore-reason-set included-ignore-reasons)]}
   (let [pb-filter->pb-field->ignore-reason (get pb-ignored-fields (pb-descriptor-key pb-desc))
-        pb-field->ignore-reason (or (get pb-filter->pb-field->ignore-reason pb-path)
-                                    (get pb-filter->pb-field->ignore-reason :default)
-                                    {})
+        pb-filter (pb-filter-match (keys pb-filter->pb-field->ignore-reason) pb-path)
+        pb-field->ignore-reason (get pb-filter->pb-field->ignore-reason pb-filter {})
         ignored-field? (fn [^Descriptors$FieldDescriptor field-desc]
-                         (contains? pb-field->ignore-reason (.getName field-desc)))]
+                         (let [field-name (.getName field-desc)
+                               ignore-reason (pb-field->ignore-reason field-name)]
+                           (and (some? ignore-reason)
+                                (not (contains? included-ignore-reasons ignore-reason)))))]
     (into []
           (remove ignored-field?)
           (.getFields pb-desc))))
 
 (def ^:private pb-descriptor-expected-fields (memoize pb-descriptor-expected-fields-raw))
 
-(defn- pb-nested-field-frequencies [^Message pb pb-path]
+(defn- pb-nested-field-frequencies [^Message pb pb-path count-field-value?]
   {:pre [(s/valid? ::pb-path pb-path)]}
   (let [pb-desc (.getDescriptorForType pb)
         pb-desc-key (pb-descriptor-key pb-desc)
@@ -540,19 +617,35 @@
                       (let [field-name (.getName field-desc)
 
                             field-frequency
-                            (if (pb-message-field? field-desc)
+                            (cond
+                              (pb-message-field? field-desc)
                               (let [pb-path (conj typed-pb-path field-name)]
                                 (if (.isRepeated field-desc)
-                                  (transduce (map #(pb-nested-field-frequencies % pb-path))
+                                  (transduce (map #(pb-nested-field-frequencies % pb-path count-field-value?))
                                              merge-nested-frequencies
                                              (.getField pb field-desc))
-                                  (pb-nested-field-frequencies (.getField pb field-desc) pb-path)))
-                              (pb-field-value-count pb field-desc))]
+                                  (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?)))
+
+                              (.isRepeated field-desc)
+                              (if (pb-field-has-single-valid-value? field-desc)
+                                (.getRepeatedFieldCount pb field-desc)
+                                (util/count-where #(count-field-value? % field-desc)
+                                                  (.getField pb field-desc)))
+
+                              (.hasField pb field-desc)
+                              (if (or (pb-field-has-single-valid-value? field-desc)
+                                      (count-field-value? (.getField pb field-desc) field-desc))
+                                1
+                                0)
+
+                              :else
+                              0)]
+
                         (when (or (number? field-frequency)
                                   (pos? (count field-frequency)))
                           (pair field-name
                                 field-frequency)))))
-              (pb-descriptor-expected-fields pb-desc typed-pb-path))]
+              (pb-descriptor-expected-fields pb-desc typed-pb-path #{:non-editable}))]
 
     (if (nil? type-field-desc)
       field-frequencies
@@ -560,20 +653,31 @@
               (pos? (count field-frequencies))
               (assoc type-token field-frequencies)))))
 
+(defn- pb-read-resource
+  ^Message [resource]
+  ;; We do not use the :read-fn here since we want the rawest possible file contents.
+  (let [resource-type (resource/resource-type resource)
+        pb-class (-> resource-type :test-info :ddf-type)]
+    (protobuf/read-pb pb-class resource)))
+
+(defn- pb-field-value-non-default? [field-value ^Descriptors$FieldDescriptor field-desc]
+  (not= (.getDefaultValue field-desc) field-value))
+
+(defn- pb-resource-nested-field-frequencies [resource]
+  (let [ext (resource/type-ext resource)
+        pb (pb-read-resource resource)
+        pb-path [ext]]
+    (pb-nested-field-frequencies pb pb-path pb-field-value-non-default?)))
+
 (defmulti ^:private value-path-frequencies (fn [resource] (-> resource resource/resource-type :test-info :type)))
 
 (defmethod value-path-frequencies :code [resource]
   {["lines"] (if (string/blank? (slurp resource)) 0 1)})
 
 (defmethod value-path-frequencies :ddf [resource]
-  ;; We do not use the :read-fn here since we want the rawest possible file contents.
-  (let [resource-type (resource/resource-type resource)
-        ext (:ext resource-type)
-        pb-class (-> resource-type :test-info :ddf-type)
-        pb (protobuf/read-pb pb-class resource)]
-    (-> pb
-        (pb-nested-field-frequencies [ext])
-        (flatten-nested-frequencies))))
+  (-> resource
+      (pb-resource-nested-field-frequencies)
+      (flatten-nested-frequencies)))
 
 (defmethod value-path-frequencies :settings [resource]
   (let [resource-type (resource/resource-type resource)
@@ -599,7 +703,7 @@
   (->> resources
        (map value-path-frequencies)
        (apply merge-with +)
-       (into sorted-coll-set
+       (into empty-sorted-coll-set
              (keep (fn [[value-path ^long value-count]]
                      (when (zero? value-count)
                        value-path))))))
@@ -623,32 +727,149 @@
               (str "The following fields are not covered by any ." ext " files under `editor/" project-path "`:")
               uncovered-value-paths))))))
 
-(deftest silent-migrations-test
-  (test-util/with-loaded-project project-path
-    (testing "collection"
-      (let [uniform-scale-collection (test-util/resource-node project "/silently_migrated/uniform_scale.collection")
-            referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
-            embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
-            referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
-        (is (= collection/CollectionInstanceNode (g/node-type* referenced-collection)))
-        (is (= collection/EmbeddedGOInstanceNode (g/node-type* embedded-go)))
-        (is (= collection/ReferencedGOInstanceNode (g/node-type* referenced-go)))
-        (is (= [2.0 2.0 2.0] (g/node-value referenced-collection :scale)))
-        (is (= [2.0 2.0 2.0] (g/node-value embedded-go :scale)))
-        (is (= [2.0 2.0 2.0] (g/node-value referenced-go :scale)))))
+(defn- gui-node-pb->id
+  ^String [^Gui$NodeDesc node-pb]
+  (.getId node-pb))
 
-    (testing "material"
-      (let [legacy-textures-material (test-util/resource-node project "/silently_migrated/legacy_textures.material")]
-        (is (= [{:filter-mag :filter-mode-mag-linear
-                 :filter-min :filter-mode-min-linear
-                 :max-anisotropy 1.0
-                 :name "albedo"
-                 :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}
-                {:filter-mag :filter-mode-mag-linear
-                 :filter-min :filter-mode-min-linear
-                 :max-anisotropy 1.0
-                 :name "normal"
-                 :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}]
-               (g/node-value legacy-textures-material :samplers)))))))
+(defn- descending-slash-count+str [^String str]
+  (pair (- (text-util/character-count str \/))
+        str))
+
+(defn- below-template-node-id? [node-id template-node-id]
+  (and (= \/ (get node-id (count template-node-id)))
+       (string/starts-with? node-id template-node-id)))
+
+(defn- gui-override-infos [gui-node-pbs gui-proj-path->node-pbs]
+  (let [[override-node-pbs template-node-pbs]
+        (util/into-multiple
+          [[] []]
+          [(filter #(.getTemplateNodeChild ^Gui$NodeDesc %))
+           (filter (fn [^Gui$NodeDesc node-pb]
+                     (and (not (.getTemplateNodeChild node-pb))
+                          (= Gui$NodeDesc$Type/TYPE_TEMPLATE (.getType node-pb)))))]
+          gui-node-pbs)
+
+        depth-ascending-template-node-ids
+        (->> template-node-pbs
+             (map gui-node-pb->id)
+             (sort-by descending-slash-count+str))
+
+        override-node-pb->template-node-id
+        (fn override-node-pb->template-node-id [^Gui$NodeDesc override-node-pb]
+          (let [override-node-id (gui-node-pb->id override-node-pb)]
+            (util/first-where #(below-template-node-id? override-node-id %)
+                              depth-ascending-template-node-ids)
+            (some (fn [template-node-id]
+                    (when (below-template-node-id? override-node-id template-node-id)
+                      template-node-id))
+                  depth-ascending-template-node-ids)))
+
+        template-node-id->override-node-pbs
+        (group-by override-node-pb->template-node-id
+                  override-node-pbs)
+
+        template-node-pb->override-infos
+        (fn template-node-pb->override-infos [^Gui$NodeDesc template-node-pb]
+          (let [template-node-id (gui-node-pb->id template-node-pb)
+
+                original-node-id->pb
+                (->> template-node-pb
+                     (.getTemplate)
+                     (gui-proj-path->node-pbs)
+                     (coll/pair-map-by gui-node-pb->id))
+
+                override-node-pb->override-info
+                (fn override-node-pb->override-info [^Gui$NodeDesc override-node-pb]
+                  (let [override-node-id (gui-node-pb->id override-node-pb)
+                        original-node-id (subs override-node-id (inc (.length template-node-id))) ; Strip away template node id + slash char prefix.
+                        original-node-pb (original-node-id->pb original-node-id)]
+                    (assert (some? original-node-pb))
+                    {:original-node-pb original-node-pb
+                     :override-node-pb override-node-pb}))]
+
+            (->> template-node-id
+                 (template-node-id->override-node-pbs)
+                 (mapv override-node-pb->override-info))))]
+
+    (into []
+          (mapcat template-node-pb->override-infos)
+          template-node-pbs)))
+
+(defn- pb-nested-field-differences [^Message original-pb ^Message altered-pb pb-path]
+  {:pre [(s/valid? ::pb-path pb-path)
+         (identical? (.getDescriptorForType original-pb)
+                     (.getDescriptorForType altered-pb))]}
+  (let [pb-desc (.getDescriptorForType original-pb)
+        pb-desc-key (pb-descriptor-key pb-desc)
+        type-field-name (pb-type-field-names pb-desc-key)
+        type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
+        type-field-value (some->> type-field-desc (.getField original-pb))
+        type-token (some->> type-field-value pb-type-token)
+        typed-pb-path (cond-> pb-path type-token (conj type-token))
+
+        diff-field
+        (fn diff-field [^Descriptors$FieldDescriptor field-desc]
+          (pair (.getName field-desc)
+                (if (.isRepeated field-desc)
+                  ;; Repeated field.
+                  (if (not= (.getRepeatedFieldCount original-pb field-desc)
+                            (.getRepeatedFieldCount altered-pb field-desc))
+                    :count-mismatch
+                    (mapv (if (pb-message-field? field-desc)
+                            ;; Repeated message field.
+                            (let [pb-path (conj typed-pb-path (.getName field-desc))]
+                              #(pb-nested-field-differences %1 %2 pb-path))
+                            ;; Repeated primitive field.
+                            #(if (= %1 %2) 0 1))
+                          (.getField original-pb field-desc)
+                          (.getField altered-pb field-desc)))
+                  ;; Non-repeated field.
+                  (let [a-value (when (.hasField original-pb field-desc)
+                                  (.getField original-pb field-desc))
+                        b-value (when (.hasField altered-pb field-desc)
+                                  (.getField altered-pb field-desc))]
+                    (if (pb-message-field? field-desc)
+                      ;; Non-repeated message field.
+                      (let [pb-path (conj typed-pb-path (.getName field-desc))]
+                        (pb-nested-field-differences a-value b-value pb-path))
+                      ;; Non-repeated primitive-field.
+                      (if (= a-value b-value) 0 1))))))]
+
+    (into (sorted-map)
+          (map diff-field)
+          (pb-descriptor-expected-fields pb-desc typed-pb-path #{}))))
+
+(deftest all-gui-node-fields-overridden-test
+  (test-util/with-loaded-project project-path
+    (let [gui-resources (checked-resources workspace #(= "gui" (:ext %)))
+          proj-path->resource #(test-util/resource workspace %)
+          resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
+          gui-scene-pb->node-pbs #(.getNodesList ^Gui$SceneDesc %)
+          gui-proj-path->node-pbs (comp gui-scene-pb->node-pbs resource->gui-scene-pb proj-path->resource)
+          type-field-desc (.findFieldByName (Gui$NodeDesc/getDescriptor) "type")
+          pb-path ["gui" "nodes"]
+
+          non-overridden-gui-node-field-paths
+          (->> gui-resources
+               (transduce
+                 (comp
+                   (mapcat (fn [resource]
+                             (let [scene-pb (resource->gui-scene-pb resource)
+                                   node-pbs (gui-scene-pb->node-pbs scene-pb)]
+                               (gui-override-infos node-pbs gui-proj-path->node-pbs))))
+                   (map (fn [{:keys [^Gui$NodeDesc original-node-pb override-node-pb]}]
+                          (let [node-type (.getType original-node-pb)
+                                type-token (pb-type-token node-type)
+                                differences (-> (pb-nested-field-differences original-node-pb override-node-pb pb-path)
+                                                (dissoc "overridden_fields" "type"))]
+                            (sorted-map type-token differences)))))
+                 merge-nested-frequencies
+                 (pb-enum-field-desc-empty-frequencies type-field-desc pb-path))
+               (flatten-nested-frequencies)
+               (into empty-sorted-coll-set
+                     (comp (filter #(= 0 (val %)))
+                           (map #(string/join " -> " (key %))))))]
+      (is (= #{} non-overridden-gui-node-field-paths)
+          (list-message
+            (str "The following gui node fields are not covered by overrides in any .gui files under `editor/" project-path "`:")
+            non-overridden-gui-node-field-paths)))))
