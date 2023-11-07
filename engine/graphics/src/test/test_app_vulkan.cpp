@@ -301,7 +301,7 @@ static void* EngineCreate(int argc, char** argv)
         p.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
         dmGraphics::SetTexture(engine->m_CopyBufferToTextureTexture, p);
 
-        engine->m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW | dmGraphics::BUFFER_USAGE_TRANSFER);
+        engine->m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_TRANSFER);
 
         uint8_t* pixels = (uint8_t*) dmGraphics::MapVertexBuffer(engine->m_GraphicsContext, engine->m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
 
