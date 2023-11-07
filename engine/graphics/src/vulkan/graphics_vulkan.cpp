@@ -1946,12 +1946,8 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D      ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_UIMAGE2D        ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D         ||
+               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER         ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
-    }
-
-    static inline bool IsUniformSeparateSampler(const ShaderResourceBinding& uniform)
-    {
-        return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER;
     }
 
     static inline VulkanTexture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
@@ -1960,6 +1956,7 @@ bail:
         {
             case ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
+            case ShaderDesc::SHADER_TYPE_SAMPLER:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return context->m_DefaultTexture2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return context->m_DefaultTexture2DArray;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return context->m_DefaultTextureCubeMap;
@@ -2042,6 +2039,7 @@ bail:
 
                 VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 VkSampler image_sampler          = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
+                VkImageView image_view           = texture->m_Handle.m_ImageView;
                 VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
                 if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
@@ -2055,30 +2053,20 @@ bail:
                     image_sampler   = 0;
                     descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
                 }
+                else if (res.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER)
+                {
+                    descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER;
+                    image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
+                    image_view      = VK_NULL_HANDLE;
+                }
 
                 VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
                 vk_image_info.sampler             = image_sampler;
                 vk_image_info.imageLayout         = image_layout;
-                vk_image_info.imageView           = texture->m_Handle.m_ImageView;
+                vk_image_info.imageView           = image_view;
 
                 vk_write_desc_info.descriptorType = descriptor_type;
                 vk_write_desc_info.pImageInfo     = &vk_image_info;
-            }
-            else if (IsUniformSeparateSampler(res))
-            {
-                VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, g_VulkanContext->m_TextureUnits[res.m_TextureUnit]);
-
-                if (texture == 0x0)
-                {
-                    texture = GetDefaultTexture(g_VulkanContext, res.m_Type);
-                }
-
-                VkSampler image_sampler              = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
-                VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
-                vk_image_info.sampler                = image_sampler;
-
-                vk_write_desc_info.descriptorType    = VK_DESCRIPTOR_TYPE_SAMPLER;
-                vk_write_desc_info.pImageInfo        = &vk_image_info;
             }
             else
             {
@@ -2148,15 +2136,6 @@ bail:
         {
             return res;
         }
-
-        /*
-        VkDescriptorSet set_indirection_list[MAX_SET_COUNT] = {};
-        for (int i = 0; i < program_ptr->m_Handle.m_DescriptorSetLayoutsCount; ++i)
-        {
-            uint8_t set_index = program_ptr->m_DescriptorSetIndex[i];
-            set_indirection_list[set_index] = vk_descriptor_set_list[i];
-        }
-        */
 
         UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr,
             Program::MODULE_TYPE_VERTEX, scratch_buffer,
@@ -2380,7 +2359,7 @@ bail:
                 res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
                 res.m_NameHash             = ddf->m_Resources[i].m_NameHash;
 
-                if (IsUniformTextureSampler(res) || IsUniformSeparateSampler(res))
+                if (IsUniformTextureSampler(res))
                 {
                     res.m_TextureUnit = texture_sampler_count;
                     texture_sampler_count++;
@@ -2490,148 +2469,8 @@ bail:
         return (HFragmentProgram) shader;
     }
 
-    /*
-    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
-        uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
-        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
-    {
-        uint32_t byte_offset         = byte_offset_base;
-        uint32_t num_uniform_buffers = 0;
-        for(uint32_t i=0; i < module->m_Uniforms.Size(); i++)
-        {
-            // Process uniform data size
-            ShaderResourceBinding& res = module->m_Uniforms[i];
-            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
-
-            // Process samplers
-            VkDescriptorType vk_descriptor_type;
-
-            // Texture samplers don't need to allocate any memory
-            if (IsUniformTextureSampler(res))
-            {
-                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
-                {
-                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-                }
-                else
-                {
-                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                }
-            }
-            else
-            {
-                assert(num_uniform_buffers < byte_offset_list_size);
-                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += res.m_DataSize;
-                vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                num_uniform_buffers++;
-            }
-
-            // Process descriptor layout
-            VkDescriptorSetLayoutBinding& vk_desc = vk_bindings_out[i];
-            vk_desc.binding                       = module->m_Uniforms[i].m_Binding;
-            vk_desc.descriptorType                = vk_descriptor_type;
-            vk_desc.descriptorCount               = 1;
-            vk_desc.stageFlags                    = vk_stage_flag;
-            vk_desc.pImmutableSamplers            = 0;
-        }
-
-        *byte_offset_end_out = byte_offset;
-    }
-    */
-
-    static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
-    {
-        /*
-        VkPipelineShaderStageCreateInfo vk_compute_shader_create_info = {};
-        vk_compute_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vk_compute_shader_create_info.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
-        vk_compute_shader_create_info.module = compute_module->m_Module;
-        vk_compute_shader_create_info.pName  = "main"; // Should come from reflection!
-
-        memset(program, 0, sizeof(Program));
-
-        program->m_PipelineStageInfo[0] = vk_compute_shader_create_info;
-        program->m_ComputeModule        = compute_module;
-
-        const uint32_t num_uniforms = compute_module->m_TotalUniformCount;
-
-        VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = 0;
-
-        if (num_uniforms > 0)
-        {
-            vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
-            const uint32_t num_buffers = compute_module->m_UniformBufferCount;
-
-            if (num_buffers > 0)
-            {
-                program->m_UniformDataOffsets = new uint32_t[num_buffers];
-            }
-
-            uint32_t byte_size = 0;
-            CreateProgramUniforms(compute_module, VK_SHADER_STAGE_COMPUTE_BIT,
-                0, program->m_UniformDataOffsets, num_buffers, &byte_size, vk_descriptor_set_bindings);
-
-            program->m_UniformData = new uint8_t[byte_size];
-            memset(program->m_UniformData, 0, byte_size);
-        }
-
-        VkDescriptorSetLayoutCreateInfo vk_set_create_info;
-        memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
-
-        vk_set_create_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        vk_set_create_info.pBindings    = vk_descriptor_set_bindings;
-        vk_set_create_info.bindingCount = compute_module->m_TotalUniformCount;
-
-        vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
-            &vk_set_create_info, 0, &program->m_Handle.m_DescriptorSetLayout[0]);
-
-        VkPipelineLayoutCreateInfo vk_layout_create_info;
-        memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
-        vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        vk_layout_create_info.setLayoutCount = 1;
-        vk_layout_create_info.pSetLayouts    = &program->m_Handle.m_DescriptorSetLayout[0];
-
-        vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
-        delete[] vk_descriptor_set_bindings;
-        */
-    }
-
-    struct DescriptorSetResources
-    {
-        dmArray<VkDescriptorSetLayoutBinding>* m_Bindings;
-        VkDescriptorSetLayoutCreateInfo        m_CreateInfo;
-        uint8_t                                m_SetIndex;
-    };
-
-    static VkDescriptorSetLayoutBinding* FindDescriptorBinding(DescriptorSetResources* resources, uint32_t set, uint32_t binding)
-    {
-        if (resources->m_SetIndex == (uint8_t) set)
-        {
-            for (int i = 0; i < resources->m_Bindings->Size(); ++i)
-            {
-                if (resources->m_Bindings->Begin()[i].binding == binding)
-                {
-                    return &resources->m_Bindings->Begin()[i];
-                }
-            }
-        }
-        return 0x0;
-    }
-
-    static DescriptorSetResources* GetDescriptorSetResources(dmArray<DescriptorSetResources>& sets, uint8_t set)
-    {
-        for (int i = 0; i < sets.Size(); ++i)
-        {
-            if (sets[i].m_SetIndex == set)
-            {
-                return &sets[i];
-            }
-        }
-        return 0;
-    }
-
-    static void FillDescriptorSets(ShaderModule* module, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], VkShaderStageFlags stage_flag,
+    static void FillDescriptorSets(ShaderModule* module, 
+        VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], VkShaderStageFlags stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t* byte_offset_end_out, uint32_t* max_set_index)
     {
         uint32_t byte_offset         = byte_offset_base;
@@ -2648,12 +2487,13 @@ bail:
 
             if (binding.descriptorCount != 0)
             {
+                binding.stageFlags |= stage_flag;
                 continue;
             }
 
             VkDescriptorType vk_descriptor_type;
 
-            if (IsUniformTextureSampler(res) || IsUniformSeparateSampler(res))
+            if (IsUniformTextureSampler(res))
             {
                 switch(res.m_Type)
                 {
@@ -2683,78 +2523,98 @@ bail:
             binding.binding            = res.m_Binding;
             binding.descriptorType     = vk_descriptor_type;
             binding.descriptorCount    = 1;
-            binding.stageFlags         = VK_SHADER_STAGE_ALL; // stage_flag;
+            binding.stageFlags         = stage_flag;
             binding.pImmutableSamplers = 0;
-
-            /*
-            ShaderResourceBinding& res = module->m_Uniforms[i];
-            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
-
-            dmLogInfo("  set_count= %d", sets.Size());
-            dmLogInfo("SET=%d, BINDING=%d", res.m_Set, res.m_Binding);
-
-            DescriptorSetResources* set = GetDescriptorSetResources(sets, res.m_Set);
-
-            if (set == 0x0)
-            {
-                sets.OffsetCapacity(1);
-                DescriptorSetResources new_set = {};
-                new_set.m_Bindings = new dmArray<VkDescriptorSetLayoutBinding>();
-                new_set.m_SetIndex = res.m_Set;
-                sets.Push(new_set);
-                set = &sets[sets.Size()-1];
-            }
-
-            if (FindDescriptorBinding(set, res.m_Set, res.m_Binding))
-            {
-                dmLogInfo("Binding found!");
-                continue;
-            }
-
-            if (set->m_Bindings->Full())
-            {
-                set->m_Bindings->OffsetCapacity(4);
-            }
-
-            VkDescriptorType vk_descriptor_type;
-
-            if (IsUniformTextureSampler(res))
-            {
-                switch(res.m_Type)
-                {
-                    case ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-                        break;
-                    case ShaderDesc::SHADER_TYPE_UIMAGE2D:
-                    case ShaderDesc::SHADER_TYPE_IMAGE2D:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-                        break;
-                    default:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                        break;
-                }
-            }
-            else
-            {
-                vk_descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-
-                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += res.m_DataSize;
-            }
-                
-            VkDescriptorSetLayoutBinding binding = {};
-            binding.binding            = module->m_Uniforms[i].m_Binding;
-            binding.descriptorType     = vk_descriptor_type;
-            binding.descriptorCount    = 1;
-            binding.stageFlags         = VK_SHADER_STAGE_ALL; // stage_flag;
-            binding.pImmutableSamplers = 0;
-
-            set->m_Bindings->Push(binding);
-            */
         }
 
         *byte_offset_end_out = byte_offset;
         *max_set_index = max_set;
+    }
+
+    static void CreatePipelineLayout(VulkanContext* context, Program* program, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t max_sets)
+    {
+        program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
+
+        for (int i = 0; i < max_sets; ++i)
+        {
+            VkDescriptorSetLayoutBinding set_bindings[MAX_BINDINGS_PER_SET_COUNT] = {};
+            uint32_t bindings_count = 0;
+
+            for (int j = 0; j < MAX_BINDINGS_PER_SET_COUNT; ++j)
+            {
+                if (bindings[i][j].stageFlags != 0)
+                {
+                    set_bindings[bindings_count++] = bindings[i][j];
+                }
+            }
+
+            VkDescriptorSetLayoutCreateInfo set_create_info = {};
+            set_create_info.sType                           = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            set_create_info.pBindings                       = set_bindings;
+            set_create_info.bindingCount                    = bindings_count;
+
+            vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device, &set_create_info, 0, &program->m_Handle.m_DescriptorSetLayouts[i]);
+        }
+
+        VkPipelineLayoutCreateInfo vk_layout_create_info;
+        memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
+        vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        vk_layout_create_info.setLayoutCount = program->m_Handle.m_DescriptorSetLayoutsCount;
+        vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
+
+        vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+    }
+
+    static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
+    {
+        VkPipelineShaderStageCreateInfo vk_compute_shader_create_info = {};
+        vk_compute_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vk_compute_shader_create_info.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+        vk_compute_shader_create_info.module = compute_module->m_Module;
+        vk_compute_shader_create_info.pName  = "main"; // Should come from reflection!
+
+        memset(program, 0, sizeof(Program));
+
+        program->m_PipelineStageInfo[0] = vk_compute_shader_create_info;
+        program->m_ComputeModule        = compute_module;
+
+        const uint32_t num_uniforms = compute_module->m_TotalUniformCount;
+
+        VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = 0;
+
+        if (num_uniforms > 0)
+        {
+            vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
+            const uint32_t num_buffers = compute_module->m_UniformBufferCount;
+
+            if (num_buffers > 0)
+            {
+                program->m_UniformDataOffsets = new uint32_t[num_buffers];
+            }
+
+            uint32_t byte_size = 0;
+            uint32_t max_sets  = 0;
+            VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+
+            FillDescriptorSets(compute_module, bindings, VK_SHADER_STAGE_COMPUTE_BIT, 0, program->m_UniformDataOffsets, &byte_size, &max_sets);
+
+            program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
+
+            program->m_UniformData = new uint8_t[byte_size];
+            memset(program->m_UniformData, 0, byte_size);
+
+            CreatePipelineLayout(context, program, bindings, max_sets);
+        }
+        else
+        {
+            VkPipelineLayoutCreateInfo vk_layout_create_info = {};
+            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            vk_layout_create_info.setLayoutCount = 0;
+            vk_layout_create_info.pSetLayouts    = 0;
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+        }
+
+        delete[] vk_descriptor_set_bindings;
     }
 
     static void CreateGraphicsProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
@@ -2820,30 +2680,8 @@ bail:
             program->m_UniformData = new uint8_t[uniform_size];
             memset(program->m_UniformData, 0, uniform_size);
 
-            uint32_t max_sets = dmMath::Max(vs_max_sets, fs_max_sets);
-            program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
-
-            for (int i = 0; i < max_sets; ++i)
-            {
-                VkDescriptorSetLayoutBinding set_bindings[MAX_BINDINGS_PER_SET_COUNT] = {};
-                uint32_t bindings_count = 0;
-
-                for (int j = 0; j < MAX_BINDINGS_PER_SET_COUNT; ++j)
-                {
-                    if (bindings[i][j].stageFlags != 0)
-                    {
-                        set_bindings[bindings_count++] = bindings[i][j];
-                    }
-                }
-
-                VkDescriptorSetLayoutCreateInfo set_create_info = {};
-                set_create_info.sType                           = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-                set_create_info.pBindings                       = set_bindings;
-                set_create_info.bindingCount                    = bindings_count;
-
-                vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device, &set_create_info, 0, &program->m_Handle.m_DescriptorSetLayouts[i]);
-            }
-
+            CreatePipelineLayout(context, program, bindings, dmMath::Max(vs_max_sets, fs_max_sets));
+        #if 0
             dmLogInfo("Bindings for program %p:", &program->m_Handle.m_PipelineLayout);
             for (int i = 0; i < max_sets; ++i)
             {
@@ -2853,85 +2691,7 @@ bail:
                         dmLogInfo(" set=%d, binding=%d", i, bindings[i][j].binding);
                 }
             }
-
-            VkPipelineLayoutCreateInfo vk_layout_create_info;
-            memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
-            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            vk_layout_create_info.setLayoutCount = program->m_Handle.m_DescriptorSetLayoutsCount;
-            vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
-
-            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout); 
-
-            /*
-            for (int i = 0; i < num_sets; ++i)
-            {
-                delete descriptor_sets[i].m_Bindings;
-            }
-            */
-
-            // delete[] set_create_info;
-
-            /*
-            VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
-            const uint32_t num_buffers  = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
-
-            if (num_buffers > 0)
-            {
-                program->m_UniformDataOffsets = new uint32_t[num_buffers];
-            }
-
-            uint32_t vs_last_offset   = 0;
-            uint32_t fs_last_offset   = 0;
-
-            CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
-                0, program->m_UniformDataOffsets, num_buffers,
-                &vs_last_offset, vk_descriptor_set_bindings);
-            CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
-                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
-                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()]);
-
-            uint32_t uniform_size = vs_last_offset + fs_last_offset;
-
-            program->m_UniformData = new uint8_t[uniform_size];
-            memset(program->m_UniformData, 0, uniform_size);
-
-            uint32_t num_sets = vertex_module->m_SetCount + fragment_module->m_SetCount;
-
-            VkDescriptorSetLayoutCreateInfo* vk_set_create_info = new VkDescriptorSetLayoutCreateInfo[num_sets];
-            memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
-
-            delete[] vk_set_create_info;
-            delete[] vk_descriptor_set_bindings;
-            */
-
-            /*
-            VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
-            memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
-            vk_set_create_info[Program::MODULE_TYPE_VERTEX].sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            vk_set_create_info[Program::MODULE_TYPE_VERTEX].pBindings      = vk_descriptor_set_bindings;
-            vk_set_create_info[Program::MODULE_TYPE_VERTEX].bindingCount   = vertex_module->m_Uniforms.Size();
-
-            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].pBindings    = &vk_descriptor_set_bindings[vertex_module->m_Uniforms.Size()];
-            vk_set_create_info[Program::MODULE_TYPE_FRAGMENT].bindingCount = fragment_module->m_Uniforms.Size();
-
-            vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
-                &vk_set_create_info[Program::MODULE_TYPE_VERTEX],
-                0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_VERTEX]);
-
-            vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
-                &vk_set_create_info[Program::MODULE_TYPE_FRAGMENT],
-                0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_FRAGMENT]);
-
-            VkPipelineLayoutCreateInfo vk_layout_create_info;
-            memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
-            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            vk_layout_create_info.setLayoutCount = // Program::MODULE_TYPE_COUNT;
-            vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayout;
-
-            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
-            delete[] vk_descriptor_set_bindings;
-            */
+        #endif
         }
         else
         {
@@ -3154,7 +2914,7 @@ bail:
         uint32_t search_index = 0;
         for (int i = 0; i < module->m_Uniforms.Size(); ++i)
         {
-            if (IsUniformTextureSampler(module->m_Uniforms[i]) || IsUniformSeparateSampler(module->m_Uniforms[i]))
+            if (IsUniformTextureSampler(module->m_Uniforms[i]))
             {
                 if (search_index == index)
                 {
