@@ -31,6 +31,24 @@
   [a b]
   (MapEntry. a b))
 
+(defmacro pair-fn
+  "Returns a function that takes a value and returns a pair from it. The
+  supplied key-fn is expected to take a value and return the key to use for
+  that value. If supplied, the value-fn is applied to the value to produce the
+  value portion of the pair. Useful when transforming sequences into maps, and
+  can be a drop-in replacement for (juxt key-fn value-fn)."
+  ([key-fn]
+   `(let [key-fn# ~key-fn]
+      (fn ~'value->pair [~'value]
+        (pair (key-fn# ~'value)
+              ~'value))))
+  ([key-fn value-fn]
+   `(let [key-fn# ~key-fn
+          value-fn# ~value-fn]
+      (fn ~'value->pair [~'value]
+        (pair (key-fn# ~'value)
+              (value-fn# ~'value))))))
+
 (defn flipped-pair
   "Constructs a two-element collection that implements IPersistentVector from
   the reversed arguments."
@@ -84,6 +102,23 @@
 
     :else
     (not (seq coll))))
+
+(defn pair-map-by
+  "Returns a hash-map where the keys are the result of applying the supplied
+  key-fn to each item in the input sequence and the values are the items
+  themselves. Returns a stateless transducer if no input sequence is
+  provided. Optionally, a value-fn can be supplied to transform the values."
+  ([key-fn]
+   {:pre [(ifn? key-fn)]}
+   (map (pair-fn key-fn)))
+  ([key-fn coll]
+   (into {}
+         (map (pair-fn key-fn))
+         coll))
+  ([key-fn value-fn coll]
+   (into {}
+         (map (pair-fn key-fn value-fn))
+         coll)))
 
 (defn separate-by
   "Separates items in the supplied collection into two based on a predicate.

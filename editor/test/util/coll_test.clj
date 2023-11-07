@@ -34,16 +34,45 @@
   (is (false? (coll/supports-transient? (repeatedly 0 rand)))))
 
 (deftest pair-test
-  (instance? IPersistentVector (coll/pair 1 2))
-  (let [[a b] (coll/pair 1 2)]
-    (is (= 1 a))
-    (is (= 2 b))))
+  (is (instance? IPersistentVector (coll/pair 1 2)))
+  (is (counted? (coll/pair 1 2)))
+  (is (= 2 (count (coll/pair 1 2))))
+  (is (= [1 2] (coll/pair 1 2))))
+
+(deftest pair-fn-test
+  (testing "Specified key-fn"
+    (let [make-pair (coll/pair-fn keyword)
+          pair-one (make-pair "one")]
+      (is (instance? IPersistentVector pair-one))
+      (is (counted? pair-one))
+      (is (= 2 (count pair-one)))
+      (is (= [:one "one"] pair-one))))
+
+  (testing "Specified key-fn and value-fn"
+    (let [make-pair (coll/pair-fn symbol keyword)
+          pair-two (make-pair "two")]
+      (is (instance? IPersistentVector pair-two))
+      (is (counted? pair-two))
+      (is (= 2 (count pair-two)))
+      (is (= ['two :two] pair-two))))
+
+  (testing "Argument expressions should not be inlined"
+    (let [key-fn-atom (atom {"item" 1})
+          value-fn-atom (atom {"item" :a})
+          make-pair (coll/pair-fn @key-fn-atom)
+          make-transformed-pair (coll/pair-fn @key-fn-atom @value-fn-atom)]
+      (is (= [1 "item"] (make-pair "item")))
+      (is (= [1 :a] (make-transformed-pair "item")))
+      (swap! key-fn-atom assoc "item" 2)
+      (swap! value-fn-atom assoc "item" :b)
+      (is (= [1 "item"] (make-pair "item")))
+      (is (= [1 :a] (make-transformed-pair "item"))))))
 
 (deftest flipped-pair-test
-  (instance? IPersistentVector (coll/flipped-pair 1 2))
-  (let [[a b] (coll/flipped-pair 1 2)]
-    (is (= 2 a))
-    (is (= 1 b))))
+  (is (instance? IPersistentVector (coll/flipped-pair 1 2)))
+  (is (counted? (coll/flipped-pair 1 2)))
+  (is (= 2 (count (coll/flipped-pair 1 2))))
+  (is (= [2 1] (coll/flipped-pair 1 2))))
 
 (deftest bounded-count-test
   (testing "Counted sequence"
@@ -116,6 +145,24 @@
   (is (false? (coll/empty? (sorted-set 1))))
   (is (false? (coll/empty? (range 1))))
   (is (false? (coll/empty? (repeatedly 1 rand)))))
+
+(deftest pair-map-by-test
+  (testing "Works as a transducer"
+    (let [result (into (sorted-map)
+                       (coll/pair-map-by keyword)
+                       ["one" "two"])]
+      (is (sorted? result))
+      (is (= {:one "one" :two "two"} result))))
+
+  (testing "Applies key-fn on input sequence"
+    (let [result (coll/pair-map-by keyword ["one" "two"])]
+      (is (map? result))
+      (is (= {:one "one" :two "two"} result))))
+
+  (testing "Applies key-fn and value-fn on input sequence"
+    (let [result (coll/pair-map-by symbol keyword ["one" "two"])]
+      (is (map? result))
+      (is (= {'one :one 'two :two} result)))))
 
 (deftest separate-by-test
   (testing "Separates by predicate"

@@ -55,8 +55,8 @@ Macros currently mean no foreseeable performance gain however."
       (.getBytes StandardCharsets/UTF_8)
       (TextFormat/escapeBytes)))
 
-(defn- new-builder ^GeneratedMessage$Builder
-  [class]
+(defn- new-builder
+  ^GeneratedMessage$Builder [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
 (defn- field-name->key-raw [^String field-name]
@@ -426,7 +426,7 @@ Macros currently mean no foreseeable performance gain however."
                                               (.invoke field-set-method b (to-array [(value-fn v)])))])))
                   field-descs)
         builder-fn (fn [m]
-                     (let [b ^GeneratedMessage$Builder (new-builder class)]
+                     (let [b (new-builder class)]
                        (doseq [[k v] m
                                :when (some? v)
                                :let [setter! (get setters k)]
@@ -440,14 +440,15 @@ Macros currently mean no foreseeable performance gain however."
 
 (def ^:private pb-builder (memoize pb-builder-raw))
 
-(defn map->pb
-  [^Class cls m]
-  (when-let [builder (pb-builder cls)]
-    (builder m)))
+(defmacro map->pb [^Class cls m]
+  (cond-> `((#'pb-builder ~cls) ~m)
+          (class? (ns-resolve *ns* cls))
+          (with-meta {:tag cls})))
 
 (defmacro str->pb [^Class cls str]
-  (with-meta `(TextFormat/parse ~str ~cls)
-             {:tag cls}))
+  (cond-> `(TextFormat/parse ~str ~cls)
+          (class? (resolve cls))
+          (with-meta {:tag cls})))
 
 (defn- break-embedded-newlines
   [^String pb-str]
@@ -712,9 +713,10 @@ Macros currently mean no foreseeable performance gain however."
     (TextFormat/merge reader builder)
     builder))
 
-(defn read-pb [^Class cls input]
-  ;; TODO: Make into macro so we can tag the return type.
-  (.build (read-pb-into! (new-builder cls) input)))
+(defmacro read-pb [^Class cls input]
+  (cond-> `(.build (read-pb-into! (#'new-builder ~cls) ~input))
+          (class? (resolve cls))
+          (with-meta {:tag cls})))
 
 (defn read-text [^Class cls input]
   (pb->map (read-pb cls input)))
@@ -731,8 +733,9 @@ Macros currently mean no foreseeable performance gain however."
 (def parser-fn (memoize parser-fn-raw))
 
 (defmacro bytes->pb [^Class cls bytes]
-  (with-meta `((parser-fn ~cls) ~bytes)
-             {:tag cls}))
+  (cond-> `((parser-fn ~cls) ~bytes)
+          (class? (resolve cls))
+          (with-meta {:tag cls})))
 
 (defn bytes->map [^Class cls bytes]
   (let [parser (parser-fn cls)]
