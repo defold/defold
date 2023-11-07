@@ -406,6 +406,7 @@ namespace dmGraphics
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
+        HTexture                        m_CurrentSwapchainTexture;
 
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
@@ -415,8 +416,6 @@ namespace dmGraphics
         VulkanTexture*                  m_DefaultTextureCubeMap;
         VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture                   m_ResolveTexture;
-
-        HTexture m_CurrentSwapchainTexture;
 
         uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;

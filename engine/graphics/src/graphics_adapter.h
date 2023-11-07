@@ -302,10 +302,10 @@ namespace dmGraphics
         DeleteComputeProgramFn  m_DeleteComputeProgram;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        MapVertexBufferFn                  m_MapVertexBuffer;
-        UnmapVertexBufferFn                m_UnmapVertexBuffer;
-        MapIndexBufferFn                   m_MapIndexBuffer;
-        UnmapIndexBufferFn                 m_UnmapIndexBuffer;
+        MapVertexBufferFn   m_MapVertexBuffer;
+        UnmapVertexBufferFn m_UnmapVertexBuffer;
+        MapIndexBufferFn    m_MapIndexBuffer;
+        UnmapIndexBufferFn  m_UnmapIndexBuffer;
     #endif
     };
 
