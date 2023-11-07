@@ -120,6 +120,7 @@ namespace dmGraphics
         TEXTURE_TYPE_2D       = 0,
         TEXTURE_TYPE_2D_ARRAY = 1,
         TEXTURE_TYPE_CUBE_MAP = 2,
+        TEXTURE_TYPE_IMAGE_2D = 3,
     };
 
     // Texture filter
@@ -217,6 +218,7 @@ namespace dmGraphics
         TEXTURE_USAGE_HINT_MEMORYLESS = 2,
         TEXTURE_USAGE_HINT_INPUT      = 4,
         TEXTURE_USAGE_HINT_COLOR      = 8,
+        TEXTURE_USAGE_HINT_STORAGE    = 16,
     };
 
     struct TextureCreationParams

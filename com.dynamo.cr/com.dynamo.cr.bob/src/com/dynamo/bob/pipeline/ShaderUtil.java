@@ -107,6 +107,7 @@ public class ShaderUtil {
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D      ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER         ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D        ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
         }
@@ -141,7 +142,8 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("texture2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
                 new ShaderDataTypeConversionEntry("utexture2D",     ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D),
                 new ShaderDataTypeConversionEntry("uimage2D",       ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D),
-                new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D)
+                new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D),
+                new ShaderDataTypeConversionEntry("sampler",        ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -324,9 +326,10 @@ public class ShaderUtil {
 
         public static ArrayList<Resource> getTextures() {
             ArrayList<Resource> textures = new ArrayList<Resource>();
-            addTexturesFromNode(root.get("textures"),        textures);
-            addTexturesFromNode(root.get("separate_images"), textures);
-            addTexturesFromNode(root.get("images"),          textures);
+            addTexturesFromNode(root.get("textures"),          textures);
+            addTexturesFromNode(root.get("separate_images"),   textures);
+            addTexturesFromNode(root.get("images"),            textures);
+            addTexturesFromNode(root.get("separate_samplers"), textures);
             return textures;
         }
 

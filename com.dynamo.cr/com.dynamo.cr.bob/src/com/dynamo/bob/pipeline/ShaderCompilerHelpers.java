@@ -337,7 +337,7 @@ public class ShaderCompilerHelpers {
             ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
 
             if (!Common.isShaderTypeTexture(type)) {
-                shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
+                shaderIssues.add("Unsupported type '" + tex.type + "' for texture sampler '" + tex.name + "'");
             }
 
             SPIRVReflector.UniformBlock textureBlock = new SPIRVReflector.UniformBlock();
