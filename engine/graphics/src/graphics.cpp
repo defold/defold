@@ -372,6 +372,27 @@ namespace dmGraphics
         return 0;
     }
 
+    uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
+    {
+        switch(type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:     return 4;
+            case ShaderDesc::SHADER_TYPE_UINT:    return 4;
+            case ShaderDesc::SHADER_TYPE_FLOAT:   return 4;
+            case ShaderDesc::SHADER_TYPE_VEC2:    return 8;
+            case ShaderDesc::SHADER_TYPE_VEC3:    return 12;
+            case ShaderDesc::SHADER_TYPE_VEC4:    return 16;
+            case ShaderDesc::SHADER_TYPE_MAT2:    return 16;
+            case ShaderDesc::SHADER_TYPE_MAT3:    return 36;
+            case ShaderDesc::SHADER_TYPE_MAT4:    return 64;
+            case ShaderDesc::SHADER_TYPE_UVEC2:   return 16;
+            case ShaderDesc::SHADER_TYPE_UVEC3:   return 36;
+            case ShaderDesc::SHADER_TYPE_UVEC4:   return 64;
+            default: return 0;
+        }
+        return 0;
+    }
+
     void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
     {
         *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;

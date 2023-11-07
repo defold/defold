@@ -167,7 +167,7 @@ namespace dmGraphics
         // imageArrayLayers: the number of views in a multiview/stereo surface.
         // For non-stereoscopic-3D applications, this value is 1
         vk_swap_chain_create_info.imageArrayLayers = 1;
-        vk_swap_chain_create_info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        vk_swap_chain_create_info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
          // Move queue indices over to uint32_t array
         uint32_t queue_family_indices[2] = {(uint32_t) swapChain->m_QueueFamily.m_GraphicsQueueIx, (uint32_t) swapChain->m_QueueFamily.m_PresentQueueIx};
@@ -259,6 +259,16 @@ namespace dmGraphics
 
         for (uint32_t i=0; i < swap_chain_image_count; i++)
         {
+            /*
+            res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
+                    swapChain->m_Images[i],
+                    VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PREINITIALIZED);
+            */
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
             VkImageViewCreateInfo vk_create_info_image_view;
             memset((void*)&vk_create_info_image_view, 0, sizeof(vk_create_info_image_view));
 

@@ -27,12 +27,6 @@ namespace dmGraphics
         VERTEX_STEP_INSTANCE,
     };
 
-    enum VulkanBufferUsage
-    {
-        BUFFER_USAGE_NONE     = 0,
-        BUFFER_USAGE_TRANSFER = 1,
-    };
-
     struct RenderPassDependency
     {
         uint8_t m_Src;
@@ -82,7 +76,6 @@ namespace dmGraphics
     void     VulkanCreateRenderPass(HContext context, HRenderTarget render_target, const CreateRenderPassParams& params);
     void     VulkanNextRenderPass(HContext context, HRenderTarget render_target);
     void     VulkanSetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
-    void     VulkanSetVertexBufferUsage(HVertexBuffer buffer, uint32_t flags);
     void     VulkanSetPipelineState(HContext context, PipelineState ps);
 }
 

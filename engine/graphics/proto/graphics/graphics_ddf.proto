@@ -260,12 +260,15 @@ message ShaderDesc
         SHADER_TYPE_UNIFORM_BUFFER  = 14;
 
         // Extended types (not universally supported)
-        SHADER_TYPE_UVEC2           = 15;
-        SHADER_TYPE_UVEC3           = 16;
-        SHADER_TYPE_UVEC4           = 17;
-        SHADER_TYPE_TEXTURE2D       = 18;
-        SHADER_TYPE_UTEXTURE2D      = 19;
+        SHADER_TYPE_UVEC2             = 15;
+        SHADER_TYPE_UVEC3             = 16;
+        SHADER_TYPE_UVEC4             = 17;
+        SHADER_TYPE_TEXTURE2D         = 18;
+        SHADER_TYPE_UTEXTURE2D        = 19;
         SHADER_TYPE_RENDER_PASS_INPUT = 20;
+        SHADER_TYPE_UIMAGE2D          = 21;
+        SHADER_TYPE_IMAGE2D           = 22;
+        SHADER_TYPE_SAMPLER           = 23;
     }
 
     message ResourceBinding

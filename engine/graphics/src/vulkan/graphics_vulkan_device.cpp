@@ -146,7 +146,7 @@ namespace dmGraphics
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.descriptorSetCount = setCount;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
         vk_descriptor_set_alloc.descriptorPool     = pool.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
@@ -214,7 +214,7 @@ namespace dmGraphics
         return vk_device_count;
     }
 
-    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeatures)
     {
         assert(deviceListOut);
         PhysicalDevice* device_list = *deviceListOut;
@@ -228,8 +228,12 @@ namespace dmGraphics
             VkPhysicalDevice vk_device = vk_device_list[i];
             uint32_t vk_device_extension_count, vk_queue_family_count;
 
+            device_list[i].m_Features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            device_list[i].m_Features2.pNext = pNextFeatures;
+
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
+            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
@@ -834,6 +838,11 @@ bail:
             attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_color.finalLayout    = colorAttachments[i].m_ImageLayout;
 
+            if (colorAttachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            {
+                attachment_color.initialLayout = colorAttachments[i].m_ImageLayoutInitial;
+            }
+
             VkAttachmentReference& ref = vk_attachment_color_ref[i];
             ref.attachment = i;
             ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -1166,6 +1175,8 @@ bail:
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
+        dmLogInfo("Pipeline for program %p:", &program->m_Handle.m_PipelineLayout);
+
         return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
@@ -1185,12 +1196,12 @@ bail:
             handle->m_PipelineLayout = VK_NULL_HANDLE;
         }
 
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        for (int i = 0; i < handle->m_DescriptorSetLayoutsCount; ++i)
         {
-            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            if (handle->m_DescriptorSetLayouts[i] != VK_NULL_HANDLE)
             {
-                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
-                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayouts[i], 0);
+                handle->m_DescriptorSetLayouts[i] = VK_NULL_HANDLE;
             }
         }
     }
@@ -1366,7 +1377,7 @@ bail:
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
-        LogicalDevice* logicalDeviceOut)
+        void* pNext, LogicalDevice* logicalDeviceOut)
     {
         assert(device);
 
@@ -1401,6 +1412,7 @@ bail:
         memset(&vk_device_create_info, 0, sizeof(vk_device_create_info));
 
         vk_device_create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        vk_device_create_info.pNext                   = pNext;
         vk_device_create_info.pQueueCreateInfos       = vk_device_queue_create_info;
         vk_device_create_info.queueCreateInfoCount    = queue_family_c;
         vk_device_create_info.pEnabledFeatures        = 0;

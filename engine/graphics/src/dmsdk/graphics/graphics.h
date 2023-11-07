@@ -305,6 +305,7 @@ namespace dmGraphics
         BUFFER_USAGE_STREAM_DRAW  = 0,
         BUFFER_USAGE_DYNAMIC_DRAW = 1,
         BUFFER_USAGE_STATIC_DRAW  = 2,
+        BUFFER_USAGE_TRANSFER     = 4,
     };
 
     /*#

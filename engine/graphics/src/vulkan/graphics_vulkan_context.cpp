@@ -183,6 +183,11 @@ namespace dmGraphics
         vk_application_info.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
         vk_application_info.apiVersion         = VK_API_VERSION_1_0;
 
+        // Required for interlock features
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        vk_application_info.apiVersion = VK_API_VERSION_1_1;
+    #endif
+
         vk_required_extensions.SetCapacity(extensionNameCount + validationLayerExtensionCount);
 
         for (uint16_t i = 0; i < extensionNameCount; ++i)
@@ -203,8 +208,9 @@ namespace dmGraphics
                 vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
                 vk_required_extensions.Push("VK_KHR_get_physical_device_properties2");
             #else
-                vk_required_extensions.OffsetCapacity(1);
+                vk_required_extensions.OffsetCapacity(2);
                 vk_required_extensions.Push(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+                vk_required_extensions.Push("VK_KHR_portability_enumeration");
             #endif
 
                 for (uint16_t i=0; i < validationLayerExtensionCount; ++i)

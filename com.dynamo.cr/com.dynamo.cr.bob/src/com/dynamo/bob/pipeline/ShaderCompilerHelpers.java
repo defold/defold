@@ -306,6 +306,11 @@ public class ShaderCompilerHelpers {
         SPIRVReflector reflector       = new SPIRVReflector(result_json);
         ArrayList<String> shaderIssues = new ArrayList<String>();
 
+        System.out.println("REFLECTION");
+        System.out.println("-------------");
+        System.out.println(result_json);
+        System.out.println("-------------");
+
         // Put all shader resources on a separate list that will be sorted by binding number later
         ArrayList<SPIRVReflector.UniformBlock> resources = new ArrayList();
 
@@ -332,7 +337,7 @@ public class ShaderCompilerHelpers {
             ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
 
             if (!Common.isShaderTypeTexture(type)) {
-                shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
+                shaderIssues.add("Unsupported type '" + tex.type + "' for texture sampler '" + tex.name + "'");
             }
 
             SPIRVReflector.UniformBlock textureBlock = new SPIRVReflector.UniformBlock();

@@ -106,7 +106,10 @@ public class ShaderUtil {
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D;
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D      ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER         ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D        ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
         }
 
         private static class ShaderDataTypeConversionEntry {
@@ -119,25 +122,28 @@ public class ShaderUtil {
         }
 
         private static final ArrayList<ShaderDataTypeConversionEntry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
-                new ShaderDataTypeConversionEntry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
-                new ShaderDataTypeConversionEntry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
-                new ShaderDataTypeConversionEntry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
-                new ShaderDataTypeConversionEntry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
-                new ShaderDataTypeConversionEntry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
-                new ShaderDataTypeConversionEntry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
-                new ShaderDataTypeConversionEntry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
-                new ShaderDataTypeConversionEntry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
-                new ShaderDataTypeConversionEntry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
-                new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
-                new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
-                new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
+                new ShaderDataTypeConversionEntry("int",            ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
+                new ShaderDataTypeConversionEntry("uint",           ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
+                new ShaderDataTypeConversionEntry("float",          ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
+                new ShaderDataTypeConversionEntry("vec2",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
+                new ShaderDataTypeConversionEntry("vec3",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
+                new ShaderDataTypeConversionEntry("vec4",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
+                new ShaderDataTypeConversionEntry("mat2",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
+                new ShaderDataTypeConversionEntry("mat3",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
+                new ShaderDataTypeConversionEntry("mat4",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
+                new ShaderDataTypeConversionEntry("sampler2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
+                new ShaderDataTypeConversionEntry("sampler3D",      ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
+                new ShaderDataTypeConversionEntry("samplerCube",    ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
                 new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
-                new ShaderDataTypeConversionEntry("ubo", ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER),
-                new ShaderDataTypeConversionEntry("uvec2", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2),
-                new ShaderDataTypeConversionEntry("uvec3", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
-                new ShaderDataTypeConversionEntry("uvec4", ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
-                new ShaderDataTypeConversionEntry("texture2D", ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
-                new ShaderDataTypeConversionEntry("utexture2D", ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D)
+                new ShaderDataTypeConversionEntry("ubo",            ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER),
+                new ShaderDataTypeConversionEntry("uvec2",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2),
+                new ShaderDataTypeConversionEntry("uvec3",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
+                new ShaderDataTypeConversionEntry("uvec4",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
+                new ShaderDataTypeConversionEntry("texture2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
+                new ShaderDataTypeConversionEntry("utexture2D",     ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D),
+                new ShaderDataTypeConversionEntry("uimage2D",       ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D),
+                new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D),
+                new ShaderDataTypeConversionEntry("sampler",        ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -320,8 +326,10 @@ public class ShaderUtil {
 
         public static ArrayList<Resource> getTextures() {
             ArrayList<Resource> textures = new ArrayList<Resource>();
-            addTexturesFromNode(root.get("textures"), textures);
-            addTexturesFromNode(root.get("separate_images"), textures);
+            addTexturesFromNode(root.get("textures"),          textures);
+            addTexturesFromNode(root.get("separate_images"),   textures);
+            addTexturesFromNode(root.get("images"),            textures);
+            addTexturesFromNode(root.get("separate_samplers"), textures);
             return textures;
         }
 
