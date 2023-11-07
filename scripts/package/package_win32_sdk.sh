@@ -73,12 +73,14 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	mkdir -p ${TMP_VS_ROOT}/include
 	mkdir -p ${TMP_VS_ROOT}/lib/x64
 	mkdir -p ${TMP_VS_ROOT}/lib/x86
+	mkdir -p ${TMP_VS_ROOT}/atlmfc
 
 	cp -r -v "${VS_ROOT}/bin/Hostx64/x64" "${TMP_VS_ROOT}/bin/Hostx64"
 	cp -r -v "${VS_ROOT}/bin/Hostx64/x86" "${TMP_VS_ROOT}/bin/Hostx86"
 	cp -r -v "${VS_ROOT}/include" "${TMP_VS_ROOT}"
 	cp -r -v "${VS_ROOT}/lib/x64" "${TMP_VS_ROOT}/lib"
 	cp -r -v "${VS_ROOT}/lib/x86" "${TMP_VS_ROOT}/lib"
+	cp -r -v "${VS_ROOT}/atlmfc"  "${TMP_VS_ROOT}"
 
 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "$TMP" VC
 else
