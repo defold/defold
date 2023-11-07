@@ -999,6 +999,8 @@ namespace dmGraphics
         const bool want_vsync   = true;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
+        void* device_pNext_chain = 0;
+
         uint16_t validation_layers_count;
         const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
 
@@ -1029,21 +1031,19 @@ namespace dmGraphics
         #endif
     #endif
 
-        void* device_pNext = 0;
-
     #if defined(DM_EXPERIMENTAL_GRAPHICS_FEATURES)
         if (VulkanIsExtensionSupported((HContext) context, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
 
-            device_pNext = &context->m_FragmentShaderInterlockFeatures;
+            device_pNext_chain = &context->m_FragmentShaderInterlockFeatures;
         }
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),
-            validation_layers, (uint8_t)validation_layers_count, device_pNext, &logical_device);
+            validation_layers, (uint8_t)validation_layers_count, device_pNext_chain, &logical_device);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
@@ -2596,56 +2596,6 @@ bail:
         delete[] vk_descriptor_set_bindings;
         */
     }
-
-    /*
-    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
-        uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
-        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
-    {
-        uint32_t byte_offset         = byte_offset_base;
-        uint32_t num_uniform_buffers = 0;
-        for(uint32_t i=0; i < module->m_Uniforms.Size(); i++)
-        {
-            // Process uniform data size
-            ShaderResourceBinding& res = module->m_Uniforms[i];
-            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
-
-            // Process samplers
-            VkDescriptorType vk_descriptor_type;
-
-            // Texture samplers don't need to allocate any memory
-            if (IsUniformTextureSampler(res))
-            {
-                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
-                {
-                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-                }
-                else
-                {
-                    vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                }
-            }
-            else
-            {
-                assert(num_uniform_buffers < byte_offset_list_size);
-                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += res.m_DataSize;
-                vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                num_uniform_buffers++;
-            }
-
-            // Process descriptor layout
-            VkDescriptorSetLayoutBinding& vk_desc = vk_bindings_out[i];
-            vk_desc.binding                       = module->m_Uniforms[i].m_Binding;
-            vk_desc.descriptorType                = vk_descriptor_type;
-            vk_desc.descriptorCount               = 1;
-            vk_desc.stageFlags                    = vk_stage_flag;
-            vk_desc.pImmutableSamplers            = 0;
-        }
-
-        *byte_offset_end_out = byte_offset;
-    }
-    */
 
     struct DescriptorSetResources
     {
