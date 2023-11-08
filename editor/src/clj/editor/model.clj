@@ -437,8 +437,6 @@
         (update :properties into new-props)
         (update :display-order into (map first) new-props))))
 
-#_(g/clear-system-cache!)
-
 (g/defnode ModelNode
   (inherits resource-node/ResourceNode)
 
