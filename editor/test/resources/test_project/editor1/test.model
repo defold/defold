@@ -5,7 +5,7 @@ default_animation: ""
 name: "name"
 materials {
   name: "default"
-  material: "/editor1/test.material"
+  material: "/main/test.material"
   textures {
     sampler: "tex0"
     texture: "/assets/images/logo.png"

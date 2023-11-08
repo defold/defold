@@ -257,7 +257,7 @@
 (defn- detect-and-apply-renames [texture-binding-infos samplers]
   (let [texture-binding-info-name-index (util/name-index texture-binding-infos :sampler)
         sampler-name-index (util/name-index samplers :name)
-        renames (util/detect-the-renames texture-binding-info-name-index sampler-name-index)]
+        renames (util/detect-renames texture-binding-info-name-index sampler-name-index)]
     (reduce
       (fn [texture-binding-infos [texture-binding-index sampler-index]]
         (update texture-binding-infos texture-binding-index assoc :sampler (:name (samplers sampler-index))))
@@ -297,7 +297,7 @@
         tb-name-index (util/name-index texture-binding-infos :sampler)
         old-name-index (util/name-index old-value :name)
         new-name-index (util/name-index new-value :name)
-        old-value-index->new-value-index (util/detect-the-renames old-name-index new-name-index)]
+        old-value-index->new-value-index (util/detect-renames old-name-index new-name-index)]
     (into []
           (mapcat
             (fn [[tb-index old-value-index]]

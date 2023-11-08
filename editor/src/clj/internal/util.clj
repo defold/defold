@@ -721,14 +721,14 @@
                  (assoc! name->order name (inc order))
                  (assoc! name+order->index (pair name order) i)))))))
 
-(defn detect-the-renames [old-name-index new-name-index]
+(defn detect-renames [old-name-index new-name-index]
   (into {}
         (mapv (fn [removed-entry added-entry]
                 (pair (val removed-entry) (val added-entry)))
               (filterv (comp not new-name-index key) old-name-index)
               (filterv (comp not old-name-index key) new-name-index))))
 
-(defn detect-the-same-names [old-name-index new-name-index]
+(defn detect-same-names [old-name-index new-name-index]
   (into {}
         (keep (fn [old-entry]
                 (when-let [new-index (new-name-index (key old-entry))]
@@ -736,186 +736,5 @@
         old-name-index))
 
 (defn detect-all-name-connections [old-name-index new-name-index]
-  (into (detect-the-renames old-name-index new-name-index)
-        (detect-the-same-names old-name-index new-name-index)))
-
-(detect-the-renames
-  (name-index ["a" "b" "c"] identity)
-  (name-index ["b" "c" "b"] identity))
-(detect-the-same-names
-  (name-index ["a" "b" "c"] identity)
-  (name-index ["b" "c" "b"] identity))
-(detect-all-name-connections
-  (name-index ["a" "b" "c"] identity)
-  (name-index ["b" "c" "b"] identity))
-
-;;;
-
-(defn detect-renames [old-coll old-call-get-name-fn new-coll new-coll-get-name-fn]
-  (let [old-name-index (name-index old-coll old-call-get-name-fn)
-        new-name-index (name-index new-coll new-coll-get-name-fn)]
-    (mapv (fn [removed-entry added-entry]
-            (pair (val removed-entry) (val added-entry)))
-          (filterv (comp not new-name-index key) old-name-index)
-          (filterv (comp not old-name-index key) new-name-index))))
-
-(defn detect-same-names [old-coll old-key new-coll new-key]
-  (let [old-name-index (name-index old-coll old-key)
-        new-name-index (name-index new-coll new-key)]
-    (into []
-          (keep (fn [old-entry]
-                  (when-let [new-index (new-name-index (key old-entry))]
-                    (pair (val old-entry) new-index))))
-          old-name-index)))
-
-
-(defn apply-detected-renames [old-coll old-coll-set-name-fn new-coll new-coll-get-name-fn renames]
-  (reduce
-    (fn [old-coll [old-coll-index new-coll-index]]
-      (update old-coll old-coll-index old-coll-set-name-fn (new-coll-get-name-fn (new-coll new-coll-index))))
-    old-coll
-    renames))
-
-(defn apply-renames [old-coll old-call-get-name-fn new-coll new-coll-get-name-fn old-coll-set-name-fn]
-  (apply-detected-renames old-coll old-coll-set-name-fn new-coll new-coll-get-name-fn
-                          (detect-renames old-coll old-call-get-name-fn
-                                          new-coll new-coll-get-name-fn)))
-
-(defn multi-index
-  "Create an index for items' \"soft\" ids that, while identify the items,
-  are not guaranteed to be unique within the coll
-
-  Returns a map of [id id-order] => value-sans-id
-
-  Args:
-    coll            nil or vector of items
-    get-id-fn       fn that extracts the item's id
-    remove-id-fn    fn that removes the item's id"
-  [coll get-id-fn remove-id-fn]
-  {:pre [(or (nil? coll) (vector? coll))]}
-  (let [n (count coll)]
-    (loop [i 0
-           key->order (transient {})
-           key+order->item (transient {})]
-      (if (= i n)
-        (persistent! key+order->item)
-        (let [item (coll i)
-              k (get-id-fn item)
-              order (long (key->order k 0))]
-          (recur (inc i)
-                 (assoc! key->order k (inc order))
-                 (assoc! key+order->item (pair k order) (remove-id-fn item))))))))
-
-(defn multi-index-by-map-key
-  "Create an index for item's \"soft\" ids that, while identify the items,
-  are not guaranteed to be unique within the coll. Items must be maps, and the
-  id is extracted using a specified key
-
-  Returns a map of [id id-order] => item-sans-id
-
-  Args:
-    coll    nil or vector of map items
-    key     the key used to extract \"soft\" id from map items"
-  [coll key]
-  (multi-index coll #(get % key) #(dissoc % key)))
-
-(defn order-agnostic-diff
-  "Given 2 vectors, and a hint that identifies items with \"soft\" ids that are
-  not guaranteed to be unique, computes the diff map without concern for item
-  order
-
-  Args:
-    old-coll             old coll, nil or vector
-    new-coll             new coll, nil or vector
-    get-soft-id-fn       fn that extracts coll item's soft id
-    remove-soft-id-fn    fn that removes coll item's soft id
-
-  Returns either nil if no changes were detected, or a map with the following
-  optional keys:
-    :added      semantically additions, a map from soft-id+order to item-sans-id
-    :removed    semantically removals, a map from soft-id+order to item-sans-id
-    :changed    semantically changes, a map from soft-id+order to a tuple of
-                old item-sans-id and new item-sans-id
-    :renamed    semantically renames without changes, map from old soft-id+order
-                to new soft-id+order"
-  [old-coll new-coll get-soft-id-fn remove-soft-id-fn]
-  (let [old-key+order->item (multi-index old-coll get-soft-id-fn remove-soft-id-fn)
-        new-key+order->item (multi-index new-coll get-soft-id-fn remove-soft-id-fn)
-        ;; detect edits: something that is NOT added, NOT removed, yet changed
-        ;; a map of key+order -> old-item+new-item
-        changed (into {}
-                      (keep (fn [[key+order new-item]]
-                              (let [old-item (old-key+order->item key+order ::not-found)]
-                                (when-not (identical? ::not-found old-item)
-                                  (when-not (= old-item new-item)
-                                    (pair key+order [old-item new-item]))))))
-                      new-key+order->item)
-
-        ;; detect renames
-        ;; calc removed and added before rename detection
-        key+order->removed-item (into {}
-                                      (remove (fn [[key+order]]
-                                                (contains? new-key+order->item key+order)))
-                                      old-key+order->item)
-        key+order->added-item (into {}
-                                    (remove (fn [[key+order]]
-                                              (contains? old-key+order->item key+order)))
-                                    new-key+order->item)
-        removed-item->key+orders (group-into {} [] val key key+order->removed-item)
-        added-item->key+orders (group-into {} [] val key key+order->added-item)
-        ;; old key+order -> new key+order
-        renamed (into {}
-                      (mapcat (fn [[item added-key+orders]]
-                                (mapv pair (removed-item->key+orders item) added-key+orders)))
-                      added-item->key+orders)
-
-        ;; additions + removals (taking renames into account)
-        added (apply dissoc key+order->added-item (mapv val renamed))
-        removed (apply dissoc key+order->removed-item (mapv key renamed))]
-    (cond-> nil
-            (pos? (count added)) (assoc :added added)
-            (pos? (count changed)) (assoc :changed changed)
-            (pos? (count removed)) (assoc :removed removed)
-            (pos? (count renamed)) (assoc :renamed renamed))))
-
-(defn order-agnostic-diff-by-map-key
-  "Given 2 vectors, and a hint that identifies items with \"soft\" ids that are
-  not guaranteed to be unique, computes the diff map without concern for item
-  order. Items must be maps, and the id is extracted using a specified key
-
-  Args:
-    old-coll    old coll, nil or vector
-    new-coll    new coll, nil or vector
-    key         the key used extracting and removing the id from map items
-
-  Returns either nil if no changes were detected, or a map with the following
-  optional keys:
-    :added      semantically additions, a map from soft-id+order->item-sans-id
-    :removed    semantically removals, a map from soft-id+order->item-sans-id
-    :changed    semantically changes, a map from soft-id+order to a tuple of
-                old item-sans-id and new item-sans-id
-    :renamed    semantically renames without changes, map from old soft-id+order
-                to new soft-id+order"
-  [old-coll new-coll key]
-  (order-agnostic-diff old-coll new-coll #(get % key) #(dissoc % key)))
-
-(defn order-agnostic-diff-by-identity
-  "Given 2 vectors, computes the diff map without concern for item order,
-  comparing them by identity
-
-  Args:
-    old-coll    old coll, nil or vector
-    new-coll    new coll, nil or vector
-
-  Returns either nil if no changes were detected, or a map with the following
-  optional keys:
-    :added      semantically additions, a map from item+order->true
-    :removed    semantically removals, a map from item+order->true
-    :renamed    semantically renames without changes, map from old item+order
-                to new item+order"
-  [old-coll new-coll]
-  ;; we could have used (constantly nil) to extract the content since
-  ;; semantically, if the whole item is the identity, there is nothing left to
-  ;; detect changes, but using true as a content makes checks for additions and
-  ;; removals simpler (e.g. simple map access over `contains?`)
-  (order-agnostic-diff old-coll new-coll identity (constantly true)))
+  (into (detect-renames old-name-index new-name-index)
+        (detect-same-names old-name-index new-name-index)))
