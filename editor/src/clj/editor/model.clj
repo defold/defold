@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.material :as material]
@@ -213,7 +214,8 @@
                                         (dissoc :children)
                                         (assoc-in [:user-data :shader] shader)
                                         (assoc-in [:user-data :vertex-space] vertex-space)
-                                        (assoc-in [:user-data :textures] gpu-textures)
+                                        (assoc-in [:user-data :textures] (or (not-empty gpu-textures)
+                                                                             {"texture" @texture/black-pixel}))
                                         (assoc-in [:user-data :meshes] meshes)
                                         (update :batch-key
                                                 (fn [old-key]
