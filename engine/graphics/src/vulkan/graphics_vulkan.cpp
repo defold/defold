@@ -2030,7 +2030,8 @@ bail:
 
             if (IsUniformTextureSampler(res))
             {
-                VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, g_VulkanContext->m_TextureUnits[res.m_TextureUnit]);
+                HTexture texture_handle = g_VulkanContext->m_TextureUnits[res.m_TextureUnit];
+                VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture_handle);
 
                 if (texture == 0x0)
                 {
@@ -4335,11 +4336,62 @@ bail:
         return g_VulkanContext;
     }
 
+    struct OneTimeCommandBuffer
+    {
+        OneTimeCommandBuffer(VulkanContext* context)
+        : m_Context(context) {}
+
+        VkCommandBuffer Begin()
+        {
+            assert(m_Context != 0);
+
+            VkCommandBuffer vk_command_buffer;
+            CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
+
+            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+            CHECK_VK_ERROR(res);
+
+            m_CmdBuffer = vk_command_buffer;
+
+            return vk_command_buffer;
+        }
+
+        void End()
+        {
+            vkEndCommandBuffer(m_CmdBuffer);
+
+            VkSubmitInfo vk_submit_info = {};
+            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            vk_submit_info.commandBufferCount = 1;
+            vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
+
+            VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+            CHECK_VK_ERROR(res);
+
+            vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue); // TODO: Proper syncronization
+
+            vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
+
+            m_Context   = 0;
+            m_CmdBuffer = VK_NULL_HANDLE;
+        }
+
+        VulkanContext*  m_Context;
+        VkCommandBuffer m_CmdBuffer;
+    };
+
     void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)
     {
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
+
+        OneTimeCommandBuffer cmd_buffer(context);
+        VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
 
         VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
@@ -4348,16 +4400,6 @@ bail:
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        CHECK_VK_ERROR(res);
-
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
         CHECK_VK_ERROR(res);
 
         uint8_t layer_count = texture->m_Depth;
@@ -4386,19 +4428,7 @@ bail:
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count, vk_copy_regions);
 
-        vkEndCommandBuffer(vk_command_buffer);
-
-        VkSubmitInfo vk_submit_info = {};
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        CHECK_VK_ERROR(res);
-
-        vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue); // TODO: Proper syncronization
-
-        vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+        cmd_buffer.End();
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
@@ -4775,6 +4805,40 @@ bail:
         context->m_PipelineState   = ps;
         context->m_ViewportChanged = 1;
     }
+
+    void VulkanClearTexture(HContext _context, HTexture _texture, float values[4])
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
+
+        VkClearColorValue clear_value = {};
+        for (int i = 0; i < 4; ++i)
+        {
+            clear_value.float32[i] = values[i];
+            clear_value.int32[i]   = (int32_t) values[i];
+            clear_value.uint32[i]  = (uint32_t) values[i];
+        }
+
+        OneTimeCommandBuffer cmd_buffer(context);
+        VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
+
+        // VK_IMAGE_LAYOUT_GENERAL
+
+        VkImageSubresourceRange range = {};
+        range.aspectMask              = VK_IMAGE_ASPECT_COLOR_BIT;
+        range.levelCount              = 1;
+        range.layerCount              = 1;
+
+        vkCmdClearColorImage(
+            vk_command_buffer,
+            texture->m_Handle.m_Image,
+            VK_IMAGE_LAYOUT_GENERAL,
+            &clear_value,
+            1, &range);
+
+        cmd_buffer.End();
+    }
+
 #endif
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()

@@ -77,6 +77,7 @@ namespace dmGraphics
     void     VulkanNextRenderPass(HContext context, HRenderTarget render_target);
     void     VulkanSetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
     void     VulkanSetPipelineState(HContext context, PipelineState ps);
+    void     VulkanClearTexture(HContext context, HTexture texture, float values[4]);
 }
 
 #endif
