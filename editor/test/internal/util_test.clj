@@ -249,3 +249,72 @@
         partitions (partition 10 (map dedupe-fn (concat original-items additional-items)))]
     (is (every? (partial elements-identical? (first partitions))
                 partitions))))
+
+(deftest name-index-test
+  (testing "renames"
+    (letfn [(renames [xs ys]
+              (util/detect-renames
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= {}
+             (renames [:a :b :c]
+                      [:b :c :a])))
+      (is (= {0 2}
+             (renames [:a :b :c]
+                      [:b :c :d])))
+      (is (= {3 3}
+             (renames [:a :b :b :a]
+                      [:b :a :b :c])))
+      (is (= {}
+             (renames [:b :a :b :c]
+                      [:a :b])))
+      (is (= {}
+             (renames [:a :b]
+                      [:b :a :b :c])))))
+  (testing "all-name-connections"
+    (letfn [(all-name-connections [xs ys]
+              (util/detect-all-name-connections
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= {0 2
+              1 0
+              2 1}
+             (all-name-connections [:a :b :c]
+                                   [:b :c :a])))
+      (is (= {0 1
+              1 0}
+             (all-name-connections [:b :a :b :c]
+                                   [:a :b])))
+      (is (= {1 0
+              2 1}
+             (all-name-connections [:d :a :b :c]
+                                   [:a :b])))
+      (is (= {0 1
+              1 2}
+             (all-name-connections [:a :b]
+                                   [:d :a :b :c])))
+      (is (= {;; same names
+              0 1
+              1 0
+              2 2
+              ;; renames
+              3 3}
+             (all-name-connections [:a :b :b :a]
+                                   [:b :a :b :c])))))
+  (testing "deletions"
+    (letfn [(deletions [xs ys]
+              (util/detect-deletions
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= #{1}
+             (deletions [:a :b :c]
+                        [:a :c])))
+      (is (= #{}
+             (deletions [:a :b :c]
+                        [:a :c :d :e])))
+      (is (= #{0 1}
+             (deletions [:a :b :c]
+                        [:c])))
+      (is (= #{1 2}
+             (deletions [:a :b :c]
+                        [:d]))))))

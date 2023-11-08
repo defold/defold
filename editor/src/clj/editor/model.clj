@@ -294,18 +294,23 @@
 
 (defmethod material/notify-samplers-targets ::MaterialBinding [evaluation-context _material-node material-binding-node old-value new-value]
   (let [texture-binding-infos (g/node-value material-binding-node :texture-binding-infos evaluation-context)
-        tb-name-index (util/name-index texture-binding-infos :sampler)
+        texture-binding-name-index (util/name-index texture-binding-infos :sampler)
         old-name-index (util/name-index old-value :name)
         new-name-index (util/name-index new-value :name)
-        old-value-index->new-value-index (util/detect-renames old-name-index new-name-index)]
+        old-value-index->new-value-index (util/detect-renames old-name-index new-name-index)
+        connections (util/detect-all-name-connections texture-binding-name-index old-name-index)
+        deleted-old-value-indices (util/detect-deletions old-name-index new-name-index)]
     (into []
           (mapcat
             (fn [[tb-index old-value-index]]
-              (when-let [new-value-index (old-value-index->new-value-index old-value-index)]
-                (g/set-property
-                  (:_node-id (texture-binding-infos tb-index))
-                  :sampler (:name (new-value new-value-index))))))
-          (util/detect-all-name-connections tb-name-index old-name-index))))
+              (concat
+                (when-let [new-value-index (old-value-index->new-value-index old-value-index)]
+                  (g/set-property
+                    (:_node-id (texture-binding-infos tb-index))
+                    :sampler (:name (new-value new-value-index))))
+                (when (deleted-old-value-indices old-value-index)
+                  (g/delete-node (:_node-id (texture-binding-infos tb-index)))))))
+          connections)))
 
 (defn- create-texture-binding-tx [material-binding sampler texture]
   (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding

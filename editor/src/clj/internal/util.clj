@@ -721,20 +721,48 @@
                  (assoc! name->order name (inc order))
                  (assoc! name+order->index (pair name order) i)))))))
 
-(defn detect-renames [old-name-index new-name-index]
+(defn detect-renames
+  "Given 2 name indices, detect renames
+
+  Renames are left-over names that don't match between 2 name indices
+
+  Returns a map from old item index to new item index
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
   (into {}
         (mapv (fn [removed-entry added-entry]
                 (pair (val removed-entry) (val added-entry)))
               (filterv (comp not new-name-index key) old-name-index)
               (filterv (comp not old-name-index key) new-name-index))))
 
-(defn detect-same-names [old-name-index new-name-index]
-  (into {}
+(defn detect-all-name-connections
+  "Given 2 name indices, return both same-name and rename connections
+
+  Returns a map from old item index to new item index
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
+  (into (detect-renames old-name-index new-name-index)
         (keep (fn [old-entry]
                 (when-let [new-index (new-name-index (key old-entry))]
                   (pair (val old-entry) new-index))))
         old-name-index))
 
-(defn detect-all-name-connections [old-name-index new-name-index]
-  (into (detect-renames old-name-index new-name-index)
-        (detect-same-names old-name-index new-name-index)))
+(defn detect-deletions
+  "Given 2 name indices, detect deletions from the old name index
+
+  Returns a set of deleted old item indices
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
+  (let [connections (detect-all-name-connections old-name-index new-name-index)]
+    (into #{}
+          (remove connections)
+          (range (count old-name-index)))))
