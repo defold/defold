@@ -311,14 +311,14 @@ public class TextureSetGenerator {
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
-        // Store rectangle order as the AnimIterator interface relies on stable frame indices.
-        for(int i = 0; i < images.size(); i++) {
-            images.get(i).index = i;
-        }
-
         List<Rect> resizedImages = images.stream()
-                .map(i -> new Rect(i.id, i.index, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
+                .map(i -> new Rect(i.id, 0, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
                 .collect(Collectors.toList());
+
+        // Store rectangle order as the AnimIterator interface relies on stable frame indices.
+        for(int i = 0; i < resizedImages.size(); i++) {
+            resizedImages.get(i).index = i;
+        }
 
         List<Layout> layouts;
 
@@ -330,14 +330,14 @@ public class TextureSetGenerator {
             layouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSizeW, maxPageSizeH);
         }
 
-        // Update the page indices, and remove the extrude border
-        int page_index = 0;
+        // Update the page indices
+        int pageIndex = 0;
         for (Layout l : layouts) {
             // Update the rectangles in place
             for (Rect r : l.getRectangles()) {
-                r.page = page_index;
+                r.page = pageIndex;
             }
-            page_index++;
+            pageIndex++;
         }
 
         LayoutResult result = new LayoutResult(layouts, innerPadding, extrudeBorders);
@@ -350,7 +350,7 @@ public class TextureSetGenerator {
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      * Create vertex data for each frame (image) in each animation
      */
-    public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls, int use_geometries,
+    public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls, int useGeometries,
                                                              AnimIterator iterator) {
 
         TimeProfiler.start("calculateTextureSetResult");
@@ -371,7 +371,7 @@ public class TextureSetGenerator {
 
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
 
-        vertexData.left.setUseGeometries(use_geometries);
+        vertexData.left.setUseGeometries(useGeometries);
 
         if (imageHulls != null) {
             for (Rect rect : layoutRects) {
@@ -385,14 +385,14 @@ public class TextureSetGenerator {
     }
 
     // Deprecated
-    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int use_geometries,
-                AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
-               boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
+    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int useGeometries,
+                                                    AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
+                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
 
         LayoutResult layout = calculateLayoutResult(images, margin, innerPadding, extrudeBorders, rotate,
                                                     useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
 
-        return calculateTextureSetResult(layout, imageHulls, use_geometries, iterator);
+        return calculateTextureSetResult(layout, imageHulls, useGeometries, iterator);
     }
 
     public static BufferedImage layoutImages(Layout layout, int innerPadding, int extrudeBorders, Map<String, BufferedImage> images) {
@@ -444,15 +444,15 @@ public class TextureSetGenerator {
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
-        int use_geometries = 0;
+        int useGeometries = 0;
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
-            use_geometries |= imageHullSizes.get(i) > 0 ? 1 : 0;
+            useGeometries |= imageHullSizes.get(i) > 0 ? 1 : 0;
             imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
         }
 
         // The layout step will expand the rect, and possibly rotate them
-        TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
+        TextureSetResult result = calculateLayout(imageRects, imageHulls, useGeometries, iterator,
             margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
 
         for (Layout layout : result.layoutResult.layouts) {
