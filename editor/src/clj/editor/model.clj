@@ -36,6 +36,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
            [editor.gl.shader ShaderLifecycle]
@@ -195,7 +196,7 @@
                                                     (keep-indexed
                                                       (fn [i name]
                                                         (when-let [info (name->material-scene-info name)]
-                                                          [i info])))
+                                                          (pair i info))))
                                                     mesh-material-ids)]
       {:aabb geom/empty-bounding-box
        :renderable {:passes [pass/selection]}
@@ -233,7 +234,7 @@
 (def TTexture
   {:sampler s/Str
    :texture (s/maybe (s/protocol resource/Resource))})
-(g/deftype Textures [TTexture])
+
 (g/deftype Materials
   [{:name s/Str
     :material (s/maybe (s/protocol resource/Resource))
