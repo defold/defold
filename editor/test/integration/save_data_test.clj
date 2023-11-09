@@ -144,6 +144,58 @@
      "text_tracking" :unused
      "type" :allowed-default}
 
+    ["gui" "nodes" "[TYPE_CUSTOM]"]
+    {"font" :unused
+     "innerRadius" :unused
+     "line_break" :unused
+     "outerBounds" :unused
+     "outline" :unused
+     "outline_alpha" :unused
+     "overridden_fields" :unused
+     "particlefx" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "shadow" :unused
+     "shadow_alpha" :unused
+     "size" :unused
+     "slice9" :unused
+     "spine_node_child" :deprecated ;; TODO: What was this?
+     "template" :unused
+     "template_node_child" :unused
+     "text" :unused
+     "text_leading" :unused
+     "text_tracking" :unused
+     "texture" :unused}
+
+    ["gui" "nodes" "[TYPE_PARTICLEFX]"]
+    {"blend_mode" :unused
+     "clipping_inverted" :unused
+     "clipping_mode" :unused
+     "clipping_visible" :unused
+     "custom_type" :unused
+     "font" :unused
+     "innerRadius" :unused
+     "line_break" :unused
+     "outerBounds" :unused
+     "outline" :unused
+     "outline_alpha" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "pivot" :unused
+     "shadow" :unused
+     "shadow_alpha" :unused
+     "size" :unused
+     "slice9" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "template" :unused
+     "text" :unused
+     "text_leading" :unused
+     "text_tracking" :unused
+     "texture" :unused}
+
     ["gui" "nodes" "[TYPE_PIE]"]
     {"custom_type" :unused
      "font" :unused
@@ -215,36 +267,7 @@
      "texture" :unused
      "visible" :unused
      "xanchor" :unused
-     "yanchor" :unused}
-
-    ["gui" "nodes" "[TYPE_PARTICLEFX]"]
-    {"blend_mode" :unused
-     "clipping_inverted" :unused
-     "clipping_mode" :unused
-     "clipping_visible" :unused
-     "custom_type" :unused
-     "font" :unused
-     "innerRadius" :unused
-     "line_break" :unused
-     "outerBounds" :unused
-     "outline" :unused
-     "outline_alpha" :unused
-     "perimeterVertices" :unused
-     "pieFillAngle" :unused
-     "pivot" :unused
-     "shadow" :unused
-     "shadow_alpha" :unused
-     "size" :unused
-     "slice9" :unused
-     "spine_default_animation" :unused
-     "spine_node_child" :unused
-     "spine_scene" :unused
-     "spine_skin" :unused
-     "template" :unused
-     "text" :unused
-     "text_leading" :unused
-     "text_tracking" :unused
-     "texture" :unused}}
+     "yanchor" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
