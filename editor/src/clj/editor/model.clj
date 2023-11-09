@@ -262,8 +262,10 @@
         sampler-name-index (util/name-index samplers :name)
         renames (util/detect-renames texture-binding-info-name-index sampler-name-index)]
     (reduce
-      (fn [texture-binding-infos [texture-binding-index sampler-index]]
-        (update texture-binding-infos texture-binding-index assoc :sampler (:name (samplers sampler-index))))
+      (fn [texture-binding-infos [texture-binding-name+order [new-name]]]
+        (update texture-binding-infos
+                (texture-binding-info-name-index texture-binding-name+order)
+                assoc :sampler new-name))
       texture-binding-infos
       renames)))
 
@@ -300,20 +302,21 @@
         texture-binding-name-index (util/name-index texture-binding-infos :sampler)
         old-name-index (util/name-index old-value :name)
         new-name-index (util/name-index new-value :name)
-        old-value-index->new-value-index (util/detect-renames old-name-index new-name-index)
-        connections (util/detect-all-name-connections texture-binding-name-index old-name-index)
-        deleted-old-value-indices (util/detect-deletions old-name-index new-name-index)]
+        sampler-renames (util/detect-renames old-name-index new-name-index)
+        implied-texture-binding-info-renames (util/detect-renames texture-binding-name-index old-name-index)
+        sampler-deletions (util/detect-deletions old-name-index new-name-index)]
     (into []
           (mapcat
-            (fn [[tb-index old-value-index]]
-              (concat
-                (when-let [new-value-index (old-value-index->new-value-index old-value-index)]
-                  (g/set-property
-                    (:_node-id (texture-binding-infos tb-index))
-                    :sampler (:name (new-value new-value-index))))
-                (when (deleted-old-value-indices old-value-index)
-                  (g/delete-node (:_node-id (texture-binding-infos tb-index)))))))
-          connections)))
+            (fn [[name+order index]]
+              ;; Texture binding could be implicitly renamed if its name does
+              ;; not match the material sampler name (can happen on load)
+              (let [name+order (implied-texture-binding-info-renames name+order name+order)]
+                (concat
+                  (when-let [[new-name] (sampler-renames name+order)]
+                    (g/set-property (:_node-id (texture-binding-infos index)) :sampler new-name))
+                  (when (sampler-deletions name+order)
+                    (g/delete-node (:_node-id (texture-binding-infos index))))))))
+          texture-binding-name-index)))
 
 (defn- create-texture-binding-tx [material-binding sampler texture]
   (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding
