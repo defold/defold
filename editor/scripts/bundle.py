@@ -356,6 +356,14 @@ def remove_platform_files_from_archive(platform, jar):
                 continue
             # anything else should be removed
             files_to_remove.append(file)
+        # find files to remove `.pdb` from _updack/*
+        if file.startswith("_unpack"):
+            # we need these files for windows
+            if platform == "x86_64-win32":
+                continue
+            if file.endswith(".pdb"):
+                files_to_remove.append(file)
+
 
     # find libs to remove in the root folder
     for file in files:
