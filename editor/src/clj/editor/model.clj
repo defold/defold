@@ -297,14 +297,11 @@
                                           (g/error-value? samplers) (dissoc info :samplers)
                                           :else (update info :texture-binding-infos detect-and-apply-renames samplers)))))
 
-(defmethod material/notify-samplers-targets ::MaterialBinding [evaluation-context _material-node material-binding-node old-value new-value]
+(defmethod material/handle-sampler-names-changed ::MaterialBinding
+  [evaluation-context material-binding-node old-name-index _new-name-index sampler-renames sampler-deletions]
   (let [texture-binding-infos (g/node-value material-binding-node :texture-binding-infos evaluation-context)
         texture-binding-name-index (util/name-index texture-binding-infos :sampler)
-        old-name-index (util/name-index old-value :name)
-        new-name-index (util/name-index new-value :name)
-        sampler-renames (util/detect-renames old-name-index new-name-index)
-        implied-texture-binding-info-renames (util/detect-renames texture-binding-name-index old-name-index)
-        sampler-deletions (util/detect-deletions old-name-index new-name-index)]
+        implied-texture-binding-info-renames (util/detect-renames texture-binding-name-index old-name-index)]
     (into []
           (mapcat
             (fn [[name+order index]]
