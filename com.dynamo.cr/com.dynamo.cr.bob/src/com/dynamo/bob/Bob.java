@@ -59,6 +59,7 @@ import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 
@@ -205,7 +206,7 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static List<String> getExes(Platform platform, String name) throws IOException {
+    private static List<String> getExes(Platform platform, String name) throws IOException {
         String[] exeSuffixes = platform.getExeSuffixes();
         List<String> exes = new ArrayList<String>();
         for (String exeSuffix : exeSuffixes) {
@@ -283,7 +284,7 @@ public class Bob {
         }
     }
 
-    public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
+    private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
         TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
@@ -334,7 +335,34 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDefaultDmengineExeName(String variant) {
+    private static List<File> downloadExes(Platform platform, String variant) throws IOException {
+        init();
+        TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
+        List<File> binaryFiles = new ArrayList<File>();
+        String[] exeSuffixes = platform.getExeSuffixes();
+        List<String> exes = new ArrayList<String>();
+        String downloadFolder = rootFolder + File.pathSeparator + platform.getPair() + File.separator + platform;
+        String defaultDmengineExeName = getDefaultDmengineExeName(variant);
+        for (String exeSuffix : exeSuffixes) {
+            String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
+            File f = new File(rootFolder, exeName);
+            try {
+                URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
+                File file = new File(downloadFolder, exeName);
+                HttpUtil http = new HttpUtil();
+                http.downloadToFile(url, file);
+                file.deleteOnExit();
+                binaryFiles.add(file);
+            }
+            catch (Exception e) {
+                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
+            }
+        }
+        TimeProfiler.stop();
+        return binaryFiles;
+    }
+
+    private static String getDefaultDmengineExeName(String variant) {
         switch (variant)
         {
             case VARIANT_DEBUG:
@@ -348,15 +376,21 @@ public class Bob {
         }
     }
 
-    public static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
+    private static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
         return getExes(platform, getDefaultDmengineExeName(variant));
     }
 
     public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
-        List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
-        List<File> binaryFiles = new ArrayList<File>();
-        for (String path : binaryPaths) {
-            binaryFiles.add(new File(path));
+        List<File> binaryFiles;
+        if (variant.equals(VARIANT_HEADLESS)) {
+            binaryFiles = downloadExes(platform, variant);
+        }
+        else {
+            List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
+            binaryFiles = new ArrayList<File>();
+            for (String path : binaryPaths) {
+                binaryFiles.add(new File(path));
+            }
         }
         return binaryFiles;
     }
