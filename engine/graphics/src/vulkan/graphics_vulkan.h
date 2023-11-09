@@ -17,14 +17,35 @@
 
 namespace dmGraphics
 {
-	static const uint32_t MAX_SUBPASSES            = 4;
-    static const uint32_t MAX_SUBPASS_DEPENDENCIES = 4;
-    static const uint8_t SUBPASS_EXTERNAL 		   = -1;
+	static const uint32_t MAX_SUBPASSES             = 4;
+    static const uint32_t MAX_SUBPASS_DEPENDENCIES  = 4;
+    static const uint8_t  SUBPASS_EXTERNAL 		    = -1;
+    static const uint8_t  SUBPASS_ATTACHMENT_UNUSED = -1;
 
     enum VertexStepFunction
     {
         VERTEX_STEP_VERTEX,
         VERTEX_STEP_INSTANCE,
+    };
+
+    enum TransitionMode
+    {
+        TRANSITION_GENERAL = 0,
+        TRANSITION_PRESENT = 1,
+    };
+
+    enum BarrierStageFlags
+    {
+        STAGE_FLAG_QUEUE_BEGIN     = 1,
+        STAGE_FLAG_QUEUE_END       = 2,
+        STAGE_FLAG_FRAGMENT_SHADER = 4,
+    };
+
+    enum BarrierAccessFlags
+    {
+        ACCESS_FLAG_READ   = 1,
+        ACCESS_FLAG_WRITE  = 2,
+        ACCESS_FLAG_SHADER = 4,
     };
 
     struct RenderPassDependency
@@ -78,6 +99,8 @@ namespace dmGraphics
     void     VulkanSetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
     void     VulkanSetPipelineState(HContext context, PipelineState ps);
     void     VulkanClearTexture(HContext context, HTexture texture, float values[4]);
+    void     VulkanTransitionTexture(HContext _context, HTexture _texture, TransitionMode from, TransitionMode to);
+    void     VulkanMemorybarrier(HContext _context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags);
 }
 
 #endif

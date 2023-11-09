@@ -420,6 +420,14 @@ namespace dmGraphics
             vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
+        {
+            vk_memory_barrier.srcAccessMask = 0;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
         else
         {
             assert(0);
@@ -1417,7 +1425,7 @@ bail:
         vk_device_create_info.pNext                   = pNext;
         vk_device_create_info.pQueueCreateInfos       = vk_device_queue_create_info;
         vk_device_create_info.queueCreateInfoCount    = queue_family_c;
-        vk_device_create_info.pEnabledFeatures        = 0;
+        vk_device_create_info.pEnabledFeatures        = &device->m_Features;
         vk_device_create_info.enabledExtensionCount   = deviceExtensionCount;
         vk_device_create_info.ppEnabledExtensionNames = deviceExtensions;
         vk_device_create_info.enabledLayerCount       = validationLayerCount;

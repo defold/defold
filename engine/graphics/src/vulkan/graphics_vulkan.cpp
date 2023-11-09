@@ -556,7 +556,7 @@ namespace dmGraphics
         attachments[0].m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
         attachments[0].m_ImageLayout        = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         attachments[0].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
-        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //VK_ATTACHMENT_LOAD_OP_LOAD;
         attachments[0].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
         if (context->m_SwapChain->HasMultiSampling())
@@ -2172,7 +2172,7 @@ bail:
 
         VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]            = {};
         VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS] = {};
-        uint32_t num_vx_buffers                               = 0;
+        uint32_t num_vx_buffers                            = 0;
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
@@ -2526,6 +2526,8 @@ bail:
             binding.descriptorCount    = 1;
             binding.stageFlags         = stage_flag;
             binding.pImmutableSamplers = 0;
+
+            dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
         }
 
         *byte_offset_end_out = byte_offset;
@@ -2672,9 +2674,14 @@ bail:
             uint32_t vs_max_sets    = 0;
             uint32_t fs_max_sets    = 0;
 
+            dmLogInfo("New program");
+
             VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
 
+            dmLogInfo("  Vertex");
             FillDescriptorSets(vertex_module,   bindings, VK_SHADER_STAGE_VERTEX_BIT, 0, program->m_UniformDataOffsets, &vs_last_offset, &vs_max_sets);
+
+            dmLogInfo("  Fragment");
             FillDescriptorSets(fragment_module, bindings, VK_SHADER_STAGE_FRAGMENT_BIT, vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], &fs_last_offset, &fs_max_sets);
 
             uint32_t uniform_size  = vs_last_offset + fs_last_offset;
@@ -4495,7 +4502,7 @@ bail:
 
                 for (int j = 0; j < rp_desc.m_ColorAttachmentIndicesCount; ++j)
                 {
-                    color_attachment_ref[j].attachment = rp_desc.m_ColorAttachmentIndices[j];
+                    color_attachment_ref[j].attachment = rp_desc.m_ColorAttachmentIndices[j] == SUBPASS_ATTACHMENT_UNUSED ? VK_ATTACHMENT_UNUSED : rp_desc.m_ColorAttachmentIndices[j];
                     color_attachment_ref[j].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
                 }
             }
@@ -4503,7 +4510,7 @@ bail:
             if (rp_desc.m_DepthStencilAttachmentIndex)
             {
                 depth_stencil_attachment_ref             = new VkAttachmentReference;
-                depth_stencil_attachment_ref->attachment = rp_desc.m_DepthStencilAttachmentIndex[0];
+                depth_stencil_attachment_ref->attachment = rp_desc.m_DepthStencilAttachmentIndex[0] == SUBPASS_ATTACHMENT_UNUSED ? VK_ATTACHMENT_UNUSED : rp_desc.m_DepthStencilAttachmentIndex[0];
                 depth_stencil_attachment_ref->layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             }
             if (rp_desc.m_InputAttachmentIndicesCount > 0)
@@ -4511,7 +4518,7 @@ bail:
                 input_attachment_ref = new VkAttachmentReference[rp_desc.m_InputAttachmentIndicesCount];
                 for (int j = 0; j < rp_desc.m_InputAttachmentIndicesCount; ++j)
                 {
-                    input_attachment_ref[j].attachment = rp_desc.m_InputAttachmentIndices[j];
+                    input_attachment_ref[j].attachment = rp_desc.m_InputAttachmentIndices[j] == SUBPASS_ATTACHMENT_UNUSED ? VK_ATTACHMENT_UNUSED : rp_desc.m_InputAttachmentIndices[j];
                     input_attachment_ref[j].layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 }
             }
@@ -4552,11 +4559,11 @@ bail:
             const RenderPassDependency& dep_desc = params.m_Dependencies[i];
             vk_sub_pass_dependencies[i].srcSubpass      = dep_desc.m_Src == SUBPASS_EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Src;
             vk_sub_pass_dependencies[i].dstSubpass      = dep_desc.m_Dst == SUBPASS_EXTERNAL ? VK_SUBPASS_EXTERNAL : dep_desc.m_Dst;
-            vk_sub_pass_dependencies[i].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            vk_sub_pass_dependencies[i].srcStageMask    = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT ; // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             vk_sub_pass_dependencies[i].srcAccessMask   = 0;
-            vk_sub_pass_dependencies[i].dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            vk_sub_pass_dependencies[i].dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            vk_sub_pass_dependencies[i].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+            vk_sub_pass_dependencies[i].dstStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ; // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            vk_sub_pass_dependencies[i].dstAccessMask   = VK_ACCESS_MEMORY_WRITE_BIT; // | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            vk_sub_pass_dependencies[i].dependencyFlags = 0; // VK_DEPENDENCY_BY_REGION_BIT;
         }
 
         VkRenderPassCreateInfo render_pass_create_info = {};
@@ -4576,15 +4583,13 @@ bail:
         memset(fb_attachments, 0, sizeof(fb_attachments));
 
         uint16_t    fb_attachment_count = 0;
-        uint16_t    fb_width            = 0;
-        uint16_t    fb_height           = 0;
+        uint16_t    fb_width            = rt->m_Extent.width;
+        uint16_t    fb_height           = rt->m_Extent.height;
 
         for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
         {
             VulkanTexture* color_texture_ptr      = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
             fb_attachments[fb_attachment_count++] = color_texture_ptr->m_Handle.m_ImageView;
-            fb_width                              = rt->m_ColorTextureParams[i].m_Width;
-            fb_height                             = rt->m_ColorTextureParams[i].m_Height;
         }
 
         res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rt->m_Handle.m_RenderPass, fb_width, fb_height, fb_attachments, (uint8_t) fb_attachment_count, &rt->m_Handle.m_Framebuffer);
@@ -4819,6 +4824,16 @@ bail:
             clear_value.uint32[i]  = (uint32_t) values[i];
         }
 
+        VkResult res = TransitionImageLayout(
+            context->m_LogicalDevice.m_Device,
+            context->m_LogicalDevice.m_CommandPool,
+            context->m_LogicalDevice.m_GraphicsQueue,
+            texture->m_Handle.m_Image,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_GENERAL);
+        CHECK_VK_ERROR(res);
+
         OneTimeCommandBuffer cmd_buffer(context);
         VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
 
@@ -4837,6 +4852,78 @@ bail:
             1, &range);
 
         cmd_buffer.End();
+    }
+
+    void VulkanTransitionTexture(HContext _context, HTexture _texture, TransitionMode from, TransitionMode to)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
+
+        VkResult res = TransitionImageLayout(
+            context->m_LogicalDevice.m_Device,
+            context->m_LogicalDevice.m_CommandPool,
+            context->m_LogicalDevice.m_GraphicsQueue,
+            texture->m_Handle.m_Image,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_GENERAL);
+        CHECK_VK_ERROR(res);
+    }
+
+    static inline VkPipelineStageFlags GetPipelineStageFlags(uint32_t bits)
+    {
+        VkPipelineStageFlags flags = 0;
+        if (bits & STAGE_FLAG_QUEUE_BEGIN)     flags |= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        if (bits & STAGE_FLAG_QUEUE_END)       flags |= VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        if (bits & STAGE_FLAG_FRAGMENT_SHADER) flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        return flags;
+    }
+
+    static inline VkAccessFlags GetAccessFlags(uint32_t bits)
+    {
+        VkAccessFlags flags = 0;
+        if (bits & ACCESS_FLAG_SHADER)
+        {
+            if (bits & ACCESS_FLAG_READ)  flags |= VK_ACCESS_SHADER_READ_BIT;
+            if (bits & ACCESS_FLAG_WRITE) flags |= VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        return flags;
+    }
+
+    void VulkanMemorybarrier(HContext _context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
+        assert(context->m_FrameBegun);
+
+        const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+
+        VkImageMemoryBarrier barrier            = {};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask                   = GetAccessFlags(src_access_flags);
+        barrier.dstAccessMask                   = GetAccessFlags(dst_access_flags);
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.image                           = texture->m_Handle.m_Image;
+        barrier.image                           = texture->m_Handle.m_Image;
+        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel   = 0;
+        barrier.subresourceRange.levelCount     = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = 1;
+
+        VkPipelineStageFlags stage_src = GetPipelineStageFlags(src_stage_flags);
+        VkPipelineStageFlags stage_dst = GetPipelineStageFlags(dst_stage_flags);
+
+        vkCmdPipelineBarrier(
+            vk_command_buffer,
+            stage_src,
+            stage_dst,
+            0, 0, 0, 0, 0, 1,
+            &barrier);
     }
 
 #endif
