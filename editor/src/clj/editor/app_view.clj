@@ -1687,7 +1687,7 @@ If you do not specifically require different script states, consider changing th
                {:label "Show Logs"
                 :command :show-logs}
                {:label :separator}
-               {:label "Create Desktop Entry" 
+               {:label "Create Desktop Entry"
                 :command :create-desktop-entry}
                {:label :separator}
                {:label "Documentation"
@@ -2624,6 +2624,27 @@ If you do not specifically require different script states, consider changing th
   (run [app-view changes-view prefs workspace project]
        (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs project)))
 
+(defn get-linux-desktop-entry [launcher-path install-dir]
+  (str "[Desktop Entry]\n"
+       "Name=Defold Editor\n"
+       "Comment=An out of the box, turn-key solution for multi-platform game development\n"
+       "Terminal=false\n"
+       "Type=Application\n"
+       "StartupWMClass=com.defold.editor.Start\n"
+       "Categories=Games;Development;Editor;\n"
+       "StartupNotify=true\n"
+       "Exec=" launcher-path "\n"
+       "Icon=" install-dir "logo_blue.png\n"))
+
 (handler/defhandler :create-desktop-entry :global
-  (enabled? [] (util/is-linux?))
-  (run [] (process/exec! "scripts/create-desktop-entry.sh") ))
+  (active? [] (util/is-linux?))
+  (enabled? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
+  (run []
+       (let [xdg-desktop-menu (process/exec! "which" "xdg-desktop-menu")
+             install-dir (.getCanonicalFile (io/file (system/defold-resourcespath)))
+             desktop-entry (get-linux-desktop-entry (system/defold-launcherpath) install-dir)
+             desktop-entry-file (str install-dir "/defold-editor.desktop")]
+         (spit desktop-entry-file desktop-entry)
+         (process/exec! xdg-desktop-menu "install" "--mode user" desktop-entry-file))))
+
+
