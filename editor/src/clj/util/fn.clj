@@ -16,7 +16,7 @@
   (:refer-clojure :exclude [memoize])
   (:require [internal.java :as java]
             [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang ArityException]
+  (:import [clojure.lang ArityException Compiler]
            [java.lang.reflect Method]))
 
 (set! *warn-on-reflection* true)
@@ -123,3 +123,20 @@
         (swap! memoize-cache dissoc evicted-key)
         nil)
       (throw (IllegalArgumentException. "The function was not memoized by us.")))))
+
+(defn declared-symbol [declared-fn]
+  (if-not (fn? declared-fn)
+    (throw (IllegalArgumentException. "The argument must be a declared function."))
+    (let [class-name (.getName (class declared-fn))]
+      (if (.find (re-matcher #"(__|\$)\d+$" class-name))
+        (throw (IllegalArgumentException.
+                 (format "Unable to get declared symbol from anonymous function `%s`."
+                         class-name)))
+        (let [namespaced-name (Compiler/demunge class-name)
+              separator-index (.indexOf namespaced-name (int \/))
+              namespace (when (pos? separator-index)
+                          (.intern (subs namespaced-name 0 separator-index)))
+              name (if (neg? separator-index)
+                     namespaced-name
+                     (.intern (subs namespaced-name (inc separator-index))))]
+          (symbol namespace name))))))

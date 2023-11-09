@@ -177,3 +177,59 @@
       (is (= "2, 3, 4, 5, 6" (memoized-fn 2 3 4 5 6)))
       (is (= 3 @call-count-atom))
       (is (nil? (fn/evict-memoized! memoized-fn 1 2 3 4 5 6 7 8 9))))))
+
+(def ^:private defined-constant :default)
+(defn- defined-function [_arg])
+(defn- defined-function0 [_arg])
+(defn- defined-function? [_arg])
+(defn- defined-function! [_arg])
+
+(deftest declared-symbol-test
+  (testing "Returns namespaced symbols"
+    (is (= `defined-function (fn/declared-symbol defined-function)))
+    (is (= `defined-function0 (fn/declared-symbol defined-function0)))
+    (is (= `defined-function? (fn/declared-symbol defined-function?)))
+    (is (= `defined-function! (fn/declared-symbol defined-function!))))
+
+  (testing "Throws for non-functions"
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"The argument must be a declared function"
+          (fn/declared-symbol defined-constant)))
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"The argument must be a declared function"
+          (fn/declared-symbol "other value"))))
+
+  (testing "Throws for anonymous functions"
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"Unable to get declared symbol from anonymous function"
+          (fn/declared-symbol (fn []))))
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"Unable to get declared symbol from anonymous function"
+          (fn/declared-symbol (fn named []))))
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"Unable to get declared symbol from anonymous function"
+          (fn/declared-symbol (memoize defined-function))))
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"Unable to get declared symbol from anonymous function"
+          (fn/declared-symbol (fn/memoize defined-function))))
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"Unable to get declared symbol from anonymous function"
+          (fn/declared-symbol (partial defined-function :arg))))
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"Unable to get declared symbol from anonymous function"
+          (fn/declared-symbol (comp identity defined-function)))))
+
+  (testing "Strings are interned"
+    (is (identical? (name `defined-function) (name (fn/declared-symbol defined-function))))
+    (is (identical? (namespace `defined-function) (namespace (fn/declared-symbol defined-function))))))
+
+swap!
+(fn/declared-symbol int)
