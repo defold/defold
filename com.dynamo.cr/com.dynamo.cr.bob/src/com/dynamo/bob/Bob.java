@@ -70,6 +70,8 @@ public class Bob {
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
+    public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
+
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
 
@@ -335,7 +337,7 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    private static List<File> downloadExes(Platform platform, String variant) throws IOException {
+    private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
         init();
         TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
         List<File> binaryFiles = new ArrayList<File>();
@@ -347,7 +349,7 @@ public class Bob {
             String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
             File f = new File(rootFolder, exeName);
             try {
-                URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
+                URL url = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
                 File file = new File(downloadFolder, exeName);
                 HttpUtil http = new HttpUtil();
                 http.downloadToFile(url, file);
@@ -380,19 +382,23 @@ public class Bob {
         return getExes(platform, getDefaultDmengineExeName(variant));
     }
 
-    public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
+    public static List<File> getDefaultDmengineFiles(Platform platform, String variant, String artifactsURL) throws IOException {
         List<File> binaryFiles;
-        if (variant.equals(VARIANT_HEADLESS)) {
-            binaryFiles = downloadExes(platform, variant);
-        }
-        else {
+        try {
             List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
             binaryFiles = new ArrayList<File>();
             for (String path : binaryPaths) {
                 binaryFiles.add(new File(path));
             }
         }
+        catch (RuntimeException e) {
+            binaryFiles = downloadExes(platform, variant, artifactsURL);
+        }
         return binaryFiles;
+    }
+
+    public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
+        return getDefaultDmengineFiles(platform, variant, ARTIFACTS_URL);
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
