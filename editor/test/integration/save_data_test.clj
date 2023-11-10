@@ -520,22 +520,6 @@
      :else
      (assert false))))
 
-(def ^:private xform-nested-frequencies->paths
-  (letfn [(path-entries [path [key value]]
-            (let [path (conj path key)]
-              (if (coll? value)
-                (eduction
-                  (mapcat #(path-entries path %))
-                  value)
-                [(pair path value)])))]
-    (mapcat #(path-entries [] %))))
-
-(defn- flatten-nested-frequencies [nested-frequencies]
-  {:pre [(map? nested-frequencies)]}
-  (into (empty nested-frequencies)
-        xform-nested-frequencies->paths
-        nested-frequencies))
-
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~pb-desc)))
 
@@ -553,10 +537,11 @@
   (let [values (.getValues enum-desc)
         last-index (dec (long (.size values)))]
     (into []
-          (keep-indexed (fn [^long index ^Descriptors$EnumValueDescriptor value]
-                          (when-not (and (= last-index index)
-                                         (string/ends-with? (.getName value) "_COUNT"))
-                            value)))
+          (keep-indexed
+            (fn [^long index ^Descriptors$EnumValueDescriptor value]
+              (when-not (and (= last-index index)
+                             (string/ends-with? (.getName value) "_COUNT"))
+                value)))
           values)))
 
 (def ^:private pb-enum-desc-usable-values (memoize pb-enum-desc-usable-values-raw))
@@ -603,10 +588,6 @@
     :else
     0))
 
-(comment
-  (pb-filter-match (keys (pb-ignored-fields 'dmGraphics.VertexAttribute #_ 'dmMath.Vector4))
-                   ["gui" "nodes" "[TYPE_PIE]" "position"]))
-
 (defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc pb-path included-ignore-reasons]
   {:pre [(s/valid? ::pb-path pb-path)
          (s/valid? ::ignore-reason-set included-ignore-reasons)]}
@@ -644,9 +625,10 @@
                               (pb-message-field? field-desc)
                               (let [pb-path (conj typed-pb-path field-name)]
                                 (if (.isRepeated field-desc)
-                                  (transduce (map #(pb-nested-field-frequencies % pb-path count-field-value?))
-                                             merge-nested-frequencies
-                                             (.getField pb field-desc))
+                                  (transduce
+                                    (map #(pb-nested-field-frequencies % pb-path count-field-value?))
+                                    merge-nested-frequencies
+                                    (.getField pb field-desc))
                                   (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?)))
 
                               (.isRepeated field-desc)
@@ -686,50 +668,50 @@
 (defn- pb-field-value-non-default? [field-value ^Descriptors$FieldDescriptor field-desc]
   (not= (.getDefaultValue field-desc) field-value))
 
-(defn- pb-resource-nested-field-frequencies [resource]
+(defmulti ^:private nested-field-frequencies (fn [resource] (-> resource resource/resource-type :test-info :type)))
+
+(defmethod nested-field-frequencies :code [resource]
+  (sorted-map "lines" (if (string/blank? (slurp resource)) 0 1)))
+
+(defmethod nested-field-frequencies :ddf [resource]
   (let [ext (resource/type-ext resource)
         pb (pb-read-resource resource)
         pb-path [ext]]
     (pb-nested-field-frequencies pb pb-path pb-field-value-non-default?)))
 
-(defmulti ^:private value-path-frequencies (fn [resource] (-> resource resource/resource-type :test-info :type)))
-
-(defmethod value-path-frequencies :code [resource]
-  {["lines"] (if (string/blank? (slurp resource)) 0 1)})
-
-(defmethod value-path-frequencies :ddf [resource]
-  (-> resource
-      (pb-resource-nested-field-frequencies)
-      (flatten-nested-frequencies)))
-
-(defmethod value-path-frequencies :settings [resource]
+(defmethod nested-field-frequencies :settings [resource]
   (let [resource-type (resource/resource-type resource)
         resource-type-ext (:ext resource-type)
         ignore-reason-by-setting-path (get settings-ignored-fields resource-type-ext {})
         ignored-setting-path? #(contains? ignore-reason-by-setting-path %)
         meta-settings (-> resource-type :test-info :meta-settings)
         settings (with-open [reader (io/reader resource)]
-                   (settings-core/parse-settings reader))
-        setting-paths (into #{}
-                            (comp cat
-                                  (map :path)
-                                  (remove ignored-setting-path?))
-                            [meta-settings settings])]
-    (into (sorted-map)
-          (map (fn [setting-path]
-                 (let [value (settings-core/get-setting settings setting-path)]
-                   (pair setting-path
-                         (if (some? value) 1 0)))))
-          setting-paths)))
+                   (settings-core/parse-settings reader))]
+    (transduce
+      (comp cat
+            (map :path)
+            (distinct)
+            (remove ignored-setting-path?)
+            (map (fn [setting-path]
+                   (let [value (settings-core/get-setting settings setting-path)]
+                     (pair setting-path
+                           (if (some? value) 1 0))))))
+      (fn nested-map-rf
+        ([nested-map] nested-map)
+        ([nested-map [path value]]
+         (coll/sorted-assoc-in nested-map path value)))
+      (sorted-map)
+      [meta-settings settings])))
 
 (defn- uncovered-value-paths [resources]
   (->> resources
-       (map value-path-frequencies)
-       (apply merge-with +)
+       (transduce (map nested-field-frequencies)
+                  merge-nested-frequencies)
        (into empty-sorted-coll-set
-             (keep (fn [[value-path ^long value-count]]
-                     (when (zero? value-count)
-                       value-path))))))
+             (comp coll/xform-nested-map->path-map
+                   (keep (fn [[value-path ^long value-count]]
+                           (when (zero? value-count)
+                             value-path)))))))
 
 (deftest all-fields-covered-test
   (test-util/with-loaded-project project-path
@@ -888,9 +870,9 @@
                             (sorted-map type-token differences)))))
                  merge-nested-frequencies
                  (pb-enum-field-desc-empty-frequencies type-field-desc pb-path))
-               (flatten-nested-frequencies)
                (into empty-sorted-coll-set
-                     (comp (filter #(= 0 (val %)))
+                     (comp coll/xform-nested-map->path-map
+                           (filter #(= 0 (val %)))
                            (map #(string/join " -> " (key %))))))]
       (is (= #{} non-overridden-gui-node-field-paths)
           (list-message
