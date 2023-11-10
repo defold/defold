@@ -2527,7 +2527,10 @@ bail:
             binding.stageFlags         = stage_flag;
             binding.pImmutableSamplers = 0;
 
+            // Debug
+        #if 0
             dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+        #endif
         }
 
         *byte_offset_end_out = byte_offset;
@@ -2674,14 +2677,8 @@ bail:
             uint32_t vs_max_sets    = 0;
             uint32_t fs_max_sets    = 0;
 
-            dmLogInfo("New program");
-
             VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
-
-            dmLogInfo("  Vertex");
             FillDescriptorSets(vertex_module,   bindings, VK_SHADER_STAGE_VERTEX_BIT, 0, program->m_UniformDataOffsets, &vs_last_offset, &vs_max_sets);
-
-            dmLogInfo("  Fragment");
             FillDescriptorSets(fragment_module, bindings, VK_SHADER_STAGE_FRAGMENT_BIT, vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], &fs_last_offset, &fs_max_sets);
 
             uint32_t uniform_size  = vs_last_offset + fs_last_offset;
@@ -2689,17 +2686,6 @@ bail:
             memset(program->m_UniformData, 0, uniform_size);
 
             CreatePipelineLayout(context, program, bindings, dmMath::Max(vs_max_sets, fs_max_sets));
-        #if 0
-            dmLogInfo("Bindings for program %p:", &program->m_Handle.m_PipelineLayout);
-            for (int i = 0; i < max_sets; ++i)
-            {
-                for (int j = 0; j < MAX_BINDINGS_PER_SET_COUNT; ++j)
-                {
-                    if (bindings[i][j].stageFlags != 0)
-                        dmLogInfo(" set=%d, binding=%d", i, bindings[i][j].binding);
-                }
-            }
-        #endif
         }
         else
         {
@@ -3089,11 +3075,11 @@ bail:
         // Defer the update to when we actually draw, since we *might* need to invert the viewport
         // depending on wether or not we have set a different rendertarget from when
         // this call was made.
-        Viewport& viewport    = g_VulkanContext->m_MainViewport;
-        viewport.m_X          = (uint16_t) x;
-        viewport.m_Y          = (uint16_t) y;
-        viewport.m_W          = (uint16_t) width;
-        viewport.m_H          = (uint16_t) height;
+        Viewport& viewport = g_VulkanContext->m_MainViewport;
+        viewport.m_X       = (uint16_t) x;
+        viewport.m_Y       = (uint16_t) y;
+        viewport.m_W       = (uint16_t) width;
+        viewport.m_H       = (uint16_t) height;
 
         g_VulkanContext->m_ViewportChanged = 1;
     }
@@ -3220,8 +3206,7 @@ bail:
     static void VulkanSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
-        vkCmdSetDepthBias(g_VulkanContext->m_MainCommandBuffers[g_VulkanContext->m_SwapChain->m_ImageIndex],
-            factor, 0.0, units);
+        vkCmdSetDepthBias(g_VulkanContext->m_MainCommandBuffers[g_VulkanContext->m_SwapChain->m_ImageIndex], factor, 0.0, units);
     }
 
     static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format)
@@ -3327,17 +3312,6 @@ bail:
 
             if (rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
             {
-                /*
-                VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
-                    context->m_LogicalDevice.m_CommandPool,
-                    context->m_LogicalDevice.m_GraphicsQueue,
-                    color_texture_ptr->m_Handle.m_Image,
-                    VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-                CHECK_VK_ERROR(res);
-
-                rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                */
-
                 rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             }
         #endif
@@ -4837,8 +4811,6 @@ bail:
         OneTimeCommandBuffer cmd_buffer(context);
         VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
 
-        // VK_IMAGE_LAYOUT_GENERAL
-
         VkImageSubresourceRange range = {};
         range.aspectMask              = VK_IMAGE_ASPECT_COLOR_BIT;
         range.levelCount              = 1;
@@ -4852,22 +4824,6 @@ bail:
             1, &range);
 
         cmd_buffer.End();
-    }
-
-    void VulkanTransitionTexture(HContext _context, HTexture _texture, TransitionMode from, TransitionMode to)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
-
-        VkResult res = TransitionImageLayout(
-            context->m_LogicalDevice.m_Device,
-            context->m_LogicalDevice.m_CommandPool,
-            context->m_LogicalDevice.m_GraphicsQueue,
-            texture->m_Handle.m_Image,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_GENERAL);
-        CHECK_VK_ERROR(res);
     }
 
     static inline VkPipelineStageFlags GetPipelineStageFlags(uint32_t bits)

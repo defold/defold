@@ -51,6 +51,7 @@ PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
 PFN_vkCmdCopyImage vkCmdCopyImage;
 PFN_vkCmdBlitImage vkCmdBlitImage;
 PFN_vkCmdClearAttachments vkCmdClearAttachments;
+PFN_vkCmdClearColorImage vkCmdClearColorImage;
 PFN_vkCreateSampler vkCreateSampler;
 PFN_vkDestroySampler vkDestroySampler;
 PFN_vkDestroyImage vkDestroyImage;
@@ -199,6 +200,7 @@ namespace dmGraphics
         vkCmdCopyImage = (PFN_vkCmdCopyImage) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImage");
         vkCmdBlitImage = (PFN_vkCmdBlitImage) vkGetInstanceProcAddr(vk_instance, "vkCmdBlitImage");
         vkCmdClearAttachments = (PFN_vkCmdClearAttachments) vkGetInstanceProcAddr(vk_instance, "vkCmdClearAttachments");
+        vkCmdClearColorImage = (PFN_vkCmdClearColorImage) vkGetInstanceProcAddr(vk_instance, "vkCmdClearColorImage");
         vkCreateSampler = (PFN_vkCreateSampler) vkGetInstanceProcAddr(vk_instance, "vkCreateSampler");
         vkDestroySampler = (PFN_vkDestroySampler) vkGetInstanceProcAddr(vk_instance, "vkDestroySampler");
         vkDestroyImage = (PFN_vkDestroyImage) vkGetInstanceProcAddr(vk_instance, "vkDestroyImage");

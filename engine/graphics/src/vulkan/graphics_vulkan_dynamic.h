@@ -48,6 +48,7 @@ extern PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
 extern PFN_vkCmdCopyImage vkCmdCopyImage;
 extern PFN_vkCmdBlitImage vkCmdBlitImage;
 extern PFN_vkCmdClearAttachments vkCmdClearAttachments;
+extern PFN_vkCmdClearColorImage vkCmdClearColorImage;
 extern PFN_vkCreateSampler vkCreateSampler;
 extern PFN_vkDestroySampler vkDestroySampler;
 extern PFN_vkDestroyImage vkDestroyImage;

@@ -28,12 +28,6 @@ namespace dmGraphics
         VERTEX_STEP_INSTANCE,
     };
 
-    enum TransitionMode
-    {
-        TRANSITION_GENERAL = 0,
-        TRANSITION_PRESENT = 1,
-    };
-
     enum BarrierStageFlags
     {
         STAGE_FLAG_QUEUE_BEGIN     = 1,
@@ -99,7 +93,6 @@ namespace dmGraphics
     void     VulkanSetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
     void     VulkanSetPipelineState(HContext context, PipelineState ps);
     void     VulkanClearTexture(HContext context, HTexture texture, float values[4]);
-    void     VulkanTransitionTexture(HContext _context, HTexture _texture, TransitionMode from, TransitionMode to);
     void     VulkanMemorybarrier(HContext _context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags);
 }
 

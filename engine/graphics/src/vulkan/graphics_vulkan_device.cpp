@@ -1185,8 +1185,6 @@ bail:
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
-        dmLogInfo("Pipeline for program %p:", &program->m_Handle.m_PipelineLayout);
-
         return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
