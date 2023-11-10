@@ -1145,7 +1145,7 @@ public class Project {
 
             if (symbolsFilename != null) {
                 try {
-                    URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                    URL url = new URL(String.format(Bob.ARTIFACTS_URL + "%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
                     File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
                     HttpUtil http = new HttpUtil();
                     http.downloadToFile(url, file);
