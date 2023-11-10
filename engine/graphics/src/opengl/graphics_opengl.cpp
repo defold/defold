@@ -1179,6 +1179,22 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
         }
+        else
+        {
+            // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
+            if (OpenGLIsExtensionSupported(context, "EXT_color_buffer_half_float"))
+            {
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+            }
+
+            // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
+            if (OpenGLIsExtensionSupported(context, "WEBGL_color_buffer_float"))
+            {
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+            }
+        }
 
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
         GLint iNumCompressedFormats = 0;
