@@ -172,16 +172,24 @@
                                                   (keep (fn [{:keys [sampler gpu-texture-generator]}]
                                                           (when gpu-texture-generator
                                                             [sampler gpu-texture-generator])))
-                                                  texture-binding-infos)]
-    (into {}
-          (keep-indexed
-            (fn [unit-index {:keys [name] :as sampler}]
-              (when-let [{tex-fn :f tex-args :args} (sampler-name->gpu-texture-generator name)]
-                (let [request-id [_node-id unit-index]
-                      params (material/sampler->tex-params sampler)
-                      texture (tex-fn tex-args request-id params unit-index)]
-                  [name texture]))))
-          samplers)))
+                                                  texture-binding-infos)
+        explicit-textures (into {}
+                                (keep-indexed
+                                  (fn [unit-index {:keys [name] :as sampler}]
+                                    (when-let [{tex-fn :f tex-args :args} (sampler-name->gpu-texture-generator name)]
+                                      (let [request-id [_node-id unit-index]
+                                            params (material/sampler->tex-params sampler)
+                                            texture (tex-fn tex-args request-id params unit-index)]
+                                        [name texture]))))
+                                samplers)
+        fallback-texture (if (pos? (count explicit-textures))
+                           (val (first explicit-textures))
+                           @texture/black-pixel)]
+    (reduce
+      (fn [acc {:keys [name]}]
+        (cond-> acc (not (acc name)) (assoc name fallback-texture)))
+      explicit-textures
+      samplers)))
 
 (g/defnk produce-scene [_node-id scene mesh-material-ids material-scene-infos]
   (if (not scene)
@@ -215,8 +223,7 @@
                                         (dissoc :children)
                                         (assoc-in [:user-data :shader] shader)
                                         (assoc-in [:user-data :vertex-space] vertex-space)
-                                        (assoc-in [:user-data :textures] (or (not-empty gpu-textures)
-                                                                             {"texture" @texture/black-pixel}))
+                                        (assoc-in [:user-data :textures] gpu-textures)
                                         (assoc-in [:user-data :meshes] meshes)
                                         (update :batch-key
                                                 (fn [old-key]
