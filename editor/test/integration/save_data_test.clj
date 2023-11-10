@@ -54,6 +54,10 @@
 (def ^:private pb-type-field-names
   {'dmGuiDDF.NodeDesc "type"})
 
+(def ^:private pb-enum-ignored-values
+  {'dmGuiDDF.NodeDesc.Type
+   {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
+
 ;; TODO: Add type fields from all union protobuf types.
 
 (def ^:private pb-ignored-fields
@@ -106,22 +110,18 @@
    'dmGraphics.VertexAttribute
    {:default
     {"binary_values" :runtime-only
-     "coordinate_space" :unused
+     "name_hash" :runtime-only}
+
+    [["particlefx" "emitters" "attributes"]
+     ["sprite" "attributes"]]
+    {"coordinate_space" :unused
      "data_type" :unused
      "element_count" :unused
-     "name_hash" :runtime-only
      "normalize" :unused
-     "semantic_type" :unused}
+     "semantic_type" :unused}}
 
-    ["material" "attributes"]
-    {"binary_values" :runtime-only
-     "name_hash" :runtime-only}}
-
-   'dmGuiDDF.NodeDesc
-   {["gui" "nodes"]
-    {"[TYPE_SPINE]" :deprecated} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
-
-    ["gui" "nodes" "[TYPE_BOX]"]
+   ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
+   {:default
     {"custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -144,7 +144,11 @@
      "text_tracking" :unused
      "type" :allowed-default}
 
-    ["gui" "nodes" "[TYPE_CUSTOM]"]
+    [["gui" "layouts" "nodes"]]
+    {"template_node_child" :unused}}
+
+   ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
+   {:default
     {"font" :unused
      "innerRadius" :unused
      "line_break" :unused
@@ -167,7 +171,11 @@
      "text_tracking" :unused
      "texture" :unused}
 
-    ["gui" "nodes" "[TYPE_PARTICLEFX]"]
+    [["gui" "layouts" "nodes"]]
+    {"template_node_child" :unused}}
+
+   ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
+   {:default
     {"blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
@@ -196,7 +204,11 @@
      "text_tracking" :unused
      "texture" :unused}
 
-    ["gui" "nodes" "[TYPE_PIE]"]
+    [["gui" "layouts" "nodes"]]
+    {"template_node_child" :unused}}
+
+   ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
+   {:default
     {"custom_type" :unused
      "font" :unused
      "line_break" :unused
@@ -215,7 +227,11 @@
      "text_leading" :unused
      "text_tracking" :unused}
 
-    ["gui" "nodes" "[TYPE_TEXT]"]
+    [["gui" "layouts" "nodes"]]
+    {"template_node_child" :unused}}
+
+   ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
+   {:default
     {"clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
@@ -234,7 +250,11 @@
      "template" :unused
      "texture" :unused}
 
-    ["gui" "nodes" "[TYPE_TEMPLATE]"]
+    [["gui" "layouts" "nodes"]]
+    {"template_node_child" :unused}}
+
+   ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
+   {:default
     {"adjust_mode" :unused
      "blend_mode" :unused
      "clipping_inverted" :unused
@@ -267,7 +287,10 @@
      "texture" :unused
      "visible" :unused
      "xanchor" :unused
-     "yanchor" :unused}}
+     "yanchor" :unused}
+
+    [["gui" "layouts" "nodes"]]
+    {"template_node_child" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
@@ -286,23 +309,15 @@
     {"d" :padding}}
 
    'dmMath.Vector4
-   {["gui" "nodes" :* "color"]
+   {[["gui" "nodes" "color"]
+     ["label" "size"]
+     ["sprite" "size"]]
     {"w" :padding}
 
-    ["gui" "nodes" :* "position"]
-    {"w" :non-editable}
-
-    ["gui" "nodes" :* "rotation"]
-    {"w" :non-editable}
-
-    ["gui" "nodes" :* "scale"]
-    {"w" :non-editable}
-
-    ["label" "size"]
-    {"w" :padding}
-
-    ["sprite" "size"]
-    {"w" :padding}}
+    [["gui" "nodes" "position"]
+     ["gui" "nodes" "rotation"]
+     ["gui" "nodes" "scale"]]
+    {"w" :non-editable}}
 
    'dmModelDDF.ModelDesc
    {:default
@@ -318,21 +333,27 @@
      "name_indirections" :runtime-only
      "texture" :unimplemented}}}) ; Default texture resources not supported yet.
 
-(defn- pb-filter-match [pb-filters pb-path]
-  (let [pb-path-token-count (count pb-path)
-        matched (->> pb-filters
-                     (filterv (fn [pb-filter]
-                                (and (not= :default pb-filter)
-                                     (= pb-path-token-count (count pb-filter))
-                                     (every? true?
-                                             (map (fn [filter-token path-token]
-                                                    (or (= :* filter-token)
-                                                        (= filter-token path-token)))
-                                                  pb-filter
-                                                  pb-path))))))]
+(definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
+  `(symbol (.getFullName ~pb-desc)))
+
+(defn- pb-ignore-key [^Descriptors$Descriptor pb-desc type-token]
+  {:pre [(or (nil? type-token) (s/valid? ::pb-type-token type-token))]}
+  (let [pb-desc-key (pb-descriptor-key pb-desc)]
+    (if type-token
+      [pb-desc-key type-token]
+      pb-desc-key)))
+
+(defn- pb-field-ignore-reasons [pb-desc type-token pb-path]
+  (let [pb-ignore-key (pb-ignore-key pb-desc type-token)
+        pb-filter->pb-field->ignore-reason (get pb-ignored-fields pb-ignore-key)
+        matched (filterv (fn [[pb-filter]]
+                           (and (not= :default pb-filter)
+                                (some #(= pb-path %) pb-filter)))
+                         pb-filter->pb-field->ignore-reason)]
     (case (count matched)
-      0 :default
-      1 (first matched)
+      0 (:default pb-filter->pb-field->ignore-reason {})
+      1 (into (:default pb-filter->pb-field->ignore-reason {})
+              (val (first matched)))
       (throw (ex-info "The pb-path matches more than one filter in the pb-ignored-fields map."
                       {:pb-path pb-path
                        :matched matched})))))
@@ -360,20 +381,23 @@
 (s/def ::ext->setting->ignore-reason (s/map-of ::resource-type-ext ::setting->ignore-reason))
 
 (s/def ::pb-field-name (s/and string? pb-valid-field-name?))
-(s/def ::pb-path-token (s/or :wildcard #{:*} :identifier (s/and string? (s/or :field pb-valid-field-name? :type pb-valid-type-token?))))
+(s/def ::pb-type-token (s/and string? pb-valid-type-token?))
+(s/def ::pb-identifier (s/or :field ::pb-field-name :type ::pb-type-token))
+(s/def ::pb-ignore-key (s/or :class ::class-java-symbol :union-case (s/tuple ::class-java-symbol ::pb-type-token)))
+(s/def ::pb-path-token ::pb-identifier)
 (s/def ::pb-path (s/cat :ext ::resource-type-ext :field-path (s/* ::pb-path-token)))
 (s/def ::pb-path-token->ignore-reason (s/map-of ::pb-path-token ::ignore-reason))
-(s/def ::pb-filter (s/or :default #{:default} :path ::pb-path))
+(s/def ::pb-filter (s/or :default #{:default} :paths (s/coll-of ::pb-path :kind vector?)))
 (s/def ::pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-filter ::pb-path-token->ignore-reason))
-(s/def ::class->pb-filter->pb-path-token->ignore-reason (s/map-of ::class-java-symbol ::pb-filter->pb-path-token->ignore-reason))
+(s/def ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-ignore-key ::pb-filter->pb-path-token->ignore-reason))
 
 (deftest settings-ignored-paths-declaration-test
   (is (s/valid? ::ext->setting->ignore-reason settings-ignored-fields)
       (s/explain-str ::ext->setting->ignore-reason settings-ignored-fields)))
 
 (deftest pb-ignored-fields-declaration-test
-  (is (s/valid? ::class->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
-      (s/explain-str ::class->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
+  (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
+      (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
 (deftest silent-migrations-test
   (test-util/with-loaded-project project-path
@@ -520,9 +544,6 @@
      :else
      (assert false))))
 
-(definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
-  `(symbol (.getFullName ~pb-desc)))
-
 (definline ^:private pb-type-token
   ^String [type-field-value]
   `(.intern (str \[ ~type-field-value \])))
@@ -546,12 +567,8 @@
 
 (def ^:private pb-enum-desc-usable-values (memoize pb-enum-desc-usable-values-raw))
 
-(defn- pb-enum-field-desc-empty-frequencies-raw [^Descriptors$FieldDescriptor enum-field-desc pb-path]
-  (let [owner-pb-desc (.getContainingType enum-field-desc)
-        enum-desc (.getEnumType enum-field-desc)
-        pb-filter->type-token->ignore-reason (get pb-ignored-fields (pb-descriptor-key owner-pb-desc))
-        pb-filter (pb-filter-match (keys pb-filter->type-token->ignore-reason) pb-path)
-        type-token->ignore-reason (get pb-filter->type-token->ignore-reason pb-filter {})]
+(defn- pb-enum-desc-empty-frequencies-raw [^Descriptors$EnumDescriptor enum-desc]
+  (let [type-token->ignore-reason (get pb-enum-ignored-values (pb-descriptor-key enum-desc))]
     (into (sorted-map)
           (keep (fn [enum-value-desc]
                   (let [type-token (pb-type-token enum-value-desc)]
@@ -559,7 +576,7 @@
                       (pair type-token 0)))))
           (pb-enum-desc-usable-values enum-desc))))
 
-(def ^:private pb-enum-field-desc-empty-frequencies (memoize pb-enum-field-desc-empty-frequencies-raw))
+(def ^:private pb-enum-desc-empty-frequencies (memoize pb-enum-desc-empty-frequencies-raw))
 
 (defn- pb-field-has-single-valid-value? [^Descriptors$FieldDescriptor field-desc]
   (and (pb-enum-field? field-desc)
@@ -588,15 +605,14 @@
     :else
     0))
 
-(defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc pb-path included-ignore-reasons]
-  {:pre [(s/valid? ::pb-path pb-path)
+(defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc type-token pb-path included-ignore-reasons]
+  {:pre [(or (nil? type-token) (s/valid? ::pb-type-token type-token))
+         (s/valid? ::pb-path pb-path)
          (s/valid? ::ignore-reason-set included-ignore-reasons)]}
-  (let [pb-filter->pb-field->ignore-reason (get pb-ignored-fields (pb-descriptor-key pb-desc))
-        pb-filter (pb-filter-match (keys pb-filter->pb-field->ignore-reason) pb-path)
-        pb-field->ignore-reason (get pb-filter->pb-field->ignore-reason pb-filter {})
+  (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc type-token pb-path)
         ignored-field? (fn [^Descriptors$FieldDescriptor field-desc]
                          (let [field-name (.getName field-desc)
-                               ignore-reason (pb-field->ignore-reason field-name)]
+                               ignore-reason (get pb-field->ignore-reason field-name)]
                            (and (some? ignore-reason)
                                 (not (contains? included-ignore-reasons ignore-reason)))))]
     (into []
@@ -613,7 +629,6 @@
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField pb))
         type-token (some->> type-field-value pb-type-token)
-        typed-pb-path (cond-> pb-path type-token (conj type-token))
 
         field-frequencies
         (into (sorted-map)
@@ -623,7 +638,7 @@
                             field-frequency
                             (cond
                               (pb-message-field? field-desc)
-                              (let [pb-path (conj typed-pb-path field-name)]
+                              (let [pb-path (conj pb-path field-name)]
                                 (if (.isRepeated field-desc)
                                   (transduce
                                     (map #(pb-nested-field-frequencies % pb-path count-field-value?))
@@ -650,11 +665,11 @@
                                   (pos? (count field-frequency)))
                           (pair field-name
                                 field-frequency)))))
-              (pb-descriptor-expected-fields pb-desc typed-pb-path #{:non-editable}))]
+              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable}))]
 
     (if (nil? type-field-desc)
       field-frequencies
-      (cond-> (pb-enum-field-desc-empty-frequencies type-field-desc pb-path)
+      (cond-> (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc))
               (pos? (count field-frequencies))
               (assoc type-token field-frequencies)))))
 
@@ -810,7 +825,6 @@
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField original-pb))
         type-token (some->> type-field-value pb-type-token)
-        typed-pb-path (cond-> pb-path type-token (conj type-token))
 
         diff-field
         (fn diff-field [^Descriptors$FieldDescriptor field-desc]
@@ -822,7 +836,7 @@
                     :count-mismatch
                     (mapv (if (pb-message-field? field-desc)
                             ;; Repeated message field.
-                            (let [pb-path (conj typed-pb-path (.getName field-desc))]
+                            (let [pb-path (conj pb-path (.getName field-desc))]
                               #(pb-nested-field-differences %1 %2 pb-path))
                             ;; Repeated primitive field.
                             #(if (= %1 %2) 0 1))
@@ -835,14 +849,14 @@
                                   (.getField altered-pb field-desc))]
                     (if (pb-message-field? field-desc)
                       ;; Non-repeated message field.
-                      (let [pb-path (conj typed-pb-path (.getName field-desc))]
+                      (let [pb-path (conj pb-path (.getName field-desc))]
                         (pb-nested-field-differences a-value b-value pb-path))
                       ;; Non-repeated primitive-field.
                       (if (= a-value b-value) 0 1))))))]
 
     (into (sorted-map)
           (map diff-field)
-          (pb-descriptor-expected-fields pb-desc typed-pb-path #{}))))
+          (pb-descriptor-expected-fields pb-desc type-token pb-path #{}))))
 
 (deftest all-gui-node-fields-overridden-test
   (test-util/with-loaded-project project-path
@@ -869,7 +883,7 @@
                                                 (dissoc "overridden_fields" "type"))]
                             (sorted-map type-token differences)))))
                  merge-nested-frequencies
-                 (pb-enum-field-desc-empty-frequencies type-field-desc pb-path))
+                 (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc)))
                (into empty-sorted-coll-set
                      (comp coll/xform-nested-map->path-map
                            (filter #(= 0 (val %)))
