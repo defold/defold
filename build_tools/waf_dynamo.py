@@ -443,6 +443,9 @@ def default_flags(self):
         target_arch = build_util.get_target_architecture()
 
         bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
+        # NDK doesn't support arm64 yet
+        if bp_arch == 'arm64':
+            bp_arch = 'x86_64';
         sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
@@ -1616,6 +1619,9 @@ def detect(conf):
         target_arch = build_util.get_target_architecture()
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
+        # NDK doesn't support arm64 yet
+        if bp_arch == 'arm64':
+            bp_arch = 'x86_64';
         bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
         tool_name = "llvm"
 
