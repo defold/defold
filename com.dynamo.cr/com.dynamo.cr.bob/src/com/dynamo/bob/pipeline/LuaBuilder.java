@@ -503,15 +503,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-                    logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.fine("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }
                 else {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
-                    logger.info("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.fine("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                logger.info("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                logger.fine("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
@@ -519,7 +519,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
                 srcBuilder.setDelta(ByteString.copyFrom(delta));
 
-                logger.info("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                logger.fine("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
             }
         }

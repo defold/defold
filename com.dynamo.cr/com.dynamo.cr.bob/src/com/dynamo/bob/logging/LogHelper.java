@@ -65,6 +65,6 @@ public class LogHelper {
      * @param enable Set to true to enable verbose logging
      */
     public static void setVerboseLogging(boolean enabled) {
-        setLogLevel(enabled ? Level.CONFIG : Level.WARNING);
+        setLogLevel(enabled ? Level.FINE : Level.INFO);
     }
 }
