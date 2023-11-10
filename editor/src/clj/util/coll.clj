@@ -19,6 +19,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def empty-sorted-map (sorted-map))
+
 (defn supports-transient?
   "Returns true if the supplied persistent collection can be made into a
   transient collection."
@@ -157,3 +159,44 @@
                         (conj (val result) item))))
               (pair empty-coll empty-coll)
               coll))))
+
+(defn sorted-assoc-in
+  "Like core.assoc-in, but sorted maps will be created for any levels that do not exist."
+  [coll [key & remaining-keys] value]
+  (if remaining-keys
+    (assoc coll key (sorted-assoc-in (get coll key empty-sorted-map) remaining-keys value))
+    (assoc coll key value)))
+
+(def xform-nested-map->path-map
+  "Transducer that takes a nested map and returns a flat map of vector paths to
+  the innermost values."
+  (letfn [(path-entries [path [key value]]
+            (let [path (conj path key)]
+              (if (coll? value)
+                (eduction
+                  (mapcat #(path-entries path %))
+                  value)
+                [(pair path value)])))]
+    (mapcat #(path-entries [] %))))
+
+(defn nested-map->path-map
+  "Takes a nested map and returns a flat map of vector paths to the innermost
+  values."
+  [nested-map]
+  {:pre [(map? nested-map)]}
+  (into (empty nested-map)
+        xform-nested-map->path-map
+        nested-map))
+
+(defn path-map->nested-map
+  "Takes a flat map of vector paths to values and returns a nested map to the
+  same values."
+  [path-map]
+  {:pre [(map? path-map)]}
+  (reduce (if (sorted? path-map)
+            (fn [nested-map [path value]]
+              (sorted-assoc-in nested-map path value))
+            (fn [nested-map [path value]]
+              (assoc-in nested-map path value)))
+          (empty path-map)
+          path-map))

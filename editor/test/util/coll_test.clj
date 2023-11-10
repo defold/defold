@@ -219,3 +219,60 @@
               [odds evens] (coll/separate-by (comp odd? key) coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
+
+(deftest sorted-assoc-in-test
+  (testing "Introduces sorted maps for levels that do not exist"
+    (let [original-map (sorted-map)
+          altered-map (coll/sorted-assoc-in original-map [:a :b] 1)
+          created-level (:a altered-map)]
+      (is (map? created-level))
+      (is (sorted? created-level))
+      (is (= 1 (:b created-level)))))
+
+  (testing "Retains data in existing levels"
+    (let [original-map (sorted-map :a 0 :b (sorted-map :A 1 :B 2))
+          altered-map (coll/sorted-assoc-in original-map [:b :C] 3)]
+      (is (= {:a 0 :b {:A 1 :B 2 :C 3}} altered-map))))
+
+  (testing "Preserves metadata"
+    (let [original-meta {:meta-key "meta-value"}
+          original-map (with-meta (sorted-map :a (with-meta (sorted-map) original-meta)) original-meta)
+          altered-map (coll/sorted-assoc-in original-map [:a :b] 1)]
+      (is (identical? original-meta (meta altered-map)))
+      (is (identical? original-meta (meta (:a altered-map)))))))
+
+
+(deftest nested-map->path-map-test
+  (testing "Transforms nested map to flat map of paths"
+    (is (= {[:a :A] 1
+            [:a :B] 2
+            [:b :A] 1
+            [:b :B "A"] 1
+            [:c] 3}
+           (coll/nested-map->path-map
+             {:a {:A 1 :B 2}
+              :b {:A 1 :B {"A" 1}}
+              :c 3}))))
+
+  (testing "Preserves type"
+    (is (not (sorted? (coll/nested-map->path-map {:a {:A 1}}))))
+    (is (sorted? (coll/nested-map->path-map (sorted-map :a (sorted-map :A 1)))))))
+
+(deftest path-map->nested-map-test
+  (testing "Transforms flat map of paths to nested map"
+    (is (= {:a {:A 1 :B 2}
+            :b {:A 1 :B {"A" 1}}
+            :c 3}
+           (coll/path-map->nested-map
+             {[:a :A] 1
+              [:a :B] 2
+              [:b :A] 1
+              [:b :B "A"] 1
+              [:c] 3}))))
+
+  (testing "Preserves type"
+    (is (not (sorted? (coll/path-map->nested-map {}))))
+    (is (sorted? (coll/path-map->nested-map (sorted-map))))
+
+    (is (not (sorted? (:a (coll/path-map->nested-map {[:a :A] 1})))))
+    (is (sorted? (:a (coll/path-map->nested-map (sorted-map [:a :A] 1)))))))
