@@ -340,6 +340,7 @@ def remove_platform_files_from_archive(platform, jar):
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
+    _unpack_platform = "libexec/" + platform
     for file in files:
         if file.startswith("libexec"):
             # don't remove any folders
@@ -358,11 +359,17 @@ def remove_platform_files_from_archive(platform, jar):
             files_to_remove.append(file)
         # find files to remove `.pdb` from _updack/*
         if file.startswith("_unpack"):
-            # we need these files for windows
-            if platform == "x86_64-win32":
+            # don't touch anything for the current platform
+            if file.startswith(_unpack_platform):
                 continue
-            if file.endswith(".pdb"):
-                files_to_remove.append(file)
+            # keep shared files
+            if file.startswith("_unpack/shared"):
+                continue
+            # keep _defold folder
+            if file.startswith("_unpack/_defold"):
+                continue
+            # anything else should be removed
+            files_to_remove.append(file)
 
 
     # find libs to remove in the root folder

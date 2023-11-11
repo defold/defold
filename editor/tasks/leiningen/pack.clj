@@ -23,6 +23,8 @@
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
+;; this is universal packing for all the platforms, but we clenup it in bundle.py -> remove_platform_files_from_archive()
+
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
