@@ -359,6 +359,9 @@ def remove_platform_files_from_archive(platform, jar):
             files_to_remove.append(file)
         # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
         if file.startswith("_unpack"):
+            # don't touch '_unpack/'
+            if file == "_unpack/":
+                continue
             # don't touch anything for the current platform
             if file.startswith(_unpack_platform):
                 continue
