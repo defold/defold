@@ -29,14 +29,10 @@
                     "lib" ["libparticle_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
                   "lib" ["libparticle_shared.dylib"]}
-   "x86-win32"     {"bin" ["dmengine.exe"]
-                    "lib" []}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine.pdb"]
                     "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.so"]}
-   "arm64-ios"  {"bin" ["dmengine"]
-                    "lib" []}})
+                    "lib" ["libparticle_shared.so"]}})
 
 (defn- platform->engine-src-dirname [platform]
   (assert (contains? engine-artifacts platform))
