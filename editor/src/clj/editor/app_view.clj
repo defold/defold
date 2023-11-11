@@ -2634,7 +2634,7 @@ If you do not specifically require different script states, consider changing th
        "Categories=Games;Development;Editor;\n"
        "StartupNotify=true\n"
        "Exec=" launcher-path "\n"
-       "Icon=" install-dir "logo_blue.png\n"))
+       "Icon=" install-dir "/logo_blue.png\n"))
 
 (handler/defhandler :create-desktop-entry :global
   (active? [] (util/is-linux?))
@@ -2642,9 +2642,10 @@ If you do not specifically require different script states, consider changing th
   (run []
        (let [xdg-desktop-menu (process/exec! "which" "xdg-desktop-menu")
              install-dir (.getCanonicalFile (io/file (system/defold-resourcespath)))
-             desktop-entry (get-linux-desktop-entry (system/defold-launcherpath) install-dir)
+             launcher-path (.getCanonicalFile (io/file (system/defold-launcherpath)))
+             desktop-entry (get-linux-desktop-entry launcher-path install-dir)
              desktop-entry-file (str install-dir "/defold-editor.desktop")]
          (spit desktop-entry-file desktop-entry)
-         (process/exec! xdg-desktop-menu "install" "--mode user" desktop-entry-file))))
+         (process/exec! xdg-desktop-menu "install" "--mode" "user" desktop-entry-file))))
 
 
