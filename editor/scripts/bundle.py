@@ -340,7 +340,7 @@ def remove_platform_files_from_archive(platform, jar):
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
-    _unpack_platform = "libexec/" + platform
+    _unpack_platform = "_unpack/" + platform
     for file in files:
         if file.startswith("libexec"):
             # don't remove any folders
