@@ -357,7 +357,7 @@ def remove_platform_files_from_archive(platform, jar):
                 continue
             # anything else should be removed
             files_to_remove.append(file)
-        # find files to remove `.pdb` from _updack/*
+        # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
         if file.startswith("_unpack"):
             # don't touch anything for the current platform
             if file.startswith(_unpack_platform):
