@@ -30,9 +30,10 @@ namespace dmGraphics
 
     enum BarrierStageFlags
     {
-        STAGE_FLAG_QUEUE_BEGIN     = 1,
-        STAGE_FLAG_QUEUE_END       = 2,
-        STAGE_FLAG_FRAGMENT_SHADER = 4,
+        STAGE_FLAG_QUEUE_BEGIN                = 1,
+        STAGE_FLAG_QUEUE_END                  = 2,
+        STAGE_FLAG_FRAGMENT_SHADER            = 4,
+        STAGE_FLAG_EARLY_FRAGMENT_SHADER_TEST = 8,
     };
 
     enum BarrierAccessFlags
@@ -93,7 +94,8 @@ namespace dmGraphics
     void     VulkanSetFrameInFlightCount(HContext, uint8_t num_frames_in_flight);
     void     VulkanSetPipelineState(HContext context, PipelineState ps);
     void     VulkanClearTexture(HContext context, HTexture texture, float values[4]);
-    void     VulkanMemorybarrier(HContext _context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags);
+    void     VulkanMemorybarrier(HContext context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags);
+    void     VulkanGetUniformBinding(HContext context, HProgram program, uint32_t index, uint32_t* set, uint32_t* binding, uint32_t* member_index);
 }
 
 #endif
