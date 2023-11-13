@@ -266,7 +266,7 @@ public class TextureSetLayout {
         for (Rect r : layout.getRectangles()) {
 
             r.setX(x);
-            r.setX(y);
+            r.setY(y);
 
              if (x + cellWidth >= inputWidth - margin) {
                  x = margin;

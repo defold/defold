@@ -142,7 +142,8 @@ public class PropertiesUtil {
         try {
             value = ProtoBuilders.replaceTextureSetName(value);
         } catch (Exception e) {
-            throw new CompileExceptionError(resource, -1, e.getMessage(), e);
+            // Eventually, I think we want better checks if the suffix was replaced
+            // or if the source suffix is even supported
         }
         return value;
     }
