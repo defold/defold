@@ -4829,9 +4829,10 @@ bail:
     static inline VkPipelineStageFlags GetPipelineStageFlags(uint32_t bits)
     {
         VkPipelineStageFlags flags = 0;
-        if (bits & STAGE_FLAG_QUEUE_BEGIN)     flags |= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        if (bits & STAGE_FLAG_QUEUE_END)       flags |= VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        if (bits & STAGE_FLAG_FRAGMENT_SHADER) flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        if (bits & STAGE_FLAG_QUEUE_BEGIN)                flags |= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        if (bits & STAGE_FLAG_QUEUE_END)                  flags |= VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        if (bits & STAGE_FLAG_FRAGMENT_SHADER)            flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        if (bits & STAGE_FLAG_EARLY_FRAGMENT_SHADER_TEST) flags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         return flags;
     }
 
@@ -4855,31 +4856,76 @@ bail:
         const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
 
-        VkImageMemoryBarrier barrier            = {};
-        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.srcAccessMask                   = GetAccessFlags(src_access_flags);
-        barrier.dstAccessMask                   = GetAccessFlags(dst_access_flags);
-        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.newLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.image                           = texture->m_Handle.m_Image;
-        barrier.image                           = texture->m_Handle.m_Image;
-        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel   = 0;
-        barrier.subresourceRange.levelCount     = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount     = 1;
-
-        VkPipelineStageFlags stage_src = GetPipelineStageFlags(src_stage_flags);
-        VkPipelineStageFlags stage_dst = GetPipelineStageFlags(dst_stage_flags);
+        VkMemoryBarrier memoryBarrier = {};
+        memoryBarrier.sType           = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        memoryBarrier.pNext           = 0;
+        memoryBarrier.srcAccessMask   = GetAccessFlags(src_access_flags);
+        memoryBarrier.dstAccessMask   = GetAccessFlags(dst_access_flags);
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
-            stage_src,
-            stage_dst,
-            0, 0, 0, 0, 0, 1,
-            &barrier);
+            GetPipelineStageFlags(src_stage_flags),
+            GetPipelineStageFlags(dst_stage_flags),
+            0, 1, &memoryBarrier, 0, 0, 0, 0);
+    }
+
+    void VulkanGetUniformBinding(HContext context, HProgram program, uint32_t index, uint32_t* set, uint32_t* binding, uint32_t* member_index)
+    {
+        assert(program);
+        Program* program_ptr = (Program*) program;
+        ShaderModule* module = 0;
+
+        if (program_ptr->m_ComputeModule)
+        {
+            module = program_ptr->m_ComputeModule;
+        }
+        else
+        {
+            module = program_ptr->m_VertexModule;
+            if (index >= program_ptr->m_VertexModule->m_TotalUniformCount)
+            {
+                module = program_ptr->m_FragmentModule;
+                index -= program_ptr->m_VertexModule->m_TotalUniformCount;
+            }
+        }
+
+        if (index >= module->m_TotalUniformCount)
+        {
+            return;
+        }
+
+        uint32_t search_index = 0;
+        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+        {
+            if (IsUniformTextureSampler(module->m_Uniforms[i]))
+            {
+                if (search_index == index)
+                {
+                    ShaderResourceBinding* res = &module->m_Uniforms[index];
+                    *set     = res->m_Set;
+                    *binding = res->m_Binding;
+                    return;
+                }
+                search_index++;
+            }
+            else
+            {
+                for (int j = 0; j < module->m_Uniforms[i].m_BlockMembers.Size(); ++j)
+                {
+                    if (search_index == index)
+                    {
+                        *set          = module->m_Uniforms[i].m_Set;
+                        *binding      = module->m_Uniforms[i].m_Binding;
+                        *member_index = j;
+                        return;
+                    }
+
+                    search_index++;
+                }
+            }
+        }
+
+        assert(0); // Should not happen
     }
 
 #endif
