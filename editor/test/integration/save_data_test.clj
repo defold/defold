@@ -28,7 +28,7 @@
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.text-util :as text-util])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc]
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
            [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]))
 
 (set! *warn-on-reflection* true)
@@ -145,7 +145,9 @@
      "type" :allowed-default}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-editable
+     "parent" :non-editable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
@@ -172,7 +174,9 @@
      "texture" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-editable
+     "parent" :non-editable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
@@ -205,7 +209,9 @@
      "texture" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-editable
+     "parent" :non-editable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
@@ -228,7 +234,9 @@
      "text_tracking" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-editable
+     "parent" :non-editable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
    {:default
@@ -251,7 +259,9 @@
      "texture" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-editable
+     "parent" :non-editable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
@@ -290,7 +300,9 @@
      "yanchor" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-editable
+     "parent" :non-editable
+     "template_node_child" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
@@ -316,7 +328,12 @@
 
     [["gui" "nodes" "position"]
      ["gui" "nodes" "rotation"]
-     ["gui" "nodes" "scale"]]
+     ["gui" "nodes" "scale"]
+     ["gui" "layouts" "nodes" "color"]
+     ["gui" "layouts" "nodes" "position"]
+     ["gui" "layouts" "nodes" "rotation"]
+     ["gui" "layouts" "nodes" "scale"]
+     ["gui" "layouts" "nodes" "size"]]
     {"w" :non-editable}}
 
    'dmModelDDF.ModelDesc
@@ -759,7 +776,7 @@
   (and (= \/ (get node-id (count template-node-id)))
        (string/starts-with? node-id template-node-id)))
 
-(defn- gui-override-infos [gui-node-pbs gui-proj-path->node-pbs]
+(defn- gui-template-node-override-infos [gui-node-pbs gui-proj-path->node-pbs]
   (let [[override-node-pbs template-node-pbs]
         (util/into-multiple
           [[] []]
@@ -858,37 +875,81 @@
           (map diff-field)
           (pb-descriptor-expected-fields pb-desc type-token pb-path #{}))))
 
-(deftest all-gui-node-fields-overridden-test
+(defn- non-overridden-gui-node-field-paths [workspace diff-pb-path gui-resource->override-infos]
+  (let [gui-resources (checked-resources workspace #(= "gui" (:ext %)))
+        type-field-desc (.findFieldByName (Gui$NodeDesc/getDescriptor) "type")]
+    (->> gui-resources
+         (transduce
+           (comp
+             (mapcat gui-resource->override-infos)
+             (map (fn [{:keys [^Gui$NodeDesc original-node-pb override-node-pb]}]
+                    (let [node-type (.getType original-node-pb)
+                          type-token (pb-type-token node-type)
+                          differences (if (nil? override-node-pb)
+                                        0
+                                        (-> (pb-nested-field-differences original-node-pb override-node-pb diff-pb-path)
+                                            (dissoc "overridden_fields")))]
+                      (sorted-map type-token differences)))))
+           merge-nested-frequencies
+           (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc)))
+         (into empty-sorted-coll-set
+               (comp coll/xform-nested-map->path-map
+                     (filter #(= 0 (val %)))
+                     (map #(string/join " -> " (key %))))))))
+
+(deftest all-gui-template-node-fields-overridden-test
   (test-util/with-loaded-project project-path
-    (let [gui-resources (checked-resources workspace #(= "gui" (:ext %)))
-          proj-path->resource #(test-util/resource workspace %)
+    (let [proj-path->resource #(test-util/resource workspace %)
           resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
           gui-scene-pb->node-pbs #(.getNodesList ^Gui$SceneDesc %)
           gui-proj-path->node-pbs (comp gui-scene-pb->node-pbs resource->gui-scene-pb proj-path->resource)
-          type-field-desc (.findFieldByName (Gui$NodeDesc/getDescriptor) "type")
-          pb-path ["gui" "nodes"]
 
-          non-overridden-gui-node-field-paths
-          (->> gui-resources
-               (transduce
-                 (comp
-                   (mapcat (fn [resource]
-                             (let [scene-pb (resource->gui-scene-pb resource)
-                                   node-pbs (gui-scene-pb->node-pbs scene-pb)]
-                               (gui-override-infos node-pbs gui-proj-path->node-pbs))))
-                   (map (fn [{:keys [^Gui$NodeDesc original-node-pb override-node-pb]}]
-                          (let [node-type (.getType original-node-pb)
-                                type-token (pb-type-token node-type)
-                                differences (-> (pb-nested-field-differences original-node-pb override-node-pb pb-path)
-                                                (dissoc "overridden_fields" "type"))]
-                            (sorted-map type-token differences)))))
-                 merge-nested-frequencies
-                 (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc)))
-               (into empty-sorted-coll-set
-                     (comp coll/xform-nested-map->path-map
-                           (filter #(= 0 (val %)))
-                           (map #(string/join " -> " (key %))))))]
-      (is (= #{} non-overridden-gui-node-field-paths)
+          gui-resource->template-override-infos
+          (fn gui-resource->template-override-infos [resource]
+            (let [scene-pb (resource->gui-scene-pb resource)
+                  node-pbs (gui-scene-pb->node-pbs scene-pb)]
+              (gui-template-node-override-infos node-pbs gui-proj-path->node-pbs)))
+
+          non-template-overridden-gui-node-field-paths
+          (non-overridden-gui-node-field-paths workspace ["gui" "nodes"] gui-resource->template-override-infos)]
+
+      (is (= #{} non-template-overridden-gui-node-field-paths)
           (list-message
-            (str "The following gui node fields are not covered by overrides in any .gui files under `editor/" project-path "`:")
-            non-overridden-gui-node-field-paths)))))
+            (str "The following gui node fields are not covered by template overrides in any .gui files under `editor/" project-path "`:")
+            non-template-overridden-gui-node-field-paths)))))
+
+(deftest all-gui-layout-node-fields-overridden-test
+  (test-util/with-loaded-project project-path
+    (let [gui-resource->layout-override-infos
+          (fn gui-resource->layout-override-infos [resource]
+            (let [scene-pb (protobuf/read-pb Gui$SceneDesc resource)
+
+                  original-node-id->override-node-pbs
+                  (util/group-into
+                    (sorted-map) []
+                    gui-node-pb->id
+                    (eduction
+                      (mapcat (fn [^Gui$SceneDesc$LayoutDesc layout-pb]
+                                (.getNodesList layout-pb)))
+                      (.getLayoutsList scene-pb)))]
+
+              (into []
+                    (mapcat (fn [original-node-pb]
+                              (let [original-node-id (gui-node-pb->id original-node-pb)
+                                    override-node-pbs (original-node-id->override-node-pbs original-node-id)]
+                                (if (coll/empty? override-node-pbs)
+                                  [{:original-node-pb original-node-pb
+                                    :override-node-pb nil}]
+                                  (map (fn [override-node-pb]
+                                         {:original-node-pb original-node-pb
+                                          :override-node-pb override-node-pb})
+                                       override-node-pbs)))))
+                    (.getNodesList scene-pb))))
+
+          non-layout-overridden-gui-node-field-paths
+          (non-overridden-gui-node-field-paths workspace ["gui" "layouts" "nodes"] gui-resource->layout-override-infos)]
+
+      (is (= #{} non-layout-overridden-gui-node-field-paths)
+          (list-message
+            (str "The following gui node fields are not covered by layout overrides in any .gui files under `editor/" project-path "`:")
+            non-layout-overridden-gui-node-field-paths)))))

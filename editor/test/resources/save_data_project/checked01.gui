@@ -1,10 +1,14 @@
 script: "/checked.gui_script"
 fonts {
-  name: "checked"
+  name: "first_font"
+  font: "/checked.font"
+}
+fonts {
+  name: "second_font"
   font: "/checked.font"
 }
 textures {
-  name: "checked"
+  name: "first_texture"
   texture: "/checked.atlas"
 }
 background_color {
@@ -46,7 +50,7 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: "checked/diamond"
+  texture: "first_texture/diamond"
   id: "parent"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -69,7 +73,7 @@ nodes {
   custom_type: 0
   enabled: true
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -104,14 +108,14 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_MULT
-  texture: "checked/white"
+  texture: "first_texture/white"
   id: "box01"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_N
   adjust_mode: ADJUST_MODE_STRETCH
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   slice9 {
     x: 32.0
@@ -128,7 +132,7 @@ nodes {
   custom_type: 0
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -163,14 +167,14 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_MULT
-  texture: "checked/white"
+  texture: "first_texture/white"
   id: "box02"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_N
   adjust_mode: ADJUST_MODE_STRETCH
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   slice9 {
     x: 32.0
@@ -187,7 +191,7 @@ nodes {
   custom_type: 0
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -222,14 +226,14 @@ nodes {
   }
   type: TYPE_PIE
   blend_mode: BLEND_MODE_MULT
-  texture: "checked/white"
+  texture: "first_texture/white"
   id: "pie01"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_N
   adjust_mode: ADJUST_MODE_STRETCH
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   outerBounds: PIEBOUNDS_RECTANGLE
   innerRadius: 32.0
@@ -244,7 +248,7 @@ nodes {
   custom_type: 0
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -279,14 +283,14 @@ nodes {
   }
   type: TYPE_PIE
   blend_mode: BLEND_MODE_MULT
-  texture: "checked/white"
+  texture: "first_texture/white"
   id: "pie02"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
   pivot: PIVOT_N
   adjust_mode: ADJUST_MODE_STRETCH
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   outerBounds: PIEBOUNDS_RECTANGLE
   innerRadius: 32.0
@@ -301,7 +305,7 @@ nodes {
   custom_type: 0
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -338,7 +342,7 @@ nodes {
   blend_mode: BLEND_MODE_MULT
   text: "line one\n"
   "line two"
-  font: "checked"
+  font: "first_font"
   id: "text"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
@@ -358,7 +362,7 @@ nodes {
   adjust_mode: ADJUST_MODE_STRETCH
   line_break: true
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   alpha: 0.9
   outline_alpha: 0.9
@@ -369,7 +373,7 @@ nodes {
   custom_type: 0
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -408,7 +412,7 @@ nodes {
   yanchor: YANCHOR_TOP
   adjust_mode: ADJUST_MODE_ZOOM
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   alpha: 0.9
   template_node_child: false
@@ -417,7 +421,7 @@ nodes {
   custom_type: 0
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -458,7 +462,7 @@ nodes {
   pivot: PIVOT_N
   adjust_mode: ADJUST_MODE_ZOOM
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   clipping_mode: CLIPPING_MODE_STENCIL
   clipping_visible: false
@@ -472,7 +476,7 @@ nodes {
   custom_type: 405028931
   enabled: false
   visible: false
-  material: "checked"
+  material: "first_material"
 }
 nodes {
   position {
@@ -508,7 +512,7 @@ nodes {
   type: TYPE_TEMPLATE
   id: "template"
   parent: "parent"
-  layer: "layer"
+  layer: "first_layer"
   inherit_alpha: true
   alpha: 0.9
   template: "/referenced/empty.gui"
@@ -517,7 +521,10 @@ nodes {
   enabled: false
 }
 layers {
-  name: "layer"
+  name: "first_layer"
+}
+layers {
+  name: "second_layer"
 }
 material: "/checked.material"
 layouts {
@@ -548,42 +555,58 @@ layouts {
       w: 1.0
     }
     color {
-      x: 0.949
-      y: 0.949
-      z: 0.949
+      x: 0.902
+      y: 0.902
+      z: 0.902
       w: 1.0
     }
     type: TYPE_BOX
-    blend_mode: BLEND_MODE_MULT
-    texture: "checked/white"
+    blend_mode: BLEND_MODE_SCREEN
+    texture: "first_texture/diamond"
     id: "box01"
-    xanchor: XANCHOR_LEFT
-    yanchor: YANCHOR_TOP
-    pivot: PIVOT_N
-    adjust_mode: ADJUST_MODE_STRETCH
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_ZOOM
     parent: "parent"
-    layer: "layer"
-    inherit_alpha: true
+    layer: "second_layer"
+    inherit_alpha: false
     slice9 {
       x: 32.0
       y: 32.0
       z: 32.0
       w: 32.0
     }
-    clipping_mode: CLIPPING_MODE_STENCIL
-    clipping_visible: false
-    clipping_inverted: true
-    alpha: 0.9
+    clipping_mode: CLIPPING_MODE_NONE
+    clipping_visible: true
+    clipping_inverted: false
+    alpha: 0.91
     overridden_fields: 1
     overridden_fields: 2
     overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 9
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
     overridden_fields: 38
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
     template_node_child: false
     size_mode: SIZE_MODE_AUTO
     custom_type: 0
-    enabled: false
-    visible: false
-    material: "checked"
+    enabled: true
+    visible: true
+    material: "second_material"
   }
   nodes {
     position {
@@ -618,33 +641,34 @@ layouts {
     }
     type: TYPE_BOX
     blend_mode: BLEND_MODE_MULT
-    texture: "checked/white"
+    texture: "first_texture/white"
     id: "box02"
     xanchor: XANCHOR_LEFT
     yanchor: YANCHOR_TOP
     pivot: PIVOT_N
     adjust_mode: ADJUST_MODE_STRETCH
     parent: "parent"
-    layer: "layer"
+    layer: "first_layer"
     inherit_alpha: true
     slice9 {
-      x: 32.0
-      y: 32.0
-      z: 32.0
-      w: 32.0
+      x: 16.0
+      y: 16.0
+      z: 16.0
+      w: 16.0
     }
     clipping_mode: CLIPPING_MODE_STENCIL
     clipping_visible: false
     clipping_inverted: true
     alpha: 0.9
     overridden_fields: 4
+    overridden_fields: 22
     overridden_fields: 38
     template_node_child: false
     size_mode: SIZE_MODE_MANUAL
     custom_type: 0
     enabled: false
     visible: false
-    material: "checked"
+    material: "first_material"
   }
 }
 adjust_reference: ADJUST_REFERENCE_PARENT
@@ -658,6 +682,10 @@ resources {
   path: "/checked.spinescene"
 }
 materials {
-  name: "checked"
+  name: "first_material"
+  material: "/checked.material"
+}
+materials {
+  name: "second_material"
   material: "/checked.material"
 }
