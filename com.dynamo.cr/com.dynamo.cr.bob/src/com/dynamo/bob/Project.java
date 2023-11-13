@@ -88,6 +88,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -144,6 +145,7 @@ public class Project {
 
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
+    private Set<Class<? extends IPlugin>> pluginClasses = new HashSet<>();
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
@@ -365,6 +367,13 @@ public class Project {
                     {
                         if (!klass.equals(IShaderCompiler.class)) {
                             shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
+                    if (IPlugin.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IPlugin.class)) {
+                            pluginClasses.add( (Class<? extends IPlugin>) klass);
                         }
                     }
 
@@ -1406,6 +1415,13 @@ public class Project {
             mrep.done();
         }
 
+        List<IPlugin> plugins = new ArrayList<>();
+        for (Class<? extends IPlugin> klass : pluginClasses) {
+            IPlugin plugin = klass.getConstructor().newInstance();
+            plugin.init(this);
+            plugins.add(plugin);
+        }
+
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
@@ -1475,6 +1491,11 @@ public class Project {
             }
             TimeProfiler.stop();
         }
+
+        for (IPlugin plugin : plugins) {
+            plugin.exit(this);
+        }
+        plugins.clear();
 
         monitor.done();
         TimeProfiler.start("Save cache");

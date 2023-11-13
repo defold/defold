@@ -34,6 +34,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
@@ -151,19 +152,6 @@ public class AtlasUtil {
         return resources;
     }
 
-    public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException, CompileExceptionError {
-        List<BufferedImage> images = new ArrayList<BufferedImage>(resources.size());
-
-        for (IResource resource : resources) {
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(resource.getContent()));
-            if (image == null) {
-                throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
-            }
-            images.add(image);
-        }
-        return images;
-    }
-
     public interface PathTransformer {
         String transform(String path);
     }
@@ -274,7 +262,7 @@ public class AtlasUtil {
             imageTrimModes.add(image.getSpriteTrimMode());
         }
         List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
-        List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
+        List<BufferedImage> images = TextureUtil.loadImages(imageResources);
 
         try {
             validatePatterns(atlas.getRenamePatterns());

@@ -1010,10 +1010,8 @@ namespace dmGameSystem
                 image_height = t;
             }
             // center X/Y may be rotated, if the image is stored rotated
-            uint32_t center_x = geometry->m_CenterX;
-            uint32_t center_y = geometry->m_CenterY;
-
-
+            float center_x = geometry->m_CenterX;
+            float center_y = geometry->m_CenterY;
             for (uint32_t j = 0; j < num_vertices; ++j)
             {
                 float px = vertices[j*2+0];

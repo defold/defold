@@ -43,7 +43,7 @@ message SpriteGeometry
     required SpriteTrimmingMode trim_mode = 6 [default = SPRITE_TRIM_MODE_OFF];
 
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
-    // Each point is relative to the sprite center
+    // Coords are in local UV space [-0.5, 0.5], origin is at the sprite center
     // The vertices are not rotated
     repeated float  vertices= 7;
     // A list of 2-tuples, corresponding directly to the vertices (deprecated)
@@ -59,7 +59,7 @@ message TextureSet
     required uint32 width                   = 2;
     required uint32 height                  = 3;
 
-    // A hash of the texture name/path
+    // A hash of the texture name/path. Not written at compile time, but instead used at runtime
     optional uint64 texture_hash            = 4;
 
     repeated TextureSetAnimation animations = 5;

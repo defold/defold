@@ -550,7 +550,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     case PROPERTY_TYPE_HASH:
                         String value = (String)property.value;
                         if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                            value = PropertiesUtil.transformResourcePropertyValue(value);
+                            value = PropertiesUtil.transformResourcePropertyValue(resource, value);
                             propertyResources.add(value);
                         }
                         entryBuilder.setIndex(builder.getHashValuesCount());

@@ -19,10 +19,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -35,6 +38,7 @@ import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
@@ -70,15 +74,15 @@ import com.dynamo.render.proto.Render.DisplayProfiles;
 public class ProtoBuilders {
 
     private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
-    private static String[][] textureSetSrcExts = {{".atlas", ".a.texturesetc"}, {".tileset", ".t.texturesetc"}, {".tilesource", ".t.texturesetc"}};
 
-    public static String getTextureSetExt(String str) {
-        for (String[] extReplacement : textureSetSrcExts) {
-            if (str.endsWith(extReplacement[0])) {
-                return extReplacement[1];
-            }
+    public static String getTextureSetExt(String str) throws Exception {
+        Map<String, String> types = TextureUtil.getAtlasFileTypes();
+        String suffix = "." + FilenameUtils.getExtension(str);
+        String replacement = types.getOrDefault(suffix, null);
+        if (replacement != null) {
+            return replacement;
         }
-        return null;
+        throw new Exception(String.format("Cannot find a texture suffix replacement for texture: %s\n", str));
     }
 
     public static String replaceTextureName(String str) {
@@ -89,12 +93,10 @@ public class ProtoBuilders {
         return out;
     }
 
-    public static String replaceTextureSetName(String str) {
-        String out = str;
-        for (String[] extReplacement : textureSetSrcExts) {
-            out = BuilderUtil.replaceExt(out, extReplacement[0], extReplacement[1]);
-        }
-        return out;
+    public static String replaceTextureSetName(String str) throws Exception {
+        String replacement = getTextureSetExt(str);
+        String suffix = "." + FilenameUtils.getExtension(str);
+        return BuilderUtil.replaceExt(str, suffix, replacement);
     }
 
     private static MaterialDesc.Builder getMaterialBuilderFromResource(IResource res) throws IOException {
@@ -339,8 +341,14 @@ public class ProtoBuilders {
             }
 
             for (String atlas : images) {
-                IResource atlasOutput = project.getResource(atlas).changeExt(getTextureSetExt(atlas));
-                task.addInput(atlasOutput);
+                String extension = null;
+                try {
+                    extension = getTextureSetExt(atlas);
+                } catch (Exception e) {
+                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
+                }
+
+                task.addInput(project.getResource(atlas).changeExt(extension));
             }
 
             return task.build();
@@ -371,9 +379,11 @@ public class ProtoBuilders {
 
                 BuilderUtil.checkResource(this.project, resource, "tile source", textureBuilder.getTexture());
 
-                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tileset", "t.texturesetc"));
-                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tilesource", "t.texturesetc"));
-                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "atlas", "a.texturesetc"));
+                try {
+                    textureBuilder.setTexture(replaceTextureSetName(textureBuilder.getTexture()));
+                } catch (Exception e) {
+                    throw new CompileExceptionError(resource, -1, e.getMessage(), e);
+                }
 
                 textures.add(textureBuilder.build());
             }
@@ -449,7 +459,14 @@ public class ProtoBuilders {
             for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
                 Emitter emitter            = particleFxBuilder.getEmitters(i);
                 String tileSource          = emitter.getTileSource();
-                IResource tileSourceOutput = project.getResource(tileSource).changeExt(getTextureSetExt(tileSource));
+                String extension = null;
+                try {
+                    extension = getTextureSetExt(tileSource);
+                } catch (Exception e) {
+                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
+                }
+
+                IResource tileSourceOutput = project.getResource(tileSource).changeExt(extension);
                 IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
 
                 task.addInput(tileSourceOutput);
