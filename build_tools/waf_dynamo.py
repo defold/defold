@@ -446,6 +446,8 @@ def default_flags(self):
         # NDK doesn't support arm64 yet
         if bp_arch == 'arm64':
             bp_arch = 'x86_64';
+        if bp_os == 'macos':
+            bp_os = 'darwin'
         sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
