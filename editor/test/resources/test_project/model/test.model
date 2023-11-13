@@ -1,4 +1,7 @@
 mesh: "/mesh/test_collada_dae.dae"
+skeleton: ""
+animations: ""
+default_animation: ""
 materials {
   name: "default"
   material: "/model/model.material"
