@@ -108,6 +108,7 @@ namespace dmGraphics
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
     typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context, ShaderDesc::ShaderClass shader_class);
+    typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
     typedef bool (*ReloadProgramFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
@@ -173,10 +174,10 @@ namespace dmGraphics
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
-    typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
+    typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
+    typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -233,6 +234,7 @@ namespace dmGraphics
         ReloadFragmentProgramFn m_ReloadFragmentProgram;
         DeleteVertexProgramFn m_DeleteVertexProgram;
         DeleteFragmentProgramFn m_DeleteFragmentProgram;
+        GetProgramLanguageFn m_GetProgramLanguage;
         GetShaderProgramLanguageFn m_GetShaderProgramLanguage;
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
@@ -300,10 +302,10 @@ namespace dmGraphics
         DeleteComputeProgramFn  m_DeleteComputeProgram;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        MapVertexBufferFn       m_MapVertexBuffer;
-        UnmapVertexBufferFn     m_UnmapVertexBuffer;
-        MapIndexBufferFn        m_MapIndexBuffer;
-        UnmapIndexBufferFn      m_UnmapIndexBuffer;
+        MapVertexBufferFn   m_MapVertexBuffer;
+        UnmapVertexBufferFn m_UnmapVertexBuffer;
+        MapIndexBufferFn    m_MapIndexBuffer;
+        UnmapIndexBufferFn  m_UnmapIndexBuffer;
     #endif
     };
 
@@ -361,6 +363,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetShaderProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \

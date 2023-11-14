@@ -44,7 +44,7 @@ namespace dmRender
         }
 
         dmArray<Sampler> samplers;
-        SetMaterialConstantValues(program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, samplers);
+        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, samplers);
 
         return (HComputeProgram) program;
     }

@@ -114,10 +114,11 @@ platforms:
 
   osx:
     env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_13_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
@@ -131,12 +132,14 @@ platforms:
         flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
         linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
+        swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
         symbols:        ["AudioDecoderTremolo"]
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
+        swiftVersion:   "5"
 
     exePrefix: ''
     exeExt: ''
@@ -156,6 +159,9 @@ platforms:
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     manifestName:     'Info.plist'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
 
   arm64-osx:
     context:
@@ -163,6 +169,7 @@ platforms:
         flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        swiftFlags:     ["-target", "arm-apple-darwin19"]
 
   x86_64-osx:
     context:
@@ -170,19 +177,27 @@ platforms:
         flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        swiftFlags:     ["-target", "x86_64-apple-darwin19"]
 
   x86-osx:
     # Intentionally left empty to allow users to have old versions in their manifests
 
   ios:
-    # It's here to whitelist this as a platform, currently used for general settings
+    context:
+      swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
+      swiftVersion:   "5"
+
+    emitSwiftHeaderCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}}'
+    emitSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc         {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -emit-module -emit-module-path {{swiftModulePath}}'
+    compileSwiftCmd:    '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swift-frontend {{#swiftFlags}}{{{.}}} {{/swiftFlags}} -module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} -DCOCOAPODS -DSWIFT_PACKAGE -enable-bare-slash-regex -enforce-exclusivity=checked -emit-object -import-underlying-module -enable-objc-interop -primary-file {{swiftPrimarySourceFile}} -o{{tgt}}'
 
   arm64-ios:
     env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_16_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
@@ -200,6 +215,7 @@ platforms:
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
+        swiftFlags: ["-target", "arm64-apple-ios11.0"]
 
     exePrefix: ''
     exeExt: ''
@@ -225,8 +241,8 @@ platforms:
     env:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_14_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_14_CLANG_VERSION}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
         IOS_VERSION:            "{{env.IOS_16_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
@@ -244,6 +260,7 @@ platforms:
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
+        swiftFlags: ["-target", "x86_64-apple-ios11.0-simulator"]
 
     exePrefix: ''
     exeExt: ''
@@ -445,11 +462,11 @@ platforms:
     env:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
-        MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
+        MSVC_DIR:           "{{env.WINDOWS_MSVC_DIR_2022}}"
+        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR_2022}}"
+        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR_2022}}"
         SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
-        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
-        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
-        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
+        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_20348_VERSION}}"
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libwebviewext","libprofile","libremotery","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
@@ -483,11 +500,11 @@ platforms:
     env:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
-        MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
+        MSVC_DIR:           "{{env.WINDOWS_MSVC_DIR_2022}}"
+        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR_2022}}"
+        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR_2022}}"
         SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
-        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
-        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
-        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
+        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_20348_VERSION}}"
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libwebviewext","libprofile","libremotery","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]

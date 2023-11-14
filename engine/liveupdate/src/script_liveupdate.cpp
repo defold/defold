@@ -441,6 +441,7 @@ DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
         SETCONSTANT(FORMAT_ERROR);
         SETCONSTANT(IO_ERROR);
         SETCONSTANT(INVAL);
+        SETCONSTANT(NOT_INITIALIZED);
         SETCONSTANT(UNKNOWN);
     }
 

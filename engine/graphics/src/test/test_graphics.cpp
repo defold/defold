@@ -214,10 +214,10 @@ TEST_F(dmGraphicsTest, VertexBuffer)
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     memset(data, 4, 4);
-    void* copy = dmGraphics::MapVertexBuffer(vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+    void* copy = dmGraphics::MapVertexBuffer(m_Context, vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
-    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(vertex_buffer));
+    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(m_Context, vertex_buffer));
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     // Smaller size
@@ -254,10 +254,10 @@ TEST_F(dmGraphicsTest, IndexBuffer)
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     memset(data, 4, 4);
-    void* copy = dmGraphics::MapIndexBuffer(index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+    void* copy = dmGraphics::MapIndexBuffer(m_Context, index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
-    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(index_buffer));
+    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(m_Context, index_buffer));
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     // Smaller size

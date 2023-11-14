@@ -574,7 +574,7 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
-    void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
@@ -705,11 +705,13 @@ namespace dmGraphics
                 GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_VP);
+                m_Language = m_VP->m_Language;
             }
             if (m_FP != 0x0)
             {
                 GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_FP);
+                m_Language = m_FP->m_Language;
             }
         }
 
@@ -724,6 +726,7 @@ namespace dmGraphics
             {
                 GLSLUniformParse(m_Compute->m_Language, m_Compute->m_Data, ProgramShaderResourceCallback, (uintptr_t) this);
                 TransferUniforms(m_Compute);
+                m_Language = compute->m_Language;
             }
         }
 
@@ -742,6 +745,8 @@ namespace dmGraphics
             for(uint32_t i = 0; i < m_Attributes.Size(); ++i)
                 delete[] m_Attributes[i].m_Name;
         }
+
+        ShaderDesc::Language   m_Language;
 
         ShaderProgram*         m_VP;
         ShaderProgram*         m_FP;
@@ -876,6 +881,11 @@ namespace dmGraphics
     void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language)
     {
         ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class] = language;
+    }
+
+    static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
+    {
+        return ((ShaderProgram*) program)->m_Language;
     }
 
     static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
@@ -1675,7 +1685,7 @@ namespace dmGraphics
         return false;
     }
 
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
@@ -1684,7 +1694,7 @@ namespace dmGraphics
         return true;
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         vb->m_Copy = new char[vb->m_Size];
@@ -1692,7 +1702,7 @@ namespace dmGraphics
         return vb->m_Copy;
     }
 
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
@@ -1701,7 +1711,7 @@ namespace dmGraphics
         return true;
     }
 
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         ib->m_Copy = new char[ib->m_Size];

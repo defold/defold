@@ -421,7 +421,7 @@ namespace dmGameSystem
 
             // check that the path is a .goc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (strcmp(ext, ".goc") != 0)
+            if (!ext || strcmp(ext, ".goc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
                                         path,
