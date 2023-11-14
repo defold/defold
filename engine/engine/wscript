@@ -116,6 +116,7 @@ def configure(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_PARTICLE'] = 'particle'
+    conf.env['STLIB_PLATFORM'] = 'platform'
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'

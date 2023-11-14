@@ -19,6 +19,7 @@
 #include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
+#include <platform/platform.h>
 
 namespace dmGraphics
 {
@@ -73,19 +74,12 @@ namespace dmGraphics
 
         // Async queue data and synchronization objects
         dmMutex::HMutex         m_AsyncMutex;
+        dmPlatform::HWindow     m_Window;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
-        WindowResizeCallback    m_WindowResizeCallback;
-        void*                   m_WindowResizeCallbackUserData;
-        WindowCloseCallback     m_WindowCloseCallback;
-        void*                   m_WindowCloseCallbackUserData;
-        WindowFocusCallback     m_WindowFocusCallback;
-        void*                   m_WindowFocusCallbackUserData;
-        WindowIconifyCallback   m_WindowIconifyCallback;
-        void*                   m_WindowIconifyCallbackUserData;
         PipelineState           m_PipelineState;
         uint32_t                m_Width;
         uint32_t                m_Height;

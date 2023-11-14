@@ -61,7 +61,6 @@ struct AppCtx
 
 struct EngineCtx
 {
-	dmPlatform::HContext m_PlatformCtx;
 	dmPlatform::HWindow  m_Window;
     int      			 m_WasCreated;
     int      			 m_WasRun;
@@ -161,16 +160,15 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetTime();
 
-    engine->m_PlatformCtx = dmPlatform::NewContext();
-
     dmPlatform::WindowParams params = {};
     params.m_Width  				= 512;
     params.m_Height 				= 512;
     params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    params.m_Title            	    = "Test app";
 
-    engine->m_Window = dmPlatform::NewWindow(engine->m_PlatformCtx, params);
+    engine->m_Window = dmPlatform::NewWindow(params);
 
-    dmPlatform::OpenWindow(engine->m_PlatformCtx, engine->m_Window);
+    dmPlatform::OpenWindow(engine->m_Window);
 
     return &g_EngineCtx;
 }
@@ -187,8 +185,6 @@ static UpdateResult EngineUpdate(void* _engine)
     engine->m_WasRun++;
     uint64_t t = dmTime::GetTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
-
-    dmPlatform::Update(engine->m_PlatformCtx);
 
     return RESULT_OK;
 }

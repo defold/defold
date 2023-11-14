@@ -14,55 +14,89 @@
 
 #include <assert.h>
 
-#include <dmsdk/graphics/glfw/glfw.h>
-// #include <graphics/glfw/glfw_native.h>
-
 #include "platform.h"
+
+#include <dmsdk/graphics/glfw/glfw.h>
 
 #include <dlib/platform.h>
 #include <dlib/log.h>
 
 namespace dmPlatform
 {
-    struct Context
-    {
-        int dummmy;
-    };
-
     struct Window
     {
         WindowParams m_CreateParams;
+        int32_t m_Width;
+        int32_t m_Height;
         uint32_t m_WindowOpened : 1;
     };
 
-    HContext NewContext()
-    {
-        Context* ctx = new Context;
-        return (HContext) ctx;
-    }
+    // Needed by glfw2.7
+    static Window* g_Window = 0;
 
-    void Update(HContext context)
+    HWindow NewWindow(const WindowParams& params)
     {
-        Context* ctx = (Context*) context;
-        glfwPollEvents();
-    }
-
-    HWindow NewWindow(HContext context, const WindowParams& params)
-    {
-        Window* wnd         = new Window;
-        wnd->m_CreateParams = params;
-        wnd->m_WindowOpened = 0;
-
-        if (glfwInit() == GL_FALSE)
+        if (g_Window == 0)
         {
-            dmLogError("Could not initialize glfw.");
-            return 0;
+            Window* wnd         = new Window;
+            wnd->m_CreateParams = params;
+            wnd->m_WindowOpened = 0;
+
+            if (glfwInit() == GL_FALSE)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0;
+            }
+
+            g_Window = wnd;
+
+            return (void*) wnd;
         }
 
-        return (void*) wnd;
+        return 0;
     }
 
-    PlatformResult OpenWindowOpenGL(Context* context, Window* wnd)
+    static void OnWindowResize(int width, int height)
+    {
+        assert(g_Window);
+        g_Window->m_Width  = (uint32_t) width;
+        g_Window->m_Height = (uint32_t) height;
+        if (g_Window->m_CreateParams.m_ResizeCallback != 0x0)
+        {
+            g_Window->m_CreateParams.m_ResizeCallback(g_Window->m_CreateParams.m_ResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+        }
+    }
+
+    static int OnWindowClose()
+    {
+        assert(g_Window);
+        if (g_Window->m_CreateParams.m_CloseCallback != 0x0)
+        {
+            return g_Window->m_CreateParams.m_CloseCallback(g_Window->m_CreateParams.m_CloseCallbackUserData);
+        }
+        // Close by default
+        return 1;
+    }
+
+    static void OnWindowFocus(int focus)
+    {
+        assert(g_Window);
+        if (g_Window->m_CreateParams.m_FocusCallback != 0x0)
+        {
+            g_Window->m_CreateParams.m_FocusCallback(g_Window->m_CreateParams.m_FocusCallbackUserData, focus);
+        }
+    }
+
+    static void OnWindowIconify(int iconify)
+    {
+        assert(g_Window);
+        if (g_Window->m_CreateParams.m_IconifyCallback != 0x0)
+        {
+            g_Window->m_CreateParams.m_IconifyCallback(g_Window->m_CreateParams.m_IconifyCallbackUserData, iconify);
+        }
+    }
+
+    PlatformResult OpenWindowOpenGL(Window* wnd)
     {
         if (wnd->m_CreateParams.m_HighDPI)
         {
@@ -100,7 +134,7 @@ namespace dmPlatform
         }
 
         int mode = GLFW_WINDOW;
-        if (wnd->m_CreateParams.m_FullScreen)
+        if (wnd->m_CreateParams.m_Fullscreen)
         {
             mode = GLFW_FULLSCREEN;
         }
@@ -135,46 +169,50 @@ namespace dmPlatform
             }
         }
 
+    #if !defined(DM_PLATFORM_WEB)
+        glfwSetWindowTitle(wnd->m_CreateParams.m_Title);
+    #endif
+
+        glfwSetWindowBackgroundColor(wnd->m_CreateParams.m_BackgroundColor);
+        glfwSetWindowSizeCallback(OnWindowResize);
+        glfwSetWindowCloseCallback(OnWindowClose);
+        glfwSetWindowFocusCallback(OnWindowFocus);
+        glfwSetWindowIconifyCallback(OnWindowIconify);
+        glfwSwapInterval(1);
+        glfwGetWindowSize(&wnd->m_Width, &wnd->m_Height);
+
         wnd->m_WindowOpened = 1;
 
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindowVulkan(Context* context, Window* wnd)
+    PlatformResult OpenWindowVulkan(Window* wnd)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, wnd->m_CreateParams.m_Samples);
 
-        int mode = wnd->m_CreateParams.m_FullScreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
+        int mode = wnd->m_CreateParams.m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
         if (!glfwOpenWindow(wnd->m_CreateParams.m_Width, wnd->m_CreateParams.m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        /*
-        if (!InitializeVulkan(context, wnd))
-        {
-            return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
-        }
-
         glfwSetWindowTitle(wnd->m_CreateParams.m_Title);
         glfwSetWindowBackgroundColor(wnd->m_CreateParams.m_BackgroundColor);
-
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
-        */
+        glfwSetWindowIconifyCallback(OnWindowIconify);
 
         wnd->m_WindowOpened = 1;
 
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindow(HContext context, HWindow window)
+    PlatformResult OpenWindow(HWindow window)
     {
         Window* wnd = (Window*) window;
-        Context* ctx = (Context*) context;
 
         if (wnd->m_WindowOpened)
         {
@@ -183,9 +221,9 @@ namespace dmPlatform
 
         switch(wnd->m_CreateParams.m_GraphicsApi)
         {
-        case PLATFORM_GRAPHICS_API_OPENGL: return OpenWindowOpenGL(ctx, wnd);
-        case PLATFORM_GRAPHICS_API_VULKAN: return OpenWindowVulkan(ctx, wnd);
-        default: assert(0);
+            case PLATFORM_GRAPHICS_API_OPENGL: return OpenWindowOpenGL(wnd);
+            case PLATFORM_GRAPHICS_API_VULKAN: return OpenWindowVulkan(wnd);
+            default: assert(0);
         }
 
         return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
@@ -195,5 +233,33 @@ namespace dmPlatform
     {
         Window* wnd = (Window*) window;
         delete wnd;
+    }
+
+    void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
+    {
+        Window* wnd = (Window*) window;
+
+        glfwSetWindowSize((int)width, (int)height);
+        int window_width, window_height;
+        glfwGetWindowSize(&window_width, &window_height);
+        wnd->m_Width  = window_width;
+        wnd->m_Height = window_height;
+
+        // The callback is not called from glfw when the size is set manually
+        if (wnd->m_CreateParams.m_ResizeCallback)
+        {
+            wnd->m_CreateParams.m_ResizeCallback(wnd->m_CreateParams.m_ResizeCallbackUserData, window_width, window_height);
+        }
+    }
+
+    uint32_t GetWindowWidth(HWindow window)
+    {
+        Window* wnd = (Window*) window;
+        return (uint32_t) wnd->m_Width;
+    }
+    uint32_t GetWindowHeight(HWindow window)
+    {
+        Window* wnd = (Window*) window;
+        return (uint32_t) wnd->m_Height;
     }
 }
