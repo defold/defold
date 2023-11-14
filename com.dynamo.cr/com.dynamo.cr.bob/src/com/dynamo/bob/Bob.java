@@ -350,6 +350,7 @@ public class Bob {
             File f = new File(rootFolder, exeName);
             try {
                 URL url = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
+                logger.info("Download: %s", url);
                 File file = new File(downloadFolder, exeName);
                 HttpUtil http = new HttpUtil();
                 http.downloadToFile(url, file);
