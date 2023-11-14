@@ -556,7 +556,7 @@ namespace dmGraphics
         attachments[0].m_Format             = context->m_SwapChain->m_SurfaceFormat.format;
         attachments[0].m_ImageLayout        = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         attachments[0].m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
-        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //VK_ATTACHMENT_LOAD_OP_LOAD;
+        attachments[0].m_LoadOp             = VK_ATTACHMENT_LOAD_OP_LOAD;
         attachments[0].m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
 
         if (context->m_SwapChain->HasMultiSampling())
