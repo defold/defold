@@ -129,6 +129,7 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
+     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -145,18 +146,20 @@
      "type" :allowed-default}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-overridable
+     "parent" :non-overridable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"custom_type" :non-editable
+    {"custom_type" :non-overridable
      "font" :unused
      "innerRadius" :unused
      "line_break" :unused
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :unused
+     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -171,14 +174,17 @@
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
-     "texture" :unused}
+     "texture" :unused
+     "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]
     {"clipping_inverted" :allowed-default
      "clipping_mode" :allowed-default
      "clipping_visible" :allowed-default
      "enabled" :allowed-default
+     "id" :non-overridable
      "inherit_alpha" :allowed-default
+     "parent" :non-overridable
      "template_node_child" :unused
      "visible" :allowed-default}}
 
@@ -195,6 +201,7 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
+     "overridden_fields" :non-editable
      "perimeterVertices" :unused
      "pieFillAngle" :unused
      "pivot" :unused
@@ -211,11 +218,14 @@
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
-     "texture" :unused}
+     "texture" :unused
+     "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]
     {"enabled" :allowed-default
+     "id" :non-overridable
      "inherit_alpha" :allowed-default
+     "parent" :non-overridable
      "template_node_child" :unused
      "visible" :allowed-default}}
 
@@ -226,6 +236,7 @@
      "line_break" :unused
      "outline" :unused
      "outline_alpha" :unused
+     "overridden_fields" :non-editable
      "particlefx" :unused
      "shadow" :unused
      "shadow_alpha" :unused
@@ -237,10 +248,13 @@
      "template" :unused
      "text" :unused
      "text_leading" :unused
-     "text_tracking" :unused}
+     "text_tracking" :unused
+     "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]
-    {"template_node_child" :unused}}
+    {"id" :non-overridable
+     "parent" :non-overridable
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
@@ -258,6 +272,7 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
+     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -271,18 +286,21 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "template" :non-overridable
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
      "texture" :unused
+     "type" :non-overridable
      "visible" :unused
      "xanchor" :unused
      "yanchor" :unused}
 
     [["gui" "layouts" "nodes"]]
     {"enabled" :allowed-default
+     "id" :non-overridable
      "inherit_alpha" :allowed-default
-     "template" :non-editable
+     "parent" :non-overridable
      "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
@@ -293,6 +311,7 @@
      "custom_type" :unused
      "innerRadius" :unused
      "outerBounds" :unused
+     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -303,12 +322,15 @@
      "spine_scene" :unused
      "spine_skin" :unused
      "template" :unused
-     "texture" :unused}
+     "texture" :unused
+     "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]
     {"enabled" :allowed-default
+     "id" :non-overridable
      "inherit_alpha" :allowed-default
      "line_break" :allowed-default
+     "parent" :non-overridable
      "template_node_child" :unused
      "visible" :allowed-default}}
 
@@ -402,7 +424,7 @@
 
 (s/def ::class-java-symbol symbol?)
 (s/def ::resource-type-ext (s/and string? valid-resource-ext?))
-(s/def ::ignore-reason #{:allowed-default :deprecated :non-editable :padding :runtime-only :unimplemented :unused})
+(s/def ::ignore-reason #{:allowed-default :deprecated :non-editable :non-overridable :padding :runtime-only :unimplemented :unused})
 (s/def ::ignore-reason-set (s/coll-of ::ignore-reason :kind set?))
 
 (s/def ::setting-path-token (s/and string? setting-valid-path-token?))
@@ -695,7 +717,7 @@
                                   (pos? (count field-frequency)))
                           (pair field-name
                                 field-frequency)))))
-              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable}))]
+              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable}))]
 
     (if (nil? type-field-desc)
       field-frequencies
@@ -900,8 +922,7 @@
                           type-token (pb-type-token node-type)
                           differences (if (nil? override-node-pb)
                                         0
-                                        (-> (pb-nested-field-differences original-node-pb override-node-pb diff-pb-path)
-                                            (dissoc "id" "overridden_fields" "parent" "type")))]
+                                        (pb-nested-field-differences original-node-pb override-node-pb diff-pb-path))]
                       (sorted-map type-token differences)))))
            merge-nested-frequencies
            (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc)))
