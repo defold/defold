@@ -136,27 +136,6 @@ static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
 
-    /*
-    dmGraphics::WindowParams window_params;
-    window_params.m_ResizeCallback = 0;
-    window_params.m_ResizeCallbackUserData = 0;
-    window_params.m_CloseCallback = 0;
-    window_params.m_CloseCallbackUserData = 0;
-    window_params.m_FocusCallback = 0;
-    window_params.m_FocusCallbackUserData = 0;
-    window_params.m_IconifyCallback = 0;
-    window_params.m_IconifyCallbackUserData = 0;
-    window_params.m_Width = 512;
-    window_params.m_Height = 512;
-    window_params.m_Samples = 0;
-    window_params.m_Title = "TestTitle!";
-    window_params.m_Fullscreen = 0;
-    window_params.m_PrintDeviceInfo = false;
-    window_params.m_HighDPI = 0;
-
-    (void)dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
-    */
-
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetTime();
 
