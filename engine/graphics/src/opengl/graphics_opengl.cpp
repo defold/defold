@@ -783,7 +783,8 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
 
-        if (params->m_HighDPI) {
+        if (params->m_HighDPI)
+        {
             glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
         }
 
