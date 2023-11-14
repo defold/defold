@@ -145,13 +145,12 @@
      "type" :allowed-default}
 
     [["gui" "layouts" "nodes"]]
-    {"id" :non-editable
-     "parent" :non-editable
-     "template_node_child" :unused}}
+    {"template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"font" :unused
+    {"custom_type" :non-editable
+     "font" :unused
      "innerRadius" :unused
      "line_break" :unused
      "outerBounds" :unused
@@ -164,6 +163,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "size" :unused
+     "size_mode" :non-editable
      "slice9" :unused
      "spine_node_child" :deprecated ;; TODO: What was this?
      "template" :unused
@@ -174,9 +174,13 @@
      "texture" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"id" :non-editable
-     "parent" :non-editable
-     "template_node_child" :unused}}
+    {"clipping_inverted" :allowed-default
+     "clipping_mode" :allowed-default
+     "clipping_visible" :allowed-default
+     "enabled" :allowed-default
+     "inherit_alpha" :allowed-default
+     "template_node_child" :unused
+     "visible" :allowed-default}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
@@ -197,6 +201,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "size" :unused
+     "size_mode" :non-editable
      "slice9" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
@@ -209,9 +214,10 @@
      "texture" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"id" :non-editable
-     "parent" :non-editable
-     "template_node_child" :unused}}
+    {"enabled" :allowed-default
+     "inherit_alpha" :allowed-default
+     "template_node_child" :unused
+     "visible" :allowed-default}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
@@ -234,34 +240,7 @@
      "text_tracking" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"id" :non-editable
-     "parent" :non-editable
-     "template_node_child" :unused}}
-
-   ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
-   {:default
-    {"clipping_inverted" :unused
-     "clipping_mode" :unused
-     "clipping_visible" :unused
-     "custom_type" :unused
-     "innerRadius" :unused
-     "outerBounds" :unused
-     "particlefx" :unused
-     "perimeterVertices" :unused
-     "pieFillAngle" :unused
-     "size_mode" :unused
-     "slice9" :unused
-     "spine_default_animation" :unused
-     "spine_node_child" :unused
-     "spine_scene" :unused
-     "spine_skin" :unused
-     "template" :unused
-     "texture" :unused}
-
-    [["gui" "layouts" "nodes"]]
-    {"id" :non-editable
-     "parent" :non-editable
-     "template_node_child" :unused}}
+    {"template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
@@ -270,6 +249,7 @@
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
+     "color" :non-editable
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -300,9 +280,37 @@
      "yanchor" :unused}
 
     [["gui" "layouts" "nodes"]]
-    {"id" :non-editable
-     "parent" :non-editable
+    {"enabled" :allowed-default
+     "inherit_alpha" :allowed-default
+     "template" :non-editable
      "template_node_child" :unused}}
+
+   ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
+   {:default
+    {"clipping_inverted" :unused
+     "clipping_mode" :unused
+     "clipping_visible" :unused
+     "custom_type" :unused
+     "innerRadius" :unused
+     "outerBounds" :unused
+     "particlefx" :unused
+     "perimeterVertices" :unused
+     "pieFillAngle" :unused
+     "size_mode" :unused
+     "slice9" :unused
+     "spine_default_animation" :unused
+     "spine_node_child" :unused
+     "spine_scene" :unused
+     "spine_skin" :unused
+     "template" :unused
+     "texture" :unused}
+
+    [["gui" "layouts" "nodes"]]
+    {"enabled" :allowed-default
+     "inherit_alpha" :allowed-default
+     "line_break" :allowed-default
+     "template_node_child" :unused
+     "visible" :allowed-default}}
 
    'dmGuiDDF.SceneDesc
    {:default
@@ -321,19 +329,24 @@
     {"d" :padding}}
 
    'dmMath.Vector4
-   {[["gui" "nodes" "color"]
-     ["label" "size"]
+   {[["label" "size"]
      ["sprite" "size"]]
     {"w" :padding}
 
-    [["gui" "nodes" "position"]
+    [["gui" "nodes" "color"]
+     ["gui" "nodes" "outline"]
+     ["gui" "nodes" "position"]
      ["gui" "nodes" "rotation"]
      ["gui" "nodes" "scale"]
+     ["gui" "nodes" "size"]
+     ["gui" "nodes" "shadow"]
      ["gui" "layouts" "nodes" "color"]
+     ["gui" "layouts" "nodes" "outline"]
      ["gui" "layouts" "nodes" "position"]
      ["gui" "layouts" "nodes" "rotation"]
      ["gui" "layouts" "nodes" "scale"]
-     ["gui" "layouts" "nodes" "size"]]
+     ["gui" "layouts" "nodes" "size"]
+     ["gui" "layouts" "nodes" "shadow"]]
     {"w" :non-editable}}
 
    'dmModelDDF.ModelDesc
@@ -888,7 +901,7 @@
                           differences (if (nil? override-node-pb)
                                         0
                                         (-> (pb-nested-field-differences original-node-pb override-node-pb diff-pb-path)
-                                            (dissoc "overridden_fields")))]
+                                            (dissoc "id" "overridden_fields" "parent" "type")))]
                       (sorted-map type-token differences)))))
            merge-nested-frequencies
            (pb-enum-desc-empty-frequencies (.getEnumType type-field-desc)))

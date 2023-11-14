@@ -1,6 +1,6 @@
 spine_scene: "/checked.spinescene"
-default_animation: "idle"
-skin: "default"
+default_animation: "first_animation"
+skin: "first_skin"
 blend_mode: BLEND_MODE_ADD
 material: "/builtins/materials/sprite.material"
 create_go_bones: true
