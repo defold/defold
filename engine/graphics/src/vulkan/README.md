@@ -2,6 +2,10 @@
 
 ## Updating the packages
 
+### OSX
+
+*** TODO *** Add info here about the patch needed for read/write input attachments
+
 The Vulkan packages are not built from source so update the packages must be done manually.
 The current procedure is to first go to the official SDK site (https://vulkan.lunarg.com/sdk/home) and
 download the bundles for each available platform. Copy the appropriate library files from within the SDK and make
