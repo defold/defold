@@ -3009,8 +3009,27 @@ bail:
         }
         else
         {
-            WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
-            WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+            int32_t last_set     = -1;
+            int32_t last_binding = -1;
+
+            if (loc0 != UNIFORM_LOCATION_MAX)
+            {
+                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
+                WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+
+                last_set     = res.m_Set;
+                last_binding = res.m_Binding;
+            }
+
+            if (loc1 != UNIFORM_LOCATION_MAX)
+            {
+                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
+
+                if (res.m_Set != last_set || res.m_Binding != last_binding)
+                {
+                    WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+                }
+            }
         }
     }
 
@@ -3033,8 +3052,27 @@ bail:
         }
         else
         {
-            WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
-            WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+            int32_t last_set     = -1;
+            int32_t last_binding = -1;
+
+            if (loc0 != UNIFORM_LOCATION_MAX)
+            {
+                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
+                WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+
+                last_set     = res.m_Set;
+                last_binding = res.m_Binding;
+            }
+
+            if (loc1 != UNIFORM_LOCATION_MAX)
+            {
+                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
+
+                if (res.m_Set != last_set || res.m_Binding != last_binding)
+                {
+                    WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+                }
+            }
         }
     }
 
@@ -4648,30 +4686,31 @@ bail:
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t loc0 = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t loc1 = UNIFORM_LOCATION_GET_FS(base_location);
 
         uint8_t* buffer_ptr = (uint8_t*) buffer->m_MappedDataPtr + buffer_offset;
 
-        if (index_vs != UNIFORM_LOCATION_MAX)
-        {
-            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
+        int32_t last_set     = -1;
+        int32_t last_binding = -1;
 
-            assert(!IsUniformTextureSampler(res));
-            uint32_t offset_index      = res.m_UniformDataIndex;
-            uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], buffer_ptr, res.m_DataSize);
+        if (loc0 != UNIFORM_LOCATION_MAX)
+        {
+            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
+            WriteConstantData(program_ptr->m_VertexModule, loc0, 0, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, buffer_ptr, res.m_DataSize);
+            
+            last_set     = res.m_Set;
+            last_binding = res.m_Binding;
         }
 
-        if (index_fs != UNIFORM_LOCATION_MAX)
+        if (loc1 != UNIFORM_LOCATION_MAX)
         {
-            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
+            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
 
-            assert(!IsUniformTextureSampler(res));
-            // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
-            uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
-            uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], buffer_ptr, res.m_DataSize);
+            if (res.m_Set != last_set || res.m_Binding != last_binding)
+            {
+                WriteConstantData(program_ptr->m_FragmentModule, loc1, 0, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, buffer_ptr, res.m_DataSize);
+            }
         }
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
