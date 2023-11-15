@@ -2,16 +2,13 @@
 
 ## Updating the packages
 
-### OSX
-
-*** TODO *** Add info here about the patch needed for read/write input attachments
-
 The Vulkan packages are not built from source so update the packages must be done manually.
 The current procedure is to first go to the official SDK site (https://vulkan.lunarg.com/sdk/home) and
 download the bundles for each available platform. Copy the appropriate library files from within the SDK and make
 a tar ball as usual per platform. Make a common package for the headers - these can usually be taken from any of the SDKs.
 To see what SDK version the engine is using, look under the `packages` folder in ther root directory.
 
+* OSX - NOTE! The osx packages are a mix of custom built moltenvk packages + vulkan sdks, this is because we require this patch for some of our extensions to work correctly (https://github.com/jpd002/MoltenVK/commit/898553af81e3ee24e82d5c654c15776c3c1b4b78). To update the package, MoltenVK needs to be built manually together with this patch. At some point we should automate this process, but for now it needs to be done manually.
 * Android - the Vulkan SDK is distributed with the NDK, so it should already be available on that platform.
 
 ## Validation Layers
