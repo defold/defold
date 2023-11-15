@@ -79,6 +79,7 @@ namespace dmPlatform
     HWindow        NewWindow(const WindowParams& params);
     void           DeleteWindow(HWindow window);
     PlatformResult OpenWindow(HWindow window);
+    void           CloseWindow(HWindow window);
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);

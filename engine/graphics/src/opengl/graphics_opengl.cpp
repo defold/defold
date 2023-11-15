@@ -510,11 +510,6 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context == 0x0)
         {
-            if (glfwInit() == GL_FALSE)
-            {
-                dmLogError("Could not initialize glfw.");
-                return 0x0;
-            }
             g_Context = new OpenGLContext(params);
             g_Context->m_AsyncMutex = dmMutex::New();
             return (HContext) g_Context;
@@ -531,6 +526,11 @@ static void LogFrameBufferError(GLenum status)
             {
                 dmMutex::Delete(g_Context->m_AsyncMutex);
             }
+            if (g_Context->m_Window)
+            {
+                dmPlatform::DeleteWindow(g_Context->m_Window);
+            }
+
             delete context;
             g_Context = 0x0;
         }
@@ -549,7 +549,6 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLFinalize()
     {
-        glfwTerminate();
     }
 
     static void StoreExtensions(HContext _context, const GLubyte* _extensions)
@@ -1273,7 +1272,9 @@ static void LogFrameBufferError(GLenum status)
         {
             JobQueueFinalize();
             PostDeleteTextures(true);
-            glfwCloseWindow();
+
+            dmPlatform::CloseWindow(context->m_Window);
+
             context->m_Width = 0;
             context->m_Height = 0;
             context->m_WindowWidth = 0;

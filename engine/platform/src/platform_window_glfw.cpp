@@ -229,10 +229,18 @@ namespace dmPlatform
         return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
     }
 
+    void CloseWindow(HWindow window)
+    {
+        glfwCloseWindow();
+    }
+
     void DeleteWindow(HWindow window)
     {
         Window* wnd = (Window*) window;
         delete wnd;
+        g_Window = 0;
+
+        glfwTerminate();
     }
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)

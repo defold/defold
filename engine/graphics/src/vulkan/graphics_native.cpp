@@ -91,7 +91,6 @@ namespace dmGraphics
 
     void NativeExit()
     {
-        glfwTerminate();
     }
 
     void NativeBeginFrame(HContext context)
