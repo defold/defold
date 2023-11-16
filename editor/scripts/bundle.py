@@ -340,6 +340,7 @@ def remove_platform_files_from_archive(platform, jar):
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
+    _unpack_platform = "_unpack/" + platform
     for file in files:
         if file.startswith("libexec"):
             # don't remove any folders
@@ -356,6 +357,23 @@ def remove_platform_files_from_archive(platform, jar):
                 continue
             # anything else should be removed
             files_to_remove.append(file)
+        # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
+        if file.startswith("_unpack"):
+            # don't touch '_unpack/'
+            if file == "_unpack/":
+                continue
+            # don't touch anything for the current platform
+            if file.startswith(_unpack_platform):
+                continue
+            # keep shared files
+            if file.startswith("_unpack/shared"):
+                continue
+            # keep _defold folder
+            if file.startswith("_unpack/_defold"):
+                continue
+            # anything else should be removed
+            files_to_remove.append(file)
+
 
     # find libs to remove in the root folder
     for file in files:
