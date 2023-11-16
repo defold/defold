@@ -2626,7 +2626,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn get-linux-desktop-entry [launcher-path install-dir]
   (str "[Desktop Entry]\n"
-       "Name=Defold Editor\n"
+       "Name=Defold\n"
        "Comment=An out of the box, turn-key solution for multi-platform game development\n"
        "Terminal=false\n"
        "Type=Application\n"
@@ -2636,16 +2636,39 @@ If you do not specifically require different script states, consider changing th
        "Exec=" launcher-path "\n"
        "Icon=" install-dir "/logo_blue.png\n"))
 
+(def ^:private xdg-desktop-menu-path
+  (delay
+    (when (util/is-linux?)
+      (try
+        (process/exec! "which" "xdg-desktop-menu")
+        (catch Throwable _)))))
+
 (handler/defhandler :create-desktop-entry :global
-  (active? [] (util/is-linux?))
+  (active? [] (some? @xdg-desktop-menu-path))
   (enabled? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
   (run []
-       (let [xdg-desktop-menu (process/exec! "which" "xdg-desktop-menu")
+       (let [xdg-desktop-menu @xdg-desktop-menu-path
              install-dir (.getCanonicalFile (io/file (system/defold-resourcespath)))
              launcher-path (.getCanonicalFile (io/file (system/defold-launcherpath)))
              desktop-entry (get-linux-desktop-entry launcher-path install-dir)
-             desktop-entry-file (str install-dir "/defold-editor.desktop")]
-         (spit desktop-entry-file desktop-entry)
-         (process/exec! xdg-desktop-menu "install" "--mode" "user" desktop-entry-file))))
-
-
+             desktop-entry-file (io/file install-dir "defold-editor.desktop")]
+         (try
+           (spit desktop-entry-file desktop-entry)
+           (process/exec! xdg-desktop-menu "install" "--mode" "user" (str desktop-entry-file))
+           (fs/delete! desktop-entry-file)
+           (dialogs/make-confirmation-dialog
+             {:title "Desktop Entry Created"
+              :header "Desktop Entry Has Been Created!"
+              :icon :icon/circle-happy
+              :content {:fx/type fxui/label
+                        :style-class "dialog-content-padding"
+                        :text "You may now launch the Defold editor from the system menu."}
+              :buttons [{:text "Close"
+                         :cancel-button true
+                         :default-button true}]})
+           (catch Exception e
+             (dialogs/make-info-dialog
+               {:title "Desktop Entry Creation Failed"
+                :header "Desktop Entry Couldn't Be Created!"
+                :icon :icon/triangle-error
+                :content (.getMessage e)}))))))
