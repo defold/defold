@@ -442,7 +442,6 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
-        uint32_t                        m_HighDPI              : 1;
     };
 
     // Implemented in graphics_vulkan_context.cpp

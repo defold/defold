@@ -187,7 +187,6 @@ namespace dmGraphics
         context->m_WindowIconifyCallback         = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
         context->m_CurrentRenderTarget           = context->m_MainRenderTarget;
-        context->m_HighDPI                       = params->m_HighDPI;
 
         return WINDOW_RESULT_OK;
     }
@@ -256,30 +255,14 @@ namespace dmGraphics
         return ((VulkanContext*) context)->m_Height;
     }
 
-    uint32_t VulkanGetWindowWidth(HContext _context)
+    uint32_t VulkanGetWindowWidth(HContext context)
     {
-        VulkanContext* context = (VulkanContext*) _context;
-
-        if (!context->m_HighDPI)
-        {
-            float f_width = ((float) context->m_WindowWidth) * glfwGetDisplayScaleFactor();
-            return (uint32_t) f_width;
-        }
-
-        return context->m_WindowWidth;
+        return ((VulkanContext*) context)->m_WindowWidth;
     }
 
-    uint32_t VulkanGetWindowHeight(HContext _context)
+    uint32_t VulkanGetWindowHeight(HContext context)
     {
-        VulkanContext* context = (VulkanContext*) _context;
-
-        if (!context->m_HighDPI)
-        {
-            float f_height = ((float) context->m_WindowHeight) * glfwGetDisplayScaleFactor();
-            return (uint32_t) f_height;
-        }
-
-        return context->m_WindowHeight;
+        return ((VulkanContext*) context)->m_WindowHeight;
     }
 
     float VulkanGetDisplayScaleFactor(HContext context)
