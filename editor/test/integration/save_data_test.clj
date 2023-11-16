@@ -19,17 +19,22 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.code.util :as code.util]
             [editor.collection :as collection]
+            [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.util :as util]
+            [lambdaisland.deep-diff2 :as deep-diff]
             [util.coll :as coll :refer [pair]]
             [util.text-util :as text-util])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
-           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]))
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]
+           [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -58,7 +63,7 @@
   {'dmGuiDDF.NodeDesc.Type
    {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
-;; TODO: Add type fields from all union protobuf types.
+;; TODO(save-data-test): Add type fields from all union protobuf types.
 
 (def ^:private pb-ignored-fields
   {'dmGameObjectDDF.CollectionDesc
@@ -502,7 +507,9 @@
   (and (resource/file-resource? resource)
        (resource/editable? resource)
        (resource/openable? resource)
-       (:write-fn (resource/resource-type resource))))
+       (if-let [resource-type (resource/resource-type resource)]
+         (some? (:write-fn resource-type))
+         (not (text-util/binary? resource)))))
 
 (defn- editable-resource-types-by-ext [workspace]
   (into (sorted-map)
@@ -735,7 +742,13 @@
 (defn- pb-field-value-non-default? [field-value ^Descriptors$FieldDescriptor field-desc]
   (not= (.getDefaultValue field-desc) field-value))
 
-(defmulti ^:private nested-field-frequencies (fn [resource] (-> resource resource/resource-type :test-info :type)))
+(defmulti ^:private nested-field-frequencies
+  (fn [resource]
+    (if-let [resource-type (resource/resource-type resource)]
+      (:type (:test-info resource-type))
+      (if (text-util/binary? resource)
+        :binary
+        :code))))
 
 (defmethod nested-field-frequencies :code [resource]
   (sorted-map "lines" (if (string/blank? (slurp resource)) 0 1)))
@@ -987,3 +1000,143 @@
           (list-message
             (str "The following gui node fields are not covered by layout overrides in any .gui files under `editor/" project-path "`:")
             non-layout-overridden-gui-node-field-paths)))))
+
+(defn- clear-cached-save-data! []
+  ;; Ensure any cache entries introduced by loading the project aren't covering
+  ;; up an actual dirty-check issue.
+  (g/clear-system-cache!))
+
+(defn- diff->string
+  ^String [diff]
+  (let [printer (deep-diff/printer {:print-color false
+                                    :print-fallback :print})]
+    (with-out-str
+      (deep-diff/pretty-print diff printer))))
+
+(defn- value-diff-message
+  ^String [disk-value save-value]
+  (str "Summary of discrepancies between disk value and save value:"
+       \newline
+       (-> (deep-diff/diff disk-value save-value)
+           (deep-diff/minimize)
+           (diff->string))))
+
+(defn- text-diff-message
+  ^String [disk-value save-value]
+  ;; TODO(save-data-test): Better text diff output.
+  (str "Summary of discrepancies between disk text and save text:"
+       \newline
+       (-> (deep-diff/diff (code.util/split-lines disk-value)
+                           (code.util/split-lines save-value))
+           (deep-diff/minimize)
+           (diff->string))))
+
+(defn- when-checking-resource-message
+  ^String [resource]
+  (format "When checking `%s`."
+          (resource/proj-path resource)))
+
+(defn- save-data-diff-message
+  ^String [save-data]
+  (let [^String save-text (:content save-data)
+        resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        read-fn (:read-fn resource-type)]
+    (if read-fn
+      ;; Compare data.
+      (let [disk-value (read-fn resource)
+            save-value (with-open [reader (StringReader. save-text)]
+                         (read-fn reader))]
+        (value-diff-message disk-value save-value))
+
+      ;; Compare text.
+      (let [disk-text (slurp resource)]
+        (text-diff-message disk-text save-text)))))
+
+(defn- check-value-equivalence! [expected-value actual-value message]
+  (if (= expected-value actual-value)
+    true
+    (let [message-with-diff (str message \newline (value-diff-message expected-value actual-value))]
+      (is (= expected-value actual-value) message-with-diff))))
+
+(defn- check-text-equivalence! [expected-text actual-text message]
+  (if (= expected-text actual-text)
+    true
+    (let [message-with-diff (str message \newline (text-diff-message expected-text actual-text))]
+      (is (= expected-text actual-text) message-with-diff))))
+
+(defn- check-save-data-disk-equivalence! [save-data]
+  (let [^String save-text (:content save-data)
+        resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        read-fn (:read-fn resource-type)
+        message (when-checking-resource-message resource)]
+    (if read-fn
+      ;; Compare data.
+      (let [disk-value (read-fn resource)
+            save-value (with-open [reader (StringReader. save-text)]
+                         (read-fn reader))]
+        (check-value-equivalence! disk-value save-value message))
+
+      ;; Compare text.
+      (let [disk-text (slurp resource)]
+        (check-text-equivalence! disk-text save-text message)))))
+
+(deftest no-unsaved-changes-after-load-test
+  ;; This test is intended to verify that changes to the file formats do not
+  ;; cause undue changes to existing content in game projects. For example,
+  ;; adding fields to component protobuf definitions may cause the default
+  ;; values to be written to every instance of those components embedded in
+  ;; collection or game object files, because the embedded components are
+  ;; written as a string literal.
+  ;;
+  ;; If this test fails, you need to ensure the loaded data is migrated to the
+  ;; new format by adding a :sanitize-fn when registering your resource type
+  ;; (Example: `collision_object.clj`). Non-embedded components do not have this
+  ;; issue as long as your added protobuf field has a default value. But more
+  ;; drastic file format changes have happened in the past, and you can find
+  ;; other examples of :sanitize-fn usage in non-component resource types.
+  (test-util/with-loaded-project project-path
+    (clear-cached-save-data!)
+    (testing (format "Project `editor/%s` should not have unsaved changes immediately after loading." project-path)
+      (doseq [save-data (project/dirty-save-data project)]
+        (check-save-data-disk-equivalence! save-data)))))
+
+(deftest no-unsaved-changes-after-save-test
+  (test-util/with-scratch-project project-path
+    (clear-cached-save-data!)
+    (let [checked-resources (checked-resources workspace)
+          dirty-proj-paths (into (sorted-set)
+                                 (map (comp resource/proj-path :resource))
+                                 (project/dirty-save-data project))]
+      (when (is (= #{} dirty-proj-paths)
+                (list-message
+                  (format "Unable to proceed with test due to unsaved changes in the following files immediately after loading the project `editor/%s`:" project-path)
+                  dirty-proj-paths))
+        (doseq [resource checked-resources]
+          (let [proj-path (resource/proj-path resource)
+                node-id (test-util/resource-node project resource)]
+            (when (testing (format "File `%s` should not have unsaved changes prior to editing." proj-path)
+                    (let [save-data (g/valid-node-value node-id :save-data)]
+                      (if (not (:dirty? save-data))
+                        true
+                        (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited."
+                                           (save-data-diff-message save-data))]
+                          (is (not (:dirty? save-data)) message)))))
+              (test-util/edit-resource-node! node-id)
+              (testing (format "File `%s` should have unsaved changes after editing." proj-path)
+                (let [save-data (g/valid-node-value node-id :save-data)]
+                  (is (:dirty? save-data)
+                      "No unsaved changes detected after editing."))))))
+        (test-util/save-project! project)
+        (clear-cached-save-data!)
+        (doseq [resource checked-resources]
+          (let [proj-path (resource/proj-path resource)]
+            (testing (format "File `%s` should not have unsaved changes after saving." proj-path)
+              (let [node-id (test-util/resource-node project resource)
+                    is-dirty-after-save (resource-node/dirty? node-id)]
+                (is (not is-dirty-after-save)
+                    "Unsaved changes detected after saving.")
+                (when is-dirty-after-save
+                  (let [save-data (g/valid-node-value node-id :save-data)]
+                    (check-save-data-disk-equivalence! save-data)))))))))))

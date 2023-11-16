@@ -92,6 +92,14 @@
   (when node
     (gt/node-type node)))
 
+(defn node-type-kw
+  "Return the fully-qualified keyword that corresponds to the node type of the
+  specified node id, or nil if the node does not exist."
+  ([node-id]
+   (:k (node-type* (now) node-id)))
+  ([basis node-id]
+   (:k (node-type* basis node-id))))
+
 (defn node-override? [node]
   (some? (gt/original node)))
 
@@ -846,6 +854,21 @@
   ([node-id label evaluation-context]
    (do-node-value node-id label evaluation-context)))
 
+(defn valid-node-value
+  "Like the node-value function, but throws an exception if evaluation produced
+  an ErrorValue."
+  ([node-id label]
+   (with-auto-evaluation-context evaluation-context
+     (valid-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (let [value (do-node-value node-id label evaluation-context)]
+     (if (error? value)
+       (throw (ex-info "Evaluation produced an ErrorValue."
+                       {:node-type-kw (node-type-kw (:basis evaluation-context) node-id)
+                        :label label
+                        :error value}))
+       value))))
+
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
   If the basis is not provided, it will take it from the current point of time in the system.
@@ -1342,14 +1365,6 @@
    (if (override? basis node-id)
      (property-overridden? basis node-id prop-kw)
      true)))
-
-(defn node-type-kw
-  "Returns the fully-qualified keyword that corresponds to the node type of the
-  specified node id, or nil if the node does not exist."
-  ([node-id]
-   (:k (node-type* node-id)))
-  ([basis node-id]
-   (:k (node-type* basis node-id))))
 
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
