@@ -21,6 +21,7 @@
 #include <dlib/time.h>
 #include <extension/extension.h>
 #include <render/render.h>
+#include <script/script.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include "profiler_private.h"
@@ -167,6 +168,14 @@ static int CPUUsage(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
     lua_pushnumber(L, dmProfilerExt::GetCpuUsage());
+    return 1;
+}
+
+
+static int GetLuaRefCount(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    lua_pushnumber(L, dmScript::GetLuaRefCount());
     return 1;
 }
 
@@ -648,6 +657,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
     {
         {"get_memory_usage",            MemoryUsage},
         {"get_cpu_usage",               CPUUsage},
+        {"get_lua_ref_count",           GetLuaRefCount},
         {"enable_ui",                   EnableProfilerUI},
         {"set_ui_mode",                 SetProfileUIMode},
         {"set_ui_view_mode",            SetProfilerUIViewMode},
