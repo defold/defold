@@ -28,9 +28,10 @@ namespace dmImage
 
     enum Type
     {
-        TYPE_RGB        = 0,
-        TYPE_RGBA       = 1,
-        TYPE_LUMINANCE  = 2,
+        TYPE_RGB             = 0,
+        TYPE_RGBA            = 1,
+        TYPE_LUMINANCE       = 2,
+        TYPE_LUMINANCE_ALPHA = 3,
     };
 
     struct Image
