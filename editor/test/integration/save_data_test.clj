@@ -24,7 +24,6 @@
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -36,6 +35,11 @@
            [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]
            [java.io StringReader]))
 
+;; Note: We use symbol or string representations of protobuf types and values
+;; instead of the imported classes and enum values when declaring exclusions and
+;; field rules. This enables us to cover things that are dynamically loaded from
+;; editor extensions, such as the Spine plugin.
+
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
@@ -45,10 +49,27 @@
 ;; This project is not used by any other tests.
 (test-util/evict-cached-system-and-project! project-path)
 
+(def ^:private valid-ignore-reason?
+  "This is the set of valid reasons why a setting or field may be ignored when
+  we ensure every property is covered by the files in the save data test
+  project. We want every property of every editable resource type to be set to a
+  non-default value in at least one of the root-level files in the project."
+  #{:allowed-default ; The value is allowed to be the default value for the field. This is useful for type enum fields that have a valid type as the default.
+    :deprecated      ; The field is deprecated. This should be accompanied by a comment directing the reader to a test that covers the migration.
+    :non-editable    ; The field is expected to be read and written to the file, but cannot be edited by the user.
+    :non-overridable ; The field is expected to be read and written to the file, but cannot be overridden from its base value by the user.
+    :padding         ; The field is only present in the protobuf declaration to ensure consecutive values are byte-aligned to a desired boundary in the compiled binaries for the runtime.
+    :runtime-only    ; The field is only present in the compiled binaries for the runtime.
+    :unimplemented   ; The field was added to support a new feature in the runtime, but is not yet fully implemented in the editor. This will eventually lead to a file format change, deprecated fields, and a test that covers the migration.
+    :unused})        ; The field is not expected to have a value in either the project files or the compiled binaries for the runtime. Typically used with union-style protobuf types such as dmGuiDDF.NodeDesc, where the expected fields are dictated by the value of the "type" field.
+
 (def ^:private settings-ignored-fields
-  ;; Deprecated settings in `game.project` are not automatically migrated, so
-  ;; there are no tests for that. Instead, they appear as errors for the user to
-  ;; address manually.
+  "This structure is used to exclude certain key paths in setting files from
+  having to be covered by the files in the save data test project. It is a map of
+  file extensions to maps of setting path to ignore reasons."
+  ;; Note: Deprecated settings in `game.project` are not automatically migrated,
+  ;; so there are no migration tests for that. Instead, they appear as errors
+  ;; for the user to address manually.
   {"project"
    {["bootstrap" "debug_init_script"] :deprecated
     ["display" "variable_dt"] :deprecated
@@ -56,16 +77,36 @@
     ["html5" "set_custom_heap_size"] :deprecated
     ["shader" "output_spirv"] :deprecated}})
 
+;; TODO(save-data-test): Add type fields from all union protobuf types.
 (def ^:private pb-type-field-names
+  "This structure is used to declare type-distinguishing fields in union-style
+  protobuf types. Without this, we will consider a protobuf field covered if it
+  is set to a non-default value anywhere at a particular field path. However, if
+  you declare a type field name for a protobuf type, we will distinguish between
+  field coverage based on the type value. The field name is expected to refer to
+  an enum field in the specified protobuf type."
   {'dmGuiDDF.NodeDesc "type"})
 
 (def ^:private pb-enum-ignored-values
+  "This structure is used in conjunction with `pb-type-field-names` above to
+  exclude certain enum values from consideration when determining coverage."
   {'dmGuiDDF.NodeDesc.Type
    {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
-;; TODO(save-data-test): Add type fields from all union protobuf types.
-
 (def ^:private pb-ignored-fields
+  "This structure is used to exclude certain fields in protobuf-based file
+  formats from having to be covered by the files in the save data test project.
+
+  The leaf-level maps pair protobuf field names with an ignore reason.
+
+  These field ignore rules are then associated with a context which can be
+  either :default (which applies everywhere), or a vector of paths from the file
+  extension through the field names leading up to the ignored fields.
+
+  Finally, the context ignore rules are associated with a protobuf type
+  identifier. This is the full name of the protobuf message as a symbol, or such
+  a symbol wrapped in a vector alongside a bracketed string of the value of the
+  field name associated with that symbol in the `pb-type-field-names` map."
   {'dmGameObjectDDF.CollectionDesc
    {:default
     {"component_types" :runtime-only
@@ -85,7 +126,7 @@
 
    'dmGameObjectDDF.EmbeddedInstanceDesc
    {:default
-    {"component_properties" :unimplemented ; Edits are embedded in "data" field.
+    {"component_properties" :unused ; Not used by the editor, Bob, or the runtime. Perhaps declared by mistake. Any edits to components are directly embedded in the PrototypeDesc inside the "data" field, so why do we need it?
      "scale" :deprecated}} ; Migration tested in silent-migrations-test.
 
    'dmGameObjectDDF.InstanceDesc
@@ -173,7 +214,7 @@
      "size" :unused
      "size_mode" :non-editable
      "slice9" :unused
-     "spine_node_child" :deprecated ;; TODO: What was this?
+     "spine_node_child" :deprecated ; TODO(save-data-test): What was this?
      "template" :unused
      "template_node_child" :unused
      "text" :unused
@@ -411,7 +452,7 @@
       0 (:default pb-filter->pb-field->ignore-reason {})
       1 (into (:default pb-filter->pb-field->ignore-reason {})
               (val (first matched)))
-      (throw (ex-info "The pb-path matches more than one filter in the pb-ignored-fields map."
+      (throw (ex-info "The pb-path matches more than one filter in the `pb-ignored-fields` map."
                       {:pb-path pb-path
                        :matched matched})))))
 
@@ -429,7 +470,7 @@
 
 (s/def ::class-java-symbol symbol?)
 (s/def ::resource-type-ext (s/and string? valid-resource-ext?))
-(s/def ::ignore-reason #{:allowed-default :deprecated :non-editable :non-overridable :padding :runtime-only :unimplemented :unused})
+(s/def ::ignore-reason valid-ignore-reason?)
 (s/def ::ignore-reason-set (s/coll-of ::ignore-reason :kind set?))
 
 (s/def ::setting-path-token (s/and string? setting-valid-path-token?))
@@ -449,14 +490,26 @@
 (s/def ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-ignore-key ::pb-filter->pb-path-token->ignore-reason))
 
 (deftest settings-ignored-paths-declaration-test
+  "This test is intended to verify that the structure we use to ignore certain
+  setting file paths is valid. If it fails, check the `settings-ignored-fields`
+  declaration at the top of this file."
   (is (s/valid? ::ext->setting->ignore-reason settings-ignored-fields)
       (s/explain-str ::ext->setting->ignore-reason settings-ignored-fields)))
 
 (deftest pb-ignored-fields-declaration-test
+  "This test is intended to verify that the structure we use to ignore certain
+  protobuf fields is valid. If it fails, check the `pb-ignored-fields`
+  declaration at the top of this file."
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
 (deftest silent-migrations-test
+  "This test is intended to verify that certain silent data migrations are
+  performed correctly. A silent migration typically involves a :sanitize-fn to
+  silently convert the read data structure into the updated save data structure.
+  This ensures the file will not be saved in the updated format until the user
+  changes something significant in the file. More involved migrations might be
+  covered by tests elsewhere."
   (test-util/with-loaded-project project-path
     (testing "collection"
       (let [uniform-scale-collection (test-util/resource-node project "/silently_migrated/uniform_scale.collection")
@@ -540,6 +593,12 @@
   (list-message message (map #(str \. %) resource-exts)))
 
 (deftest all-resource-types-covered-test
+  "This test is intended to verify that every editable resource type has one or
+  more files at root-level in the save data test project. If you've registered a
+  new editable resource type with the workspace, you need to add a file for it
+  in the save data test project. You will also need to ensure non-default values
+  are assigned to all properties, which is enforced by `all-fields-covered-test`
+  below."
   (test-util/with-loaded-project project-path
     (let [editable-resource-exts
           (into (sorted-set)
@@ -560,6 +619,14 @@
             non-covered-resource-exts)))))
 
 (deftest editable-resource-types-have-valid-test-info
+  "This test is intended to verify that every resource type registered with the
+  workspace has a valid :test-info map associated with it. The high-level
+  functions such as `resource-node/register-ddf-resource-type` will add this
+  automatically, but if you register a resource type using the low-level
+  `workspace/register-resource-type` function, you'll need to specify :test-info
+  as a map of {:type [keyword]} and additional keys dependent on the :type. The
+  tests need this information to be able to check that every property has a
+  non-default value in the save data project."
   (test-util/with-loaded-project project-path
     (let [problematic-resource-exts-by-issue-message
           (-> (util/group-into
@@ -794,6 +861,12 @@
                              value-path)))))))
 
 (deftest all-fields-covered-test
+  "This test is intended to verify that every property across all editable files
+  has a non-default value in the save data test project, so we can be sure all
+  properties are read and saved property by the editor. If you add fields to the
+  protobuf messages used by the editor, you must either add a field ignore rule
+  to the `pb-ignored-fields` map at the top of this file, or set the field to a
+  non-default value in a root-level file in the save data test project."
   (test-util/with-loaded-project project-path
     (let [uncovered-value-paths-by-ext
           (->> (checked-resources workspace)
@@ -944,28 +1017,14 @@
                      (filter #(= 0 (val %)))
                      (map #(string/join " -> " (key %))))))))
 
-(deftest all-gui-template-node-fields-overridden-test
-  (test-util/with-loaded-project project-path
-    (let [proj-path->resource #(test-util/resource workspace %)
-          resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
-          gui-scene-pb->node-pbs #(.getNodesList ^Gui$SceneDesc %)
-          gui-proj-path->node-pbs (comp gui-scene-pb->node-pbs resource->gui-scene-pb proj-path->resource)
-
-          gui-resource->template-override-infos
-          (fn gui-resource->template-override-infos [resource]
-            (let [scene-pb (resource->gui-scene-pb resource)
-                  node-pbs (gui-scene-pb->node-pbs scene-pb)]
-              (gui-template-node-override-infos node-pbs gui-proj-path->node-pbs)))
-
-          non-template-overridden-gui-node-field-paths
-          (non-overridden-gui-node-field-paths workspace ["gui" "nodes"] gui-resource->template-override-infos)]
-
-      (is (= #{} non-template-overridden-gui-node-field-paths)
-          (list-message
-            (str "The following gui node fields are not covered by template overrides in any .gui files under `editor/" project-path "`:")
-            non-template-overridden-gui-node-field-paths)))))
-
 (deftest all-gui-layout-node-fields-overridden-test
+  "This test is intended to verify that every field in dmGuiDDF.NodeDesc is
+  being overridden by a layout in one of the root-level files in the save data
+  test project. If you add a field to the NodeDesc protobuf message,
+  you'll either need to add a layout override for it (we suggest you add it to
+  the Landscape layout in `checked01.gui`, which hosts the majority of the
+  layout overrides), or add a field ignore rule to the `pb-ignored-fields` map
+  at the top of this file."
   (test-util/with-loaded-project project-path
     (let [gui-resource->layout-override-infos
           (fn gui-resource->layout-override-infos [resource]
@@ -1000,6 +1059,33 @@
           (list-message
             (str "The following gui node fields are not covered by layout overrides in any .gui files under `editor/" project-path "`:")
             non-layout-overridden-gui-node-field-paths)))))
+
+(deftest all-gui-template-node-fields-overridden-test
+  "This test is intended to verify that every field in dmGuiDDF.NodeDesc is
+  being overridden from a template node in one of the root-level files in the
+  save data test project. If you add a field to the NodeDesc protobuf message,
+  you'll either need to add a template override for it (we suggest you add it to
+  `checked02.gui`, which hosts the majority of the template overrides), or add a
+  field ignore rule to the `pb-ignored-fields` map at the top of this file."
+  (test-util/with-loaded-project project-path
+    (let [proj-path->resource #(test-util/resource workspace %)
+          resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
+          gui-scene-pb->node-pbs #(.getNodesList ^Gui$SceneDesc %)
+          gui-proj-path->node-pbs (comp gui-scene-pb->node-pbs resource->gui-scene-pb proj-path->resource)
+
+          gui-resource->template-override-infos
+          (fn gui-resource->template-override-infos [resource]
+            (let [scene-pb (resource->gui-scene-pb resource)
+                  node-pbs (gui-scene-pb->node-pbs scene-pb)]
+              (gui-template-node-override-infos node-pbs gui-proj-path->node-pbs)))
+
+          non-template-overridden-gui-node-field-paths
+          (non-overridden-gui-node-field-paths workspace ["gui" "nodes"] gui-resource->template-override-infos)]
+
+      (is (= #{} non-template-overridden-gui-node-field-paths)
+          (list-message
+            (str "The following gui node fields are not covered by template overrides in any .gui files under `editor/" project-path "`:")
+            non-template-overridden-gui-node-field-paths)))))
 
 (defn- clear-cached-save-data! []
   ;; Ensure any cache entries introduced by loading the project aren't covering
@@ -1083,19 +1169,18 @@
         (check-text-equivalence! disk-text save-text message)))))
 
 (deftest no-unsaved-changes-after-load-test
-  ;; This test is intended to verify that changes to the file formats do not
-  ;; cause undue changes to existing content in game projects. For example,
-  ;; adding fields to component protobuf definitions may cause the default
-  ;; values to be written to every instance of those components embedded in
-  ;; collection or game object files, because the embedded components are
-  ;; written as a string literal.
-  ;;
-  ;; If this test fails, you need to ensure the loaded data is migrated to the
-  ;; new format by adding a :sanitize-fn when registering your resource type
-  ;; (Example: `collision_object.clj`). Non-embedded components do not have this
-  ;; issue as long as your added protobuf field has a default value. But more
-  ;; drastic file format changes have happened in the past, and you can find
-  ;; other examples of :sanitize-fn usage in non-component resource types.
+  "This test is intended to verify that changes to the file formats do not cause
+  undue changes to existing content in game projects. For example, adding fields
+  to component protobuf definitions may cause the default values to be written
+  to every instance of those components embedded in collection or game object
+  files, because the embedded components are written as a string literal.
+
+  If this test fails, you need to ensure the loaded data is migrated to the new
+  format by adding a :sanitize-fn when registering your resource type (Example:
+  `collision_object.clj`). Non-embedded components do not have this issue as
+  long as your added protobuf field has a default value. But more drastic file
+  format changes have happened in the past, and you can find other examples of
+  :sanitize-fn usage in non-component resource types."
   (test-util/with-loaded-project project-path
     (clear-cached-save-data!)
     (testing (format "Project `editor/%s` should not have unsaved changes immediately after loading." project-path)
@@ -1103,6 +1188,9 @@
         (check-save-data-disk-equivalence! save-data)))))
 
 (deftest no-unsaved-changes-after-save-test
+  "This test is intended to verify that we track unsaved changes properly. If
+  any other tests in this module are failing as well, you should address them
+  first."
   (test-util/with-scratch-project project-path
     (clear-cached-save-data!)
     (let [checked-resources (checked-resources workspace)
@@ -1127,16 +1215,17 @@
               (testing (format "File `%s` should have unsaved changes after editing." proj-path)
                 (let [save-data (g/valid-node-value node-id :save-data)]
                   (is (:dirty? save-data)
-                      "No unsaved changes detected after editing."))))))
+                      "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?"))))))
         (test-util/save-project! project)
         (clear-cached-save-data!)
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)]
             (testing (format "File `%s` should not have unsaved changes after saving." proj-path)
               (let [node-id (test-util/resource-node project resource)
-                    is-dirty-after-save (resource-node/dirty? node-id)]
-                (is (not is-dirty-after-save)
+                    save-data (g/valid-node-value node-id :save-data)]
+                (is (not (:dirty? save-data))
                     "Unsaved changes detected after saving.")
-                (when is-dirty-after-save
-                  (let [save-data (g/valid-node-value node-id :save-data)]
-                    (check-save-data-disk-equivalence! save-data)))))))))))
+                (when (:dirty? save-data)
+                  (check-save-data-disk-equivalence! save-data))))))))))
+
+;; TODO(save-data-test): Port old save-all test
