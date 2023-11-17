@@ -41,6 +41,19 @@ namespace dmPlatform
 
     struct WindowParams
     {
+        WindowParams()
+        : m_ResizeCallback(0x0)
+        , m_ResizeCallbackUserData(0x0)
+        , m_CloseCallback(0x0)
+        , m_CloseCallbackUserData(0x0)
+        , m_Width(640)
+        , m_Height(480)
+        , m_Samples(1)
+        , m_Title("Defold Application")
+        , m_Fullscreen(false)
+        , m_PrintDeviceInfo(false)
+        , m_HighDPI(false) {}
+
         PlatformGraphicsApi     m_GraphicsApi;
         /// Window resize callback
         WindowResizeCallback    m_ResizeCallback;

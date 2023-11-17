@@ -25,14 +25,10 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
+#include <platform/platform.h>
+
 namespace dmGraphics
 {
-    typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
-
-    typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
-
-    typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
-
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -305,46 +301,6 @@ namespace dmGraphics
         uint8_t               m_StencilTexture : 1;
     };
 
-    // Parameters structure for OpenWindow
-    struct WindowParams
-    {
-        WindowParams();
-
-        /// Window resize callback
-        WindowResizeCallback    m_ResizeCallback;
-        /// User data supplied to the callback function
-        void*                   m_ResizeCallbackUserData;
-        /// Window close callback
-        WindowCloseCallback     m_CloseCallback;
-        /// User data supplied to the callback function
-        void*                   m_CloseCallbackUserData;
-        /// Window focus callback
-        WindowFocusCallback     m_FocusCallback;
-        /// User data supplied to the callback function
-        void*                   m_FocusCallbackUserData;
-        /// Window iconify callback
-        WindowIconifyCallback   m_IconifyCallback;
-        /// User data supplied to the callback function
-        void*                   m_IconifyCallbackUserData;
-        /// Window width, 640 by default
-        uint32_t                m_Width;
-        /// Window height, 480 by default
-        uint32_t                m_Height;
-        /// Number of samples (for multi-sampling), 1 by default
-        uint32_t                m_Samples;
-        /// Window title, "Dynamo App" by default
-        const char*             m_Title;
-        /// If the window should cover the full screen or not, false by default
-        bool                    m_Fullscreen;
-        /// Log info about the graphics device being used, false by default
-        bool                    m_PrintDeviceInfo;
-
-        bool                    m_HighDPI;
-
-        // Window background color, RGB 0x00BBGGRR
-        uint32_t                m_BackgroundColor;
-    };
-
     // Parameters structure for NewContext
     struct ContextParams
     {
@@ -439,7 +395,7 @@ namespace dmGraphics
      * @param params Window parameters
      * @return The result of the operation
      */
-    WindowResult OpenWindow(HContext context, WindowParams *params);
+    dmPlatform::PlatformResult OpenWindow(HContext context, dmPlatform::WindowParams *params);
 
     /**
      * Close the open window if any.

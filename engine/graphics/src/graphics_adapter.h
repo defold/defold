@@ -59,7 +59,7 @@ namespace dmGraphics
     typedef void (*FinalizeFn)();
     typedef void (*AppBootstrapFn)(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
     typedef uint32_t (*GetWindowRefreshRateFn)(HContext context);
-    typedef WindowResult (*OpenWindowFn)(HContext context, WindowParams *params);
+    typedef dmPlatform::PlatformResult (*OpenWindowFn)(HContext context, dmPlatform::WindowParams *params);
     typedef void (*CloseWindowFn)(HContext context);
     typedef void (*IconifyWindowFn)(HContext context);
     typedef uint32_t (*GetWindowStateFn)(HContext context, WindowState state);

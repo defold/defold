@@ -755,29 +755,7 @@ static void LogFrameBufferError(GLenum status)
         return (WindowResult) -1;
     }
 
-    static dmPlatform::WindowParams WindowParamsToPlatformWindowParams(const WindowParams& params)
-    {
-        dmPlatform::WindowParams p  = {};
-        p.m_ResizeCallback          = params.m_ResizeCallback;
-        p.m_ResizeCallbackUserData  = params.m_ResizeCallbackUserData;
-        p.m_CloseCallback           = params.m_CloseCallback;
-        p.m_CloseCallbackUserData   = params.m_CloseCallbackUserData;
-        p.m_FocusCallback           = params.m_FocusCallback;
-        p.m_FocusCallbackUserData   = params.m_FocusCallbackUserData;
-        p.m_IconifyCallback         = params.m_IconifyCallback;
-        p.m_IconifyCallbackUserData = params.m_IconifyCallbackUserData;
-        p.m_Width                   = params.m_Width;
-        p.m_Height                  = params.m_Height;
-        p.m_Samples                 = params.m_Samples;
-        p.m_Title                   = params.m_Title;
-        p.m_Fullscreen              = params.m_Fullscreen;
-        p.m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
-        p.m_HighDPI                 = params.m_HighDPI;
-        p.m_BackgroundColor         = params.m_BackgroundColor;
-        return p;
-    }
-
-    static WindowResult OpenGLOpenWindow(HContext _context, WindowParams *params)
+    static dmPlatform::PlatformResult OpenGLOpenWindow(HContext _context, dmPlatform::WindowParams *params)
     {
         assert(_context);
         assert(params);
@@ -786,17 +764,17 @@ static void LogFrameBufferError(GLenum status)
 
         if (context->m_Window)
         {
-            return WINDOW_RESULT_ALREADY_OPENED;
+            return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
-        dmPlatform::WindowParams window_params = WindowParamsToPlatformWindowParams(*params);
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-        context->m_Window = dmPlatform::NewWindow(window_params);
+        params->m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+        context->m_Window     = dmPlatform::NewWindow(*params);
 
         dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window);
+
         if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
         {
-            return PlatformToWindowResult(platform_result);
+            return platform_result;
         }
 
 #if defined (_WIN32)
@@ -1261,7 +1239,7 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        return WINDOW_RESULT_OK;
+        return dmPlatform::PLATFORM_RESULT_OK;
     }
 
     static void OpenGLCloseWindow(HContext _context)
@@ -1386,12 +1364,13 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLResizeWindow(HContext context, uint32_t width, uint32_t height)
+    static void OpenGLResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
-        assert(context);
-        if (((OpenGLContext*) context)->m_WindowOpened)
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        if (context->m_WindowOpened)
         {
-            glfwSetWindowSize((int)width, (int)height);
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
     }
 

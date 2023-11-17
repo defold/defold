@@ -695,6 +695,12 @@ namespace dmGraphics
     void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        if (vk_device == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
         // Flush all current commands
         SynchronizeDevice(vk_device);
 
@@ -902,7 +908,7 @@ namespace dmGraphics
         }
     }
 
-    bool InitializeVulkan(HContext _context, const WindowParams* params)
+    bool InitializeVulkan(HContext _context, const dmPlatform::WindowParams* params)
     {
         VulkanContext* context = (VulkanContext*) _context;
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
@@ -1210,7 +1216,7 @@ bail:
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
                 uint32_t width, height;
-                VulkanGetNativeWindowSize(&width, &height);
+                VulkanGetNativeWindowSize(context, &width, &height);
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);

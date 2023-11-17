@@ -55,6 +55,7 @@
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <particle/particle.h>
+#include <platform/platform.h>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
@@ -821,7 +822,7 @@ namespace dmEngine
                              | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
         engine->m_ClearColor = clear_color;
 
-        dmGraphics::WindowParams window_params;
+        dmPlatform::WindowParams window_params = {};
         window_params.m_ResizeCallback = OnWindowResize;
         window_params.m_ResizeCallbackUserData = engine;
         window_params.m_CloseCallback = OnWindowClose;
@@ -839,10 +840,10 @@ namespace dmEngine
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_BackgroundColor = clear_color;
 
-        dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
-        if (window_result != dmGraphics::WINDOW_RESULT_OK)
+        dmPlatform::PlatformResult platform_res = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
+        if (platform_res != dmPlatform::PLATFORM_RESULT_OK)
         {
-            dmLogFatal("Could not open window (%d).", window_result);
+            dmLogFatal("Could not open window (%d).", platform_res);
             return false;
         }
 

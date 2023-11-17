@@ -21,6 +21,8 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
+#include <platform/platform.h>
+
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -109,7 +111,7 @@ namespace dmGraphics
         }
     }
 
-    static WindowResult NullOpenWindow(HContext _context, WindowParams* params)
+    static dmPlatform::PlatformResult NullOpenWindow(HContext _context, dmPlatform::WindowParams* params)
     {
         assert(_context);
         assert(params);
@@ -118,7 +120,7 @@ namespace dmGraphics
 
         if (context->m_WindowOpened)
         {
-            return WINDOW_RESULT_ALREADY_OPENED;
+            return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
         context->m_WindowResizeCallback = params->m_ResizeCallback;
@@ -146,7 +148,7 @@ namespace dmGraphics
         {
             dmLogInfo("Device: null");
         }
-        return WINDOW_RESULT_OK;
+        return dmPlatform::PLATFORM_RESULT_OK;
     }
 
     static uint32_t NullGetWindowRefreshRate(HContext context)

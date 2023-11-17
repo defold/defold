@@ -26,9 +26,9 @@ namespace dmPlatform
     struct Window
     {
         WindowParams m_CreateParams;
-        int32_t m_Width;
-        int32_t m_Height;
-        uint32_t m_WindowOpened : 1;
+        int32_t      m_Width;
+        int32_t      m_Height;
+        uint32_t     m_WindowOpened : 1;
     };
 
     // Needed by glfw2.7

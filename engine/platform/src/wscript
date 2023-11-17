@@ -9,7 +9,7 @@ def build(bld):
     lib = bld.stlib(features        = 'cxx c ddf',
                     includes        = '.',
                     target          = 'platform',
-                    source          = bld.path.ant_glob('platform_window_glfw.cpp'))
+                    source          = bld.path.ant_glob(['platform_window_glfw.cpp']))
 
     bld.install_files('${PREFIX}/include/platform', 'platform.h')
 
