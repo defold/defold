@@ -2624,7 +2624,7 @@ If you do not specifically require different script states, consider changing th
   (run [app-view changes-view prefs workspace project]
        (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs project)))
 
-(defn get-linux-desktop-entry [launcher-path install-dir]
+(defn- get-linux-desktop-entry [launcher-path install-dir]
   (str "[Desktop Entry]\n"
        "Name=Defold\n"
        "Comment=An out of the box, turn-key solution for multi-platform game development\n"
