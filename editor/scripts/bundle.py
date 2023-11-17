@@ -435,7 +435,7 @@ def create_bundle(options):
             packages_dir = os.path.join(tmp_dir, 'Defold/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold')
             exe_dir = os.path.join(tmp_dir, 'Defold')
-            icon = None
+            icon = 'logo_blue.png'
 
         mkdirs(tmp_dir)
         mkdirs(bundle_dir)
