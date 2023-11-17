@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -589,6 +589,38 @@ public class ExtenderUtil {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/res/" + platformAlt + "/") );
+            }
+        }
+
+        return sources;
+    }
+
+    public static List<ExtenderResource> getLibrarySources(Project project, Platform platform, Map<String, String> appmanifestOptions, List<String> sourceDirs) throws CompileExceptionError, IOException {
+        List<ExtenderResource> sources = new ArrayList<>();
+
+        // Find app manifest if there is one
+        {
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
+            if (resource == null) {
+                 resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+            }
+
+            sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
+        }
+
+        for (String path : sourceDirs) {
+            ArrayList<String> paths = new ArrayList<>();
+            project.findResourcePaths(path, paths);
+            for (String p : paths) {
+                IResource r = project.getResource(p);
+                // Note: findResourcePaths will return the supplied path even if it's not a file.
+                // We need to check if the resource is not a directory before adding it to the list of paths found.
+                if (!r.isFile()) {
+                    continue;
+                }
+
+                String alias = String.format("src/%s", r.getPath());
+                sources.add(new FSAliasResource(r, project.getRootDirectory(), alias));
             }
         }
 

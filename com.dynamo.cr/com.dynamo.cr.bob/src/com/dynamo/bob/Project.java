@@ -134,9 +134,10 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
-    private List<String> propertyFiles = new ArrayList<String>();
-    private List<String> buildServerHeaders = new ArrayList<String>();
-    private List<String> excluedFilesAndFoldersEntries = new ArrayList<String>();
+    private List<String> propertyFiles = new ArrayList<>();
+    private List<String> buildServerHeaders = new ArrayList<>();
+    private List<String> excluedFilesAndFoldersEntries = new ArrayList<>();
+    private List<String> engineBuildDirs = new ArrayList<>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -686,6 +687,10 @@ public class Project {
         propertyFiles.add(filepath);
     }
 
+    public void addEngineBuildDir(String dirpath) {
+        engineBuildDirs.add(dirpath);
+    }
+
     // Returns the command line specified property files
     public List<String> getPropertyFiles() {
         return propertyFiles;
@@ -978,20 +983,132 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
-
-        // Store the engine one level above the content build since that folder gets removed during a distclean
-        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
-        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
-        cacheDir.mkdirs();
+    public void buildEnginePlatform(IProgress monitor, File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
 
-        IProgress m = monitor.subProgress(architectures.length);
-        m.beginTask("Building engine...", 0);
+        final String variant = appmanifestOptions.get("baseVariant");
+
+        List<String> defaultNames = platform.formatBinaryName("dmengine");
+        List<File> exes = new ArrayList<File>();
+        for (String name : defaultNames) {
+            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+            exes.add(exe);
+        }
+
+        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
+
+        List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
+
+        allSource.addAll(helper.writeExtensionResources(platform));
+
+        // Replace the unresolved manifests with the resolved ones
+        List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir(platform));
+        for (ExtenderResource manifest : resolvedManifests) {
+            ExtenderResource src = null;
+            for (ExtenderResource s : allSource) {
+                if (s.getPath().equals(manifest.getPath())) {
+                    src = s;
+                    break;
+                }
+            }
+            if (src != null) {
+                allSource.remove(src);
+            }
+            allSource.add(manifest);
+        }
+
+        boolean debugUploadZip = this.hasOption("debug-ne-upload");
+
+        if (debugUploadZip) {
+            File debugZip = new File(buildDir.getParent(), "upload.zip");
+            ZipOutputStream zipOut = null;
+            try {
+                zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
+                ExtenderUtil.writeResourcesToZip(allSource, zipOut);
+                System.out.printf("Wrote debug upload zip file to: %s", debugZip);
+            } catch (Exception e) {
+                throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
+            } finally {
+                zipOut.close();
+            }
+        }
+
+        // Located in the same place as the log file in the unpacked successful build
+        File logFile = new File(buildDir, "log.txt");
+        String serverURL = this.option("build-server", "https://build.defold.com");
+
+        try {
+            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+            extender.setHeaders(buildServerHeaders);
+
+            String buildPlatform = platform.getExtenderPair();
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+
+            cleanEngine(platform, buildDir);
+
+            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+        } catch (ConnectException e) {
+            throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+        } catch (ExtenderClientException e) {
+            throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
+        }
+    }
+
+    public void buildLibraryPlatform(IProgress monitor, File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+
+        // Get SHA1 and create log file
+        final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
 
         final String variant = appmanifestOptions.get("baseVariant");
+
+        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
+
+        // Located in the same place as the log file in the unpacked successful build
+        File logFile = new File(buildDir, "log.txt");
+        String serverURL = this.option("build-server", "https://build.defold.com");
+
+        List<ExtenderResource> allSource = ExtenderUtil.getLibrarySources(this, platform, appmanifestOptions, engineBuildDirs);
+
+        boolean debugUploadZip = this.hasOption("debug-ne-upload");
+        if (debugUploadZip) {
+            File debugZip = new File(buildDir.getParent(), "upload.zip");
+            ZipOutputStream zipOut = null;
+            try {
+                zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
+                ExtenderUtil.writeResourcesToZip(allSource, zipOut);
+                System.out.printf("Wrote debug upload zip file to: %s", debugZip);
+            } catch (Exception e) {
+                throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
+            } finally {
+                zipOut.close();
+            }
+        }
+
+        try {
+            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+            extender.setHeaders(buildServerHeaders);
+
+            String buildPlatform = platform.getExtenderPair();
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+
+            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+        } catch (ConnectException e) {
+            throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+        } catch (ExtenderClientException e) {
+            throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
+        }
+    }
+
+    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
+        // Store the build one level above the content build since that folder gets removed during a distclean
+        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
+        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
+        cacheDir.mkdirs();
+
+        IProgress m = monitor.subProgress(architectures.length);
+        m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
         String outputDir = getBinaryOutputDirectory();
@@ -1002,67 +1119,13 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-            List<String> defaultNames = platform.formatBinaryName("dmengine");
-            List<File> exes = new ArrayList<File>();
-            for (String name : defaultNames) {
-                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
-                exes.add(exe);
+
+            boolean buildLibrary = shouldBuildArtifact("library");
+            if (buildLibrary) {
+                buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
             }
-
-            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
-
-            BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
-
-            allSource.addAll(helper.writeExtensionResources(platform));
-
-            // Replace the unresolved manifests with the resolved ones
-            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir(platform));
-            for (ExtenderResource manifest : resolvedManifests) {
-                ExtenderResource src = null;
-                for (ExtenderResource s : allSource) {
-                    if (s.getPath().equals(manifest.getPath())) {
-                        src = s;
-                        break;
-                    }
-                }
-                if (src != null) {
-                    allSource.remove(src);
-                }
-                allSource.add(manifest);
-            }
-
-            boolean debugUploadZip = this.hasOption("debug-ne-upload");
-
-            if (debugUploadZip) {
-                File debugZip = new File(buildDir.getParent(), "upload.zip");
-                ZipOutputStream zipOut = null;
-                try {
-                    zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
-                    ExtenderUtil.writeResourcesToZip(allSource, zipOut);
-                    System.out.printf("Wrote debug upload zip file to: %s", debugZip);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
-                } finally {
-                    zipOut.close();
-                }
-            }
-
-            // Located in the same place as the log file in the unpacked successful build
-            File logFile = new File(buildDir, "log.txt");
-            String serverURL = this.option("build-server", "https://build.defold.com");
-
-            try {
-                ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-                extender.setHeaders(buildServerHeaders);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
-
-                cleanEngine(platform, buildDir);
-
-                BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
-            } catch (ConnectException e) {
-                throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
-            } catch (ExtenderClientException e) {
-                throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
+            else {
+                buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
             }
 
             m.worked(1);
