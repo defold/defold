@@ -1333,7 +1333,7 @@ static void LogFrameBufferError(GLenum status)
     static float OpenGLGetDisplayScaleFactor(HContext context)
     {
         assert(context);
-        return glfwGetDisplayScaleFactor();
+        return dmPlatform::GetDisplayScaleFactor(((OpenGLContext*) context)->m_Window);
     }
 
     static uint32_t OpenGLGetWindowHeight(HContext context)

@@ -122,6 +122,7 @@ namespace dmPlatform
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
     uint32_t       GetWindowState(HWindow window, WindowState state);
     void           IconifyWindow(HWindow window);
+    float          GetDisplayScaleFactor(HWindow window);
 };
 
 #endif // DM_RIG_H

@@ -319,4 +319,9 @@ namespace dmPlatform
             glfwIconifyWindow();
         }
     }
+
+    float GetDisplayScaleFactor(HWindow window);
+    {
+        return glfwGetDisplayScaleFactor();
+    }
 }
