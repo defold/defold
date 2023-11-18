@@ -1174,6 +1174,11 @@ bail:
                 context->m_Instance = VK_NULL_HANDLE;
             }
 
+            if (context->m_Window)
+            {
+                dmPlatform::DeleteWindow(context->m_Window);
+            }
+
             delete context;
             g_VulkanContext = 0x0;
         }

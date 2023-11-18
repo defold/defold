@@ -83,9 +83,6 @@ namespace dmGraphics
         PipelineState           m_PipelineState;
         uint32_t                m_Width;
         uint32_t                m_Height;
-        uint32_t                m_WindowWidth;
-        uint32_t                m_WindowHeight;
-        uint32_t                m_Dpi;
         uint32_t                m_MaxTextureSize;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
@@ -104,7 +101,6 @@ namespace dmGraphics
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencilSupport        : 1;
-        uint32_t                m_WindowOpened                     : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;
         uint32_t                m_RenderDocSupport                 : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3

@@ -868,7 +868,7 @@ namespace dmGraphics
     {
         g_functions.m_IconifyWindow(context);
     }
-    uint32_t GetWindowState(HContext context, WindowState state)
+    uint32_t GetWindowState(HContext context, dmPlatform::WindowState state)
     {
         return g_functions.m_GetWindowState(context, state);
     }

@@ -148,29 +148,6 @@ namespace dmGraphics
         FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
-    enum WindowState
-    {
-        WINDOW_STATE_OPENED             = 0x00020001,
-        WINDOW_STATE_ACTIVE             = 0x00020002,
-        WINDOW_STATE_ICONIFIED          = 0x00020003,
-        WINDOW_STATE_ACCELERATED        = 0x00020004,
-        WINDOW_STATE_RED_BITS           = 0x00020005,
-        WINDOW_STATE_GREEN_BITS         = 0x00020006,
-        WINDOW_STATE_BLUE_BITS          = 0x00020007,
-        WINDOW_STATE_ALPHA_BITS         = 0x00020008,
-        WINDOW_STATE_DEPTH_BITS         = 0x00020009,
-        WINDOW_STATE_STENCIL_BITS       = 0x0002000A,
-        WINDOW_STATE_REFRESH_RATE       = 0x0002000B,
-        WINDOW_STATE_ACCUM_RED_BITS     = 0x0002000C,
-        WINDOW_STATE_ACCUM_GREEN_BITS   = 0x0002000D,
-        WINDOW_STATE_ACCUM_BLUE_BITS    = 0x0002000E,
-        WINDOW_STATE_ACCUM_ALPHA_BITS   = 0x0002000F,
-        WINDOW_STATE_AUX_BUFFERS        = 0x00020010,
-        WINDOW_STATE_STEREO             = 0x00020011,
-        WINDOW_STATE_WINDOW_NO_RESIZE   = 0x00020012,
-        WINDOW_STATE_FSAA_SAMPLES       = 0x00020013
-    };
-
     enum WindowResult
     {
         WINDOW_RESULT_ALREADY_OPENED    = 1,
@@ -415,7 +392,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowState(HContext context, WindowState state);
+    uint32_t GetWindowState(HContext context, dmPlatform::WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.

@@ -62,7 +62,8 @@ namespace dmGraphics
     typedef dmPlatform::PlatformResult (*OpenWindowFn)(HContext context, dmPlatform::WindowParams *params);
     typedef void (*CloseWindowFn)(HContext context);
     typedef void (*IconifyWindowFn)(HContext context);
-    typedef uint32_t (*GetWindowStateFn)(HContext context, WindowState state);
+    typedef dmPlatform::HWindow (*GetWindowFn)(HContext context);
+    typedef uint32_t (*GetWindowStateFn)(HContext context, dmPlatform::WindowState state);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
     typedef uint32_t (*GetWidthFn)(HContext context);
     typedef uint32_t (*GetHeightFn)(HContext context);
@@ -190,6 +191,7 @@ namespace dmGraphics
         OpenWindowFn m_OpenWindow;
         CloseWindowFn m_CloseWindow;
         IconifyWindowFn m_IconifyWindow;
+        GetWindowFn m_GetWindow;
         GetWindowStateFn m_GetWindowState;
         GetDisplayDpiFn m_GetDisplayDpi;
         GetWidthFn m_GetWidth;
@@ -321,6 +323,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CloseWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IconifyWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowState); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWidth); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetHeight); \

@@ -167,7 +167,7 @@ namespace dmGraphics
 
             SynchronizeDevice(vk_device);
 
-            glfwCloseWindow();
+            dmPlatform::CloseWindow(context->m_Window);
 
             VulkanDestroyResources(context);
 
@@ -195,21 +195,20 @@ namespace dmGraphics
         }
     }
 
-    uint32_t VulkanGetWindowState(HContext context, WindowState state)
+    uint32_t VulkanGetWindowState(HContext _context, dmPlatform::WindowState state)
     {
-        if (((VulkanContext*) context)->m_WindowOpened)
-        {
-            return glfwGetWindowParam(state);
-        }
-        else
-        {
-            return 0;
-        }
+        VulkanContext* context = (VulkanContext*) _context;
+        return dmPlatform::GetWindowState(context->m_Window, state);
     }
 
     uint32_t VulkanGetDisplayDpi(HContext context)
     {
         return 0;
+    }
+
+    dmPlatform::HWindow VulkanGetWindow(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Window;
     }
 
     uint32_t VulkanGetWidth(HContext context)

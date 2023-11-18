@@ -547,6 +547,7 @@ namespace dmGraphics
     void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
     void                       VulkanGetNativeWindowSize(HContext context, uint32_t* width, uint32_t* height);
     void                       VulkanIconifyWindow(HContext context);
-    uint32_t                   VulkanGetWindowState(HContext context, WindowState state);
+    uint32_t                   VulkanGetWindowState(HContext context, dmPlatform::WindowState state);
+    dmPlatform::HWindow        VulkanGetWindow(HContext context);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

@@ -34,9 +34,33 @@ namespace dmPlatform
 
     enum PlatformGraphicsApi
     {
-        PLATFORM_GRAPHICS_API_NULL,
-        PLATFORM_GRAPHICS_API_OPENGL,
-        PLATFORM_GRAPHICS_API_VULKAN,
+        PLATFORM_GRAPHICS_API_NULL   = 0,
+        PLATFORM_GRAPHICS_API_OPENGL = 1,
+        PLATFORM_GRAPHICS_API_VULKAN = 2,
+    };
+
+    enum WindowState
+    {
+        WINDOW_STATE_UNKNOWN            = 0,
+        WINDOW_STATE_OPENED             = 1,
+        WINDOW_STATE_ACTIVE             = 2,
+        WINDOW_STATE_ICONIFIED          = 3,
+        WINDOW_STATE_ACCELERATED        = 4,
+        WINDOW_STATE_RED_BITS           = 5,
+        WINDOW_STATE_GREEN_BITS         = 6,
+        WINDOW_STATE_BLUE_BITS          = 7,
+        WINDOW_STATE_ALPHA_BITS         = 8,
+        WINDOW_STATE_DEPTH_BITS         = 9,
+        WINDOW_STATE_STENCIL_BITS       = 10,
+        WINDOW_STATE_REFRESH_RATE       = 11,
+        WINDOW_STATE_ACCUM_RED_BITS     = 12,
+        WINDOW_STATE_ACCUM_GREEN_BITS   = 13,
+        WINDOW_STATE_ACCUM_BLUE_BITS    = 14,
+        WINDOW_STATE_ACCUM_ALPHA_BITS   = 15,
+        WINDOW_STATE_AUX_BUFFERS        = 16,
+        WINDOW_STATE_STEREO             = 17,
+        WINDOW_STATE_WINDOW_NO_RESIZE   = 18,
+        WINDOW_STATE_FSAA_SAMPLES       = 19,
     };
 
     struct WindowParams
@@ -96,6 +120,8 @@ namespace dmPlatform
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
+    uint32_t       GetWindowState(HWindow window, WindowState state);
+    void           IconifyWindow(HWindow window);
 };
 
 #endif // DM_RIG_H

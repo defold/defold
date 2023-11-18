@@ -270,4 +270,53 @@ namespace dmPlatform
         Window* wnd = (Window*) window;
         return (uint32_t) wnd->m_Height;
     }
+
+    static int WindowStateToGLFW(WindowState state)
+    {
+        switch(state)
+        {
+            case WINDOW_STATE_OPENED:           return 0x00020001;
+            case WINDOW_STATE_ACTIVE:           return 0x00020002;
+            case WINDOW_STATE_ICONIFIED:        return 0x00020003;
+            case WINDOW_STATE_ACCELERATED:      return 0x00020004;
+            case WINDOW_STATE_RED_BITS:         return 0x00020005;
+            case WINDOW_STATE_GREEN_BITS:       return 0x00020006;
+            case WINDOW_STATE_BLUE_BITS:        return 0x00020007;
+            case WINDOW_STATE_ALPHA_BITS:       return 0x00020008;
+            case WINDOW_STATE_DEPTH_BITS:       return 0x00020009;
+            case WINDOW_STATE_STENCIL_BITS:     return 0x0002000A;
+            case WINDOW_STATE_REFRESH_RATE:     return 0x0002000B;
+            case WINDOW_STATE_ACCUM_RED_BITS:   return 0x0002000C;
+            case WINDOW_STATE_ACCUM_GREEN_BITS: return 0x0002000D;
+            case WINDOW_STATE_ACCUM_BLUE_BITS:  return 0x0002000E;
+            case WINDOW_STATE_ACCUM_ALPHA_BITS: return 0x0002000F;
+            case WINDOW_STATE_AUX_BUFFERS:      return 0x00020010;
+            case WINDOW_STATE_STEREO:           return 0x00020011;
+            case WINDOW_STATE_WINDOW_NO_RESIZE: return 0x00020012;
+            case WINDOW_STATE_FSAA_SAMPLES:     return 0x00020013;
+            default:assert(0);break;
+        }
+        return -1;
+    }
+
+    uint32_t GetWindowState(HWindow window, WindowState state)
+    {
+        Window* wnd = (Window*) window;
+
+        // JG: Not sure this is needed, or if it's already supported via the glfwGetWindowParam fn
+        if (state == WINDOW_STATE_REFRESH_RATE)
+        {
+            return glfwGetWindowRefreshRate();
+        }
+        return wnd->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
+    }
+
+    void IconifyWindow(HWindow window)
+    {
+        Window* wnd = (Window*) window;
+        if (wnd->m_WindowOpened)
+        {
+            glfwIconifyWindow();
+        }
+    }
 }

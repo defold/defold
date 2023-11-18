@@ -189,11 +189,16 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t NullGetWindowState(HContext context, WindowState state)
+    static dmPlatform::HWindow NullGetWindow(HContext context)
+    {
+        return 0;
+    }
+
+    static uint32_t NullGetWindowState(HContext context, dmPlatform::WindowState state)
     {
         switch (state)
         {
-            case WINDOW_STATE_OPENED:
+            case dmPlatform::WINDOW_STATE_OPENED:
                 return ((NullContext*) context)->m_WindowOpened;
             default:
                 return 0;
