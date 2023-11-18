@@ -916,6 +916,7 @@ namespace dmLiveUpdate
             dmLogError("Liveupdate disabled due to project setting %s=%d", "liveupdate.enabled", liveupdate_enabled);
             return dmExtension::RESULT_OK;
         }
+        g_LiveUpdate.m_IsEnabled = true;
 
         dmResource::HFactory factory = params->m_ResourceFactory;
 
