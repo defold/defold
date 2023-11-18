@@ -175,11 +175,6 @@ namespace dmGraphics
         }
     }
 
-    void VulkanIconifyWindow(HContext _context)
-    {
-        dmPlatform::IconifyWindow(((VulkanContext*) _context)->m_Window);
-    }
-
     uint32_t VulkanGetDisplayDpi(HContext context)
     {
         return 0;
@@ -238,9 +233,5 @@ namespace dmGraphics
     #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
         glfwSwapBuffers();
     #endif
-    }
-
-    void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
-    {
     }
 }

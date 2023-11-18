@@ -1337,9 +1337,6 @@ bail:
         NativeSwapBuffers(context);
     }
 
-    static void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
-    {}
-
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         DM_PROFILE(__FUNCTION__);

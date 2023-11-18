@@ -1360,11 +1360,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetSwapInterval(HContext context, uint32_t swap_interval)
-    {
-        dmPlatform::SetSwapInterval(((OpenGLContext*) context)->m_Window, swap_interval);
-    }
-
     static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
     {
         const GLenum buffer_usage_lut[] = {

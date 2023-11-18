@@ -171,11 +171,6 @@ namespace dmGraphics
         }
     }
 
-    static void NullIconifyWindow(HContext context)
-    {
-        assert(context);
-    }
-
     static void NullRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
@@ -203,21 +198,6 @@ namespace dmGraphics
     static uint32_t NullGetHeight(HContext context)
     {
         return ((NullContext*) context)->m_Height;
-    }
-
-    static uint32_t NullGetWindowWidth(HContext context)
-    {
-        return dmPlatform::GetWindowWidth(((NullContext*) context)->m_Window);
-    }
-
-    static float NullGetDisplayScaleFactor(HContext context)
-    {
-        return 1.0f;
-    }
-
-    static uint32_t NullGetWindowHeight(HContext context)
-    {
-        return dmPlatform::GetWindowHeight(((NullContext*) context)->m_Window);
     }
 
     static void NullSetWindowSize(HContext _context, uint32_t width, uint32_t height)
@@ -341,11 +321,6 @@ namespace dmGraphics
         }
 
         g_Flipped = 1;
-    }
-
-    static void NullSetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
-    {
-        // NOP
     }
 
     #define NATIVE_HANDLE_IMPL(return_type, func_name) return_type GetNative##func_name() { return NULL; }

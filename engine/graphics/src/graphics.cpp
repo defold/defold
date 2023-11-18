@@ -879,6 +879,10 @@ namespace dmGraphics
     {
         dmPlatform::IconifyWindow(g_functions.m_GetWindow(context));
     }
+    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    {
+        dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
+    }
     ///////////////////////////////////////////////////
 
     dmPlatform::PlatformResult OpenWindow(HContext context, dmPlatform::WindowParams *params)
@@ -920,10 +924,6 @@ namespace dmGraphics
     void Flip(HContext context)
     {
         g_functions.m_Flip(context);
-    }
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
-    {
-        g_functions.m_SetSwapInterval(context, swap_interval);
     }
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {

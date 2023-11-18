@@ -28,7 +28,8 @@ namespace dmPlatform
         WindowParams m_CreateParams;
         int32_t      m_Width;
         int32_t      m_Height;
-        uint32_t     m_WindowOpened : 1;
+        uint32_t     m_WindowOpened          : 1;
+        uint32_t     m_SwapIntervalSupported : 1;
     };
 
     // Needed by glfw2.7
@@ -38,9 +39,10 @@ namespace dmPlatform
     {
         if (g_Window == 0)
         {
-            Window* wnd         = new Window;
+            Window* wnd = new Window;
+            memset(wnd, 0, sizeof(Window));
+
             wnd->m_CreateParams = params;
-            wnd->m_WindowOpened = 0;
 
             if (glfwInit() == GL_FALSE)
             {
@@ -181,7 +183,8 @@ namespace dmPlatform
         glfwSwapInterval(1);
         glfwGetWindowSize(&wnd->m_Width, &wnd->m_Height);
 
-        wnd->m_WindowOpened = 1;
+        wnd->m_WindowOpened          = 1;
+        wnd->m_SwapIntervalSupported = 1;
 
         return PLATFORM_RESULT_OK;
     }
@@ -317,6 +320,9 @@ namespace dmPlatform
 
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
     {
-        glfwSwapInterval(swap_interval);
+        if (window->m_SwapIntervalSupported)
+        {
+            glfwSwapInterval(swap_interval);
+        }
     }
 }

@@ -1,4 +1,6 @@
 
+#include <string>
+
 #include "platform.h"
 
 namespace dmPlatform
@@ -14,8 +16,8 @@ namespace dmPlatform
     HWindow NewWindow(const WindowParams& params)
     {
         Window* wnd = new Window();
+        memset(wnd, 0, sizeof(Window));
         wnd->m_CreateParams = params;
-        wnd->m_WindowOpened = 0;
         return wnd;
     }
 
@@ -77,5 +79,4 @@ namespace dmPlatform
 
     void IconifyWindow(HWindow window)
     {}
-
 }

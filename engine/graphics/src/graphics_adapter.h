@@ -70,7 +70,6 @@ namespace dmGraphics
     typedef void (*GetDefaultTextureFiltersFn)(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
     typedef void (*BeginFrameFn)(HContext context);
     typedef void (*FlipFn)(HContext context);
-    typedef void (*SetSwapIntervalFn)(HContext context, uint32_t swap_interval);
     typedef void (*ClearFn)(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
     typedef HVertexBuffer (*NewVertexBufferFn)(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*DeleteVertexBufferFn)(HVertexBuffer buffer);
@@ -192,7 +191,6 @@ namespace dmGraphics
         GetDefaultTextureFiltersFn m_GetDefaultTextureFilters;
         BeginFrameFn m_BeginFrame;
         FlipFn m_Flip;
-        SetSwapIntervalFn m_SetSwapInterval;
         ClearFn m_Clear;
         NewVertexBufferFn m_NewVertexBuffer;
         DeleteVertexBufferFn m_DeleteVertexBuffer;
@@ -317,7 +315,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDefaultTextureFilters); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, BeginFrame); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Flip); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetSwapInterval); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Clear); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexBuffer); \
