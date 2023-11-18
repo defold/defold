@@ -97,12 +97,6 @@ namespace dmGraphics
     {
     }
 
-    uint32_t VulkanGetWindowRefreshRate(HContext _context)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        return dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_REFRESH_RATE);
-    }
-
     static void VulkanOnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
         g_VulkanContext->m_WindowWidth  = (uint32_t)width;
@@ -181,15 +175,9 @@ namespace dmGraphics
         }
     }
 
-    void VulkanIconifyWindow(HContext context)
+    void VulkanIconifyWindow(HContext _context)
     {
         dmPlatform::IconifyWindow(((VulkanContext*) _context)->m_Window);
-    }
-
-    uint32_t VulkanGetWindowState(HContext _context, dmPlatform::WindowState state)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        return dmPlatform::GetWindowState(context->m_Window, state);
     }
 
     uint32_t VulkanGetDisplayDpi(HContext context)
@@ -210,21 +198,6 @@ namespace dmGraphics
     uint32_t VulkanGetHeight(HContext context)
     {
         return ((VulkanContext*) context)->m_Height;
-    }
-
-    uint32_t VulkanGetWindowWidth(HContext context)
-    {
-        return ((VulkanContext*) context)->m_WindowWidth;
-    }
-
-    uint32_t VulkanGetWindowHeight(HContext context)
-    {
-        return ((VulkanContext*) context)->m_WindowHeight;
-    }
-
-    float VulkanGetDisplayScaleFactor(HContext context)
-    {
-        return dmPlatform::GetDisplayScaleFactor(((VulkanContext*) context)->m_Window);
     }
 
     void VulkanGetNativeWindowSize(HContext _context, uint32_t* width, uint32_t* height)

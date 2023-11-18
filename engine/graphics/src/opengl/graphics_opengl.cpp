@@ -742,19 +742,6 @@ static void LogFrameBufferError(GLenum status)
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
-    static inline WindowResult PlatformToWindowResult(dmPlatform::PlatformResult res)
-    {
-        switch(res)
-        {
-            case dmPlatform::PLATFORM_RESULT_OK:                    return WINDOW_RESULT_OK;
-            case dmPlatform::PLATFORM_RESULT_WINDOW_OPEN_ERROR:     return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-            case dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED: return WINDOW_RESULT_ALREADY_OPENED;
-            default:assert(0);
-        }
-
-        return (WindowResult) -1;
-    }
-
     static dmPlatform::PlatformResult OpenGLOpenWindow(HContext _context, dmPlatform::WindowParams *params)
     {
         assert(_context);
@@ -1264,13 +1251,6 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLIconifyWindow(HContext _context)
-    {
-        assert(_context);
-        OpenGLContext* context = (OpenGLContext*) _context;
-        dmPlatform::IconifyWindow(context->m_Window);
-    }
-
     static void OpenGLRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         #ifdef __EMSCRIPTEN__
@@ -1285,20 +1265,6 @@ static void LogFrameBufferError(GLenum status)
             step_method(user_data);
         }
         #endif
-    }
-
-    static uint32_t OpenGLGetWindowState(HContext _context, dmPlatform::WindowState state)
-    {
-        assert(_context);
-        OpenGLContext* context = (OpenGLContext*) _context;
-        return dmPlatform::GetWindowState(context->m_Window, state);
-    }
-
-    static uint32_t OpenGLGetWindowRefreshRate(HContext _context)
-    {
-        assert(_context);
-        OpenGLContext* context = (OpenGLContext*) _context;
-        return dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_REFRESH_RATE);
     }
 
     static PipelineState OpenGLGetPipelineState(HContext context)
@@ -1322,24 +1288,6 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
         return ((OpenGLContext*) context)->m_Height;
-    }
-
-    static uint32_t OpenGLGetWindowWidth(HContext context)
-    {
-        assert(context);
-        return dmPlatform::GetWindowWidth(((OpenGLContext*) context)->m_Window);
-    }
-
-    static float OpenGLGetDisplayScaleFactor(HContext context)
-    {
-        assert(context);
-        return dmPlatform::GetDisplayScaleFactor(((OpenGLContext*) context)->m_Window);
-    }
-
-    static uint32_t OpenGLGetWindowHeight(HContext context)
-    {
-        assert(context);
-        return dmPlatform::GetWindowHeight(((OpenGLContext*) context)->m_Window);
     }
 
     static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
@@ -1414,7 +1362,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetSwapInterval(HContext context, uint32_t swap_interval)
     {
-        glfwSwapInterval(swap_interval);
+        dmPlatform::SetSwapInterval(((OpenGLContext*) context)->m_Window, swap_interval);
     }
 
     static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)

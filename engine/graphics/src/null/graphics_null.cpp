@@ -118,22 +118,26 @@ namespace dmGraphics
 
         NullContext* context = (NullContext*) _context;
 
-        if (context->m_WindowOpened)
+        if (context->m_Window)
         {
             return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
-        context->m_WindowResizeCallback = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
+        params->m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+        context->m_Window     = dmPlatform::NewWindow(*params);
+
+        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window);
+
+        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
+        {
+            return platform_result;
+        }
+
+        context->m_CloseCallback = params->m_CloseCallback;
+        context->m_CloseCallbackUserData = params->m_CloseCallbackUserData;
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
-        context->m_WindowWidth = params->m_Width;
-        context->m_WindowHeight = params->m_Height;
-        context->m_Dpi = 0;
-        context->m_WindowOpened = 1;
-        uint32_t buffer_size = 4 * context->m_WindowWidth * context->m_WindowHeight;
+        uint32_t buffer_size = 4 * dmPlatform::GetWindowWidth(context->m_Window) * dmPlatform::GetWindowHeight(context->m_Window);
         context->m_MainFrameBuffer.m_ColorBuffer[0] = new char[buffer_size];
         context->m_MainFrameBuffer.m_ColorBufferSize[0] = buffer_size;
         context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
@@ -151,28 +155,19 @@ namespace dmGraphics
         return dmPlatform::PLATFORM_RESULT_OK;
     }
 
-    static uint32_t NullGetWindowRefreshRate(HContext context)
-    {
-        assert(context);
-        return 0;
-    }
-
     static void NullCloseWindow(HContext _context)
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
 
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             FrameBuffer& main = context->m_MainFrameBuffer;
             delete [] (char*)main.m_ColorBuffer[0];
             delete [] (char*)main.m_DepthBuffer;
             delete [] (char*)main.m_StencilBuffer;
-            context->m_WindowOpened = 0;
             context->m_Width = 0;
             context->m_Height = 0;
-            context->m_WindowWidth = 0;
-            context->m_WindowHeight = 0;
         }
     }
 
@@ -191,24 +186,13 @@ namespace dmGraphics
 
     static dmPlatform::HWindow NullGetWindow(HContext context)
     {
-        return 0;
-    }
-
-    static uint32_t NullGetWindowState(HContext context, dmPlatform::WindowState state)
-    {
-        switch (state)
-        {
-            case dmPlatform::WINDOW_STATE_OPENED:
-                return ((NullContext*) context)->m_WindowOpened;
-            default:
-                return 0;
-        }
+        return ((NullContext*) context)->m_Window;
     }
 
     static uint32_t NullGetDisplayDpi(HContext context)
     {
         assert(context);
-        return ((NullContext*) context)->m_Dpi;
+        return 0;
     }
 
     static uint32_t NullGetWidth(HContext context)
@@ -223,7 +207,7 @@ namespace dmGraphics
 
     static uint32_t NullGetWindowWidth(HContext context)
     {
-        return ((NullContext*) context)->m_WindowWidth;
+        return dmPlatform::GetWindowWidth(((NullContext*) context)->m_Window);
     }
 
     static float NullGetDisplayScaleFactor(HContext context)
@@ -233,14 +217,14 @@ namespace dmGraphics
 
     static uint32_t NullGetWindowHeight(HContext context)
     {
-        return ((NullContext*) context)->m_WindowHeight;
+        return dmPlatform::GetWindowHeight(((NullContext*) context)->m_Window);
     }
 
     static void NullSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             FrameBuffer& main = context->m_MainFrameBuffer;
             delete [] (char*)main.m_ColorBuffer[0];
@@ -248,8 +232,6 @@ namespace dmGraphics
             delete [] (char*)main.m_StencilBuffer;
             context->m_Width = width;
             context->m_Height = height;
-            context->m_WindowWidth = width;
-            context->m_WindowHeight = height;
             uint32_t buffer_size = 4 * width * height;
             main.m_ColorBuffer[0] = new char[buffer_size];
             main.m_ColorBufferSize[0] = buffer_size;
@@ -258,8 +240,7 @@ namespace dmGraphics
             main.m_StencilBuffer = new char[buffer_size];
             main.m_StencilBufferSize = buffer_size;
 
-            if (context->m_WindowResizeCallback)
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
     }
 
@@ -267,13 +248,9 @@ namespace dmGraphics
     {
         assert(_context);
         NullContext* context = (NullContext*) _context;
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            context->m_WindowWidth = width;
-            context->m_WindowHeight = height;
-
-            if (context->m_WindowResizeCallback)
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
     }
 
@@ -357,7 +334,7 @@ namespace dmGraphics
         // Mimick glfw
         if (context->m_RequestWindowClose)
         {
-            if (context->m_WindowCloseCallback != 0x0 && context->m_WindowCloseCallback(context->m_WindowCloseCallbackUserData))
+            if (context->m_CloseCallback != 0x0 && context->m_CloseCallback(context->m_CloseCallbackUserData))
             {
                 CloseWindow(context);
             }

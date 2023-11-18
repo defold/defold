@@ -93,6 +93,9 @@ namespace dmGraphics
     {
         NullContext(const ContextParams& params);
 
+        dmPlatform::HWindow                m_Window;
+        WindowCloseCallback                m_CloseCallback;
+        void*                              m_CloseCallbackUserData;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
@@ -100,25 +103,15 @@ namespace dmGraphics
         FrameBuffer                        m_MainFrameBuffer;
         FrameBuffer*                       m_CurrentFrameBuffer;
         void*                              m_Program;
-        dmPlatform::WindowResizeCallback   m_WindowResizeCallback;
-        void*                              m_WindowResizeCallbackUserData;
-        dmPlatform::WindowCloseCallback    m_WindowCloseCallback;
-        void*                              m_WindowCloseCallbackUserData;
-        dmPlatform::WindowCloseCallback    m_WindowFocusCallback;
-        void*                              m_WindowFocusCallbackUserData;
         PipelineState                      m_PipelineState;
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
         uint32_t                           m_Width;
         uint32_t                           m_Height;
-        uint32_t                           m_WindowWidth;
-        uint32_t                           m_WindowHeight;
-        uint32_t                           m_Dpi;
         int32_t                            m_ScissorRect[4];
         uint32_t                           m_TextureFormatSupport;
-        uint32_t                           m_WindowOpened : 1;
         // Only use for testing
-        uint32_t                    m_RequestWindowClose : 1;
+        uint32_t                           m_RequestWindowClose : 1;
     };
 }
 

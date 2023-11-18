@@ -852,10 +852,35 @@ namespace dmGraphics
     {
         g_functions.m_Finalize();
     }
+
+    ///////////////////////////////////////////////////
+    ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return g_functions.m_GetWindowRefreshRate(context);
+        return dmPlatform::GetWindowState(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);
     }
+    uint32_t GetWindowState(HContext context, dmPlatform::WindowState state)
+    {
+        return dmPlatform::GetWindowState(g_functions.m_GetWindow(context), state);
+    }
+    uint32_t GetWindowWidth(HContext context)
+    {
+        return dmPlatform::GetWindowWidth(g_functions.m_GetWindow(context));
+    }
+    uint32_t GetWindowHeight(HContext context)
+    {
+        return dmPlatform::GetWindowHeight(g_functions.m_GetWindow(context));
+    }
+    float GetDisplayScaleFactor(HContext context)
+    {
+        return dmPlatform::GetDisplayScaleFactor(g_functions.m_GetWindow(context));
+    }
+    void IconifyWindow(HContext context)
+    {
+        dmPlatform::IconifyWindow(g_functions.m_GetWindow(context));
+    }
+    ///////////////////////////////////////////////////
+
     dmPlatform::PlatformResult OpenWindow(HContext context, dmPlatform::WindowParams *params)
     {
         return g_functions.m_OpenWindow(context, params);
@@ -863,14 +888,6 @@ namespace dmGraphics
     void CloseWindow(HContext context)
     {
         g_functions.m_CloseWindow(context);
-    }
-    void IconifyWindow(HContext context)
-    {
-        g_functions.m_IconifyWindow(context);
-    }
-    uint32_t GetWindowState(HContext context, dmPlatform::WindowState state)
-    {
-        return g_functions.m_GetWindowState(context, state);
     }
     uint32_t GetDisplayDpi(HContext context)
     {
@@ -883,18 +900,6 @@ namespace dmGraphics
     uint32_t GetHeight(HContext context)
     {
         return g_functions.m_GetHeight(context);
-    }
-    uint32_t GetWindowWidth(HContext context)
-    {
-        return g_functions.m_GetWindowWidth(context);
-    }
-    uint32_t GetWindowHeight(HContext context)
-    {
-        return g_functions.m_GetWindowHeight(context);
-    }
-    float GetDisplayScaleFactor(HContext context)
-    {
-        return g_functions.m_GetDisplayScaleFactor(context);
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {

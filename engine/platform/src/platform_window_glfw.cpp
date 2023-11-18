@@ -50,7 +50,7 @@ namespace dmPlatform
 
             g_Window = wnd;
 
-            return (void*) wnd;
+            return wnd;
         }
 
         return 0;
@@ -212,17 +212,15 @@ namespace dmPlatform
 
     PlatformResult OpenWindow(HWindow window)
     {
-        Window* wnd = (Window*) window;
-
-        if (wnd->m_WindowOpened)
+        if (window->m_WindowOpened)
         {
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
-        switch(wnd->m_CreateParams.m_GraphicsApi)
+        switch(window->m_CreateParams.m_GraphicsApi)
         {
-            case PLATFORM_GRAPHICS_API_OPENGL: return OpenWindowOpenGL(wnd);
-            case PLATFORM_GRAPHICS_API_VULKAN: return OpenWindowVulkan(wnd);
+            case PLATFORM_GRAPHICS_API_OPENGL: return OpenWindowOpenGL(window);
+            case PLATFORM_GRAPHICS_API_VULKAN: return OpenWindowVulkan(window);
             default: assert(0);
         }
 
@@ -236,8 +234,7 @@ namespace dmPlatform
 
     void DeleteWindow(HWindow window)
     {
-        Window* wnd = (Window*) window;
-        delete wnd;
+        delete window;
         g_Window = 0;
 
         glfwTerminate();
@@ -245,30 +242,26 @@ namespace dmPlatform
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
-        Window* wnd = (Window*) window;
-
         glfwSetWindowSize((int)width, (int)height);
         int window_width, window_height;
         glfwGetWindowSize(&window_width, &window_height);
-        wnd->m_Width  = window_width;
-        wnd->m_Height = window_height;
+        window->m_Width  = window_width;
+        window->m_Height = window_height;
 
         // The callback is not called from glfw when the size is set manually
-        if (wnd->m_CreateParams.m_ResizeCallback)
+        if (window->m_CreateParams.m_ResizeCallback)
         {
-            wnd->m_CreateParams.m_ResizeCallback(wnd->m_CreateParams.m_ResizeCallbackUserData, window_width, window_height);
+            window->m_CreateParams.m_ResizeCallback(window->m_CreateParams.m_ResizeCallbackUserData, window_width, window_height);
         }
     }
 
     uint32_t GetWindowWidth(HWindow window)
     {
-        Window* wnd = (Window*) window;
-        return (uint32_t) wnd->m_Width;
+        return (uint32_t) window->m_Width;
     }
     uint32_t GetWindowHeight(HWindow window)
     {
-        Window* wnd = (Window*) window;
-        return (uint32_t) wnd->m_Height;
+        return (uint32_t) window->m_Height;
     }
 
     static int WindowStateToGLFW(WindowState state)
@@ -301,27 +294,29 @@ namespace dmPlatform
 
     uint32_t GetWindowState(HWindow window, WindowState state)
     {
-        Window* wnd = (Window*) window;
-
         // JG: Not sure this is needed, or if it's already supported via the glfwGetWindowParam fn
         if (state == WINDOW_STATE_REFRESH_RATE)
         {
             return glfwGetWindowRefreshRate();
         }
-        return wnd->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
+        return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
     }
 
     void IconifyWindow(HWindow window)
     {
-        Window* wnd = (Window*) window;
-        if (wnd->m_WindowOpened)
+        if (window->m_WindowOpened)
         {
             glfwIconifyWindow();
         }
     }
 
-    float GetDisplayScaleFactor(HWindow window);
+    float GetDisplayScaleFactor(HWindow window)
     {
         return glfwGetDisplayScaleFactor();
+    }
+
+    void SetSwapInterval(HWindow window, uint32_t swap_interval)
+    {
+        glfwSwapInterval(swap_interval);
     }
 }

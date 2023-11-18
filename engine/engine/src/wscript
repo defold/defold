@@ -201,7 +201,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
+        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
         exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',

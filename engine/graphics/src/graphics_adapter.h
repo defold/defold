@@ -58,19 +58,13 @@ namespace dmGraphics
     typedef bool (*InitializeFn)();
     typedef void (*FinalizeFn)();
     typedef void (*AppBootstrapFn)(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
-    typedef uint32_t (*GetWindowRefreshRateFn)(HContext context);
     typedef dmPlatform::PlatformResult (*OpenWindowFn)(HContext context, dmPlatform::WindowParams *params);
     typedef void (*CloseWindowFn)(HContext context);
-    typedef void (*IconifyWindowFn)(HContext context);
     typedef dmPlatform::HWindow (*GetWindowFn)(HContext context);
-    typedef uint32_t (*GetWindowStateFn)(HContext context, dmPlatform::WindowState state);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
     typedef uint32_t (*GetWidthFn)(HContext context);
     typedef uint32_t (*GetHeightFn)(HContext context);
-    typedef uint32_t (*GetWindowWidthFn)(HContext context);
-    typedef uint32_t (*GetWindowHeightFn)(HContext context);
     typedef PipelineState (*GetPipelineStateFn)(HContext context);
-    typedef float (*GetDisplayScaleFactorFn)(HContext context);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*GetDefaultTextureFiltersFn)(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
@@ -187,18 +181,12 @@ namespace dmGraphics
         DeleteContextFn m_DeleteContext;
         InitializeFn m_Initialize;
         FinalizeFn m_Finalize;
-        GetWindowRefreshRateFn m_GetWindowRefreshRate;
         OpenWindowFn m_OpenWindow;
         CloseWindowFn m_CloseWindow;
-        IconifyWindowFn m_IconifyWindow;
         GetWindowFn m_GetWindow;
-        GetWindowStateFn m_GetWindowState;
         GetDisplayDpiFn m_GetDisplayDpi;
         GetWidthFn m_GetWidth;
         GetHeightFn m_GetHeight;
-        GetWindowWidthFn m_GetWindowWidth;
-        GetWindowHeightFn m_GetWindowHeight;
-        GetDisplayScaleFactorFn m_GetDisplayScaleFactor;
         SetWindowSizeFn m_SetWindowSize;
         ResizeWindowFn m_ResizeWindow;
         GetDefaultTextureFiltersFn m_GetDefaultTextureFilters;
@@ -318,18 +306,12 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteContext); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Initialize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Finalize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowRefreshRate); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, OpenWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CloseWindow); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IconifyWindow); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWidth); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowWidth); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayScaleFactor); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ResizeWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDefaultTextureFilters); \

@@ -19,7 +19,8 @@
 
 namespace dmPlatform
 {
-    typedef void* HWindow;
+    struct Window;
+    typedef Window* HWindow;
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
     typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
@@ -119,10 +120,11 @@ namespace dmPlatform
     void           CloseWindow(HWindow window);
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
-    void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
     uint32_t       GetWindowState(HWindow window, WindowState state);
-    void           IconifyWindow(HWindow window);
     float          GetDisplayScaleFactor(HWindow window);
+    void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
+    void           SetSwapInterval(HWindow window, uint32_t swap_interval);
+    void           IconifyWindow(HWindow window);
 };
 
 #endif // DM_RIG_H

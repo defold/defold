@@ -541,7 +541,6 @@ namespace dmGraphics
     uint32_t                   VulkanGetWindowWidth(HContext context);
     uint32_t                   VulkanGetWindowHeight(HContext context);
     float                      VulkanGetDisplayScaleFactor(HContext context);
-    uint32_t                   VulkanGetWindowRefreshRate(HContext context);
     void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
     void                       VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
     void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
