@@ -712,6 +712,10 @@ namespace dmEngine
         dmBuffer::NewContext();
 
 
+
+
+
+
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
@@ -993,6 +997,9 @@ namespace dmEngine
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
+
+        // JG: Q - Can we create the graphics context before HID and pass in the context to the Hid insteaD?
+        dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(engine->m_GraphicsContext));
 
         // Any connected devices are registered here.
         dmHID::Init(engine->m_HidContext);

@@ -25,38 +25,21 @@ namespace dmPlatform
 {
     struct Window
     {
-        WindowParams m_CreateParams;
-        int32_t      m_Width;
-        int32_t      m_Height;
-        uint32_t     m_WindowOpened          : 1;
-        uint32_t     m_SwapIntervalSupported : 1;
+        WindowParams                  m_CreateParams;
+        WindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
+        void*                         m_AddKeyboarCharCallBackUserData;
+        WindowSetMarkedTextCallback   m_SetMarkedTextCallback;
+        void*                         m_SetMarkedTextCallbackUserData;
+        WindowDeviceChangedCallback   m_DeviceChangedCallback;
+        void*                         m_DeviceChangedCallbackUserData;
+        int32_t                       m_Width;
+        int32_t                       m_Height;
+        uint32_t                      m_WindowOpened          : 1;
+        uint32_t                      m_SwapIntervalSupported : 1;
     };
 
     // Needed by glfw2.7
     static Window* g_Window = 0;
-
-    HWindow NewWindow(const WindowParams& params)
-    {
-        if (g_Window == 0)
-        {
-            Window* wnd = new Window;
-            memset(wnd, 0, sizeof(Window));
-
-            wnd->m_CreateParams = params;
-
-            if (glfwInit() == GL_FALSE)
-            {
-                dmLogError("Could not initialize glfw.");
-                return 0;
-            }
-
-            g_Window = wnd;
-
-            return wnd;
-        }
-
-        return 0;
-    }
 
     static void OnWindowResize(int width, int height)
     {
@@ -96,6 +79,66 @@ namespace dmPlatform
         {
             g_Window->m_CreateParams.m_IconifyCallback(g_Window->m_CreateParams.m_IconifyCallbackUserData, iconify);
         }
+    }
+
+    static void OnAddCharacterCallback(int chr, int _)
+    {
+        if (g_Window->m_AddKeyboarCharCallBack)
+        {
+            g_Window->m_AddKeyboarCharCallBack(g_Window->m_AddKeyboarCharCallBackUserData, chr);
+        }
+    }
+
+    static void OnMarkedTextCallback(char* text)
+    {
+        if (g_Window->m_SetMarkedTextCallback)
+        {
+            g_Window->m_SetMarkedTextCallback(g_Window->m_SetMarkedTextCallbackUserData, text);
+        }
+    }
+
+    static void OnDeviceChangedCallback(int status)
+    {
+        if (g_Window->m_DeviceChangedCallback)
+        {
+            g_Window->m_DeviceChangedCallback(g_Window->m_DeviceChangedCallbackUserData, status);
+        }
+    }
+
+    HWindow NewWindow(const WindowParams& params)
+    {
+        if (g_Window == 0)
+        {
+            Window* wnd = new Window;
+            memset(wnd, 0, sizeof(Window));
+
+            wnd->m_CreateParams = params;
+
+            if (glfwInit() == GL_FALSE)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0;
+            }
+
+            if (glfwSetCharCallback(OnAddCharacterCallback) == 0)
+            {
+                dmLogFatal("could not set glfw char callback.");
+            }
+            if (glfwSetMarkedTextCallback(OnMarkedTextCallback) == 0)
+            {
+                dmLogFatal("could not set glfw marked text callback.");
+            }
+            if (glfwSetDeviceChangedCallback(OnDeviceChangedCallback) == 0)
+            {
+                dmLogFatal("coult not set glfw gamepad connection callback.");
+            }
+
+            g_Window = wnd;
+
+            return wnd;
+        }
+
+        return 0;
     }
 
     PlatformResult OpenWindowOpenGL(Window* wnd)
@@ -324,5 +367,23 @@ namespace dmPlatform
         {
             glfwSwapInterval(swap_interval);
         }
+    }
+
+    void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)
+    {
+        window->m_AddKeyboarCharCallBack         = cb;
+        window->m_AddKeyboarCharCallBackUserData = user_data;
+    }
+
+    void SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data)
+    {
+        window->m_SetMarkedTextCallback         = cb;
+        window->m_SetMarkedTextCallbackUserData = user_data;
+    }
+
+    void SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data)
+    {
+        window->m_DeviceChangedCallback         = cb;
+        window->m_DeviceChangedCallbackUserData = user_data;
     }
 }

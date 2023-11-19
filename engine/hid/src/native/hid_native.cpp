@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,6 @@
 #include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
-
-#include <dmsdk/graphics/glfw/glfw.h>
 
 #include "hid.h"
 #include "hid_private.h"
@@ -38,27 +36,24 @@ namespace dmHID
         dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
-    // This is unfortunately needed for GLFW since we need the context in the callbacks,
-    // and there's no userdata pointers available for us to pass it in..
-    static HContext g_HidContext = 0;
-
-    static void GLFWCharacterCallback(int chr, int _)
+    static void GLFWAddKeyboardChar(void* ctx, int chr)
     {
-        AddKeyboardChar(g_HidContext, chr);
+        AddKeyboardChar((HContext) ctx, chr);
     }
 
-    static void GLFWMarkedTextCallback(char* text)
+    static void GLFWSetMarkedText(void* ctx, char* text)
     {
-        SetMarkedText(g_HidContext, text);
+        SetMarkedText((HContext) ctx, text);
     }
 
-    static void GLFWDeviceChangedCallback(int status)
+    static void GLFWDeviceChangedCallback(void* ctx, int status)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        HContext context = (HContext) ctx;
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
         for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
         {
-            user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
+            user_data->m_GamepadDrivers[i]->m_DetectDevices(context, user_data->m_GamepadDrivers[i]);
         }
     }
 
@@ -88,11 +83,11 @@ namespace dmHID
         return -1;
     }
 
-    static void InstallGamepadDriver(GamepadDriver* driver, const char* driver_name)
+    static void InstallGamepadDriver(HContext context, GamepadDriver* driver, const char* driver_name)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
-        if (!driver->m_Initialize(g_HidContext, driver))
+        if (!driver->m_Initialize(context, driver))
         {
             dmLogError("Unable to initialize gamepad driver '%s'", driver_name);
             return;
@@ -107,7 +102,7 @@ namespace dmHID
 
         dmLogDebug("Installed gamepad driver '%s'", driver_name);
 
-        driver->m_DetectDevices(g_HidContext, driver);
+        driver->m_DetectDevices(context, driver);
     }
 
     static void InitializeGamepads(HContext context)
@@ -119,10 +114,10 @@ namespace dmHID
             context->m_Gamepads[i].m_Driver = DRIVER_HANDLE_FREE;
         }
 
-        InstallGamepadDriver(CreateGamepadDriverGLFW(context), "GLFW");
+        InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
 
     #ifdef DM_HID_DINPUT
-        InstallGamepadDriver(CreateGamepadDriverDInput(context), "Direct Input");
+        InstallGamepadDriver(context, CreateGamepadDriverDInput(context), "Direct Input");
     #endif
     }
 
@@ -182,30 +177,18 @@ namespace dmHID
     {
         if (context != 0x0)
         {
-            assert(g_HidContext == 0);
-
             if (glfwInit() == GL_FALSE)
             {
                 dmLogFatal("glfw could not be initialized.");
                 return false;
             }
 
-            if (glfwSetCharCallback(GLFWCharacterCallback) == 0)
-            {
-                dmLogFatal("could not set glfw char callback.");
-            }
-            if (glfwSetMarkedTextCallback(GLFWMarkedTextCallback) == 0)
-            {
-                dmLogFatal("could not set glfw marked text callback.");
-            }
-            if (glfwSetDeviceChangedCallback(GLFWDeviceChangedCallback) == 0)
-            {
-                dmLogFatal("coult not set glfw gamepad connection callback.");
-            }
+            dmPlatform::SetKeyboardCharCallback(context->m_Window, GLFWAddKeyboardChar, (void*) context);
+            dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, GLFWSetMarkedText, (void*) context);
+            dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, GLFWDeviceChangedCallback, (void*) context);
 
             assert(context->m_NativeContextUserData == 0);
             context->m_NativeContextUserData = new NativeContextUserData();
-            g_HidContext = context;
 
             InitializeGamepads(context);
 
@@ -216,9 +199,9 @@ namespace dmHID
 
     void Final(HContext context)
     {
-        if (g_HidContext)
+        if (context)
         {
-            NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+            NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
             for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
             {
@@ -226,8 +209,7 @@ namespace dmHID
             }
 
             delete user_data;
-            g_HidContext->m_NativeContextUserData = 0;
-            g_HidContext = 0;
+            context->m_NativeContextUserData = 0;
         }
     }
 
@@ -292,7 +274,7 @@ namespace dmHID
 
         if (!context->m_IgnoreGamepads)
         {
-            NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+            NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
             for (uint32_t t = 0; t < MAX_GAMEPAD_COUNT; ++t)
             {
@@ -350,7 +332,7 @@ namespace dmHID
         assert(buffer_length != 0);
         assert(buffer != 0);
 
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
             buffer[0] = 0;

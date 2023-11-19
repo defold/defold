@@ -24,6 +24,7 @@
 #include <hid.h>
 
 #include <graphics/graphics.h>
+#include <platform/platform.h>
 
 // From engine_private.h
 
@@ -146,7 +147,7 @@ static void* EngineCreate(int argc, char** argv)
         return 0;
     }
 
-    dmGraphics::WindowParams window_params;
+    dmPlatform::WindowParams window_params;
     memset(&window_params, 0, sizeof(window_params));
     window_params.m_Width           = 32;
     window_params.m_Height          = 32;

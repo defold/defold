@@ -58,6 +58,7 @@ namespace dmHID
     {
         Context();
 
+        dmPlatform::HWindow m_Window;
         Gamepad            m_Gamepads[MAX_GAMEPAD_COUNT];
         Keyboard           m_Keyboards[MAX_KEYBOARD_COUNT];
         Mouse              m_Mice[MAX_MOUSE_COUNT];

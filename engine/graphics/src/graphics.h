@@ -375,6 +375,13 @@ namespace dmGraphics
     dmPlatform::PlatformResult OpenWindow(HContext context, dmPlatform::WindowParams *params);
 
     /**
+     * Get the window handle from the graphics context
+     * @param context Graphics context handle
+     * @return The window handle
+     */
+    dmPlatform::HWindow GetWindow(HContext context);
+
+    /**
      * Close the open window if any.
      * @param context Graphics context handle
      */

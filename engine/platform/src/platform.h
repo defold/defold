@@ -26,6 +26,10 @@ namespace dmPlatform
     typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
     typedef bool (*WindowCloseCallback)(void* user_data);
 
+    typedef void (*WindowAddKeyboardCharCallback)(void* user_data, int chr);
+    typedef void (*WindowSetMarkedTextCallback)(void* user_data, char* text);
+    typedef void (*WindowDeviceChangedCallback)(void* user_data, int status);
+
     enum PlatformResult
     {
         PLATFORM_RESULT_OK                    = 0,
@@ -124,6 +128,9 @@ namespace dmPlatform
     float          GetDisplayScaleFactor(HWindow window);
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
     void           SetSwapInterval(HWindow window, uint32_t swap_interval);
+    void           SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data);
+    void           SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data);
+    void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           IconifyWindow(HWindow window);
 };
 

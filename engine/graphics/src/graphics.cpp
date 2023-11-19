@@ -855,6 +855,11 @@ namespace dmGraphics
 
     ///////////////////////////////////////////////////
     ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
+
+    dmPlatform::HWindow GetWindow(HContext context)
+    {
+        return g_functions.m_GetWindow(context);
+    }
     uint32_t GetWindowRefreshRate(HContext context)
     {
         return dmPlatform::GetWindowState(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);

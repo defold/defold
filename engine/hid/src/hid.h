@@ -25,6 +25,8 @@
 
 #include <dmsdk/hid/hid.h>
 
+#include <platform/platform.h>
+
 namespace dmHID
 {
     /// Constant that defines invalid context handles
@@ -110,6 +112,8 @@ namespace dmHID
      * @params callback_ctx [type: void*] userdata that will be passed to the callback
      */
     void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
+
+    void SetWindow(HContext context, dmPlatform::HWindow window);
 
     /**
      * Initializes a hid context.
