@@ -339,20 +339,6 @@ namespace dmHID
     void ClearTouches(HTouchDevice device);
 
     /**
-     * Get the name of a keyboard key.
-     * @param key Keyboard key
-     * @return The name of the key
-     */
-    const char* GetKeyName(Key key);
-
-    /**
-     * Get the name of a mouse button.
-     * @param button Mouse button
-     * @return The name of the button
-     */
-    const char* GetMouseButtonName(MouseButton button);
-
-    /**
      * Enables the accelerometer (if available)
      */
     void EnableAccelerometer();

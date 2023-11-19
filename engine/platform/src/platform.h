@@ -45,9 +45,16 @@ namespace dmPlatform
         PLATFORM_GRAPHICS_API_VULKAN = 2,
     };
 
+    enum DeviceState
+    {
+        DEVICE_STATE_CURSOR           = 1,
+        DEVICE_STATE_CURSOR_LOCK      = 2,
+        DEVICE_STATE_ACCELEROMETER    = 3,
+        DEVICE_STATE_KEYBOARD_DEFAULT = 4,
+    };
+
     enum WindowState
     {
-        WINDOW_STATE_UNKNOWN            = 0,
         WINDOW_STATE_OPENED             = 1,
         WINDOW_STATE_ACTIVE             = 2,
         WINDOW_STATE_ICONIFIED          = 3,
@@ -123,6 +130,15 @@ namespace dmPlatform
     uint32_t       GetWindowHeight(HWindow window);
     uint32_t       GetWindowState(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
+
+    int32_t        GetKey(HWindow window, int32_t code);
+    int32_t        GetMouseButton(HWindow window, int32_t button);
+    int32_t        GetMouseWheel(HWindow window);
+    void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
+
+    void           SetDeviceState(HWindow window, DeviceState state, bool op1);
+    void           SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2);
+
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
     void           SetSwapInterval(HWindow window, uint32_t swap_interval);
     void           SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data);

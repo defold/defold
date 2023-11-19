@@ -26,9 +26,6 @@
 
 namespace dmHID
 {
-    extern const char* KEY_NAMES[MAX_KEY_COUNT];
-    extern const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT];
-
     static const uint8_t DRIVER_HANDLE_FREE = 0xff;
 
     struct NativeContextUserData
@@ -229,7 +226,7 @@ namespace dmHID
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
-                    int state = glfwGetKey(i);
+                    int state = dmPlatform::GetKey(context->m_Window, i);
                     if (state == GLFW_PRESS)
                         keyboard->m_Packet.m_Keys[i / 32] |= mask;
                     else
@@ -253,19 +250,20 @@ namespace dmHID
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
-                    int state = glfwGetMouseButton(i);
+                    int state = dmPlatform::GetMouseButton(context->m_Window, i);
                     if (state == GLFW_PRESS)
                         packet.m_Buttons[i / 32] |= mask;
                     else
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
-                int32_t wheel = glfwGetMouseWheel();
+                int32_t wheel = dmPlatform::GetMouseWheel(context->m_Window);
                 if (context->m_FlipScrollDirection)
                 {
                     wheel *= -1;
                 }
                 packet.m_Wheel = wheel;
-                glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
+
+                dmPlatform::GetMousePosition(context->m_Window, &packet.m_PositionX, &packet.m_PositionY);
             }
         }
 
@@ -343,29 +341,32 @@ namespace dmHID
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
     {
-        int t = GLFW_KEYBOARD_DEFAULT;
-        switch (type) {
+        dmPlatform::DeviceState device_state;
+
+        switch (type)
+        {
             case KEYBOARD_TYPE_DEFAULT:
-                t = GLFW_KEYBOARD_DEFAULT;
+                device_state = DEVICE_STATE_KEYBOARD_DEFAULT;
                 break;
             case KEYBOARD_TYPE_NUMBER_PAD:
-                t = GLFW_KEYBOARD_NUMBER_PAD;
+                device_state = DEVICE_STATE_KEYBOARD_NUMBER_PAD;
                 break;
             case KEYBOARD_TYPE_EMAIL:
-                t = GLFW_KEYBOARD_EMAIL;
+                device_state = DEVICE_STATE_KEYBOARD_EMAIL;
                 break;
             case KEYBOARD_TYPE_PASSWORD:
-                t = GLFW_KEYBOARD_PASSWORD;
+                device_state = DEVICE_STATE_KEYBOARD_PASSWORD;
                 break;
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
         }
-        glfwShowKeyboard(1, t, (int) autoclose);
+
+        dmPlatform::SetDeviceState(context->m_Window, device_state, true, autoclose);
     }
 
     void HideKeyboard(HContext context)
     {
-        glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT, 0);
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT, false);
     }
 
     void ResetKeyboard(HContext context)
@@ -375,159 +376,21 @@ namespace dmHID
 
     void EnableAccelerometer()
     {
-        glfwAccelerometerEnable();
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_ACCELEROMETER, true);
     }
 
     void ShowMouseCursor(HContext context)
     {
-        glfwEnable(GLFW_MOUSE_CURSOR);
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, true);
     }
 
     void HideMouseCursor(HContext context)
     {
-        glfwDisable(GLFW_MOUSE_CURSOR);
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, false);
     }
 
     bool GetCursorVisible(HContext context)
     {
-        return !glfwGetMouseLocked();
+        return !dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR_LOCK);
     }
-
-    const char* GetKeyName(Key key)
-    {
-        return KEY_NAMES[key];
-    }
-
-    const char* GetMouseButtonName(MouseButton input)
-    {
-        return MOUSE_BUTTON_NAMES[input];
-    }
-
-    const char* KEY_NAMES[MAX_KEY_COUNT] =
-    {
-        "KEY_SPACE",
-        "KEY_EXCLAIM",
-        "KEY_QUOTEDBL",
-        "KEY_HASH",
-        "KEY_DOLLAR",
-        "KEY_AMPERSAND",
-        "KEY_QUOTE",
-        "KEY_LPAREN",
-        "KEY_RPAREN",
-        "KEY_ASTERISK",
-        "KEY_PLUS",
-        "KEY_COMMA",
-        "KEY_MINUS",
-        "KEY_PERIOD",
-        "KEY_SLASH",
-        "KEY_0",
-        "KEY_1",
-        "KEY_2",
-        "KEY_3",
-        "KEY_4",
-        "KEY_5",
-        "KEY_6",
-        "KEY_7",
-        "KEY_8",
-        "KEY_9",
-        "KEY_COLON",
-        "KEY_SEMICOLON",
-        "KEY_LESS",
-        "KEY_EQUALS",
-        "KEY_GREATER",
-        "KEY_QUESTION",
-        "KEY_AT",
-        "KEY_A",
-        "KEY_B",
-        "KEY_C",
-        "KEY_D",
-        "KEY_E",
-        "KEY_F",
-        "KEY_G",
-        "KEY_H",
-        "KEY_I",
-        "KEY_J",
-        "KEY_K",
-        "KEY_L",
-        "KEY_M",
-        "KEY_N",
-        "KEY_O",
-        "KEY_P",
-        "KEY_Q",
-        "KEY_R",
-        "KEY_S",
-        "KEY_T",
-        "KEY_U",
-        "KEY_V",
-        "KEY_W",
-        "KEY_X",
-        "KEY_Y",
-        "KEY_Z",
-        "KEY_LBRACKET",
-        "KEY_BACKSLASH",
-        "KEY_RBRACKET",
-        "KEY_CARET",
-        "KEY_UNDERSCORE",
-        "KEY_BACKQUOTE",
-        "KEY_LBRACE",
-        "KEY_PIPE",
-        "KEY_RBRACE",
-        "KEY_TILDE",
-        "KEY_ESC",
-        "KEY_F1",
-        "KEY_F2",
-        "KEY_F3",
-        "KEY_F4",
-        "KEY_F5",
-        "KEY_F6",
-        "KEY_F7",
-        "KEY_F8",
-        "KEY_F9",
-        "KEY_F10",
-        "KEY_F11",
-        "KEY_F12",
-        "KEY_UP",
-        "KEY_DOWN",
-        "KEY_LEFT",
-        "KEY_RIGHT",
-        "KEY_LSHIFT",
-        "KEY_RSHIFT",
-        "KEY_LCTRL",
-        "KEY_RCTRL",
-        "KEY_LALT",
-        "KEY_RALT",
-        "KEY_TAB",
-        "KEY_ENTER",
-        "KEY_BACKSPACE",
-        "KEY_INSERT",
-        "KEY_DEL",
-        "KEY_PAGEUP",
-        "KEY_PAGEDOWN",
-        "KEY_HOME",
-        "KEY_END",
-        "KEY_KP_0",
-        "KEY_KP_1",
-        "KEY_KP_2",
-        "KEY_KP_3",
-        "KEY_KP_4",
-        "KEY_KP_5",
-        "KEY_KP_6",
-        "KEY_KP_7",
-        "KEY_KP_8",
-        "KEY_KP_9",
-        "KEY_KP_DIVIDE",
-        "KEY_KP_MULTIPLY",
-        "KEY_KP_SUBTRACT",
-        "KEY_KP_ADD",
-        "KEY_KP_DECIMAL",
-        "KEY_KP_EQUAL",
-        "KEY_KP_ENTER"
-    };
-
-    const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT] =
-    {
-        "MOUSE_BUTTON_LEFT",
-        "MOUSE_BUTTON_MIDDLE",
-        "MOUSE_BUTTON_RIGHT"
-    };
 }

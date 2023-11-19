@@ -370,6 +370,71 @@ namespace dmPlatform
         }
     }
 
+    int32_t GetKey(HWindow window, int32_t code)
+    {
+         return glfwGetKey(code);
+    }
+
+    int32_t GetMouseButton(HWindow window, int32_t button)
+    {
+        return glfwGetMouseButton(button);
+    }
+
+    int32_t GetMouseWheel(HWindow window)
+    {
+        return glfwGetMouseWheel();
+    }
+
+    void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
+    {
+        glfwGetMousePos(x, y);
+    }
+
+    void SetDeviceState(HWindow window, DeviceState state, bool op1)
+    {
+        SetDeviceState(window, state, op1, false);
+    }
+
+    void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
+    {
+        switch(state)
+        {
+            case DEVICE_STATE_CURSOR:
+                if (op1)
+                    glfwEnable(GLFW_MOUSE_CURSOR);
+                else
+                    glfwDisable(GLFW_MOUSE_CURSOR);
+                break;
+            case DEVICE_STATE_ACCELEROMETER:
+                if (op1)
+                    glfwAccelerometerEnable();
+                break;
+            case DEVICE_STATE_KEYBOARD_DEFAULT:
+                glfwShowKeyboard(op1, GLFW_KEYBOARD_DEFAULT, op2);
+                break;
+            case KEYBOARD_TYPE_NUMBER_PAD:
+                glfwShowKeyboard(op1, GLFW_KEYBOARD_NUMBER_PAD, op2);
+                break;
+            case KEYBOARD_TYPE_EMAIL:
+                glfwShowKeyboard(op1, GLFW_KEYBOARD_EMAIL, op2);
+                break;
+            case KEYBOARD_TYPE_PASSWORD:
+                glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
+                break;
+            default:break;
+        }
+    }
+
+    bool GetDeviceState(HWindow window, DeviceState state)
+    {
+        if (state == DEVICE_STATE_CURSOR_LOCK)
+        {
+            return glfwGetMouseLocked();
+        }
+        assert(0 && "Not supported.");
+        return false;
+    }
+
     void PollEvents(HWindow window)
     {
         // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on
