@@ -8,6 +8,7 @@ namespace dmPlatform
     struct Window
     {
         WindowParams m_CreateParams;
+        bool         m_DeviceStates[DEVICE_STATE_KEYBOARD_COUNT];
         uint32_t     m_WindowWidth;
         uint32_t     m_WindowHeight;
         uint32_t     m_WindowOpened : 1;
@@ -82,4 +83,19 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {}
+
+    void SetDeviceState(HWindow window, DeviceState state, bool op1)
+    {
+        SetDeviceState(window, state, op1, false);
+    }
+
+    void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
+    {
+        window->m_DeviceStates[(int) state] = op1;
+    }
+
+    bool GetDeviceState(HWindow window, DeviceState state)
+    {
+        return window->m_DeviceStates[(int) state];
+    }
 }

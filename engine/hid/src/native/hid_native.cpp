@@ -346,16 +346,16 @@ namespace dmHID
         switch (type)
         {
             case KEYBOARD_TYPE_DEFAULT:
-                device_state = DEVICE_STATE_KEYBOARD_DEFAULT;
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT;
                 break;
             case KEYBOARD_TYPE_NUMBER_PAD:
-                device_state = DEVICE_STATE_KEYBOARD_NUMBER_PAD;
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD;
                 break;
             case KEYBOARD_TYPE_EMAIL:
-                device_state = DEVICE_STATE_KEYBOARD_EMAIL;
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL;
                 break;
             case KEYBOARD_TYPE_PASSWORD:
-                device_state = DEVICE_STATE_KEYBOARD_PASSWORD;
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD;
                 break;
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
@@ -374,7 +374,7 @@ namespace dmHID
         glfwResetKeyboard();
     }
 
-    void EnableAccelerometer()
+    void EnableAccelerometer(HContext context)
     {
         dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_ACCELEROMETER, true);
     }

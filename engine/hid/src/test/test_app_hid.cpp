@@ -160,13 +160,15 @@ static void* EngineCreate(int argc, char** argv)
 
     dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
-    int32_t use_accelerometer = false;
-    if (use_accelerometer) {
-        dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
-    }
     new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
     engine->m_HidContext = dmHID::NewContext(new_hid_params);
+
+    int32_t use_accelerometer = false;
+    if (use_accelerometer)
+    {
+        dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+    }
 
     dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, GamepadConnectivityCallback, 0);
     dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(graphics_context));

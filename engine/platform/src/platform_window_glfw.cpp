@@ -412,13 +412,13 @@ namespace dmPlatform
             case DEVICE_STATE_KEYBOARD_DEFAULT:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_DEFAULT, op2);
                 break;
-            case KEYBOARD_TYPE_NUMBER_PAD:
+            case DEVICE_STATE_KEYBOARD_NUMBER_PAD:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_NUMBER_PAD, op2);
                 break;
-            case KEYBOARD_TYPE_EMAIL:
+            case DEVICE_STATE_KEYBOARD_EMAIL:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_EMAIL, op2);
                 break;
-            case KEYBOARD_TYPE_PASSWORD:
+            case DEVICE_STATE_KEYBOARD_PASSWORD:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
                 break;
             default:break;

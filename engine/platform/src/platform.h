@@ -47,10 +47,14 @@ namespace dmPlatform
 
     enum DeviceState
     {
-        DEVICE_STATE_CURSOR           = 1,
-        DEVICE_STATE_CURSOR_LOCK      = 2,
-        DEVICE_STATE_ACCELEROMETER    = 3,
-        DEVICE_STATE_KEYBOARD_DEFAULT = 4,
+        DEVICE_STATE_CURSOR              = 1,
+        DEVICE_STATE_CURSOR_LOCK         = 2,
+        DEVICE_STATE_ACCELEROMETER       = 3,
+        DEVICE_STATE_KEYBOARD_DEFAULT    = 4,
+        DEVICE_STATE_KEYBOARD_NUMBER_PAD = 5,
+        DEVICE_STATE_KEYBOARD_EMAIL      = 6,
+        DEVICE_STATE_KEYBOARD_PASSWORD   = 7,
+        DEVICE_STATE_KEYBOARD_COUNT      = 8,
     };
 
     enum WindowState
@@ -138,6 +142,7 @@ namespace dmPlatform
 
     void           SetDeviceState(HWindow window, DeviceState state, bool op1);
     void           SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2);
+    bool           GetDeviceState(HWindow window, DeviceState state);
 
     void           SetWindowSize(HWindow window, uint32_t width, uint32_t height);
     void           SetSwapInterval(HWindow window, uint32_t swap_interval);

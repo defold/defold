@@ -715,9 +715,6 @@ namespace dmEngine
 
         // Accelerometer
         int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
-        if (use_accelerometer) {
-            dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
-        }
         new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
 #if defined(__EMSCRIPTEN__)
@@ -731,6 +728,11 @@ namespace dmEngine
         }
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
+
+        if (use_accelerometer)
+        {
+            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+        }
 
         dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;

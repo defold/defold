@@ -341,7 +341,7 @@ namespace dmHID
     /**
      * Enables the accelerometer (if available)
      */
-    void EnableAccelerometer();
+    void EnableAccelerometer(HContext context);
 }
 
 #endif // DM_HID_H
