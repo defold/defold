@@ -711,11 +711,6 @@ namespace dmEngine
 
         dmBuffer::NewContext();
 
-
-
-
-
-
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
