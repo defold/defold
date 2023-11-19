@@ -79,4 +79,7 @@ namespace dmPlatform
 
     void IconifyWindow(HWindow window)
     {}
+
+    void PollEvents(HWindow window)
+    {}
 }

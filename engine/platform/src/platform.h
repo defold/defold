@@ -16,6 +16,7 @@
 #define DM_PLATFORM_H
 
 #include <stdint.h>
+#include <string.h>
 
 namespace dmPlatform
 {
@@ -71,17 +72,13 @@ namespace dmPlatform
     struct WindowParams
     {
         WindowParams()
-        : m_ResizeCallback(0x0)
-        , m_ResizeCallbackUserData(0x0)
-        , m_CloseCallback(0x0)
-        , m_CloseCallbackUserData(0x0)
-        , m_Width(640)
-        , m_Height(480)
-        , m_Samples(1)
-        , m_Title("Defold Application")
-        , m_Fullscreen(false)
-        , m_PrintDeviceInfo(false)
-        , m_HighDPI(false) {}
+        {
+            memset(this, 0, sizeof(*this));
+            m_Width   = 640;
+            m_Height  = 480;
+            m_Samples = 1;
+            m_Title   = "Defold Application";
+        }
 
         PlatformGraphicsApi     m_GraphicsApi;
         /// Window resize callback
@@ -132,6 +129,7 @@ namespace dmPlatform
     void           SetKeyboardMarkedTextCallback(HWindow window, WindowSetMarkedTextCallback cb, void* user_data);
     void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           IconifyWindow(HWindow window);
+    void           PollEvents(HWindow window);
 };
 
 #endif // DM_RIG_H

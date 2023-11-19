@@ -169,6 +169,7 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_HidContext = dmHID::NewContext(new_hid_params);
 
     dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, GamepadConnectivityCallback, 0);
+    dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(graphics_context));
 
     bool hid_result = dmHID::Init(engine->m_HidContext);
     if (!hid_result)

@@ -165,6 +165,8 @@ static UpdateResult EngineUpdate(void* _engine)
     uint64_t t = dmTime::GetTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
 
+    dmPlatform::PollEvents(engine->m_Window);
+
     return RESULT_OK;
 }
 
@@ -180,7 +182,7 @@ TEST(App, Run)
     memset(&ctx, 0, sizeof(ctx));
     memset(&g_EngineCtx, 0, sizeof(g_EngineCtx));
 
-    RunLoopParams params;
+    RunLoopParams params = {};
     params.m_AppCtx = &ctx;
     params.m_AppCreate = AppCreate;
     params.m_AppDestroy = AppDestroy;

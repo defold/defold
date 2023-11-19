@@ -120,19 +120,6 @@ namespace dmPlatform
                 return 0;
             }
 
-            if (glfwSetCharCallback(OnAddCharacterCallback) == 0)
-            {
-                dmLogFatal("could not set glfw char callback.");
-            }
-            if (glfwSetMarkedTextCallback(OnMarkedTextCallback) == 0)
-            {
-                dmLogFatal("could not set glfw marked text callback.");
-            }
-            if (glfwSetDeviceChangedCallback(OnDeviceChangedCallback) == 0)
-            {
-                dmLogFatal("coult not set glfw gamepad connection callback.");
-            }
-
             g_Window = wnd;
 
             return wnd;
@@ -214,19 +201,6 @@ namespace dmPlatform
             }
         }
 
-    #if !defined(DM_PLATFORM_WEB)
-        glfwSetWindowTitle(wnd->m_CreateParams.m_Title);
-    #endif
-
-        glfwSetWindowBackgroundColor(wnd->m_CreateParams.m_BackgroundColor);
-        glfwSetWindowSizeCallback(OnWindowResize);
-        glfwSetWindowCloseCallback(OnWindowClose);
-        glfwSetWindowFocusCallback(OnWindowFocus);
-        glfwSetWindowIconifyCallback(OnWindowIconify);
-        glfwSwapInterval(1);
-        glfwGetWindowSize(&wnd->m_Width, &wnd->m_Height);
-
-        wnd->m_WindowOpened          = 1;
         wnd->m_SwapIntervalSupported = 1;
 
         return PLATFORM_RESULT_OK;
@@ -244,15 +218,6 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        glfwSetWindowTitle(wnd->m_CreateParams.m_Title);
-        glfwSetWindowBackgroundColor(wnd->m_CreateParams.m_BackgroundColor);
-        glfwSetWindowSizeCallback(OnWindowResize);
-        glfwSetWindowCloseCallback(OnWindowClose);
-        glfwSetWindowFocusCallback(OnWindowFocus);
-        glfwSetWindowIconifyCallback(OnWindowIconify);
-
-        wnd->m_WindowOpened = 1;
-
         return PLATFORM_RESULT_OK;
     }
 
@@ -263,14 +228,50 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
+        PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+
         switch(window->m_CreateParams.m_GraphicsApi)
         {
-            case PLATFORM_GRAPHICS_API_OPENGL: return OpenWindowOpenGL(window);
-            case PLATFORM_GRAPHICS_API_VULKAN: return OpenWindowVulkan(window);
+            case PLATFORM_GRAPHICS_API_OPENGL:
+                res = OpenWindowOpenGL(window);
+                break;
+            case PLATFORM_GRAPHICS_API_VULKAN:
+                res = OpenWindowVulkan(window);
+                break;
             default: assert(0);
         }
 
-        return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+        if (res == PLATFORM_RESULT_OK)
+        {
+            glfwSetWindowBackgroundColor(window->m_CreateParams.m_BackgroundColor);
+            glfwSetWindowSizeCallback(OnWindowResize);
+            glfwSetWindowCloseCallback(OnWindowClose);
+            glfwSetWindowFocusCallback(OnWindowFocus);
+            glfwSetWindowIconifyCallback(OnWindowIconify);
+            glfwSwapInterval(1);
+            glfwGetWindowSize(&window->m_Width, &window->m_Height);
+
+        #if !defined(DM_PLATFORM_WEB)
+            glfwSetWindowTitle(window->m_CreateParams.m_Title);
+        #endif
+
+            window->m_WindowOpened = 1;
+
+            if (glfwSetCharCallback(OnAddCharacterCallback) == 0)
+            {
+                dmLogFatal("could not set glfw char callback.");
+            }
+            if (glfwSetMarkedTextCallback(OnMarkedTextCallback) == 0)
+            {
+                dmLogFatal("could not set glfw marked text callback.");
+            }
+            if (glfwSetDeviceChangedCallback(OnDeviceChangedCallback) == 0)
+            {
+                dmLogFatal("coult not set glfw gamepad connection callback.");
+            }
+        }
+
+        return res;
     }
 
     void CloseWindow(HWindow window)
@@ -367,6 +368,14 @@ namespace dmPlatform
         {
             glfwSwapInterval(swap_interval);
         }
+    }
+
+    void PollEvents(HWindow window)
+    {
+        // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on
+        // running glfwSwapBuffers for event queue polling
+        // Accessing OpenGL isn't permitted on iOS when the application is transitioning to resumed mode either
+        glfwPollEvents();
     }
 
     void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)
