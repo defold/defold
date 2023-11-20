@@ -124,7 +124,7 @@ namespace dmFontView
             else
                 context->m_TestString = "The quick brown fox jumps over the lazy dog";
 
-            dmGraphics::WindowParams window_params;
+            dmPlatform::WindowParams window_params;
 
             window_params.m_Width = 960;
             window_params.m_Height = 540;
