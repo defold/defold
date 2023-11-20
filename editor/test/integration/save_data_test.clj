@@ -114,7 +114,7 @@
 
    'dmGameObjectDDF.CollectionInstanceDesc
    {:default
-    {"scale" :deprecated}} ; Migration tested in silent-migrations-test.
+    {"scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGameObjectDDF.ComponentDesc
    {:default
@@ -127,11 +127,11 @@
    'dmGameObjectDDF.EmbeddedInstanceDesc
    {:default
     {"component_properties" :unused ; Not used by the editor, Bob, or the runtime. Perhaps declared by mistake. Any edits to components are directly embedded in the PrototypeDesc inside the "data" field, so why do we need it?
-     "scale" :deprecated}} ; Migration tested in silent-migrations-test.
+     "scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGameObjectDDF.InstanceDesc
    {:default
-    {"scale" :deprecated}} ; Migration tested in silent-migrations-test.
+    {"scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGameObjectDDF.PrototypeDesc
    {:default
@@ -423,7 +423,7 @@
 
    'dmRenderDDF.MaterialDesc
    {:default
-    {"textures" :deprecated}} ; Migration tested in silent-migrations-test.
+    {"textures" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmRenderDDF.MaterialDesc.Sampler
    {:default
@@ -615,7 +615,8 @@
 
       (is (= #{} non-covered-resource-exts)
           (resource-ext-message
-            (str "The following editable resource types do not have files under `editor/" project-path "`:")
+            (format "The following editable resource types do not have files under `editor/%s`:"
+                    project-path)
             non-covered-resource-exts)))))
 
 (deftest editable-resource-types-have-valid-test-info
@@ -882,7 +883,9 @@
       (doseq [[ext uncovered-value-paths] uncovered-value-paths-by-ext]
         (is (= #{} uncovered-value-paths)
             (list-message
-              (str "The following fields are not covered by any ." ext " files under `editor/" project-path "`:")
+              (format "The following fields are not covered by any .%s files under `editor/%s`:"
+                      ext
+                      project-path)
               uncovered-value-paths))))))
 
 (defn- gui-node-pb->id
@@ -1057,7 +1060,8 @@
 
       (is (= #{} non-layout-overridden-gui-node-field-paths)
           (list-message
-            (str "The following gui node fields are not covered by layout overrides in any .gui files under `editor/" project-path "`:")
+            (format "The following gui node fields are not covered by layout overrides in any .gui files under `editor/%s`:"
+                    project-path)
             non-layout-overridden-gui-node-field-paths)))))
 
 (deftest all-gui-template-node-fields-overridden-test
@@ -1084,7 +1088,8 @@
 
       (is (= #{} non-template-overridden-gui-node-field-paths)
           (list-message
-            (str "The following gui node fields are not covered by template overrides in any .gui files under `editor/" project-path "`:")
+            (format "The following gui node fields are not covered by template overrides in any .gui files under `editor/%s`:"
+                    project-path)
             non-template-overridden-gui-node-field-paths)))))
 
 (defn- clear-cached-save-data! []
@@ -1108,18 +1113,19 @@
            (diff->string))))
 
 (defn- text-diff-message
-  ^String [disk-value save-value]
+  ^String [disk-text save-text]
   ;; TODO(save-data-test): Better text diff output.
   (str "Summary of discrepancies between disk text and save text:"
        \newline
-       (-> (deep-diff/diff (code.util/split-lines disk-value)
-                           (code.util/split-lines save-value))
+       (-> (deep-diff/diff (code.util/split-lines disk-text)
+                           (code.util/split-lines save-text))
            (deep-diff/minimize)
            (diff->string))))
 
 (defn- when-checking-resource-message
   ^String [resource]
-  (format "When checking `%s`."
+  (format "When checking `editor/%s%s`."
+          project-path
           (resource/proj-path resource)))
 
 (defn- save-data-diff-message
@@ -1168,6 +1174,21 @@
       (let [disk-text (slurp resource)]
         (check-text-equivalence! disk-text save-text message)))))
 
+(defn- check-project-save-data-disk-equivalence! [project->save-datas]
+  (test-util/with-loaded-project project-path
+    (clear-cached-save-data!)
+    (doseq [save-data (project->save-datas project)]
+      (check-save-data-disk-equivalence! save-data))))
+
+(deftest save-value-is-equivalent-to-source-value-test
+  "This test is intended to verify that the saved data contains all the same
+  information as the read data. These tests bypass the dirty check in order to
+  verify that the information saved is equivalent to the data loaded. Failures
+  might signal that we've forgotten to read data from the file, or somehow we're
+  not writing all properties to disk."
+  (testing "Saved data is equivalent to read data."
+    (check-project-save-data-disk-equivalence! project/all-save-data)))
+
 (deftest no-unsaved-changes-after-load-test
   "This test is intended to verify that changes to the file formats do not cause
   undue changes to existing content in game projects. For example, adding fields
@@ -1181,11 +1202,8 @@
   long as your added protobuf field has a default value. But more drastic file
   format changes have happened in the past, and you can find other examples of
   :sanitize-fn usage in non-component resource types."
-  (test-util/with-loaded-project project-path
-    (clear-cached-save-data!)
-    (testing (format "Project `editor/%s` should not have unsaved changes immediately after loading." project-path)
-      (doseq [save-data (project/dirty-save-data project)]
-        (check-save-data-disk-equivalence! save-data)))))
+  (testing "The project should not have unsaved changes immediately after loading."
+    (check-project-save-data-disk-equivalence! project/dirty-save-data)))
 
 (deftest no-unsaved-changes-after-save-test
   "This test is intended to verify that we track unsaved changes properly. If
@@ -1199,7 +1217,8 @@
                                  (project/dirty-save-data project))]
       (when (is (= #{} dirty-proj-paths)
                 (list-message
-                  (format "Unable to proceed with test due to unsaved changes in the following files immediately after loading the project `editor/%s`:" project-path)
+                  (format "Unable to proceed with test due to unsaved changes in the following files immediately after loading the project `editor/%s`:"
+                          project-path)
                   dirty-proj-paths))
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)
@@ -1227,5 +1246,3 @@
                     "Unsaved changes detected after saving.")
                 (when (:dirty? save-data)
                   (check-save-data-disk-equivalence! save-data))))))))))
-
-;; TODO(save-data-test): Port old save-all test
