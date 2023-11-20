@@ -114,6 +114,26 @@ namespace dmImage
         memset(image, 0, sizeof(*image));
     }
 
+    Type GetType(HImage image)
+    {
+        return image->m_Type;
+    }
+
+    uint32_t GetWidth(HImage image)
+    {
+        return image->m_Width;
+    }
+
+    uint32_t GetHeight(HImage image)
+    {
+        return image->m_Height;
+    }
+
+    const void* GetData(HImage image)
+    {
+        return image->m_Buffer;
+    }
+
     uint32_t BytesPerPixel(Type type)
     {
         switch (type)
