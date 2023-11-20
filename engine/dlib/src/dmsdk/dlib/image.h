@@ -29,10 +29,10 @@
 
 namespace dmImage
 {
-	struct Image;
-	typedef Image* HImage;
+    struct Image;
+    typedef Image* HImage;
 
-	/*# result enumeration
+    /*# result enumeration
      *
      * @enum
      * @name Result
@@ -40,7 +40,7 @@ namespace dmImage
      * @member dmImage::RESULT_UNSUPPORTED_FORMAT = -1
      * @member dmImage::RESULT_IMAGE_ERROR = -2
      */
-	enum Result
+    enum Result
     {
         RESULT_OK                   = 0,
         RESULT_UNSUPPORTED_FORMAT   = -1,
@@ -117,4 +117,4 @@ namespace dmImage
     const void* GetData(HImage image);
 }
 
-#endif
+#endif // DMSDK_IMAGE
