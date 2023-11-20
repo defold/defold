@@ -65,8 +65,7 @@ namespace dmImage
     };
 
     /**
-     * Load image from buffer.
-     *
+     * Create a new image
      * <pre>
      *   Supported formats:
      *   png gray, gray + alpha, rgb and rgba
@@ -77,16 +76,15 @@ namespace dmImage
      * @param buffer image buffer
      * @param buffer_size image buffer size
      * @param premult premultiply alpha or not
-     * @param image output
-     * @return RESULT_OK on success
+     * @return image [type:HImage] on success, 0 if image loading failed
      */
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, HImage image);
+    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult);
 
     /**
-     * Free loaded image
-     * @param image image to free
+     * Delete image
+     * @param image [type: dmImage::HImage] the image handle
      */
-    void Free(HImage image);
+    void DeleteImage(HImage image);
 
     /**
      * Get image type

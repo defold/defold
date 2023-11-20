@@ -35,7 +35,7 @@
 
 namespace dmImage
 {
-    void PremultiplyRGBA(uint8_t* buffer, int width, int height)
+    static void PremultiplyRGBA(uint8_t* buffer, int width, int height)
     {
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
@@ -51,7 +51,7 @@ namespace dmImage
         }
     }
 
-    void PremultiplyLuminance(uint8_t* buffer, int width, int height)
+    static void PremultiplyLuminance(uint8_t* buffer, int width, int height)
     {
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
@@ -61,6 +61,25 @@ namespace dmImage
                 buffer[index] = r;
             }
         }
+    }
+
+    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
+    {
+        Image* image = new Image();
+
+        if (Load(buffer, buffer_size, premult, image) != RESULT_OK)
+        {
+            delete image;
+            return 0;
+        }
+
+        return (HImage) image;
+    }
+
+    void DeleteImage(Image* image)
+    {
+        Free(image);
+        delete image;
     }
 
     Result Load(const void* buffer, uint32_t buffer_size, bool premult, Image* image)

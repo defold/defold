@@ -31,6 +31,30 @@ namespace dmImage
     };
 
     /**
+     * Load image from buffer.
+     *
+     * <pre>
+     *   Supported formats:
+     *   png gray, gray + alpha, rgb and rgba
+     *   jpg
+     * </pre>
+     * 16-bit (or higher) channels are not supported.
+     *
+     * @param buffer image buffer
+     * @param buffer_size image buffer size
+     * @param premult premultiply alpha or not
+     * @param image output
+     * @return RESULT_OK on success
+     */
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, HImage image);
+
+    /**
+     * Free loaded image
+     * @param image image to free
+     */
+    void Free(HImage image);
+
+    /**
      * Get bytes per pixel
      * @param type
      * @return bytes per pixel. zero if the type is unknown
