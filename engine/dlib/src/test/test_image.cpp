@@ -218,6 +218,14 @@ TEST(dmImage, PngGrayAlpha)
     ASSERT_EQ(dmImage::TYPE_LUMINANCE_ALPHA, image.m_Type);
     ASSERT_NE((void*) 0, image.m_Buffer);
 
+    // DMSDK Test
+    dmImage::HImage h_image = &image;
+    ASSERT_EQ(2U, dmImage::GetWidth(h_image));
+    ASSERT_EQ(2U, dmImage::GetHeight(h_image));
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE_ALPHA, dmImage::GetType(h_image));
+    ASSERT_NE((void*) 0, dmImage::GetData(h_image));
+    ASSERT_EQ(image.m_Buffer, dmImage::GetData(h_image));
+
     const uint8_t* b = (const uint8_t*) image.m_Buffer;
     int i = 0;
 
