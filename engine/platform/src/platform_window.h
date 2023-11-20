@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_H
-#define DM_PLATFORM_H
+#ifndef DM_PLATFORM_WINDOW_H
+#define DM_PLATFORM_WINDOW_H
 
 #include <stdint.h>
 #include <string.h>
@@ -153,4 +153,4 @@ namespace dmPlatform
     void           PollEvents(HWindow window);
 };
 
-#endif // DM_RIG_H
+#endif // DM_PLATFORM_WINDOW_H

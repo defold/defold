@@ -20,11 +20,12 @@
 #include <string.h>
 #include <signal.h>
 
+#include <dlib/platform.h>
+
 #include <graphics/graphics.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <dlib/platform.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 
