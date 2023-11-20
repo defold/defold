@@ -126,9 +126,9 @@ namespace dmPlatform
         uint32_t                m_BackgroundColor;
     };
 
-    HWindow        NewWindow(const WindowParams& params);
+    HWindow        NewWindow();
     void           DeleteWindow(HWindow window);
-    PlatformResult OpenWindow(HWindow window);
+    PlatformResult OpenWindow(HWindow window, const WindowParams& params);
     void           CloseWindow(HWindow window);
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);

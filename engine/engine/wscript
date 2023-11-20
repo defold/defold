@@ -127,6 +127,7 @@ def configure(conf):
     conf.env['STLIB_HID_NULL'] = 'hid_null'
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
+    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
 
     if operating_sys != "macos":
         conf.env['STLIB_UNWIND'] = 'unwind'

@@ -166,7 +166,7 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = &g_EngineCtx;
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
-    dmGraphics::WindowParams window_params;
+    dmPlatform::WindowParams window_params;
     window_params.m_ResizeCallback = 0;
     window_params.m_ResizeCallbackUserData = 0;
     window_params.m_CloseCallback = 0;

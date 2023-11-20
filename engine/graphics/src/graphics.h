@@ -148,14 +148,6 @@ namespace dmGraphics
         FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
-    enum WindowResult
-    {
-        WINDOW_RESULT_ALREADY_OPENED    = 1,
-        WINDOW_RESULT_OK                = 0,
-        WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
-        WINDOW_RESULT_UNKNOWN_ERROR     = -1000,
-    };
-
     enum TextureStatusFlags
     {
         TEXTURE_STATUS_OK               = 0,

@@ -1157,6 +1157,7 @@ bail:
         #endif
 
             g_VulkanContext = new VulkanContext(params, vk_instance);
+            g_VulkanContext->m_Window = dmPlatform::NewWindow();
 
             return (HContext) g_VulkanContext;
         }

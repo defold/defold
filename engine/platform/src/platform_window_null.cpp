@@ -14,11 +14,10 @@ namespace dmPlatform
         uint32_t     m_WindowOpened : 1;
     };
 
-    HWindow NewWindow(const WindowParams& params)
+    HWindow NewWindow()
     {
         Window* wnd = new Window();
         memset(wnd, 0, sizeof(Window));
-        wnd->m_CreateParams = params;
         return wnd;
     }
 
@@ -27,9 +26,18 @@ namespace dmPlatform
         delete window;
     }
 
-    PlatformResult OpenWindow(HWindow window)
+    PlatformResult OpenWindow(HWindow window, const WindowParams& params)
     {
+        if (window->m_WindowOpened)
+        {
+            return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
+        }
+
+        window->m_CreateParams = params;
         window->m_WindowOpened = 1;
+        window->m_WindowWidth  = params.m_Width;
+        window->m_WindowHeight = params.m_Height;
+
         return PLATFORM_RESULT_OK;
     }
 

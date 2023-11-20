@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
+#include <platform/platform.h>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
@@ -45,7 +46,7 @@ protected:
 
     dmGraphics::HContext m_Context;
     dmGraphics::NullContext* m_NullContext;
-    dmGraphics::WindowResult m_WindowResult;
+    dmPlatform::PlatformResult m_WindowResult;
     ResizeData m_ResizeData;
     CloseData m_CloseData;
 
@@ -68,7 +69,7 @@ protected:
         m_Context = dmGraphics::NewContext(dmGraphics::ContextParams());
         m_NullContext = (dmGraphics::NullContext*) m_Context;
 
-        dmGraphics::WindowParams params;
+        dmPlatform::WindowParams params;
         params.m_ResizeCallback = OnWindowResize;
         params.m_ResizeCallbackUserData = &m_ResizeData;
         params.m_CloseCallback = OnWindowClose;
@@ -93,7 +94,7 @@ protected:
 TEST_F(dmGraphicsTest, NewDeleteContext)
 {
     ASSERT_NE((void*)0, m_Context);
-    ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, m_WindowResult);
+    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_OK, m_WindowResult);
 }
 
 TEST_F(dmGraphicsTest, DoubleNewContext)
@@ -104,13 +105,13 @@ TEST_F(dmGraphicsTest, DoubleNewContext)
 
 TEST_F(dmGraphicsTest, DoubleOpenWindow)
 {
-    dmGraphics::WindowParams params;
+    dmPlatform::WindowParams params;
     params.m_Title = APP_TITLE;
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = false;
-    ASSERT_EQ(dmGraphics::WINDOW_RESULT_ALREADY_OPENED, dmGraphics::OpenWindow(m_Context, &params));
+    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED, dmGraphics::OpenWindow(m_Context, &params));
 }
 
 TEST_F(dmGraphicsTest, CloseWindow)
@@ -122,30 +123,28 @@ TEST_F(dmGraphicsTest, CloseWindow)
 TEST_F(dmGraphicsTest, CloseOpenWindow)
 {
     dmGraphics::CloseWindow(m_Context);
-    dmGraphics::WindowParams params;
+    dmPlatform::WindowParams params;
     params.m_Title = APP_TITLE;
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = true;
     dmLogSetLevel(LOG_SEVERITY_INFO);
-    ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
+    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
     dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(dmGraphicsTest, TestWindowState)
 {
-    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
     dmGraphics::CloseWindow(m_Context);
-    ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmPlatform::WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
     ASSERT_EQ(m_NullContext->m_Width, dmGraphics::GetWidth(m_Context));
     ASSERT_EQ(m_NullContext->m_Height, dmGraphics::GetHeight(m_Context));
-    ASSERT_EQ(m_NullContext->m_WindowWidth, dmGraphics::GetWindowWidth(m_Context));
-    ASSERT_EQ(m_NullContext->m_WindowHeight, dmGraphics::GetWindowHeight(m_Context));
     uint32_t width = WIDTH * 2;
     uint32_t height = HEIGHT * 2;
     dmGraphics::SetWindowSize(m_Context, width, height);
@@ -936,11 +935,11 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     // Request close
     m_NullContext->m_RequestWindowClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
     // Accept close
     m_CloseData.m_ShouldClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmPlatform::WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmGraphicsTest, TestTextureSupport)

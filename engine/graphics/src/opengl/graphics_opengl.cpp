@@ -510,8 +510,9 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context == 0x0)
         {
-            g_Context = new OpenGLContext(params);
+            g_Context               = new OpenGLContext(params);
             g_Context->m_AsyncMutex = dmMutex::New();
+            g_Context->m_Window     = dmPlatform::NewWindow();
             return (HContext) g_Context;
         }
         return 0x0;
@@ -526,11 +527,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 dmMutex::Delete(g_Context->m_AsyncMutex);
             }
-            if (g_Context->m_Window)
-            {
-                dmPlatform::DeleteWindow(g_Context->m_Window);
-            }
-
+            dmPlatform::DeleteWindow(g_Context->m_Window);
             delete context;
             g_Context = 0x0;
         }
@@ -749,15 +746,13 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        if (context->m_Window)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
         params->m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-        context->m_Window     = dmPlatform::NewWindow(*params);
-
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window);
+        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window, *params);
 
         if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
         {
@@ -778,7 +773,7 @@ static void LogFrameBufferError(GLenum status)
         if (function == 0x0)\
         {\
             dmLogError("Could not find gl function '%s'.", name);\
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;\
+            return dmPlatform::PLATFORM_RESULT_WINDOW_OPEN_ERROR;\
         }
 
         GET_PROC_ADDRESS(glGenProgramsARB, "glGenPrograms", PFNGLGENPROGRAMARBPROC);

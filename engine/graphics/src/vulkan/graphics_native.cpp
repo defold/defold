@@ -115,7 +115,7 @@ namespace dmGraphics
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
-        if (context->m_Window)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
@@ -123,8 +123,7 @@ namespace dmGraphics
         context->m_WindowResizeCallback            = params->m_ResizeCallback;
         params->m_GraphicsApi                      = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
         params->m_ResizeCallback                   = VulkanOnWindowResize;
-        context->m_Window                          = dmPlatform::NewWindow(*params);
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window);
+        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window, *params);
 
         if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
         {

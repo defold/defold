@@ -145,9 +145,9 @@ static void* EngineCreate(int argc, char** argv)
     params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
     params.m_Title            	    = "Test app";
 
-    engine->m_Window = dmPlatform::NewWindow(params);
+    engine->m_Window = dmPlatform::NewWindow();
 
-    dmPlatform::OpenWindow(engine->m_Window);
+    dmPlatform::OpenWindow(engine->m_Window, params);
 
     return &g_EngineCtx;
 }

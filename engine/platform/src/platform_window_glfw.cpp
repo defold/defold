@@ -105,14 +105,12 @@ namespace dmPlatform
         }
     }
 
-    HWindow NewWindow(const WindowParams& params)
+    HWindow NewWindow()
     {
         if (g_Window == 0)
         {
             Window* wnd = new Window;
             memset(wnd, 0, sizeof(Window));
-
-            wnd->m_CreateParams = params;
 
             if (glfwInit() == GL_FALSE)
             {
@@ -221,12 +219,14 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindow(HWindow window)
+    PlatformResult OpenWindow(HWindow window, const WindowParams& params)
     {
         if (window->m_WindowOpened)
         {
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
+
+        window->m_CreateParams = params;
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 

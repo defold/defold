@@ -25,7 +25,11 @@
 
 #include <dmsdk/hid/hid.h>
 
-#include <platform/platform.h>
+namespace dmPlatform
+{
+    struct Window;
+    typedef Window* HWindow;
+};
 
 namespace dmHID
 {

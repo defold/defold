@@ -88,6 +88,9 @@ namespace dmGraphics
         if (!g_NullContext)
         {
             g_NullContext = new NullContext(params);
+
+            g_NullContext->m_Window = dmPlatform::NewWindow();
+
             return g_NullContext;
         }
         else
@@ -101,11 +104,13 @@ namespace dmGraphics
         return true;
     }
 
-    static void NullDeleteContext(HContext context)
+    static void NullDeleteContext(HContext _context)
     {
-        assert(context);
+        assert(_context);
         if (g_NullContext)
         {
+            NullContext* context = (NullContext*) _context;
+            dmPlatform::DeleteWindow(context->m_Window);
             delete (NullContext*) context;
             g_NullContext = 0x0;
         }
@@ -118,15 +123,13 @@ namespace dmGraphics
 
         NullContext* context = (NullContext*) _context;
 
-        if (context->m_Window)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
         params->m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
-        context->m_Window     = dmPlatform::NewWindow(*params);
-
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window);
+        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window, *params);
 
         if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
         {
@@ -168,6 +171,7 @@ namespace dmGraphics
             delete [] (char*)main.m_StencilBuffer;
             context->m_Width = 0;
             context->m_Height = 0;
+            dmPlatform::CloseWindow(context->m_Window);
         }
     }
 
@@ -179,9 +183,10 @@ namespace dmGraphics
         }
     }
 
-    static dmPlatform::HWindow NullGetWindow(HContext context)
+    static dmPlatform::HWindow NullGetWindow(HContext _context)
     {
-        return ((NullContext*) context)->m_Window;
+        NullContext* context = (NullContext*) _context;
+        return context->m_Window;
     }
 
     static uint32_t NullGetDisplayDpi(HContext context)

@@ -98,7 +98,7 @@ protected:
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
 
-        dmGraphics::WindowParams win_params;
+        dmPlatform::WindowParams win_params;
         win_params.m_Width = 20;
         win_params.m_Height = 10;
         dmGraphics::OpenWindow(m_GraphicsContext, &win_params);

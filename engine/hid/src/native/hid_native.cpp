@@ -20,6 +20,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
+#include <platform/platform.h>
+
 #include "hid.h"
 #include "hid_private.h"
 #include "hid_native_private.h"
