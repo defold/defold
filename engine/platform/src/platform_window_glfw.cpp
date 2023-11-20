@@ -14,7 +14,7 @@
 
 #include <assert.h>
 
-#include "platform.h"
+#include "platform_window.h"
 
 #include <dmsdk/graphics/glfw/glfw.h>
 

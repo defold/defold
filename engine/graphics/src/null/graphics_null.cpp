@@ -21,7 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"

@@ -24,7 +24,7 @@
 #include <hid.h>
 
 #include <graphics/graphics.h>
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 
 // From engine_private.h
 

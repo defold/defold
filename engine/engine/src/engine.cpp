@@ -55,7 +55,7 @@
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <particle/particle.h>
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 

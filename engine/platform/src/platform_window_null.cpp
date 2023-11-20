@@ -1,7 +1,7 @@
 
 #include <string>
 
-#include "platform.h"
+#include "platform_window.h"
 
 namespace dmPlatform
 {

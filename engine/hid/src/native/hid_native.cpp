@@ -20,7 +20,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 
 #include "hid.h"
 #include "hid_private.h"

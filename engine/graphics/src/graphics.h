@@ -25,7 +25,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 
 namespace dmGraphics
 {

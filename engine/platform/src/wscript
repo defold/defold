@@ -16,7 +16,7 @@ def build(bld):
                     target          = 'platform_null',
                     source          = bld.path.ant_glob(['platform_window_null.cpp']))
 
-    bld.install_files('${PREFIX}/include/platform', 'platform.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')

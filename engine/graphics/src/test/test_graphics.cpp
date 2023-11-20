@@ -17,7 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"

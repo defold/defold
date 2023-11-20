@@ -23,7 +23,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 
-#include "platform.h"
+#include "platform_window.h"
 
 // From engine_private.h
 enum UpdateResult

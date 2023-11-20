@@ -20,13 +20,14 @@
 #include <string.h>
 #include <signal.h>
 
+#include <graphics/graphics.h>
+
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/platform.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 
-#include <graphics/graphics.h>
 #include <hid/hid.h>
 #include <input/input_ddf.h>
 
@@ -105,7 +106,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    dmGraphics::WindowParams window_params;
+    dmPlatform::WindowParams window_params;
     memset(&window_params, 0, sizeof(window_params));
     window_params.m_Width = 32;
     window_params.m_Height = 32;

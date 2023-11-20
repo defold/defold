@@ -19,7 +19,7 @@
 #include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
-#include <platform/platform.h>
+#include <platform/platform_window.h>
 
 namespace dmGraphics
 {
