@@ -35,7 +35,7 @@
 
 namespace dmImage
 {
-    void Premultiply(uint8_t* buffer, int width, int height)
+    void PremultiplyRGBA(uint8_t* buffer, int width, int height)
     {
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
@@ -47,6 +47,18 @@ namespace dmImage
                 buffer[index + 0] = r;
                 buffer[index + 1] = g;
                 buffer[index + 2] = b;
+            }
+        }
+    }
+
+    void PremultiplyLuminance(uint8_t* buffer, int width, int height)
+    {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int index     = (y * width + x) * 2;
+                uint32_t a    = buffer[index + 1];
+                uint32_t r    = (buffer[index] * a + 255) >> 8;
+                buffer[index] = r;
             }
         }
     }
@@ -66,17 +78,20 @@ namespace dmImage
                 i.m_Type = TYPE_LUMINANCE;
                 break;
             case 2:
-                // Luminance + alpha. Convert to luminance
-                i.m_Type = TYPE_LUMINANCE;
-                ret = stbi__convert_format(ret, 2, 1, x, y);
+                i.m_Type = TYPE_LUMINANCE_ALPHA;
+                if (premult)
+                {
+                    PremultiplyLuminance(ret, x, y);
+                }
                 break;
             case 3:
                 i.m_Type = TYPE_RGB;
                 break;
             case 4:
                 i.m_Type = TYPE_RGBA;
-                if (premult) {
-                    Premultiply(ret, x, y);
+                if (premult)
+                {
+                    PremultiplyRGBA(ret, x, y);
                 }
                 break;
             default:
@@ -99,6 +114,26 @@ namespace dmImage
         memset(image, 0, sizeof(*image));
     }
 
+    Type GetType(HImage image)
+    {
+        return image->m_Type;
+    }
+
+    uint32_t GetWidth(HImage image)
+    {
+        return image->m_Width;
+    }
+
+    uint32_t GetHeight(HImage image)
+    {
+        return image->m_Height;
+    }
+
+    const void* GetData(HImage image)
+    {
+        return image->m_Buffer;
+    }
+
     uint32_t BytesPerPixel(Type type)
     {
         switch (type)
@@ -109,6 +144,8 @@ namespace dmImage
             return 4;
         case dmImage::TYPE_LUMINANCE:
             return 1;
+        case dmImage::TYPE_LUMINANCE_ALPHA:
+            return 2;
         }
         return 0;
     }
