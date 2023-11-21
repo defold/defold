@@ -2354,7 +2354,6 @@ bail:
                 total_uniform_count += ddf->m_Resources[i].m_Bindings.m_Count;
             }
 
-            // shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
             shader->m_TextureSamplerCount    = texture_sampler_count;
             shader->m_TotalUniformCount      = total_uniform_count;
@@ -2485,6 +2484,53 @@ bail:
         vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
 
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+    } 
+
+    static void FillProgramResourceBindings(Program* program, ShaderModule* module, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t dynamic_alignment, VkShaderStageFlagBits stage_flag,
+        uint32_t& buffer_count, uint32_t& sampler_count, uint32_t& uniform_count, uint32_t& data_size, uint32_t& data_size_aligned, uint32_t& max_set, uint32_t& max_binding)
+    {
+        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+        {
+            ShaderResourceBinding& res            = module->m_Uniforms[i];
+            VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
+            Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+
+            if (binding.descriptorCount == 0)
+            {
+                binding.binding            = res.m_Binding;
+                binding.descriptorType     = GetDescriptorType(res);
+                binding.descriptorCount    = 1;
+                binding.pImmutableSamplers = 0;
+
+                program_resource_binding.m_DataOffset = data_size;
+                program_resource_binding.m_Res        = &res;
+
+                if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                {
+                    program_resource_binding.m_DataOffset = data_size;
+                    program_resource_binding.m_DynamicOffsetIndex = buffer_count;
+                    buffer_count++;
+                    uniform_count += res.m_BlockMembers.Size();
+                }
+                else
+                {
+                    program_resource_binding.m_TextureUnit = sampler_count;
+                    sampler_count++;
+                    uniform_count++;
+                }
+
+                data_size         += res.m_DataSize;
+                data_size_aligned += DM_ALIGN(res.m_DataSize, dynamic_alignment);
+
+                max_set     = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
+                max_binding = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
+            #if 0
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
+            #endif
+            }
+
+            binding.stageFlags |= stage_flag;
+        }
     }
 
     static void CreateProgramResourceBindings(VulkanContext* context, Program* program)
@@ -2502,97 +2548,17 @@ bail:
 
         if (program->m_ComputeModule)
         {
-            assert(0);
+            FillProgramResourceBindings(program, program->m_ComputeModule, bindings, dynamic_alignment, VK_SHADER_STAGE_COMPUTE_BIT, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
         }
         else
         {
             assert(program->m_VertexModule && program->m_FragmentModule);
-
-            dmLogInfo("CreateProgramResourceBindings");
-
-            for (int i = 0; i < program->m_VertexModule->m_Uniforms.Size(); ++i)
-            {
-                ShaderResourceBinding& res            = program->m_VertexModule->m_Uniforms[i];
-                VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
-
-                binding.binding            = res.m_Binding;
-                binding.descriptorType     = GetDescriptorType(res);
-                binding.descriptorCount    = 1;
-                binding.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT;
-                binding.pImmutableSamplers = 0;
-
-                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
-                program_resource_binding.m_Res = &res;
-
-                if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                {
-                    program_resource_binding.m_DataOffset = data_size;
-                    program_resource_binding.m_DynamicOffsetIndex = buffer_count;
-                    buffer_count++;
-                    uniform_count += res.m_BlockMembers.Size();
-                }
-                else
-                {
-                    program_resource_binding.m_TextureUnit = sampler_count;
-                    sampler_count++;
-                    uniform_count++;
-                }
-
-                max_set            = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
-                max_binding        = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
-                data_size         += res.m_DataSize;
-                data_size_aligned += DM_ALIGN(res.m_DataSize, dynamic_alignment);
-
-                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
-            }
-
-            for (int i = 0; i < program->m_FragmentModule->m_Uniforms.Size(); ++i)
-            {
-                ShaderResourceBinding& res            = program->m_FragmentModule->m_Uniforms[i];
-                VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
-                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
-
-                if (binding.descriptorCount == 0)
-                {
-                    binding.binding            = res.m_Binding;
-                    binding.descriptorType     = GetDescriptorType(res);
-                    binding.descriptorCount    = 1;
-                    binding.pImmutableSamplers = 0;
-
-                    program_resource_binding.m_DataOffset = data_size;
-                    program_resource_binding.m_Res        = &res;
-
-                    if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                    {
-                        program_resource_binding.m_DataOffset = data_size;
-                        program_resource_binding.m_DynamicOffsetIndex = buffer_count;
-                        buffer_count++;
-                        uniform_count += res.m_BlockMembers.Size();
-                    }
-                    else
-                    {
-                        program_resource_binding.m_TextureUnit = sampler_count;
-                        sampler_count++;
-                        uniform_count++;
-                    }
-
-                    data_size         += res.m_DataSize;
-                    data_size_aligned += DM_ALIGN(res.m_DataSize, dynamic_alignment);
-
-                    max_set     = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
-                    max_binding = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
-
-                    dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
-                }
-
-                binding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
-            }
+            FillProgramResourceBindings(program, program->m_VertexModule, bindings, dynamic_alignment, VK_SHADER_STAGE_VERTEX_BIT, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
+            FillProgramResourceBindings(program, program->m_FragmentModule, bindings, dynamic_alignment, VK_SHADER_STAGE_FRAGMENT_BIT, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
 
             program->m_UniformData = new uint8_t[data_size];
             memset(program->m_UniformData, 0, data_size);
         }
-
-        dmLogInfo("Done");
 
         program->m_UniformBufferCount  = buffer_count;
         program->m_TextureSamplerCount = sampler_count;

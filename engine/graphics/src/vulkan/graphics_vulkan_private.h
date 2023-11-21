@@ -307,11 +307,8 @@ namespace dmGraphics
         };
 
         uint64_t                        m_Hash;
-        //uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         VulkanHandle                    m_Handle;
-
-        //dmArray<ProgramResourceBinding> m_ResourceBindings;
         ProgramResourceBinding          m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         ShaderModule*                   m_VertexModule;
