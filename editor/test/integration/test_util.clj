@@ -1171,7 +1171,7 @@
 
 (defmethod edit-resource-node "collection" [resource-node-id]
   (let [instance-node-id (first-subnode-of-type resource-node-id collection/InstanceNode)]
-    (g/delete-node instance-node-id)))
+    (g/update-property instance-node-id :id str \_)))
 
 (defmethod edit-resource-node "collectionfactory" [resource-node-id]
   (g/set-property resource-node-id :prototype nil))
@@ -1190,7 +1190,7 @@
 
 (defmethod edit-resource-node "display_profiles" [resource-node-id]
   (let [profile-node-id (g/node-feeding-into resource-node-id :profile-msgs)]
-    (g/delete-node profile-node-id)))
+    (g/update-property profile-node-id :name str \_)))
 
 (defmethod edit-resource-node "factory" [resource-node-id]
   (g/set-property resource-node-id :prototype nil))
@@ -1203,7 +1203,7 @@
 
 (defmethod edit-resource-node "go" [resource-node-id]
   (let [component-node-id (first-subnode-of-type resource-node-id game-object/ComponentNode)]
-    (g/delete-node component-node-id)))
+    (g/update-property component-node-id :id str \_)))
 
 (defmethod edit-resource-node "gui" [resource-node-id]
   (g/update-property resource-node-id :max-nodes type-preserving-add 1))

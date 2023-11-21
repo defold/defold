@@ -19,7 +19,6 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.code.util :as code.util]
             [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
@@ -30,6 +29,7 @@
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
             [util.coll :as coll :refer [pair]]
+            [util.diff :as diff]
             [util.text-util :as text-util])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
            [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]
@@ -1101,26 +1101,23 @@
   ^String [diff]
   (let [printer (deep-diff/printer {:print-color false
                                     :print-fallback :print})]
-    (with-out-str
-      (deep-diff/pretty-print diff printer))))
+    (string/trim-newline
+      (with-out-str
+        (deep-diff/pretty-print diff printer)))))
 
 (defn- value-diff-message
   ^String [disk-value save-value]
-  (str "Summary of discrepancies between disk value and save value:"
-       \newline
+  (str "Summary of discrepancies between disk value and save value:\n"
        (-> (deep-diff/diff disk-value save-value)
            (deep-diff/minimize)
            (diff->string))))
 
 (defn- text-diff-message
   ^String [disk-text save-text]
-  ;; TODO(save-data-test): Better text diff output.
-  (str "Summary of discrepancies between disk text and save text:"
-       \newline
-       (-> (deep-diff/diff (code.util/split-lines disk-text)
-                           (code.util/split-lines save-text))
-           (deep-diff/minimize)
-           (diff->string))))
+  (str "Summary of discrepancies between disk text and save text:\n"
+       (or (some->> (diff/make-diff-output-lines disk-text save-text 3)
+                    (string/join "\n"))
+           "Contents are identical.")))
 
 (defn- when-checking-resource-message
   ^String [resource]
@@ -1162,16 +1159,21 @@
         resource (:resource save-data)
         resource-type (resource/resource-type resource)
         read-fn (:read-fn resource-type)
-        message (when-checking-resource-message resource)]
-    (if read-fn
-      ;; Compare data.
-      (let [disk-value (read-fn resource)
-            save-value (with-open [reader (StringReader. save-text)]
-                         (read-fn reader))]
-        (check-value-equivalence! disk-value save-value message))
+        message (when-checking-resource-message resource)
 
-      ;; Compare text.
+        are-values-equivalent
+        (if-not read-fn
+          false
+          (let [disk-value (read-fn resource)
+                save-value (with-open [reader (StringReader. save-text)]
+                             (read-fn reader))]
+            ;; We have a read-fn, compare data.
+            (check-value-equivalence! disk-value save-value message)))]
+
+    (when-not are-values-equivalent
+      ;; We either don't have a read-fn, or the values differ.
       (let [disk-text (slurp resource)]
+        ;; Compare text.
         (check-text-equivalence! disk-text save-text message)))))
 
 (defn- check-project-save-data-disk-equivalence! [project->save-datas]
@@ -1186,7 +1188,7 @@
   verify that the information saved is equivalent to the data loaded. Failures
   might signal that we've forgotten to read data from the file, or somehow we're
   not writing all properties to disk."
-  (testing "Saved data is equivalent to read data."
+  (testing "Saved data should be equivalent to read data."
     (check-project-save-data-disk-equivalence! project/all-save-data)))
 
 (deftest no-unsaved-changes-after-load-test
@@ -1227,7 +1229,7 @@
                     (let [save-data (g/valid-node-value node-id :save-data)]
                       (if (not (:dirty? save-data))
                         true
-                        (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited."
+                        (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited.\n"
                                            (save-data-diff-message save-data))]
                           (is (not (:dirty? save-data)) message)))))
               (test-util/edit-resource-node! node-id)
