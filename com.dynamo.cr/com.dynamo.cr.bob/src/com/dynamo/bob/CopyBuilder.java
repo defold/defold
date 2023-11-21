@@ -39,8 +39,8 @@ public abstract class CopyBuilder extends Builder<Void> {
 
     @Override
     public void build(Task<Void> task) throws IOException {
-        IResource in = task.getInputs().get(0);
-        IResource out = task.getOutputs().get(0);
+        IResource in = task.input(0);
+        IResource out = task.output(0);
         out.setContent(in.getContent());
     }
 }

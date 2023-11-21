@@ -411,7 +411,7 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
@@ -635,6 +635,7 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
+            case CONTEXT_FEATURE_COMPUTE_SHADER:         return false; // TODO!
         }
         return false;
     }
@@ -1793,8 +1794,11 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
-            glDisableVertexAttribArray(i);
-            CHECK_GL_ERROR;
+            if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
+            {
+                glDisableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
+                CHECK_GL_ERROR;
+            }
         }
 
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
@@ -1887,6 +1891,7 @@ static void LogFrameBufferError(GLenum status)
         }
         OpenGLShader* shader = new OpenGLShader();
         shader->m_Id         = shader_id;
+        shader->m_Language   = ddf->m_Language;
         return shader;
     }
 
@@ -1936,6 +1941,23 @@ static void LogFrameBufferError(GLenum status)
     {
         ++context->m_ModificationVersion;
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
+    }
+
+    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        assert(0 && "Not implemented!");
+        return 0;
+    }
+
+    static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
+    {
+        assert(0 && "Not implemented!");
+        return 0;
+    }
+
+    static void OpenGLDeleteComputeProgram(HComputeProgram prog)
+    {
+        assert(0 && "Not implemented!");
     }
 
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1995,7 +2017,8 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        program->m_Id = p;
+        program->m_Id       = p;
+        program->m_Language = vertex_shader->m_Language;
 
         BuildAttributes(program);
         return (HProgram) program;
@@ -2103,6 +2126,11 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
         OpenGLDeleteShader(((OpenGLShader*) program));
+    }
+
+    static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)
+    {
+        return ((OpenGLProgram*) program)->m_Language;
     }
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context)

@@ -49,14 +49,12 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.logging.LogFormatter;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -153,7 +151,7 @@ public class Bob {
         return rootFolder;
     }
 
-    public static void extract(final URL url, File toFolder) throws IOException {
+    public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
@@ -164,7 +162,8 @@ public class Bob {
                 if (!entry.isDirectory()) {
 
                     File dstFile = new File(toFolder, entry.getName());
-                    dstFile.deleteOnExit();
+                    if (deleteOnExit)
+                        dstFile.deleteOnExit();
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -183,7 +182,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.fine("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -191,6 +190,10 @@ public class Bob {
         } finally {
             IOUtils.closeQuietly(zipStream);
         }
+    }
+
+    public static void extract(final URL url, File toFolder) throws IOException {
+        extractToFolder(url, toFolder, true);
     }
 
     public static String getPath(String path) {
@@ -729,7 +732,9 @@ public class Bob {
         }
 
         boolean verbose = cmd.hasOption('v');
-        LogHelper.setVerboseLogging(verbose);
+
+        LogHelper.setVerboseLogging(verbose);  // It doesn't iterate over all loggers (including the bob logger)
+        LogHelper.configureLogger(logger);     // It was created before the log helper was set to be verbose
 
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
@@ -913,7 +918,7 @@ public class Bob {
                         message = "undefined";
                     }
                 }
-                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().getInputs().get(0),
+                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().input(0),
                         (taskResult.getLineNumber() != -1) ? String.format(":%d", taskResult.getLineNumber()) : "",
                         message));
                 if (verbose) {

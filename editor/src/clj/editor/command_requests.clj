@@ -91,6 +91,10 @@
    {:ui-handler :engine-profile-show
     :help "Open the Engine Profiler in a web browser."}
 
+   :engine-resource-profiler
+   {:ui-handler :engine-resource-profile-show
+    :help "Open the Engine Resource Profiler in a web browser."}
+
    :fetch-libraries
    {:ui-handler :fetch-libraries
     :help "Download the latest version of the project library dependencies."

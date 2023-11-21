@@ -25,12 +25,22 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
+def import_lib(module_name, path):
+    import importlib
+    # Normally a finder would get you the loader and spec.
+    loader = importlib.machinery.SourceFileLoader(module_name, path)
+    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
+    # Basically what import does when there is no loader.create_module().
+    module = importlib.util.module_from_spec(spec)
+    # Now is the time to put the module in sys.modules if you want.
+    # How import initializes the module.
+    loader.exec_module(module)
+
 # import the vendor specific build setup
 path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_vendor.py')
 if os.path.exists(path):
-    import imp
     sys.dont_write_bytecode = True
-    imp.load_source('waf_dynamo_vendor', path)
+    import_lib('waf_dynamo_vendor', path)
     print("Imported %s from %s" % ('waf_dynamo_vendor', path))
     import waf_dynamo_vendor
     sys.dont_write_bytecode = False
@@ -63,6 +73,8 @@ def platform_supports_feature(platform, feature, data):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
+    if feature == 'compute':
+        return platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'win32', 'x86_64-win32']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -1809,8 +1821,7 @@ def detect(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):
-        vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
-        conf.env['STLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
+        conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('arm64-ios','x86_64-ios'):
@@ -1894,3 +1905,4 @@ def options(opt):
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
+    opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')

@@ -64,6 +64,11 @@ namespace dmResourceMounts
     dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info);
     dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info);
 
+    // See notes in dmsdk/resource/resource.h
+    // Ownership of memory is with the caller
+    dmResource::Result AddFile(HContext context, dmhash_t path_hash, uint32_t size, const void* resource);
+    dmResource::Result RemoveFile(HContext context, dmhash_t path_hash);
+
     struct SGetDependenciesParams
     {
         dmhash_t m_UrlHash; // The requested url

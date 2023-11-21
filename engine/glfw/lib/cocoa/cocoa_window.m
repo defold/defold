@@ -174,6 +174,11 @@
 
 - (void)activateWindow
 {
+    if(_glfwWin.clientAPI != GLFW_OPENGL_API && _glfwWin.fullscreen )
+    {
+        [_glfwWin.window toggleFullScreen:nil];
+    }
+
     [_glfwWin.window makeKeyAndOrderFront:nil];
     // Starting from macOS Sonoma (14.0) an extra step needed
     NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
@@ -758,6 +763,14 @@ int  _glfwPlatformOpenWindow( int width, int height,
     else
     {
         styleMask = NSBorderlessWindowMask;
+
+        if (_glfwWin.clientAPI != GLFW_OPENGL_API)
+        {
+            styleMask |= NSWindowStyleMaskTitled |
+                         NSWindowStyleMaskClosable |
+                         NSWindowStyleMaskMiniaturizable |
+                         NSWindowStyleMaskResizable;
+        }
     }
 
     _glfwWin.window = [[NSWindow alloc]

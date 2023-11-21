@@ -15,12 +15,6 @@
 namespace dmResourceMounts
 {
 
-#if defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_FMT "%016lx"
-#else
-    #define DM_HASH_FMT "%016llx"
-#endif
-
 const char* MOUNTS_FILENAME = "liveupdate.mounts";
 
 const int MAX_NAME_LENGTH = 64;
@@ -33,12 +27,20 @@ struct ArchiveMount
     bool                            m_Persist;
 };
 
+struct CustomFile
+{
+    const void* m_Resource;
+    uint32_t    m_Size;
+};
+
 struct ResourceMountsContext
 {
     // The currently mounted archives, in sorted order
     dmArray<ArchiveMount>           m_Mounts;
+    dmHashTable64<CustomFile>       m_CustomFiles;
     dmResourceProvider::HArchive    m_ResourceBaseArchive;
     dmMutex::HMutex                 m_Mutex;
+
 };
 
 
@@ -69,6 +71,8 @@ void Destroy(HContext ctx)
     {
         DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
         DestroyMounts(ctx);
+
+        ctx->m_CustomFiles.Clear();
     }
     dmMutex::Delete(ctx->m_Mutex);
     delete ctx;
@@ -348,6 +352,37 @@ static dmResource::Result DestroyMounts(HContext ctx)
     return dmResource::RESULT_OK;
 }
 
+static dmResource::Result GetCustomResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size)
+{
+    // Lock should already be held
+    CustomFile* file = ctx->m_CustomFiles.Get(path_hash);
+    if (file)
+    {
+        *resource_size = file->m_Size;
+        DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", path, path_hash, *resource_size);
+        return dmResource::RESULT_OK;
+    }
+
+    return dmResource::RESULT_RESOURCE_NOT_FOUND;
+}
+
+static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, uint8_t* buffer, uint32_t buffer_size)
+{
+    // Lock should already be held
+    CustomFile* file = ctx->m_CustomFiles.Get(path_hash);
+    if (file)
+    {
+        if (file->m_Size > buffer_size)
+            return dmResource::RESULT_INVAL; // Shouldn't really happen as we just queried the size
+
+        memcpy(buffer, file->m_Resource, buffer_size);
+
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
+        return dmResource::RESULT_OK;
+    }
+    return dmResource::RESULT_RESOURCE_NOT_FOUND;
+}
+
 dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
@@ -367,6 +402,10 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
         }
         return ProviderResultToResult(result);
     }
+
+    if (!ctx->m_CustomFiles.Empty())
+        return GetCustomResourceSize(ctx, path_hash, path, resource_size);
+
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
@@ -395,6 +434,10 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
         }
         return ProviderResultToResult(result);
     }
+
+    if (!ctx->m_CustomFiles.Empty())
+        return ReadCustomResource(ctx, path_hash, buffer, buffer_size);
+
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
@@ -420,8 +463,59 @@ dmResource::Result ReadResource(HContext ctx, const char* path, dmhash_t path_ha
             return ProviderResultToResult(result);
         }
     }
+
+    if (!ctx->m_CustomFiles.Empty())
+    {
+        dmResource::Result result = GetCustomResourceSize(ctx, path_hash, path, &resource_size);
+        if (dmResource::RESULT_OK == result)
+        {
+            if (buffer->Capacity() < resource_size)
+                buffer->SetCapacity(resource_size);
+            buffer->SetSize(resource_size);
+
+            return ReadCustomResource(ctx, path_hash, (uint8_t*)buffer->Begin(), resource_size);
+        }
+    }
+
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
+
+// ****************************************
+// Custom files
+
+dmResource::Result AddFile(HContext context, dmhash_t path_hash, uint32_t size, const void* resource)
+{
+    DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+
+    CustomFile* prevfile = context->m_CustomFiles.Get(path_hash);
+    if (prevfile)
+        return dmResource::RESULT_ALREADY_REGISTERED;
+
+    CustomFile file;
+    file.m_Size = size;
+    file.m_Resource = resource;
+    if (context->m_CustomFiles.Full())
+    {
+        uint32_t capacity = context->m_CustomFiles.Capacity() + 8;
+        context->m_CustomFiles.SetCapacity((capacity*2)/3, capacity);
+    }
+    context->m_CustomFiles.Put(path_hash, file);
+    return dmResource::RESULT_OK;
+}
+
+dmResource::Result RemoveFile(HContext context, dmhash_t path_hash)
+{
+    DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
+    CustomFile* file = context->m_CustomFiles.Get(path_hash);
+    if (!file)
+        return dmResource::RESULT_RESOURCE_NOT_FOUND;
+
+    context->m_CustomFiles.Erase(path_hash);
+    return dmResource::RESULT_OK;
+}
+
+// ****************************************
+
 
 struct DependencyIterContext
 {
@@ -542,6 +636,3 @@ dmResource::Result GetDependencies(HContext ctx, const SGetDependenciesParams* r
 }
 
 }
-
-#undef DM_HASH_FMT
-

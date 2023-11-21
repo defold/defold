@@ -330,8 +330,6 @@ namespace dmResourceProviderArchiveMutable
 
         CreateEntryMap(archive);
 
-        dmResourceProviderArchivePrivate::DebugPrintArchiveIndex(archive->m_ArchiveContainer);
-
         archive->m_Manifest->m_ArchiveIndex = archive->m_ArchiveContainer;
 
         return dmResourceProvider::RESULT_OK;

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -59,6 +59,12 @@ namespace dmScript
      * @variable
      */
 
+    /*# luminance image type
+     *
+     * @name image.TYPE_LUMINANCE_ALPHA
+     * @variable
+     */
+
     /*# load image from buffer
     * Load image (PNG or JPEG) from buffer.
     *
@@ -73,6 +79,7 @@ namespace dmScript
     *     - `image.TYPE_RGB`
     *     - `image.TYPE_RGBA`
     *     - `image.TYPE_LUMINANCE`
+    *     - `image.TYPE_LUMINANCE_ALPHA`
     * - [type:string] `buffer`: the raw image data
     *
     * @examples
@@ -130,6 +137,9 @@ namespace dmScript
                 case dmImage::TYPE_LUMINANCE:
                     lua_pushliteral(L, "l");
                     break;
+                case dmImage::TYPE_LUMINANCE_ALPHA:
+                    lua_pushliteral(L, "la");
+                    break;
                 default:
                     assert(false);
             }
@@ -169,9 +179,8 @@ namespace dmScript
         SETCONSTANT(TYPE_RGB, "rgb")
         SETCONSTANT(TYPE_RGBA, "rgba")
         SETCONSTANT(TYPE_LUMINANCE, "l")
-
+        SETCONSTANT(TYPE_LUMINANCE_ALPHA, "la")
 #undef SETCONSTANT
-
 
         lua_pop(L, 1);
 
