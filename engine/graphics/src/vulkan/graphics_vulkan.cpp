@@ -2874,6 +2874,9 @@ bail:
                 }
             }
         }
+
+        assert(0);
+        return 0;
     }
 
     static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
@@ -2900,11 +2903,11 @@ bail:
                 }
                 else
                 {
-                    for (int i = 0; i < pgm_res.m_Res->m_BlockMembers.Size(); ++i)
+                    for (uint32_t i = 0; i < pgm_res.m_Res->m_BlockMembers.Size(); ++i)
                     {
                         if (pgm_res.m_Res->m_BlockMembers[i].m_NameHash == name_hash)
                         {
-                            return set | binding << 16 | i << 32;
+                            return set | binding << 16 | ((uint64_t) i) << 32;
                         }
                     }
                 }
