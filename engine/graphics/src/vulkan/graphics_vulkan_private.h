@@ -297,11 +297,12 @@ namespace dmGraphics
         struct ProgramResourceBinding
         {
             ShaderResourceBinding* m_Res;
+            uint32_t               m_DataOffset;
 
             union
             {
-                uint32_t m_DataOffset;
-                uint32_t m_TextureUnit;
+                uint16_t m_DynamicOffsetIndex;
+                uint16_t m_TextureUnit;
             };
         };
 

@@ -2060,9 +2060,9 @@ bail:
                 }
                 else
                 {
-                    dynamic_offsets[pgm_res.m_DataOffset] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign  = pgm_res.m_Res->m_DataSize;
-                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+                    dynamic_offsets[pgm_res.m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                    const uint32_t uniform_size_nonalign          = pgm_res.m_Res->m_DataSize;
+                    const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                     assert(uniform_size_nonalign > 0);
 
@@ -2527,6 +2527,7 @@ bail:
                 if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
                 {
                     program_resource_binding.m_DataOffset = data_size;
+                    program_resource_binding.m_DynamicOffsetIndex = buffer_count;
                     buffer_count++;
                     uniform_count += res.m_BlockMembers.Size();
                 }
@@ -2542,7 +2543,7 @@ bail:
                 data_size         += res.m_DataSize;
                 data_size_aligned += DM_ALIGN(res.m_DataSize, dynamic_alignment);
 
-                dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
             }
 
             for (int i = 0; i < program->m_FragmentModule->m_Uniforms.Size(); ++i)
@@ -2564,6 +2565,7 @@ bail:
                     if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
                     {
                         program_resource_binding.m_DataOffset = data_size;
+                        program_resource_binding.m_DynamicOffsetIndex = buffer_count;
                         buffer_count++;
                         uniform_count += res.m_BlockMembers.Size();
                     }
@@ -2580,7 +2582,7 @@ bail:
                     max_set     = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
                     max_binding = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
 
-                    dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+                    dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
                 }
 
                 binding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -2589,6 +2591,8 @@ bail:
             program->m_UniformData = new uint8_t[data_size];
             memset(program->m_UniformData, 0, data_size);
         }
+
+        dmLogInfo("Done");
 
         program->m_UniformBufferCount  = buffer_count;
         program->m_TextureSamplerCount = sampler_count;
