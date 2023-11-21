@@ -2082,164 +2082,10 @@ bail:
         vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
     }
 
-    static void UpdateDescriptorSets_OLD(
-        VkDevice            vk_device,
-        VkDescriptorSet*    vk_descriptor_sets,
-        Program*            program,
-        Program::ModuleType module_type,
-        ScratchBuffer*      scratch_buffer,
-        uint32_t            dynamic_alignment,
-        uint32_t*           dynamic_offsets_out)
-    {
-        ShaderModule* shader_module;
-        uint32_t*     uniform_data_offsets;
-        uint32_t*     dynamic_offsets = dynamic_offsets_out;
-
-        // if (module_type == Program::MODULE_TYPE_VERTEX)
-        // {
-        //     shader_module         = program->m_VertexModule;
-        //     uniform_data_offsets  = program->m_UniformDataOffsets;
-        // }
-        // else if (module_type == Program::MODULE_TYPE_FRAGMENT)
-        // {
-        //     shader_module        = program->m_FragmentModule;
-        //     uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_Uniforms.Size()];
-        //     dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_Uniforms.Size()];
-        // }
-        // else
-        {
-            assert(0);
-        }
-
-        if (shader_module->m_Uniforms.Size() == 0)
-        {
-            return;
-        }
-
-        const uint8_t max_write_descriptors = 16;
-        uint16_t uniforms_to_write          = shader_module->m_Uniforms.Size();
-        uint16_t uniform_to_write_index     = 0;
-        uint16_t uniform_index              = 0;
-        uint16_t image_to_write_index       = 0;
-        uint16_t buffer_to_write_index      = 0;
-        VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
-        VkDescriptorImageInfo vk_write_image_descriptors[max_write_descriptors];
-        VkDescriptorBufferInfo vk_write_buffer_descriptors[max_write_descriptors];
-
-        while(uniforms_to_write > 0)
-        {
-            ShaderResourceBinding& res = shader_module->m_Uniforms[uniform_index];
-            assert(res.m_Set < MAX_SET_COUNT);
-
-            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index];
-            vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            vk_write_desc_info.pNext            = 0;
-            vk_write_desc_info.dstSet           = vk_descriptor_sets[res.m_Set];
-            vk_write_desc_info.dstBinding       = res.m_Binding;
-            vk_write_desc_info.dstArrayElement  = 0;
-            vk_write_desc_info.descriptorCount  = 1;
-            vk_write_desc_info.pImageInfo       = 0;
-            vk_write_desc_info.pBufferInfo      = 0;
-            vk_write_desc_info.pTexelBufferView = 0;
-
-            if (IsUniformTextureSampler(res))
-            {
-                HTexture texture_handle = g_VulkanContext->m_TextureUnits[res.m_TextureUnit];
-                VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture_handle);
-
-                if (texture == 0x0)
-                {
-                    texture = GetDefaultTexture(g_VulkanContext, res.m_Type);
-                }
-
-                VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                VkSampler image_sampler          = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
-                VkImageView image_view           = texture->m_Handle.m_ImageView;
-                VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
-                if (res.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
-                {
-                    image_sampler   = 0;
-                    descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-                }
-                else if (res.m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D || res.m_Type == ShaderDesc::SHADER_TYPE_UIMAGE2D)
-                {
-                    image_layout    = VK_IMAGE_LAYOUT_GENERAL;
-                    image_sampler   = 0;
-                    descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-                }
-                else if (res.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER)
-                {
-                    descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER;
-                    image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
-                    image_view      = VK_NULL_HANDLE;
-                }
-
-                VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
-                vk_image_info.sampler             = image_sampler;
-                vk_image_info.imageLayout         = image_layout;
-                vk_image_info.imageView           = image_view;
-
-                vk_write_desc_info.descriptorType = descriptor_type;
-                vk_write_desc_info.pImageInfo     = &vk_image_info;
-            }
-            else
-            {
-                dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                const uint32_t uniform_size_nonalign    = res.m_DataSize;
-                const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
-
-                assert(uniform_size_nonalign > 0);
-
-                // Copy client data to aligned host memory
-                // The data_offset here is the offset into the programs uniform data,
-                // i.e the source buffer.
-                const uint32_t data_offset = uniform_data_offsets[res.m_UniformDataIndex];
-                memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
-                    &program->m_UniformData[data_offset], uniform_size_nonalign);
-
-                // Note in the spec about the offset being zero:
-                //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
-                //    offset is the base offset from which the dynamic offset is applied and range is the static size
-                //    used for all dynamic offsets."
-                VkDescriptorBufferInfo& vk_buffer_info = vk_write_buffer_descriptors[buffer_to_write_index++];
-                vk_buffer_info.buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
-                vk_buffer_info.offset = 0;
-                vk_buffer_info.range  = uniform_size;
-                vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
-
-                scratch_buffer->m_MappedDataCursor += uniform_size;
-            }
-
-            uniforms_to_write--;
-            uniform_index++;
-            uniform_to_write_index++;
-
-            // Commit and restart if we reached max descriptors per batch
-            if (uniform_to_write_index == max_write_descriptors)
-            {
-                vkUpdateDescriptorSets(vk_device, max_write_descriptors, vk_write_descriptors, 0, 0);
-                uniform_to_write_index = 0;
-                image_to_write_index = 0;
-                buffer_to_write_index = 0;
-            }
-        }
-
-        if (uniform_to_write_index > 0)
-        {
-            vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
-        }
-    }
-
     static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
         Program* program_ptr, ScratchBuffer* scratch_buffer,
         uint32_t* dynamic_offsets, const uint32_t alignment)
     {
-        // const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
-        // const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
-        // const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
-
         const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
         const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
 
@@ -2255,17 +2101,7 @@ bail:
             return res;
         }
 
-        // VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, Program* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment
         UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
-
-        /*
-        UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr,
-            Program::MODULE_TYPE_VERTEX, scratch_buffer,
-            alignment, dynamic_offsets);
-        UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr,
-            Program::MODULE_TYPE_FRAGMENT, scratch_buffer,
-            alignment, dynamic_offsets);
-        */
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
