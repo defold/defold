@@ -1061,6 +1061,8 @@ public class Project {
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
 
+        final String libraryName = this.option("ne-output-name", "default");
+
         final String variant = appmanifestOptions.get("baseVariant");
 
         BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
@@ -1069,7 +1071,32 @@ public class Project {
         File logFile = new File(buildDir, "log.txt");
         String serverURL = this.option("build-server", "https://build.defold.com");
 
-        List<ExtenderResource> allSource = ExtenderUtil.getLibrarySources(this, platform, appmanifestOptions, engineBuildDirs);
+        //platforms /armv7-ios /context /flags
+        Map<String, Object> compilerOptions = new HashMap<>();
+        String DEFINES = getSystemEnv("DEFINES");
+        if (DEFINES != null) {
+            List<String> values = Arrays.asList(DEFINES.split(" "));
+            compilerOptions.put("defines", values);
+        }
+        String CXXFLAGS = getSystemEnv("CXXFLAGS");
+        if (CXXFLAGS != null) {
+            List<String> values = Arrays.asList(CXXFLAGS.split(" "));
+            compilerOptions.put("flags", values);
+        }
+        String INCLUDES = getSystemEnv("INCLUDES");
+        if (INCLUDES != null) {
+            List<String> values = Arrays.asList(INCLUDES.split(" "));
+            compilerOptions.put("includes", values);
+        }
+
+        for (String path : engineBuildDirs) {
+            File dir = new File(path);
+            if (!dir.isDirectory()) {
+                throw new IOException(String.format("'%s' is not a directory!", path));
+            }
+        }
+
+        List<ExtenderResource> allSource = ExtenderUtil.getLibrarySources(this, platform, appmanifestOptions, compilerOptions, libraryName, engineBuildDirs);
 
         boolean debugUploadZip = this.hasOption("debug-ne-upload");
         if (debugUploadZip) {

@@ -534,6 +534,7 @@ public class Bob {
 
         addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list.", false);
         addOption(options, null, "ne-build-dir", true, "Specify a folder with includes or source, to build a specific library. More than one occurrance is allowed. ", false);
+        addOption(options, null, "ne-output-name", true, "Specify a library target name", false);
 
         addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
         addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
