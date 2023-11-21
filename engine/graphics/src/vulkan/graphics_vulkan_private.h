@@ -271,7 +271,6 @@ namespace dmGraphics
         VkShaderModule                 m_Module;
         dmArray<ShaderResourceBinding> m_Uniforms;
         dmArray<ShaderResourceBinding> m_Inputs;
-        uint32_t                       m_UniformDataSizeAligned;
         uint16_t                       m_UniformBufferCount;
         uint16_t                       m_TextureSamplerCount;
         uint16_t                       m_TotalUniformCount;
@@ -295,17 +294,40 @@ namespace dmGraphics
             uint8_t               m_DescriptorSetLayoutsCount;
         };
 
+        struct ProgramResourceBinding
+        {
+            ShaderResourceBinding* m_Res;
+
+            union
+            {
+                uint32_t m_DataOffset;
+                uint32_t m_TextureUnit;
+            };
+        };
+
         uint64_t                        m_Hash;
-        uint32_t*                       m_UniformDataOffsets;
+        //uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         VulkanHandle                    m_Handle;
+
+        //dmArray<ProgramResourceBinding> m_ResourceBindings;
+        ProgramResourceBinding          m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
         ShaderModule*                   m_ComputeModule;
+
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         ShaderDesc::Language            m_Language;
 
-        uint8_t*                        m_DescriptorSetIndex;
+        uint32_t                        m_UniformDataSizeAligned;
+        uint16_t                        m_UniformBufferCount;
+        uint16_t                        m_TextureSamplerCount;
+        uint16_t                        m_TotalUniformCount;
+        uint16_t                        m_TotalResourcesCount;
+
+        uint8_t                         m_MaxSet;
+        uint8_t                         m_MaxBinding;
         uint8_t                         m_Destroyed : 1;
 
         const VulkanResourceType GetType();

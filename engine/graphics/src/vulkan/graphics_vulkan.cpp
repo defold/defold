@@ -1968,7 +1968,121 @@ bail:
         return 0x0;
     }
 
-    static void UpdateDescriptorSets(
+    static void UpdateImageDescriptor(VulkanContext* context, uint32_t texture_unit, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
+    {
+        HTexture texture_handle = context->m_TextureUnits[texture_unit];
+        VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
+
+        if (texture == 0x0)
+        {
+            texture = GetDefaultTexture(context, binding->m_Type);
+        }
+
+        VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkSampler image_sampler          = context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
+        VkImageView image_view           = texture->m_Handle.m_ImageView;
+        VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+        if (binding->m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+        {
+            image_sampler   = 0;
+            descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        }
+        else if (binding->m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D || binding->m_Type == ShaderDesc::SHADER_TYPE_UIMAGE2D)
+        {
+            image_layout    = VK_IMAGE_LAYOUT_GENERAL;
+            image_sampler   = 0;
+            descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        }
+        else if (binding->m_Type == ShaderDesc::SHADER_TYPE_SAMPLER)
+        {
+            descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER;
+            image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
+            image_view      = VK_NULL_HANDLE;
+        }
+
+        vk_image_info.sampler     = image_sampler;
+        vk_image_info.imageLayout = image_layout;
+        vk_image_info.imageView   = image_view;
+
+        vk_write_desc_info.descriptorType = descriptor_type;
+        vk_write_desc_info.pImageInfo     = &vk_image_info;
+    }
+
+    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, uint32_t uniform_size)
+    {
+        // Note in the spec about the offset being zero:
+        //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
+        //    offset is the base offset from which the dynamic offset is applied and range is the static size
+        //    used for all dynamic offsets."
+        vk_buffer_info.buffer = vk_buffer;
+        vk_buffer_info.offset = 0;
+        vk_buffer_info.range  = uniform_size;
+
+        vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
+    }
+
+    static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, Program* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment)
+    {
+        const uint32_t max_write_descriptors = MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT;
+        VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
+        VkDescriptorImageInfo vk_write_image_descriptors[max_write_descriptors];
+        VkDescriptorBufferInfo vk_write_buffer_descriptors[max_write_descriptors];
+
+        uint16_t uniform_to_write_index = 0;
+        uint16_t image_to_write_index   = 0;
+        uint16_t buffer_to_write_index  = 0;
+
+        for (int set = 0; set < program->m_MaxSet; ++set)
+        {
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            {
+                Program::ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+
+                if (pgm_res.m_Res == 0x0)
+                    continue;
+
+                VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index++];
+                vk_write_desc_info.sType                 = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                vk_write_desc_info.pNext                 = 0;
+                vk_write_desc_info.dstSet                = vk_descriptor_sets[set];
+                vk_write_desc_info.dstBinding            = binding;
+                vk_write_desc_info.dstArrayElement       = 0;
+                vk_write_desc_info.descriptorCount       = 1;
+                vk_write_desc_info.pImageInfo            = 0;
+                vk_write_desc_info.pBufferInfo           = 0;
+                vk_write_desc_info.pTexelBufferView      = 0;
+
+                if (IsUniformTextureSampler(*pgm_res.m_Res))
+                {
+                    UpdateImageDescriptor(context, pgm_res.m_TextureUnit, pgm_res.m_Res, vk_write_image_descriptors[image_to_write_index++], vk_write_desc_info);
+                }
+                else
+                {
+                    dynamic_offsets[pgm_res.m_DataOffset] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                    const uint32_t uniform_size_nonalign  = pgm_res.m_Res->m_DataSize;
+                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+
+                    assert(uniform_size_nonalign > 0);
+
+                    // Copy client data to aligned host memory
+                    // The data_offset here is the offset into the programs uniform data,
+                    // i.e the source buffer.
+                    memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
+                        &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
+
+                    UpdateUniformBufferDescriptor(context, scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer, vk_write_buffer_descriptors[buffer_to_write_index++], vk_write_desc_info, uniform_size_align);
+
+                    scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                }
+            }
+        }
+
+        vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
+    }
+
+    static void UpdateDescriptorSets_OLD(
         VkDevice            vk_device,
         VkDescriptorSet*    vk_descriptor_sets,
         Program*            program,
@@ -1981,18 +2095,18 @@ bail:
         uint32_t*     uniform_data_offsets;
         uint32_t*     dynamic_offsets = dynamic_offsets_out;
 
-        if (module_type == Program::MODULE_TYPE_VERTEX)
-        {
-            shader_module         = program->m_VertexModule;
-            uniform_data_offsets  = program->m_UniformDataOffsets;
-        }
-        else if (module_type == Program::MODULE_TYPE_FRAGMENT)
-        {
-            shader_module        = program->m_FragmentModule;
-            uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_Uniforms.Size()];
-            dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_Uniforms.Size()];
-        }
-        else
+        // if (module_type == Program::MODULE_TYPE_VERTEX)
+        // {
+        //     shader_module         = program->m_VertexModule;
+        //     uniform_data_offsets  = program->m_UniformDataOffsets;
+        // }
+        // else if (module_type == Program::MODULE_TYPE_FRAGMENT)
+        // {
+        //     shader_module        = program->m_FragmentModule;
+        //     uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_Uniforms.Size()];
+        //     dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_Uniforms.Size()];
+        // }
+        // else
         {
             assert(0);
         }
@@ -2118,13 +2232,16 @@ bail:
         }
     }
 
-    static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
+    static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
         Program* program_ptr, ScratchBuffer* scratch_buffer,
         uint32_t* dynamic_offsets, const uint32_t alignment)
     {
-        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
-        const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
-        const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
+        // const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
+        // const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
+        // const uint32_t num_descriptors     = num_uniform_buffers + num_samplers;
+
+        const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
+        const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
 
         if (num_descriptors == 0)
         {
@@ -2138,17 +2255,22 @@ bail:
             return res;
         }
 
+        // VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, Program* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment
+        UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
+
+        /*
         UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr,
             Program::MODULE_TYPE_VERTEX, scratch_buffer,
             alignment, dynamic_offsets);
         UpdateDescriptorSets(vk_device, vk_descriptor_set_list, program_ptr,
             Program::MODULE_TYPE_FRAGMENT, scratch_buffer,
             alignment, dynamic_offsets);
+        */
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
             0, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, vk_descriptor_set_list,
-            num_uniform_buffers, dynamic_offsets);
+            num_dynamic_offsets, dynamic_offsets);
 
         return VK_SUCCESS;
     }
@@ -2183,8 +2305,9 @@ bail:
         }
 
         // Ensure there is room in the descriptor allocator to support this draw call
-        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
-        const bool resize_scratch_buffer   = (program_ptr->m_VertexModule->m_UniformDataSizeAligned + program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
+        const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
+        const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
+
         if (resize_scratch_buffer)
         {
             const uint8_t descriptor_increase = 32;
@@ -2196,21 +2319,25 @@ bail:
         // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
         if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
         {
+            const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;
+
             if (context->m_DynamicOffsetBuffer == 0x0)
             {
-                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(sizeof(uint32_t) * num_uniform_buffers);
+                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(offset_buffer_size);
             }
             else
             {
-                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, sizeof(uint32_t) * num_uniform_buffers);
+                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, offset_buffer_size);
             }
+
+            memset(context->m_DynamicOffsetBuffer, 0, offset_buffer_size);
 
             context->m_DynamicOffsetBufferSize = num_uniform_buffers;
         }
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        VkResult res = CommitUniforms(vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        VkResult res = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
@@ -2391,7 +2518,7 @@ bail:
                 total_uniform_count += ddf->m_Resources[i].m_Bindings.m_Count;
             }
 
-            shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
+            // shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
             shader->m_UniformBufferCount     = uniform_buffer_count;
             shader->m_TextureSamplerCount    = texture_sampler_count;
             shader->m_TotalUniformCount      = total_uniform_count;
@@ -2470,71 +2597,24 @@ bail:
         return (HFragmentProgram) shader;
     }
 
-    static void FillDescriptorSets(ShaderModule* module, 
-        VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], VkShaderStageFlags stage_flag,
-        uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t* byte_offset_end_out, uint32_t* max_set_index)
+    static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
     {
-        uint32_t byte_offset         = byte_offset_base;
-        uint32_t num_uniform_buffers = 0;
-        uint32_t max_set             = 0;
-
-        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+        if (IsUniformTextureSampler(res))
         {
-            ShaderResourceBinding& res = module->m_Uniforms[i];
-
-            VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
-
-            max_set = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
-
-            if (binding.descriptorCount != 0)
+            switch(res.m_Type)
             {
-                binding.stageFlags |= stage_flag;
-                continue;
+                case ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT:
+                    return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+                case ShaderDesc::SHADER_TYPE_UIMAGE2D:
+                case ShaderDesc::SHADER_TYPE_IMAGE2D:
+                    return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                case ShaderDesc::SHADER_TYPE_SAMPLER:
+                    return VK_DESCRIPTOR_TYPE_SAMPLER;
+                default:
+                    return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             }
-
-            VkDescriptorType vk_descriptor_type;
-
-            if (IsUniformTextureSampler(res))
-            {
-                switch(res.m_Type)
-                {
-                    case ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-                        break;
-                    case ShaderDesc::SHADER_TYPE_UIMAGE2D:
-                    case ShaderDesc::SHADER_TYPE_IMAGE2D:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-                        break;
-                    case ShaderDesc::SHADER_TYPE_SAMPLER:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER;
-                        break;
-                    default:
-                        vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                        break;
-                }
-            }
-            else
-            {
-                vk_descriptor_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-
-                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                                 += res.m_DataSize;
-            }
-
-            binding.binding            = res.m_Binding;
-            binding.descriptorType     = vk_descriptor_type;
-            binding.descriptorCount    = 1;
-            binding.stageFlags         = stage_flag;
-            binding.pImmutableSamplers = 0;
-
-            // Debug
-        #if 0
-            dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
-        #endif
         }
-
-        *byte_offset_end_out = byte_offset;
-        *max_set_index = max_set;
+        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     }
 
     static void CreatePipelineLayout(VulkanContext* context, Program* program, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t max_sets)
@@ -2571,6 +2651,119 @@ bail:
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
     }
 
+    static void CreateProgramResourceBindings(VulkanContext* context, Program* program)
+    {
+        VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        uint32_t max_set           = 0;
+        uint32_t max_binding       = 0;
+        uint32_t data_size         = 0;
+        uint32_t data_size_aligned = 0;
+        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+
+        uint32_t buffer_count  = 0;
+        uint32_t sampler_count = 0;
+        uint32_t uniform_count = 0;
+
+        if (program->m_ComputeModule)
+        {
+            assert(0);
+        }
+        else
+        {
+            assert(program->m_VertexModule && program->m_FragmentModule);
+
+            dmLogInfo("CreateProgramResourceBindings");
+
+            for (int i = 0; i < program->m_VertexModule->m_Uniforms.Size(); ++i)
+            {
+                ShaderResourceBinding& res            = program->m_VertexModule->m_Uniforms[i];
+                VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
+
+                binding.binding            = res.m_Binding;
+                binding.descriptorType     = GetDescriptorType(res);
+                binding.descriptorCount    = 1;
+                binding.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT;
+                binding.pImmutableSamplers = 0;
+
+                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+                program_resource_binding.m_Res = &res;
+
+                if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                {
+                    program_resource_binding.m_DataOffset = data_size;
+                    buffer_count++;
+                    uniform_count += res.m_BlockMembers.Size();
+                }
+                else
+                {
+                    program_resource_binding.m_TextureUnit = sampler_count;
+                    sampler_count++;
+                    uniform_count++;
+                }
+
+                max_set            = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
+                max_binding        = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
+                data_size         += res.m_DataSize;
+                data_size_aligned += DM_ALIGN(res.m_DataSize, dynamic_alignment);
+
+                dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+            }
+
+            for (int i = 0; i < program->m_FragmentModule->m_Uniforms.Size(); ++i)
+            {
+                ShaderResourceBinding& res            = program->m_FragmentModule->m_Uniforms[i];
+                VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
+                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+
+                if (binding.descriptorCount == 0)
+                {
+                    binding.binding            = res.m_Binding;
+                    binding.descriptorType     = GetDescriptorType(res);
+                    binding.descriptorCount    = 1;
+                    binding.pImmutableSamplers = 0;
+
+                    program_resource_binding.m_DataOffset = data_size;
+                    program_resource_binding.m_Res        = &res;
+
+                    if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                    {
+                        program_resource_binding.m_DataOffset = data_size;
+                        buffer_count++;
+                        uniform_count += res.m_BlockMembers.Size();
+                    }
+                    else
+                    {
+                        program_resource_binding.m_TextureUnit = sampler_count;
+                        sampler_count++;
+                        uniform_count++;
+                    }
+
+                    data_size         += res.m_DataSize;
+                    data_size_aligned += DM_ALIGN(res.m_DataSize, dynamic_alignment);
+
+                    max_set     = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
+                    max_binding = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
+
+                    dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+                }
+
+                binding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+            }
+
+            program->m_UniformData = new uint8_t[data_size];
+            memset(program->m_UniformData, 0, data_size);
+        }
+
+        program->m_UniformBufferCount  = buffer_count;
+        program->m_TextureSamplerCount = sampler_count;
+        program->m_TotalUniformCount   = uniform_count; // num buffer members + samplers
+        program->m_TotalResourcesCount = buffer_count + sampler_count; // num actual descriptors
+        program->m_MaxSet              = max_set;
+        program->m_MaxBinding          = max_binding;
+
+        CreatePipelineLayout(context, program, bindings, max_set);
+    }
+
     static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
     {
         VkPipelineShaderStageCreateInfo vk_compute_shader_create_info = {};
@@ -2583,44 +2776,9 @@ bail:
 
         program->m_PipelineStageInfo[0] = vk_compute_shader_create_info;
         program->m_ComputeModule        = compute_module;
+        program->m_Hash                 = compute_module->m_Hash;
 
-        const uint32_t num_uniforms = compute_module->m_TotalUniformCount;
-
-        VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = 0;
-
-        if (num_uniforms > 0)
-        {
-            vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
-            const uint32_t num_buffers = compute_module->m_UniformBufferCount;
-
-            if (num_buffers > 0)
-            {
-                program->m_UniformDataOffsets = new uint32_t[num_buffers];
-            }
-
-            uint32_t byte_size = 0;
-            uint32_t max_sets  = 0;
-            VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
-
-            FillDescriptorSets(compute_module, bindings, VK_SHADER_STAGE_COMPUTE_BIT, 0, program->m_UniformDataOffsets, &byte_size, &max_sets);
-
-            program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
-
-            program->m_UniformData = new uint8_t[byte_size];
-            memset(program->m_UniformData, 0, byte_size);
-
-            CreatePipelineLayout(context, program, bindings, max_sets);
-        }
-        else
-        {
-            VkPipelineLayoutCreateInfo vk_layout_create_info = {};
-            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            vk_layout_create_info.setLayoutCount = 0;
-            vk_layout_create_info.pSetLayouts    = 0;
-            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
-        }
-
-        delete[] vk_descriptor_set_bindings;
+        CreateProgramResourceBindings(context, program);
     }
 
     static void CreateGraphicsProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
@@ -2645,7 +2803,6 @@ bail:
         program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]   = vk_vertex_shader_create_info;
         program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT] = vk_fragment_shader_create_info;
         program->m_Hash               = 0;
-        program->m_UniformDataOffsets = 0;
         program->m_UniformData        = 0;
         program->m_VertexModule       = vertex_module;
         program->m_FragmentModule     = fragment_module;
@@ -2662,40 +2819,7 @@ bail:
         dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
         program->m_Hash = dmHashFinal64(&program_hash);
 
-        const uint32_t num_uniforms = vertex_module->m_Uniforms.Size() + fragment_module->m_Uniforms.Size();
-        if (num_uniforms > 0)
-        {
-            const uint32_t num_buffers = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
-
-            if (num_buffers > 0)
-            {
-                program->m_UniformDataOffsets = new uint32_t[num_buffers];
-            }
-
-            uint32_t vs_last_offset = 0;
-            uint32_t fs_last_offset = 0;
-            uint32_t vs_max_sets    = 0;
-            uint32_t fs_max_sets    = 0;
-
-            VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
-            FillDescriptorSets(vertex_module,   bindings, VK_SHADER_STAGE_VERTEX_BIT, 0, program->m_UniformDataOffsets, &vs_last_offset, &vs_max_sets);
-            FillDescriptorSets(fragment_module, bindings, VK_SHADER_STAGE_FRAGMENT_BIT, vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], &fs_last_offset, &fs_max_sets);
-
-            uint32_t uniform_size  = vs_last_offset + fs_last_offset;
-            program->m_UniformData = new uint8_t[uniform_size];
-            memset(program->m_UniformData, 0, uniform_size);
-
-            CreatePipelineLayout(context, program, bindings, dmMath::Max(vs_max_sets, fs_max_sets));
-        }
-        else
-        {
-            VkPipelineLayoutCreateInfo vk_layout_create_info = {};
-            vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            vk_layout_create_info.setLayoutCount = 0;
-            vk_layout_create_info.pSetLayouts    = 0;
-
-            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
-        }
+        CreateProgramResourceBindings(context, program);
     }
 
     static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -2710,7 +2834,6 @@ bail:
         if (program->m_UniformData)
         {
             delete[] program->m_UniformData;
-            delete[] program->m_UniformDataOffsets;
         }
 
         DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
@@ -2867,77 +2990,54 @@ bail:
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
-
-        if (program_ptr->m_ComputeModule)
-        {
-            return program_ptr->m_ComputeModule->m_TotalUniformCount;
-        }
-        else if (program_ptr->m_VertexModule && program_ptr->m_FragmentModule)
-        {
-            return program_ptr->m_VertexModule->m_TotalUniformCount + program_ptr->m_FragmentModule->m_TotalUniformCount;
-        }
-        assert(0 && "No shader module!");
-        return 0;
+        return program_ptr->m_TotalUniformCount;
     }
 
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         assert(prog);
-        Program* program_ptr = (Program*) prog;
+        Program* program     = (Program*) prog;
         ShaderModule* module = 0;
 
-        if (program_ptr->m_ComputeModule)
-        {
-            module = program_ptr->m_ComputeModule;
-        }
-        else
-        {
-            module = program_ptr->m_VertexModule;
-            if (index >= program_ptr->m_VertexModule->m_TotalUniformCount)
-            {
-                module = program_ptr->m_FragmentModule;
-                index -= program_ptr->m_VertexModule->m_TotalUniformCount;
-            }
-        }
-
-        if (index >= module->m_TotalUniformCount)
-        {
-            return 0;
-        }
-
         uint32_t search_index = 0;
-        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+
+        for (int set = 0; set < program->m_MaxSet; ++set)
         {
-            if (IsUniformTextureSampler(module->m_Uniforms[i]))
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
             {
-                if (search_index == index)
-                {
-                    ShaderResourceBinding* res = &module->m_Uniforms[index];
-                    *type = ShaderDataTypeToGraphicsType(res->m_Type);
-                    *size = res->m_ElementCount;
-                    return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
-                }
-                search_index++;
-            }
-            else
-            {
-                for (int j = 0; j < module->m_Uniforms[i].m_BlockMembers.Size(); ++j)
+                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[set][binding];
+
+                if (program_resource_binding.m_Res == 0x0)
+                    continue;
+
+                if (IsUniformTextureSampler(*program_resource_binding.m_Res))
                 {
                     if (search_index == index)
                     {
-                        UniformBlockMember& member = module->m_Uniforms[i].m_BlockMembers[j];
-                        *type = ShaderDataTypeToGraphicsType(member.m_Type);
-                        *size = member.m_ElementCount;
-                        return (uint32_t) dmStrlCpy(buffer, member.m_Name, buffer_size);
+                        ShaderResourceBinding* res = program_resource_binding.m_Res;
+                        *type = ShaderDataTypeToGraphicsType(res->m_Type);
+                        *size = res->m_ElementCount;
+                        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
                     }
-
                     search_index++;
+                }
+                else
+                {
+                    for (int i = 0; i < program_resource_binding.m_Res->m_BlockMembers.Size(); ++i)
+                    {
+                        if (search_index == index)
+                        {
+                            UniformBlockMember& member = program_resource_binding.m_Res->m_BlockMembers[i];
+                            *type = ShaderDataTypeToGraphicsType(member.m_Type);
+                            *size = member.m_ElementCount;
+                            return (uint32_t) dmStrlCpy(buffer, member.m_Name, buffer_size);
+                        }
+
+                        search_index++;
+                    }
                 }
             }
         }
-
-        assert(0); // Should not happen
-        return 0;
     }
 
     static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
@@ -2949,44 +3049,37 @@ bail:
         uint64_t loc0        = UNIFORM_LOCATION_MAX;
         uint64_t loc0_member = UNIFORM_LOCATION_MAX;
 
-        if (program_ptr->m_ComputeModule)
+        for (int set = 0; set < program_ptr->m_MaxSet; ++set)
         {
-            if (GetUniformIndices(program_ptr->m_ComputeModule->m_Uniforms, name_hash, &loc0, &loc0_member))
+            for (int binding = 0; binding < program_ptr->m_MaxBinding; ++binding)
             {
-                loc = loc0 | loc0_member << 16;
-                assert(loc != INVALID_UNIFORM_LOCATION);
-            }
-        }
-        else
-        {
-            uint64_t loc1        = UNIFORM_LOCATION_MAX;
-            uint64_t loc1_member = UNIFORM_LOCATION_MAX;
-            bool loc0_found      = GetUniformIndices(program_ptr->m_VertexModule->m_Uniforms, name_hash, &loc0, &loc0_member);
-            bool loc1_found      = GetUniformIndices(program_ptr->m_FragmentModule->m_Uniforms, name_hash, &loc1, &loc1_member);
-            if (loc0_found || loc1_found)
-            {
-                loc = loc0 | loc0_member << 16 | loc1 << 32 | loc1_member << 48;
-                assert(loc != INVALID_UNIFORM_LOCATION);
+                Program::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+
+                if (pgm_res.m_Res == 0x0)
+                    continue;
+
+                if (pgm_res.m_Res->m_NameHash == name_hash)
+                {
+                    return set | binding << 16;
+                }
+                else
+                {
+                    for (int i = 0; i < pgm_res.m_Res->m_BlockMembers.Size(); ++i)
+                    {
+                        if (pgm_res.m_Res->m_BlockMembers[i].m_NameHash == name_hash)
+                        {
+                            return set | binding << 16 | i << 32;
+                        }
+                    }
+                }
             }
         }
 
-        return loc;
+        return INVALID_UNIFORM_LOCATION;
     }
 
-    static void WriteConstantData(ShaderModule* module, uint32_t loc, uint32_t loc_member, uint32_t base_offset, uint8_t* uniform_data_ptr, uint32_t* data_offsets, uint8_t* data_ptr, uint32_t data_size)
+    static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
-        if (loc == UNIFORM_LOCATION_MAX)
-        {
-            return;
-        }
-
-        ShaderResourceBinding& res = module->m_Uniforms[loc];
-        UniformBlockMember& member = res.m_BlockMembers[loc_member];
-
-        assert(loc < module->m_Uniforms.Size());
-        assert(!IsUniformTextureSampler(res));
-        uint32_t offset_index = res.m_UniformDataIndex + base_offset;
-        uint32_t offset       = data_offsets[offset_index] + member.m_Offset;
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
@@ -2997,40 +3090,17 @@ bail:
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t loc0        = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t loc0_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t loc1        = UNIFORM_LOCATION_GET_FS(base_location);
-        uint32_t loc1_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
-        assert(!(loc0 == UNIFORM_LOCATION_MAX && loc1 == UNIFORM_LOCATION_MAX));
+        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        if (program_ptr->m_ComputeModule)
-        {
-            WriteConstantData(program_ptr->m_ComputeModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
-        }
-        else
-        {
-            int32_t last_set     = -1;
-            int32_t last_binding = -1;
-
-            if (loc0 != UNIFORM_LOCATION_MAX)
-            {
-                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
-                WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
-
-                last_set     = res.m_Set;
-                last_binding = res.m_Binding;
-            }
-
-            if (loc1 != UNIFORM_LOCATION_MAX)
-            {
-                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
-
-                if (res.m_Set != last_set || res.m_Binding != last_binding)
-                {
-                    WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
-                }
-            }
-        }
+        Program::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+        WriteConstantData(
+            pgm_res.m_DataOffset + pgm_res.m_Res->m_BlockMembers[member].m_Offset,
+            program_ptr->m_UniformData,
+            (uint8_t*) data,
+            sizeof(dmVMath::Vector4) * count);
     }
 
     static void VulkanSetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
@@ -3039,73 +3109,39 @@ bail:
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        Program* program_ptr     = (Program*) context->m_CurrentProgram;
-        uint32_t loc0        = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t loc0_member = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t loc1        = UNIFORM_LOCATION_GET_FS(base_location);
-        uint32_t loc1_member = UNIFORM_LOCATION_GET_FS_MEMBER(base_location);
-        assert(!(loc0 == UNIFORM_LOCATION_MAX && loc1 == UNIFORM_LOCATION_MAX));
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        if (program_ptr->m_ComputeModule)
-        {
-            WriteConstantData(program_ptr->m_ComputeModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
-        }
-        else
-        {
-            int32_t last_set     = -1;
-            int32_t last_binding = -1;
+        Program::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
 
-            if (loc0 != UNIFORM_LOCATION_MAX)
-            {
-                ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
-                WriteConstantData(program_ptr->m_VertexModule, loc0, loc0_member, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
-
-                last_set     = res.m_Set;
-                last_binding = res.m_Binding;
-            }
-
-            if (loc1 != UNIFORM_LOCATION_MAX)
-            {
-                ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
-
-                if (res.m_Set != last_set || res.m_Binding != last_binding)
-                {
-                    WriteConstantData(program_ptr->m_FragmentModule, loc1, loc1_member, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
-                }
-            }
-        }
+        WriteConstantData(
+            pgm_res.m_DataOffset + pgm_res.m_Res->m_BlockMembers[member].m_Offset,
+            program_ptr->m_UniformData,
+            (uint8_t*) data,
+            sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void VulkanSetSampler(HContext _context, HUniformLocation location, int32_t unit)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        Program* program_ptr   = (Program*) context->m_CurrentProgram;
         assert(context->m_CurrentProgram);
         assert(location != INVALID_UNIFORM_LOCATION);
+
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+        uint32_t set         = UNIFORM_LOCATION_GET_VS(location);
+        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(location);
+        uint32_t member      = UNIFORM_LOCATION_GET_FS(location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         // TODO: Compute shaders does not have samplers, but does support texture storage
         //       which is not the same thing.
         assert(program_ptr->m_ComputeModule == 0x0);
 
-        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(location);
-        uint32_t loc1  = UNIFORM_LOCATION_GET_FS(location);
-        assert(!(index_vs == UNIFORM_LOCATION_MAX && loc1 == UNIFORM_LOCATION_MAX));
-
-        if (index_vs != UNIFORM_LOCATION_MAX)
-        {
-            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
-            assert(index_vs < program_ptr->m_VertexModule->m_Uniforms.Size());
-            assert(IsUniformTextureSampler(res));
-            program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) unit;
-        }
-
-        if (loc1 != UNIFORM_LOCATION_MAX)
-        {
-            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
-            assert(loc1 < program_ptr->m_FragmentModule->m_Uniforms.Size());
-            assert(IsUniformTextureSampler(res));
-            program_ptr->m_FragmentModule->m_Uniforms[loc1].m_TextureUnit = (uint16_t) unit;
-        }
+        assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
+        program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
     }
 
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -4677,41 +4713,26 @@ bail:
     void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, uint32_t buffer_offset, HUniformLocation base_location)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        Program* program_ptr   = (Program*) context->m_CurrentProgram;
-        DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
-
-        VkResult res = buffer->MapMemory(context->m_LogicalDevice.m_Device);
-        CHECK_VK_ERROR(res);
-
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        uint32_t loc0 = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t loc1 = UNIFORM_LOCATION_GET_FS(base_location);
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
+        VkResult res = buffer->MapMemory(context->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
 
         uint8_t* buffer_ptr = (uint8_t*) buffer->m_MappedDataPtr + buffer_offset;
 
-        int32_t last_set     = -1;
-        int32_t last_binding = -1;
-
-        if (loc0 != UNIFORM_LOCATION_MAX)
-        {
-            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[loc0];
-            WriteConstantData(program_ptr->m_VertexModule, loc0, 0, 0, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, buffer_ptr, res.m_DataSize);
-            
-            last_set     = res.m_Set;
-            last_binding = res.m_Binding;
-        }
-
-        if (loc1 != UNIFORM_LOCATION_MAX)
-        {
-            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[loc1];
-
-            if (res.m_Set != last_set || res.m_Binding != last_binding)
-            {
-                WriteConstantData(program_ptr->m_FragmentModule, loc1, 0, program_ptr->m_VertexModule->m_UniformBufferCount, program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets, buffer_ptr, res.m_DataSize);
-            }
-        }
+        WriteConstantData(
+            program_ptr->m_ResourceBindings[set][binding].m_DataOffset,
+            program_ptr->m_UniformData,
+            buffer_ptr,
+            program_ptr->m_ResourceBindings[set][binding].m_Res->m_DataSize);
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
     }
@@ -4908,58 +4929,48 @@ bail:
             0, 1, &memoryBarrier, 0, 0, 0, 0);
     }
 
-    void VulkanGetUniformBinding(HContext context, HProgram program, uint32_t index, uint32_t* set, uint32_t* binding, uint32_t* member_index)
+    void VulkanGetUniformBinding(HContext context, HProgram prog, uint32_t index, uint32_t* set_out, uint32_t* binding_out, uint32_t* member_index_out)
     {
-        assert(program);
-        Program* program_ptr = (Program*) program;
+        assert(prog);
+        Program* program     = (Program*) prog;
         ShaderModule* module = 0;
 
-        if (program_ptr->m_ComputeModule)
-        {
-            module = program_ptr->m_ComputeModule;
-        }
-        else
-        {
-            module = program_ptr->m_VertexModule;
-            if (index >= program_ptr->m_VertexModule->m_TotalUniformCount)
-            {
-                module = program_ptr->m_FragmentModule;
-                index -= program_ptr->m_VertexModule->m_TotalUniformCount;
-            }
-        }
-
-        if (index >= module->m_TotalUniformCount)
-        {
-            return;
-        }
-
         uint32_t search_index = 0;
-        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+
+        for (int set = 0; set < program->m_MaxSet; ++set)
         {
-            if (IsUniformTextureSampler(module->m_Uniforms[i]))
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
             {
-                if (search_index == index)
-                {
-                    ShaderResourceBinding* res = &module->m_Uniforms[index];
-                    *set     = res->m_Set;
-                    *binding = res->m_Binding;
-                    return;
-                }
-                search_index++;
-            }
-            else
-            {
-                for (int j = 0; j < module->m_Uniforms[i].m_BlockMembers.Size(); ++j)
+                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[set][binding];
+
+                if (program_resource_binding.m_Res == 0x0)
+                    continue;
+
+                if (IsUniformTextureSampler(*program_resource_binding.m_Res))
                 {
                     if (search_index == index)
                     {
-                        *set          = module->m_Uniforms[i].m_Set;
-                        *binding      = module->m_Uniforms[i].m_Binding;
-                        *member_index = j;
+                        *set_out = set;
+                        *binding_out = binding;
+                        *member_index_out = 0;
                         return;
                     }
-
                     search_index++;
+                }
+                else
+                {
+                    for (int i = 0; i < program_resource_binding.m_Res->m_BlockMembers.Size(); ++i)
+                    {
+                        if (search_index == index)
+                        {
+                            *set_out = set;
+                            *binding_out = binding;
+                            *member_index_out = i;
+                            return;
+                        }
+
+                        search_index++;
+                    }
                 }
             }
         }
