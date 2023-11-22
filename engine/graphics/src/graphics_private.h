@@ -73,44 +73,22 @@ namespace dmGraphics
         };
     };
 
-    uint32_t        GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t        GetGraphicsTypeDataSize(Type type);
-    const char*     GetGraphicsTypeLiteral(Type type);
-    void            InstallAdapterVendor();
-    PipelineState   GetDefaultPipelineState();
-    Type            GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
-    void            SetForceFragmentReloadFail(bool should_fail);
-    void            SetForceVertexReloadFail(bool should_fail);
-    void            SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    bool            IsTextureFormatCompressed(TextureFormat format);
-    bool            IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
-    void            RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
-    const char*     TextureFormatToString(TextureFormat format);
-    bool            GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
-
-    static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
-    {
-        const uint8_t conversion_table[] = {
-            0,  // SHADER_TYPE_UNKNOWN
-            4,  // SHADER_TYPE_INT
-            4,  // SHADER_TYPE_UINT
-            4,  // SHADER_TYPE_FLOAT
-            8,  // SHADER_TYPE_VEC2
-            12, // SHADER_TYPE_VEC3
-            16, // SHADER_TYPE_VEC4
-            16, // SHADER_TYPE_MAT2
-            36, // SHADER_TYPE_MAT3
-            64, // SHADER_TYPE_MAT4
-            4,  // SHADER_TYPE_SAMPLER2D
-            4,  // SHADER_TYPE_SAMPLER3D
-            4,  // SHADER_TYPE_SAMPLER_CUBE
-            4,  // SHADER_TYPE_SAMPLER_ARRAY_2D
-        };
-
-        assert(((int) type) < DM_ARRAY_SIZE(conversion_table));
-
-        return conversion_table[type];
-    }
+    uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    uint32_t             GetGraphicsTypeDataSize(Type type);
+    const char*          GetGraphicsTypeLiteral(Type type);
+    void                 InstallAdapterVendor();
+    PipelineState        GetDefaultPipelineState();
+    Type                 GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
+    void                 SetForceFragmentReloadFail(bool should_fail);
+    void                 SetForceVertexReloadFail(bool should_fail);
+    void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    bool                 IsTextureFormatCompressed(TextureFormat format);
+    bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
+    void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+    const char*          TextureFormatToString(TextureFormat format);
+    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+    uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {
@@ -138,14 +116,14 @@ namespace dmGraphics
         return (T*) container.Get(opaque_handle);
     }
 
-    // These functions are used for engine tests, but are available as experimental functions as well
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool  UnmapVertexBuffer(HVertexBuffer buffer);
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool  UnmapIndexBuffer(HIndexBuffer buffer);
-
-    // Test functions:
+    // Test only functions:
     uint64_t GetDrawCount();
+
+    // Both experimental + tests only:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

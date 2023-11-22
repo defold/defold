@@ -372,6 +372,27 @@ namespace dmGraphics
         return 0;
     }
 
+    uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
+    {
+        switch(type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:     return 4;
+            case ShaderDesc::SHADER_TYPE_UINT:    return 4;
+            case ShaderDesc::SHADER_TYPE_FLOAT:   return 4;
+            case ShaderDesc::SHADER_TYPE_VEC2:    return 8;
+            case ShaderDesc::SHADER_TYPE_VEC3:    return 12;
+            case ShaderDesc::SHADER_TYPE_VEC4:    return 16;
+            case ShaderDesc::SHADER_TYPE_MAT2:    return 16;
+            case ShaderDesc::SHADER_TYPE_MAT3:    return 36;
+            case ShaderDesc::SHADER_TYPE_MAT4:    return 64;
+            case ShaderDesc::SHADER_TYPE_UVEC2:   return 16;
+            case ShaderDesc::SHADER_TYPE_UVEC3:   return 36;
+            case ShaderDesc::SHADER_TYPE_UVEC4:   return 64;
+            default: break;
+        }
+        return 0;
+    }
+
     void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
     {
         *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
@@ -504,6 +525,8 @@ namespace dmGraphics
         case TEXTURE_FORMAT_R32F:               return 32;
         case TEXTURE_FORMAT_RG32F:              return 64;
         case TEXTURE_FORMAT_RGBA32UI:           return 128;
+        case TEXTURE_FORMAT_BGRA8U:             return 32;
+        case TEXTURE_FORMAT_R32UI:              return 32;
         default:
             assert(false && "Unknown texture format");
             return TEXTURE_FORMAT_COUNT;
@@ -1037,6 +1060,10 @@ namespace dmGraphics
     {
         g_functions.m_DeleteFragmentProgram(prog);
     }
+    ShaderDesc::Language GetProgramLanguage(HProgram program)
+    {
+        return g_functions.m_GetProgramLanguage(program);
+    }
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
     {
         return g_functions.m_GetShaderProgramLanguage(context);
@@ -1299,21 +1326,21 @@ namespace dmGraphics
         return g_functions.m_DeleteComputeProgram(prog);
     }
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
-        return g_functions.m_MapVertexBuffer(buffer, access);
+        return g_functions.m_MapVertexBuffer(context, buffer, access);
     }
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
-        return g_functions.m_UnmapVertexBuffer(buffer);
+        return g_functions.m_UnmapVertexBuffer(context, buffer);
     }
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
-        return g_functions.m_MapIndexBuffer(buffer, access);
+        return g_functions.m_MapIndexBuffer(context, buffer, access);
     }
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
-        return g_functions.m_UnmapIndexBuffer(buffer);
+        return g_functions.m_UnmapIndexBuffer(context, buffer);
     }
 #endif
 

@@ -1112,9 +1112,16 @@ public class Project {
     }
 
     private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
-        final String[] platforms = getPlatformStrings();
+        String archs = this.option("architectures", null);
+        String[] platforms;
+        if (archs != null) {
+            platforms = archs.split(",");
+        }
+        else {
+            platforms = getPlatformStrings();
+        }
 
-        progress.beginTask("Downloading symbols...", platforms.length);
+        progress.beginTask(String.format("Downloading %s symbols...", platforms.length), platforms.length);
 
         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
         String variantSuffix = "";
@@ -1129,9 +1136,12 @@ public class Project {
 
         for(String platform : platforms) {
             String symbolsFilename = null;
+            Platform p = Platform.get(platform);
             switch(platform) {
                 case "arm64-ios":
+                case "x86_64-ios":
                 case "x86_64-macos":
+                case "arm64-macos":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
                     break;
                 case "js-web":
@@ -1145,10 +1155,14 @@ public class Project {
 
             if (symbolsFilename != null) {
                 try {
-                    URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
-                    File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+                    URL url = new URL(String.format(Bob.ARTIFACTS_URL + "%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                    File targetFolder = new File(getBinaryOutputDirectory(), p.getExtenderPair());
+                    File file = new File(targetFolder, symbolsFilename);
                     HttpUtil http = new HttpUtil();
                     http.downloadToFile(url, file);
+                    if (symbolsFilename.endsWith(".zip")){
+                        BundleHelper.unzip(new FileInputStream(file), targetFolder.toPath());
+                    }
                 }
                 catch (Exception e) {
                     throw new CompileExceptionError(e);

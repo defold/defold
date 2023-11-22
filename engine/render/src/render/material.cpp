@@ -141,7 +141,7 @@ namespace dmRender
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
     }
 
-    void CreateConstants(HMaterial material)
+    void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)
     {
         uint32_t total_constants_count = dmGraphics::GetUniformCount(material->m_Program);
 
@@ -164,7 +164,7 @@ namespace dmRender
             }
         }
 
-        SetMaterialConstantValues(material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
+        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
@@ -185,7 +185,7 @@ namespace dmRender
 
         CreateAttributes(graphics_context, m);
         CreateVertexDeclaration(graphics_context, m);
-        CreateConstants(m);
+        CreateConstants(graphics_context, m);
 
         return (HMaterial)m;
     }
@@ -206,7 +206,8 @@ namespace dmRender
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
         const dmArray<RenderConstant>& constants = material->m_Constants;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
+
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -233,7 +234,7 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -266,7 +267,7 @@ namespace dmRender
                 {
                     // Vulkan NDC is [0..1] for z, so we must transform
                     // the projection before setting the constant.
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -303,7 +304,7 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
                 {
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );

@@ -128,6 +128,7 @@ namespace dmGraphics
         TEXTURE_TYPE_2D       = 0,
         TEXTURE_TYPE_2D_ARRAY = 1,
         TEXTURE_TYPE_CUBE_MAP = 2,
+        TEXTURE_TYPE_IMAGE_2D = 3,
     };
 
     // Texture filter
@@ -210,16 +211,35 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    struct TextureCreationParams {
+    enum AttachmentOp
+    {
+        ATTACHMENT_OP_DONT_CARE,
+        ATTACHMENT_OP_LOAD,
+        ATTACHMENT_OP_STORE,
+        ATTACHMENT_OP_CLEAR,
+    };
 
-        TextureCreationParams() :
-            m_Type(TEXTURE_TYPE_2D),
-            m_Width(0),
-            m_Height(0),
-            m_Depth(1),
-            m_OriginalWidth(0),
-            m_OriginalHeight(0),
-            m_MipMapCount(1)
+    enum TextureUsageHint
+    {
+        TEXTURE_USAGE_HINT_NONE       = 0,
+        TEXTURE_USAGE_HINT_SAMPLE     = 1,
+        TEXTURE_USAGE_HINT_MEMORYLESS = 2,
+        TEXTURE_USAGE_HINT_INPUT      = 4,
+        TEXTURE_USAGE_HINT_COLOR      = 8,
+        TEXTURE_USAGE_HINT_STORAGE    = 16,
+    };
+
+    struct TextureCreationParams
+    {
+        TextureCreationParams()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(1)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_MipMapCount(1)
+        , m_UsageHintBits(TEXTURE_USAGE_HINT_SAMPLE)
         {}
 
         TextureType m_Type;
@@ -229,6 +249,7 @@ namespace dmGraphics
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint8_t     m_MipMapCount;
+        uint8_t     m_UsageHintBits;
     };
 
     struct TextureParams
@@ -279,6 +300,15 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+
+        // TODO: Depth/Stencil
+    #endif
+
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
     };
@@ -574,7 +604,7 @@ namespace dmGraphics
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+    ShaderDesc::Language GetProgramLanguage(HProgram program);
     ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
