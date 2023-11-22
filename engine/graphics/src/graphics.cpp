@@ -388,7 +388,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_UVEC2:   return 16;
             case ShaderDesc::SHADER_TYPE_UVEC3:   return 36;
             case ShaderDesc::SHADER_TYPE_UVEC4:   return 64;
-            default: return 0;
+            default: break;
         }
         return 0;
     }
