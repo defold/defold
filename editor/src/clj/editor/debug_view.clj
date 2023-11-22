@@ -53,6 +53,7 @@
 (def ^:private step-over-label "Step Over")
 (def ^:private stop-debugger-label "Stop Debugger")
 (def ^:private open-engine-profiler-label "Open Web Profiler")
+(def ^:private open-engine-resource-profiler-label "Open Resource Profiler")
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
@@ -659,6 +660,8 @@
                {:label :separator}
                {:label open-engine-profiler-label
                 :command :engine-profile-show}
+               {:label open-engine-resource-profiler-label
+                :command :engine-resource-profile-show}
                {:label :separator}
                {:label "Simulate Resolution"
                 :children [{:label "Custom Resolution..."

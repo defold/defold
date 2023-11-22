@@ -39,6 +39,12 @@
          (ui/open-url (format "%s/engine-profiler" (http-server/local-url web-server)))
          (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port)))))
 
+(handler/defhandler :engine-resource-profile-show :global
+  (enabled? [prefs] (some? (targets/selected-target prefs)))
+  (run [prefs]
+       (let [address (:address (targets/selected-target prefs))]
+         (ui/open-url (format "http://%s:8002/" address)))))
+
 (defn- get-mime-type [path]
   (let [name (.getName (io/file path))
         suffix (FilenameUtils/getExtension name)

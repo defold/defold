@@ -59,7 +59,6 @@ namespace dmMemory
      * @param memptr [type: void*] A pointer to the memory block that was returned by dmMemory::AlignedMalloc
      */
     void AlignedFree(void* memptr);
-
 }
 
 #endif // DMSDK_MEMORY_H

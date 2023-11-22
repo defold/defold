@@ -18,13 +18,6 @@
 #include <time.h>
 #include <assert.h>
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#else
-#include <alloca.h>
-#endif
-
 #ifdef __linux__
 #include <limits.h>
 #elif defined (__MACH__)
@@ -32,6 +25,7 @@
 #endif
 
 #include <dlib/crypt.h>
+#include <dlib/dalloca.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -305,14 +299,21 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (factory->m_BaseArchiveMount)
     {
-        dmResource::HManifest manifest;
-        if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
+        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE)
         {
-            char app_support_path[DMPATH_MAX_PATH];
-            if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+            dmResource::HManifest manifest;
+            if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
             {
-                dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+                char app_support_path[DMPATH_MAX_PATH];
+                if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+                {
+                    dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+                }
             }
+        }
+        else
+        {
+            dmLogInfo("Resource mounts support disabled.");
         }
     }
 
@@ -1310,6 +1311,18 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     }
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
+}
+
+Result AddFile(HFactory factory, const char* path, uint32_t size, const void* resource)
+{
+    dmResourceMounts::HContext mounts = GetMountsContext(factory);
+    return dmResourceMounts::AddFile(mounts, dmHashString64(path), size, resource);
+}
+
+Result RemoveFile(HFactory factory, const char* path)
+{
+    dmResourceMounts::HContext mounts = GetMountsContext(factory);
+    return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
 }
 
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)

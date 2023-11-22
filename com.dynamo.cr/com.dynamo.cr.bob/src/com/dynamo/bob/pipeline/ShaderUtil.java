@@ -104,7 +104,12 @@ public class ShaderUtil {
             return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D      ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER         ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D        ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
         }
 
         private static class ShaderDataTypeConversionEntry {
@@ -117,20 +122,28 @@ public class ShaderUtil {
         }
 
         private static final ArrayList<ShaderDataTypeConversionEntry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
-                new ShaderDataTypeConversionEntry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
-                new ShaderDataTypeConversionEntry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
-                new ShaderDataTypeConversionEntry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
-                new ShaderDataTypeConversionEntry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
-                new ShaderDataTypeConversionEntry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
-                new ShaderDataTypeConversionEntry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
-                new ShaderDataTypeConversionEntry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
-                new ShaderDataTypeConversionEntry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
-                new ShaderDataTypeConversionEntry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
-                new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
-                new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
-                new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
+                new ShaderDataTypeConversionEntry("int",            ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
+                new ShaderDataTypeConversionEntry("uint",           ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
+                new ShaderDataTypeConversionEntry("float",          ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
+                new ShaderDataTypeConversionEntry("vec2",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
+                new ShaderDataTypeConversionEntry("vec3",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
+                new ShaderDataTypeConversionEntry("vec4",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
+                new ShaderDataTypeConversionEntry("mat2",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
+                new ShaderDataTypeConversionEntry("mat3",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
+                new ShaderDataTypeConversionEntry("mat4",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
+                new ShaderDataTypeConversionEntry("sampler2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
+                new ShaderDataTypeConversionEntry("sampler3D",      ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
+                new ShaderDataTypeConversionEntry("samplerCube",    ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
                 new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
-                new ShaderDataTypeConversionEntry("ubo", ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER)
+                new ShaderDataTypeConversionEntry("ubo",            ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER),
+                new ShaderDataTypeConversionEntry("uvec2",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2),
+                new ShaderDataTypeConversionEntry("uvec3",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
+                new ShaderDataTypeConversionEntry("uvec4",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
+                new ShaderDataTypeConversionEntry("texture2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
+                new ShaderDataTypeConversionEntry("utexture2D",     ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D),
+                new ShaderDataTypeConversionEntry("uimage2D",       ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D),
+                new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D),
+                new ShaderDataTypeConversionEntry("sampler",        ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -296,26 +309,27 @@ public class ShaderUtil {
             return uniformBlocks;
         }
 
+        private static void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {
+            if (node != null) {
+                for (Iterator<JsonNode> iter = node.getElements(); iter.hasNext();) {
+                    JsonNode textureNode = iter.next();
+                    Resource res     = new Resource();
+                    res.name         = textureNode.get("name").asText();
+                    res.type         = textureNode.get("type").asText();
+                    res.binding      = textureNode.get("binding").asInt();
+                    res.set          = textureNode.get("set").asInt();
+                    res.elementCount = 1;
+                    textures.add(res);
+                }
+            }
+        }
+
         public static ArrayList<Resource> getTextures() {
             ArrayList<Resource> textures = new ArrayList<Resource>();
-
-            JsonNode texturesNode = root.get("textures");
-
-            if (texturesNode == null) {
-                return textures;
-            }
-
-            for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
-                JsonNode textureNode = iter.next();
-                Resource res     = new Resource();
-                res.name         = textureNode.get("name").asText();
-                res.type         = textureNode.get("type").asText();
-                res.binding      = textureNode.get("binding").asInt();
-                res.set          = textureNode.get("set").asInt();
-                res.elementCount = 1;
-                textures.add(res);
-            }
-
+            addTexturesFromNode(root.get("textures"),          textures);
+            addTexturesFromNode(root.get("separate_images"),   textures);
+            addTexturesFromNode(root.get("images"),            textures);
+            addTexturesFromNode(root.get("separate_samplers"), textures);
             return textures;
         }
 
@@ -400,7 +414,9 @@ public class ShaderUtil {
         }
 
         public static enum ShaderType {
-            VERTEX_SHADER, FRAGMENT_SHADER
+            VERTEX_SHADER,
+            FRAGMENT_SHADER,
+            COMPUTE_SHADER,
         };
 
         private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
@@ -432,7 +448,9 @@ public class ShaderUtil {
             // Preprocess the source so we can potentially reduce the workload a bit
             input = Common.stripComments(input);
 
-            int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
+            // Shader sets are explicitly separated between fragment and vertex shaders as 1 and 0,
+            // for compute shaders we always use 0. This makes sure that we stay true to that.
+            int layoutSet = shaderType == ShaderType.FRAGMENT_SHADER ? 1 : 0;
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;

@@ -19,22 +19,6 @@
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 
-/*****************************************************************************************************************
- * JG: When we update to newer MVK we need to do these changes to get validation layers to work (for MVK at least):
- * in g_extension_names:
- *   - add VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
- * use this validation layer:
- *   - static const char* DM_VULKAN_LAYER_VALIDATION = "VK_LAYER_KHRONOS_validation";
- * add this in g_validation_layer_ext:
- *   - VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
- * in vulkan_graphics, we need to add these:
- *   - device_extensions.OffsetCapacity(2);
- *   - device_extensions.Push("VK_KHR_portability_subset");
- *   - device_extensions.Push("VK_KHR_get_physical_device_properties2");
- * in graphics_vulkan_context, need this flag:
- *   - vk_instance_create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
- *****************************************************************************************************************/
-
 namespace dmGraphics
 {
     static const char*   g_extension_names[] = {
@@ -42,6 +26,10 @@ namespace dmGraphics
 
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
         VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+
+        #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+        #endif
     #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
         VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_XCB_KHR)

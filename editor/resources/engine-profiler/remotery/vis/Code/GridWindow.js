@@ -181,7 +181,7 @@ class GridWindow
         this.columns[0].headerNode.style.marginLeft = "-1px";
 
         // Setup for pan/wheel scrolling
-        this.mouseInteraction = new MouseInteraction(this.window.BodyNode);
+        this.mouseInteraction = new MouseInteraction(this.window.BodyNode, true);
         this.mouseInteraction.onMoveHandler = (mouse_state, mx, my) => this._OnMouseMove(mouse_state, mx, my);
         this.mouseInteraction.onScrollHandler = (mouse_state) => this._OnMouseScroll(mouse_state);
 
@@ -278,6 +278,25 @@ class GridWindow
 
     _OnMouseMove(mouse_state, mouse_offset_x, mouse_offset_y)
     {
+        var skipScroll = false;
+        for (let i in this.columns)
+        {
+            const column = this.columns[i];
+            const width = parseFloat(column.headerNode.style.width, 10);
+            if (column.width != width) {
+                if (width < 50) {
+                    break;
+                }
+                skipScroll = true;
+                column.width = width;
+                this._PositionHeaders();
+                break
+            }
+        }
+        if (skipScroll) {
+            return;
+        }
+        
         this.scrollPos[0] = Math.min(0, this.scrollPos[0] + mouse_offset_x);
         this.scrollPos[1] = Math.min(0, this.scrollPos[1] + mouse_offset_y);
 
