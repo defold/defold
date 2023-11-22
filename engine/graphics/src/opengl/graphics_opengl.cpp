@@ -159,7 +159,6 @@
     #if defined GL_ES_VERSION_2_0
         #undef GL_ARRAY_BUFFER_ARB
         #undef GL_ELEMENT_ARRAY_BUFFER_ARB
-        #define GL_HALF_FLOAT_OES 0x8D61
     #endif
 #else
     #error "Platform not supported."
@@ -3184,8 +3183,8 @@ static void LogFrameBufferError(GLenum status)
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RGB32F:
             gl_type            = GL_FLOAT;
@@ -3198,8 +3197,8 @@ static void LogFrameBufferError(GLenum status)
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RGBA32F:
             gl_type            = GL_FLOAT;
@@ -3211,8 +3210,8 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_R32F:
             gl_type            = GL_FLOAT;
@@ -3223,8 +3222,8 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
-            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RG32F:
             gl_type            = GL_FLOAT;
