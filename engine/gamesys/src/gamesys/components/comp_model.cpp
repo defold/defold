@@ -296,7 +296,7 @@ namespace dmGameSystem
 
     static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
         // TODO: Add support for setting material on different indices
-        return component->m_Material ? component->m_Material : resource->m_Materials[index].m_Material;;
+        return component->m_Material ? component->m_Material : resource->m_Materials[index].m_Material;
     }
 
     static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
@@ -930,8 +930,8 @@ namespace dmGameSystem
                 {
                     dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
                     FillAttributeInfos(material_attributes, material_attributes_count,
-                        c->m_Resource->m_Model->m_Attributes.m_Data,
-                        c->m_Resource->m_Model->m_Attributes.m_Count,
+                        c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
+                        c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
                         attributes);
 
                     vb_end = dmRig::GenerateVertexDataFromAttributes(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, attributes, material_attributes_count, vertex_stride, vb_end);
