@@ -175,10 +175,10 @@ namespace dmGraphics
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    typedef void* (*MapVertexBufferFn)(HVertexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapVertexBufferFn)(HVertexBuffer buffer);
-    typedef void* (*MapIndexBufferFn)(HIndexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
+    typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
+    typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
 #endif
 
     struct GraphicsAdapterFunctionTable
@@ -304,10 +304,10 @@ namespace dmGraphics
         DeleteComputeProgramFn  m_DeleteComputeProgram;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        MapVertexBufferFn       m_MapVertexBuffer;
-        UnmapVertexBufferFn     m_UnmapVertexBuffer;
-        MapIndexBufferFn        m_MapIndexBuffer;
-        UnmapIndexBufferFn      m_UnmapIndexBuffer;
+        MapVertexBufferFn   m_MapVertexBuffer;
+        UnmapVertexBufferFn m_UnmapVertexBuffer;
+        MapIndexBufferFn    m_MapIndexBuffer;
+        UnmapIndexBufferFn  m_UnmapIndexBuffer;
     #endif
     };
 

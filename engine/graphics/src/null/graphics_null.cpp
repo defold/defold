@@ -571,7 +571,7 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
-    void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    static void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
@@ -1656,7 +1656,7 @@ namespace dmGraphics
         return false;
     }
 
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
@@ -1665,7 +1665,7 @@ namespace dmGraphics
         return true;
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         vb->m_Copy = new char[vb->m_Size];
@@ -1673,7 +1673,7 @@ namespace dmGraphics
         return vb->m_Copy;
     }
 
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
@@ -1682,7 +1682,7 @@ namespace dmGraphics
         return true;
     }
 
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         ib->m_Copy = new char[ib->m_Size];

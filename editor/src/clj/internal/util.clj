@@ -696,3 +696,61 @@
           (do
             (vswap! unique-volatile conj item)
             item)))))
+
+(defn name-index
+  "Create an index for items' names that, while identify the items, are not
+  guaranteed to be unique within the coll
+
+  Returns a map of [name name-order] => item-index
+
+  Args:
+    coll           nil or vector of items
+    get-name-fn    fn that extracts the item's name"
+  [coll get-name-fn]
+  {:pre [(or (nil? coll) (vector? coll))]}
+  (let [n (count coll)]
+    (loop [i 0
+           name->order (transient {})
+           name+order->index (transient {})]
+      (if (= i n)
+        (persistent! name+order->index)
+        (let [item (coll i)
+              name (get-name-fn item)
+              order (long (name->order name 0))]
+          (recur (inc i)
+                 (assoc! name->order name (inc order))
+                 (assoc! name+order->index (pair name order) i)))))))
+
+(defn detect-renames
+  "Given 2 name indices, detect renames
+
+  Renames are left-over names that don't match between 2 name indices
+
+  Returns a map from old name+order to new name+order
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
+  (into {}
+        (mapv (fn [removed-entry added-entry]
+                (pair (key removed-entry) (key added-entry)))
+              (filterv (comp not new-name-index key) old-name-index)
+              (filterv (comp not old-name-index key) new-name-index))))
+
+(defn detect-deletions
+  "Given 2 name indices, detect deletions from the old name index
+
+  Returns a set of deleted old name+orders
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
+  (let [renames (detect-renames old-name-index new-name-index)]
+    (into #{}
+          (comp
+            (map key)
+            (remove #(or (contains? renames %)
+                         (contains? new-name-index %))))
+          old-name-index)))
