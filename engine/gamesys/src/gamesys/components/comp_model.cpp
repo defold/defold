@@ -566,6 +566,7 @@ namespace dmGameSystem
             item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
+            item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
