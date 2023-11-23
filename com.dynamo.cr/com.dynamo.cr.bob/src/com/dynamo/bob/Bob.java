@@ -528,11 +528,13 @@ public class Bob {
 
         addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
 
-        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
+        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance is allowed. The settings files are applied left to right.", false);
 
         addOption(options, null, "version", false, "Prints the version number to the output", false);
 
-        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.", false);
+        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list.", false);
+        addOption(options, null, "ne-build-dir", true, "Specify a folder with includes or source, to build a specific library. More than one occurrance is allowed. ", false);
+        addOption(options, null, "ne-output-name", true, "Specify a library target name", false);
 
         addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
         addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
@@ -787,6 +789,13 @@ public class Bob {
             }
         }
 
+        if (cmd.hasOption("ne-build-dir")) {
+            for (String filepath : cmd.getOptionValues("ne-build-dir")) {
+                project.addEngineBuildDir(filepath);
+            }
+        }
+
+
         if (cmd.hasOption("build-server-header")) {
             for (String header : cmd.getOptionValues("build-server-header")) {
                 project.addBuildServerHeader(header);
@@ -918,7 +927,7 @@ public class Bob {
         }
 
         if (project.hasOption("build-artifacts")) {
-            String[] validArtifacts = {"engine", "plugins"};
+            String[] validArtifacts = {"engine", "plugins", "library"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
         }
 
