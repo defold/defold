@@ -938,6 +938,22 @@ namespace dmGraphics
         return stride;
     }
 
+    static uint32_t NullGetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamDeclaration.m_StreamCount;
+        VertexStream* streams = vertex_declaration->m_StreamDeclaration.m_Streams;
+        uint32_t offset = 0;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return offset;
+            }
+            offset += GetTypeSize(streams[i].m_Type) * streams[i].m_Size;
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
+    }
+
     static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         Program* program = (Program*)prog;

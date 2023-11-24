@@ -1936,6 +1936,20 @@ bail:
         return vertex_declaration->m_Stride;
     }
 
+    static uint32_t VulkanGetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return streams[i].m_Offset;
+            }
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
+    }
+
     static inline bool IsUniformTextureSampler(const ShaderResourceBinding& uniform)
     {
         return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
@@ -2257,15 +2271,7 @@ bail:
 
     static void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
-        uint16_t stream_count = vertex_declaration->m_StreamCount;
-        for (int i = 0; i < stream_count; ++i)
-        {
-            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
-            dmHashUpdateBuffer32(state, &stream.m_Location, sizeof(stream.m_Location));
-            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
-            dmHashUpdateBuffer32(state, &stream.m_Format, sizeof(stream.m_Format));
-        }
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
     static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -2484,7 +2490,7 @@ bail:
         vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
 
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
-    } 
+    }
 
     static void FillProgramResourceBindings(Program* program, ShaderModule* module, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t dynamic_alignment, VkShaderStageFlagBits stage_flag,
         uint32_t& buffer_count, uint32_t& sampler_count, uint32_t& uniform_count, uint32_t& data_size, uint32_t& data_size_aligned, uint32_t& max_set, uint32_t& max_binding)

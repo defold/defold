@@ -53,6 +53,7 @@ import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
@@ -289,7 +290,28 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
-{
+    {
+        List<String> getImageResources(SpriteDesc.Builder builder) {
+            List<String> textures = new ArrayList<>();
+
+            for (SpriteTexture texture : builder.getTexturesList()) {
+                String t = texture.getTexture();
+                if (!t.isEmpty())
+                {
+                    textures.add(t);
+                }
+            }
+
+            // Deprecated
+            if (textures.isEmpty()) {
+                String t = builder.getTileSet();
+                if (!t.isEmpty()) {
+                    textures.add(t);
+                }
+            }
+            return textures;
+        }
+
         @Override
         public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
 
@@ -301,16 +323,6 @@ public class ProtoBuilders {
             SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
             ProtoUtil.merge(input, spriteBuilder);
 
-            // The tileset must be specified
-            String tileSet = spriteBuilder.getTileSet();
-            if (tileSet.isEmpty())
-            {
-                throw new CompileExceptionError(input, 0, "A tileset must be assigned.");
-            }
-
-            IResource tileSetOuput = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
-            task.addInput(tileSetOuput);
-
             // Material input is optional in the protobuf description
             String material = spriteBuilder.getMaterial();
             if (!material.isEmpty())
@@ -319,21 +331,55 @@ public class ProtoBuilders {
                 task.addInput(materialOutput);
             }
 
+            List<String> images = getImageResources(spriteBuilder);
+
+            if (images.isEmpty())
+            {
+                throw new CompileExceptionError(input, 0, "An atlas or tileset must be assigned.");
+            }
+
+            for (String atlas : images) {
+                IResource atlasOutput = project.getResource(atlas).changeExt(getTextureSetExt(atlas));
+                task.addInput(atlasOutput);
+            }
+
             return task.build();
         }
 
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+
+            if (messageBuilder.getTexturesList().isEmpty()) {
+                String texture = messageBuilder.getTileSet();
+
+                SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
+                textureBuilder.setTexture(texture);
+                textureBuilder.setSampler("");
+                messageBuilder.clearTextures();
+                messageBuilder.addTextures(textureBuilder.build());
+            }
 
             MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));
 
             validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), materialBuilder, messageBuilder.getTileSet());
 
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
+            List<SpriteTexture> textures = new ArrayList<>();
+            for (SpriteTexture texture : messageBuilder.getTexturesList()) {
+                SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
+                textureBuilder.mergeFrom(texture);
+
+                BuilderUtil.checkResource(this.project, resource, "tile source", textureBuilder.getTexture());
+
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tileset", "t.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tilesource", "t.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "atlas", "a.texturesetc"));
+
+                textures.add(textureBuilder.build());
+            }
+            messageBuilder.clearTextures();
+            messageBuilder.addAllTextures(textures);
+
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
 
             if (materialBuilder != null) {
