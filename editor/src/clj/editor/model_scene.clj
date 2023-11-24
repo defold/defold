@@ -20,6 +20,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
+            [editor.graphics :as graphics]
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.render :as render]
@@ -155,10 +156,10 @@
     ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
     (vtx/position! vb vcount)))
 
-(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform vertex-space scratch]
+(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform vertex-space scratch vertex-description vertex-attribute-bytes]
   (let [clj-world (math/vecmath->clj world-transform)
         request-id [node-id mesh]
-        data {:mesh mesh :world-transform clj-world :scratch scratch :vertex-space vertex-space}]
+        data {:mesh mesh :world-transform clj-world :scratch scratch :vertex-space vertex-space :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
@@ -194,11 +195,14 @@
                     scratch (:scratch-arrays user-data)
                     meshes (:meshes user-data)
                     mesh (first meshes)
+                    shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0]) ; todo: normal stream?
+                    vertex-description (graphics/make-vertex-description shader-bound-attributes)
+                    vertex-attribute-bytes (:vertex-attribute-bytes user-data)
                     ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
                     ^Matrix4d world-transform (:world-transform renderable)
                     world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))]
               mesh meshes
-              :let [vb (request-vb! gl node-id mesh world-matrix vertex-space scratch)
+              :let [vb (request-vb! gl node-id mesh world-matrix vertex-space scratch vertex-description vertex-attribute-bytes)
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
@@ -228,7 +232,7 @@
           (gl/bind gl t render-args)
           (shader/set-samplers-by-name id-shader gl name (:texture-units t)))
         (doseq [mesh meshes
-                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world scratch)
+                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world scratch nil nil)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
@@ -423,7 +427,8 @@
       (vtx/flip!))))
 
 (defn- make-vb [^GL2 gl data]
-  (let [{:keys [mesh]} data
+  (let [{:keys [mesh vertex-description vertex-attribute-bytes]} data
+        vbuf (vtx/make-vertex-buffer vertex-description :dynamic (alength ^ints (:indices mesh)))
         vb (->vtx-pos-nrm-tex (alength ^ints (:indices mesh)))]
     (update-vb gl vb data)))
 
