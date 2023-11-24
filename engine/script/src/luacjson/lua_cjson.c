@@ -1547,6 +1547,9 @@ static int json_decode(lua_State *l)
 // Defold: Expose needed functions to our script_json module
 ////////////////////////////////////////////////////////////
 
+static json_config_t cachedDecodeConfig;
+json_initialize_config(&cachedDecodeConfig);
+
 // The major difference between this function and the internal
 // cjson json_encode function is that we don't use the config
 // object created by cjson. Instead we initialize and create
@@ -1554,12 +1557,10 @@ static int json_decode(lua_State *l)
 // a user data object.
 int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
 {
-	json_config_t cfg;
     json_parse_t json;
     json_token_t token;
 
-    json_initialize_config(&cfg);
-    json.cfg = &cfg;
+    json.cfg = &cachedDecodeConfig;
     json.data = json_string;
     json.data_end = json_string + json_len;
     json.current_depth = 0;
