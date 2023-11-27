@@ -459,7 +459,7 @@ static void json_create_config(lua_State *l)
 #endif // DEFOLD
 
 // DEFOLD
-static void json_initialize_config(json_config_t* cfg)
+static void json_initialize_config(json_config_t* cfg, int encode_keep_buffer)
 {
     int i;
 
@@ -470,15 +470,16 @@ static void json_initialize_config(json_config_t* cfg)
     cfg->decode_max_depth = DEFAULT_DECODE_MAX_DEPTH;
     cfg->encode_invalid_numbers = DEFAULT_ENCODE_INVALID_NUMBERS;
     cfg->decode_invalid_numbers = DEFAULT_DECODE_INVALID_NUMBERS;
-    cfg->encode_keep_buffer = DEFAULT_ENCODE_KEEP_BUFFER;
+    cfg->encode_keep_buffer = encode_keep_buffer;
     cfg->encode_number_precision = DEFAULT_ENCODE_NUMBER_PRECISION;
     cfg->encode_empty_table_as_object = DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT;
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
 
-#if DEFAULT_ENCODE_KEEP_BUFFER > 0
-    strbuf_init(&cfg->encode_buf, 0);
-#endif
+    if (encode_keep_buffer > 0)
+    {
+        strbuf_init(&cfg->encode_buf, 0);
+    }
 
     /* Decoding init */
 
@@ -532,8 +533,9 @@ static void json_initialize_config(json_config_t* cfg)
 static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *json, int lindex,
                                   const char *reason)
 {
-    if (!cfg->encode_keep_buffer)
-        strbuf_free(json);
+    // We don't need the buffer if error happened.
+    strbuf_free(json);
+
     luaL_error(l, "Cannot serialise %s: %s",
                   lua_typename(l, lua_type(l, lindex)), reason);
 }
@@ -684,8 +686,8 @@ static void json_check_encode_depth(lua_State *l, json_config_t *cfg,
     if (current_depth <= cfg->encode_max_depth && lua_checkstack(l, 3))
         return;
 
-    if (!cfg->encode_keep_buffer)
-        strbuf_free(json);
+    // We don't need the buffer if error happened.
+    strbuf_free(json);
 
     luaL_error(l, "Cannot serialise, excessive nesting (%d)",
                current_depth);
@@ -936,7 +938,7 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
 
     luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
 
-    json_initialize_config(&cfg);
+    json_initialize_config(&cfg, DEFAULT_ENCODE_KEEP_BUFFER);
     if (!cfg.encode_keep_buffer) {
         /* Use private buffer */
         encode_buf = &local_encode_buf;
@@ -1558,7 +1560,7 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
     json_parse_t json;
     json_token_t token;
 
-    json_initialize_config(&cfg);
+    json_initialize_config(&cfg, 0);
     json.cfg = &cfg;
     json.data = json_string;
     json.data_end = json_string + json_len;
