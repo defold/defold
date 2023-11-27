@@ -1588,6 +1588,7 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
         json_throw_parse_error(l, &json, "the end", &token);
 
     strbuf_free(json.tmp);
+    strbuf_free(&cfg.encode_buf);
 
     return 1;
 }
