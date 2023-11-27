@@ -108,7 +108,41 @@
     (System/arraycopy src 0 dst 0 c)
     dst))
 
-(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform vertex-space mesh scratch]
+(defn- mesh->attribute-data [mesh world-transform vertex-attribute-bytes]
+  (let [^ints indices (:indices mesh)
+        ^floats positions (:positions mesh)
+        ^floats texcoords (:texcoord0 mesh)
+        ^floats normals   (:normals mesh)]
+    (reduce (fn [out-data vi]
+              (let [p-base (* 3 vi)
+                    p-0 (double (get positions p-base))
+                    p-1 (double (get positions (+ 1 p-base)))
+                    p-2 (double (get positions (+ 2 p-base)))
+                    p-data (:position-data out-data)
+
+                    tc0-base (* 2 vi)
+                    tc0-0 (double (get texcoords tc0-base))
+                    tc0-1 (double (get texcoords (+ 1 tc0-base)))
+                    tc0-data (:uv-data out-data)]
+                (assoc out-data
+                  :position-data (conj p-data [p-0 p-1 p-2])
+                  :uv-data (conj tc0-data [tc0-0 tc0-1]))))
+            {:position-data []
+             :uv-data []
+             :world-transform world-transform
+             :vertex-attribute-bytes vertex-attribute-bytes}
+            indices)))
+(def my-atom (atom 0))
+
+(defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform vertex-space vertex-attribute-bytes mesh]
+  (let [^ints indices (:indices mesh)
+        mesh-data (mesh->attribute-data mesh world-transform vertex-attribute-bytes)]
+    (reset! my-atom mesh-data)
+    (graphics/put-attributes vbuf [mesh-data])
+    #_(reset! my-atom vbuf)
+    vbuf))
+
+#_(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform vertex-space vertex-attribute-bytes mesh scratch]
   
   (let [^floats positions (to-scratch! mesh scratch :positions)
         ^floats normals   (to-scratch! mesh scratch :normals)
@@ -134,7 +168,7 @@
                             (transform-array3! normals (fn [^floats d3]
                                                          (.set world-normal d3)
                                                          (.transform normal-transform world-normal)
-                                                         (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+                                                         (.normalize world-normal) ; need to normalize since normal-transform may be scaled
                                                          (.get world-normal d3))))
                           normals)]
 
@@ -211,7 +245,7 @@
       (doseq [[name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-scene-opaque-selection [^GL2 gl render-args renderables rcount]
+(defn- render-scene-opaque-selection [^GL2 gl render-args renderables _rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         textures (:textures user-data)]
@@ -419,18 +453,17 @@
                                     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 gl ^VertexBuffer vb data]
-  (let [{:keys [mesh world-transform vertex-space scratch]} data
+  (let [{:keys [mesh world-transform vertex-space vertex-attribute-bytes scratch]} data
         world-transform (doto (Matrix4d.) (math/clj->vecmath world-transform))]
     (-> vb
-      (vtx/clear!)
-      (mesh->vb! world-transform vertex-space mesh scratch)
-      (vtx/flip!))))
+      #_(vtx/clear!)
+      (mesh->vb! world-transform vertex-space vertex-attribute-bytes mesh)
+      #_(vtx/flip!))))
 
 (defn- make-vb [^GL2 gl data]
-  (let [{:keys [mesh vertex-description vertex-attribute-bytes]} data
-        vbuf (vtx/make-vertex-buffer vertex-description :dynamic (alength ^ints (:indices mesh)))
-        vb (->vtx-pos-nrm-tex (alength ^ints (:indices mesh)))]
-    (update-vb gl vb data)))
+  (let [{:keys [mesh vertex-description]} data
+        vbuf (vtx/make-vertex-buffer vertex-description :dynamic (alength ^ints (:indices mesh)))]
+    (update-vb gl vbuf data)))
 
 (defn- destroy-vbs [^GL2 gl vbs _])
 

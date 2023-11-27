@@ -243,8 +243,8 @@
                                         (assoc-in [:user-data :vertex-space] vertex-space)
                                         (assoc-in [:user-data :textures] gpu-textures)
                                         (assoc-in [:user-data :meshes] meshes)
-                                        (assoc :material-attribute-infos material-attribute-infos)
-                                        (assoc :vertex-attribute-bytes vertex-attribute-bytes)
+                                        (assoc-in [:user-data :material-attribute-infos] material-attribute-infos)
+                                        (assoc-in [:user-data :vertex-attribute-bytes] vertex-attribute-bytes)
                                         (update :batch-key
                                                 (fn [old-key]
                                                   ;; We can only batch-render models that use
