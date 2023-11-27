@@ -533,8 +533,8 @@ static void json_initialize_config(json_config_t* cfg, int encode_keep_buffer)
 static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *json, int lindex,
                                   const char *reason)
 {
-    if (cfg->encode_keep_buffer)
-        strbuf_free(json);
+    // We don't need the buffer if error happened.
+    strbuf_free(json);
 
     luaL_error(l, "Cannot serialise %s: %s",
                   lua_typename(l, lua_type(l, lindex)), reason);
@@ -686,8 +686,8 @@ static void json_check_encode_depth(lua_State *l, json_config_t *cfg,
     if (current_depth <= cfg->encode_max_depth && lua_checkstack(l, 3))
         return;
 
-    if (cfg->encode_keep_buffer)
-        strbuf_free(json);
+    // We don't need the buffer if error happened.
+    strbuf_free(json);
 
     luaL_error(l, "Cannot serialise, excessive nesting (%d)",
                current_depth);
