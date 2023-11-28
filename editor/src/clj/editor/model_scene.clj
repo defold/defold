@@ -89,112 +89,83 @@
 
 (def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id}))
 
-(defmacro umul [a b]
-  `(unchecked-multiply ~a ~b))
+(defn- transf-n
+  [^Matrix3f m3f normals]
+  (let [normal-tmp (Vector3f.)]
+    (let [res (mapv (fn [[^float x ^float y ^float z]]
+                      (.set normal-tmp x y z)
+                      (.transform m3f normal-tmp)
+                      (.normalize normal-tmp) ; need to normalize since normal-transform may be scaled
+                      [(.x normal-tmp) (.y normal-tmp) (.z normal-tmp)])
+                    normals)]
+      res)))
 
-(defn- transform-array3! [^floats array xform]
-  (let [d3 (float-array 3)
-        c (/ (alength array) 3)]
-    (dotimes [i c]
-      (System/arraycopy array (umul i 3) d3 0 3)
-      (xform d3)
-      (System/arraycopy d3 0 array (umul i 3) 3))
-    array))
-
-(defn- to-scratch! [mesh scratch component]
-  (let [^floats src (get mesh component)
-        c (alength src)
-        ^floats dst (get scratch component)]
-    (System/arraycopy src 0 dst 0 c)
-    dst))
-
-(defn- mesh->attribute-data [mesh world-transform vertex-attribute-bytes]
+(defn- mesh->attribute-data [mesh ^Matrix4d world-transform ^Matrix3f normal-transform vertex-attribute-bytes vertex-space]
   (let [^ints indices (:indices mesh)
         ^floats positions (:positions mesh)
         ^floats texcoords (:texcoord0 mesh)
-        ^floats normals   (:normals mesh)]
-    (reduce (fn [out-data vi]
-              (let [p-base (* 3 vi)
-                    p-0 (double (get positions p-base))
-                    p-1 (double (get positions (+ 1 p-base)))
-                    p-2 (double (get positions (+ 2 p-base)))
-                    p-data (:position-data out-data)
+        ^floats normals   (:normals mesh)
+        mesh-data-out
+        (reduce (fn [out-data vi]
+                  (let [p-base (* 3 vi)
+                        p-0 (double (get positions p-base))
+                        p-1 (double (get positions (+ 1 p-base)))
+                        p-2 (double (get positions (+ 2 p-base)))
 
-                    tc0-base (* 2 vi)
-                    tc0-0 (double (get texcoords tc0-base))
-                    tc0-1 (double (get texcoords (+ 1 tc0-base)))
-                    tc0-data (:uv-data out-data)]
-                (assoc out-data
-                  :position-data (conj p-data [p-0 p-1 p-2])
-                  :uv-data (conj tc0-data [tc0-0 tc0-1]))))
-            {:position-data []
-             :uv-data []
-             :world-transform world-transform
-             :vertex-attribute-bytes vertex-attribute-bytes}
-            indices)))
-(def my-atom (atom 0))
+                        tc0-base (* 2 vi)
+                        tc0-0 (double (get texcoords tc0-base))
+                        tc0-1 (double (get texcoords (+ 1 tc0-base)))
+
+                        n-base (* 3 vi)
+                        n-0 (get normals n-base)
+                        n-1 (get normals (+ 1 n-base))
+                        n-2 (get normals (+ 2 n-base))]
+                    (assoc out-data
+                      :position-data (conj (:position-data out-data) [p-0 p-1 p-2])
+                      :normal-data (conj (:normal-data out-data) [n-0 n-1 n-2])
+                      :uv-data (conj (:uv-data out-data) [tc0-0 tc0-1]))))
+                {:position-data []
+                 :uv-data []
+                 :normal-data []
+                 :world-transform world-transform
+                 :vertex-attribute-bytes vertex-attribute-bytes}
+                indices)]
+    (if (= vertex-space :vertex-space-world)
+      (assoc mesh-data-out :position-data (geom/transf-p world-transform (:position-data mesh-data-out))
+                           :normal-data (transf-n normal-transform (:normal-data mesh-data-out)))
+      mesh-data-out)))
 
 (defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform vertex-space vertex-attribute-bytes mesh]
-  (let [^ints indices (:indices mesh)
-        mesh-data (mesh->attribute-data mesh world-transform vertex-attribute-bytes)]
-    (reset! my-atom mesh-data)
+  (let [normal-transform (let [tmp (Matrix3f.)]
+                           (.getRotationScale world-transform tmp)
+                           (.invert tmp)
+                           (.transpose tmp)
+                           tmp)
+        mesh-data (mesh->attribute-data mesh world-transform normal-transform vertex-attribute-bytes vertex-space)]
     (graphics/put-attributes vbuf [mesh-data])
-    #_(reset! my-atom vbuf)
     vbuf))
 
-#_(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform vertex-space vertex-attribute-bytes mesh scratch]
-  
-  (let [^floats positions (to-scratch! mesh scratch :positions)
-        ^floats normals   (to-scratch! mesh scratch :normals)
-        ^floats texcoords (to-scratch! mesh scratch :texcoord0)
-        ^ints indices (:indices mesh)
-        vcount (alength indices)
-
-        ^Matrix4f world-transform (Matrix4f. world-transform)
-        ^floats positions (if (= vertex-space :vertex-space-world)
-                            (let [world-point (Point3f.)]
-                              (transform-array3! positions (fn [^floats d3]
-                                                             (.set world-point d3)
-                                                             (.transform world-transform world-point)
-                                                             (.get world-point d3))))
-                            positions)
-        ^floats normals (if (= vertex-space :vertex-space-world)
-                          (let [world-normal (Vector3f.)
-                                normal-transform (let [tmp (Matrix3f.)]
-                                                   (.getRotationScale world-transform tmp)
-                                                   (.invert tmp)
-                                                   (.transpose tmp)
-                                                   tmp)]
-                            (transform-array3! normals (fn [^floats d3]
-                                                         (.set world-normal d3)
-                                                         (.transform normal-transform world-normal)
-                                                         (.normalize world-normal) ; need to normalize since normal-transform may be scaled
-                                                         (.get world-normal d3))))
-                          normals)]
-
-    ;; Raw access to run as fast as possible
-    ;; 3x faster than using generated *-put! function
-    ;; Not clear how to turn this into pretty API
-
-    (let [^ByteBuffer b (.buf vb)
-          ^FloatBuffer fb (.asFloatBuffer b)]
-      (dotimes [i vcount]
-        (let [vi (aget indices i)
-              normal (float-array [0.0 0.0 -1.0])]
-          (.put fb positions (umul 3 vi) 3)
-          (if (not= (alength normals) 0)
-            (.put fb normals (umul 3 vi) 3)
-            (.put fb normal 0 3))
-          (.put fb texcoords (umul 2 vi) 2))))
-
-    ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
-    (vtx/position! vb vcount)))
-
-(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform vertex-space scratch vertex-description vertex-attribute-bytes]
+(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform vertex-space vertex-description vertex-attribute-bytes]
   (let [clj-world (math/vecmath->clj world-transform)
         request-id [node-id mesh]
-        data {:mesh mesh :world-transform clj-world :scratch scratch :vertex-space vertex-space :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
+        data {:mesh mesh :world-transform clj-world :vertex-space vertex-space :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
+
+(defn- vertex-space-fixup [material-attribute-infos]
+  (let [position-entry (->> material-attribute-infos
+                            (filter #(= (:name %) "position"))
+                            first)]
+    (if position-entry
+      material-attribute-infos
+      (conj material-attribute-infos {:name "position"
+                                      :name-key (vtx/attribute-name->key "position")
+                                      :semantic-type :semantic-type-position
+                                      ;; TODO: This is a workaround because we set the manufactured "position"
+                                      ;;       to coordinate-space-world which means that we will produce wrong vertices
+                                      ;;       based on the vertex space setting on the material..
+                                      :coordinate-space :coordinate-space-local
+                                      :data-type :type-float
+                                      :element-count 4}))))
 
 (defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
@@ -207,7 +178,6 @@
         ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
         ^Matrix4d world-transform (:world-transform renderable)
         world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
-
         vertex-space-world-transform (if (= vertex-space :vertex-space-world)
                                        (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
                                        world-matrix)
@@ -226,17 +196,19 @@
       (doseq [renderable renderables
               :let [node-id (:node-id renderable)
                     user-data (:user-data renderable)
-                    scratch (:scratch-arrays user-data)
                     meshes (:meshes user-data)
                     mesh (first meshes)
-                    shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0]) ; todo: normal stream?
-                    vertex-description (graphics/make-vertex-description shader-bound-attributes)
-                    vertex-attribute-bytes (:vertex-attribute-bytes user-data)
+
                     ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
                     ^Matrix4d world-transform (:world-transform renderable)
-                    world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))]
+                    world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
+
+                    material-attribute-infos (vertex-space-fixup (:material-attribute-infos user-data))
+                    shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos [:position :texcoord0 :normal]) ; todo: normal stream?
+                    vertex-description (graphics/make-vertex-description shader-bound-attributes)
+                    vertex-attribute-bytes (:vertex-attribute-bytes user-data)]
               mesh meshes
-              :let [vb (request-vb! gl node-id mesh world-matrix vertex-space scratch vertex-description vertex-attribute-bytes)
+              :let [vb (request-vb! gl node-id mesh world-matrix vertex-space vertex-description vertex-attribute-bytes)
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
@@ -254,7 +226,6 @@
     (doseq [renderable renderables
             :let [node-id (:node-id renderable)
                   user-data (:user-data renderable)
-                  scratch (:scratch-arrays user-data)
                   meshes (:meshes user-data)
                   mesh (first meshes)
                   ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
@@ -266,7 +237,7 @@
           (gl/bind gl t render-args)
           (shader/set-samplers-by-name id-shader gl name (:texture-units t)))
         (doseq [mesh meshes
-                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world scratch nil nil)
+                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world nil nil)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
@@ -378,15 +349,6 @@
                        meshes))]
     (error-values/error-aggregate es)))
 
-(defn- gen-scratch-arrays [meshes]
-  (into {}
-        (map (fn [component]
-               [component (float-array (reduce max
-                                               0
-                                               (map (comp count component)
-                                                    meshes)))]))
-        [:positions :normals :texcoord0]))
-
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)
       {:node-id _node-id
@@ -397,8 +359,7 @@
                     :select-batch-key _node-id
                     :user-data {:meshes meshes
                                 :shader shader-pos-nrm-tex
-                                :textures {"texture" @texture/white-pixel}
-                                :scratch-arrays (gen-scratch-arrays meshes)}
+                                :textures {"texture" @texture/white-pixel}}
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id
                    :aabb aabb
@@ -453,12 +414,10 @@
                                     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 gl ^VertexBuffer vb data]
-  (let [{:keys [mesh world-transform vertex-space vertex-attribute-bytes scratch]} data
+  (let [{:keys [mesh world-transform vertex-space vertex-attribute-bytes]} data
         world-transform (doto (Matrix4d.) (math/clj->vecmath world-transform))]
     (-> vb
-      #_(vtx/clear!)
-      (mesh->vb! world-transform vertex-space vertex-attribute-bytes mesh)
-      #_(vtx/flip!))))
+      (mesh->vb! world-transform vertex-space vertex-attribute-bytes mesh))))
 
 (defn- make-vb [^GL2 gl data]
   (let [{:keys [mesh vertex-description]} data

@@ -247,7 +247,11 @@
          {:name "page_index"
           :semantic-type :semantic-type-page-index
           :data-type :type-float
-          :element-count 1}]))
+          :element-count 1}
+         {:name "normal"
+          :semantic-type :semantic-type-normal
+          :data-type :type-float
+          :element-count 3}]))
 
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys]
   (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
@@ -478,6 +482,9 @@
                                             page-index (:page-index attribute-data)]
                                         (repeat vertex-count [(double page-index)])))
                                     put-attribute-doubles!)
+
+                  :semantic-type-normal
+                  (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!)
 
                   ;; Default case.
                   (put-renderables! attribute-byte-offset
