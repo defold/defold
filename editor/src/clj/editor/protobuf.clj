@@ -467,22 +467,113 @@ Macros currently mean no foreseeable performance gain however."
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (s/replace (util/upper-case* (name val)) "-" "_")))
 
+(def ^:private float-zero (Float/valueOf 0.0))
+(def ^:private float-one (Float/valueOf 1.0))
+
+(def ^:private vector3-zero [float-zero float-zero float-zero])
+(def ^:private vector3-one [float-one float-one float-one])
+
+(def ^:private vector4-zero [float-zero float-zero float-zero float-zero])
+(def ^:private vector4-one [float-one float-one float-one float-one])
+(def ^:private vector4-xyz-zero-w-one [float-zero float-zero float-zero float-one])
+(def ^:private vector4-xyz-one-w-zero [float-one float-one float-one float-zero])
+
+(def ^:private quat-identity [float-zero float-zero float-zero float-one])
+
+(def ^:private matrix4-identity
+  [float-one float-zero float-zero float-zero
+   float-zero float-one float-zero float-zero
+   float-zero float-zero float-one float-zero
+   float-zero float-zero float-zero float-one])
+
+(definline intern-float [num]
+  `(let [float# ~num]
+     (cond
+       (= float-zero float#) float-zero
+       (= float-one float#) float-one
+       :else float#)))
+
 (extend-protocol PbConverter
   DdfMath$Point3
   (msg->vecmath [_pb v] (Point3d. (:x v) (:y v) (:z v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))]
+      (if (and (identical? float-zero x)
+               (identical? float-zero y)
+               (identical? float-zero z))
+        vector3-zero
+        [x y z])))
 
   DdfMath$Vector3
   (msg->vecmath [_pb v] (Vector3d. (:x v) (:y v) (:z v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))]
+      (cond
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z))
+        vector3-zero
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z))
+        vector3-one
+
+        :else
+        [x y z])))
 
   DdfMath$Vector4
   (msg->vecmath [_pb v] (Vector4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))
+          w (intern-float (:w v))]
+      (cond
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-zero w))
+        vector4-zero
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-one w))
+        vector4-one
+
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-one w))
+        vector4-xyz-zero-w-one
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-zero w))
+        vector4-xyz-one-w-zero
+
+        :else
+        [x y z w])))
 
   DdfMath$Quat
   (msg->vecmath [_pb v] (Quat4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))
+          w (intern-float (:w v))]
+      (if (and (identical? float-zero x)
+               (identical? float-zero y)
+               (identical? float-zero z)
+               (identical? float-one w))
+        quat-identity
+        [x y z w])))
 
   DdfMath$Matrix4
   (msg->vecmath [_pb v]
@@ -491,10 +582,46 @@ Macros currently mean no foreseeable performance gain however."
                (:m20 v) (:m21 v) (:m22 v) (:m23 v)
                (:m30 v) (:m31 v) (:m32 v) (:m33 v)))
   (msg->clj [_pb v]
-    [(:m00 v) (:m01 v) (:m02 v) (:m03 v)
-     (:m10 v) (:m11 v) (:m12 v) (:m13 v)
-     (:m20 v) (:m21 v) (:m22 v) (:m23 v)
-     (:m30 v) (:m31 v) (:m32 v) (:m33 v)])
+    (let [m00 (intern-float (:m00 v))
+          m01 (intern-float (:m01 v))
+          m02 (intern-float (:m02 v))
+          m03 (intern-float (:m03 v))
+          m10 (intern-float (:m10 v))
+          m11 (intern-float (:m11 v))
+          m12 (intern-float (:m12 v))
+          m13 (intern-float (:m13 v))
+          m20 (intern-float (:m20 v))
+          m21 (intern-float (:m21 v))
+          m22 (intern-float (:m22 v))
+          m23 (intern-float (:m23 v))
+          m30 (intern-float (:m30 v))
+          m31 (intern-float (:m31 v))
+          m32 (intern-float (:m32 v))
+          m33 (intern-float (:m33 v))]
+      (if (and (identical? float-one m00)
+               (identical? float-zero m01)
+               (identical? float-zero m02)
+               (identical? float-zero m03)
+
+               (identical? float-zero m10)
+               (identical? float-one m11)
+               (identical? float-zero m12)
+               (identical? float-zero m13)
+
+               (identical? float-zero m20)
+               (identical? float-zero m21)
+               (identical? float-one m22)
+               (identical? float-zero m23)
+
+               (identical? float-zero m30)
+               (identical? float-zero m31)
+               (identical? float-zero m32)
+               (identical? float-one m33))
+        matrix4-identity
+        [m00 m01 m02 m03
+         m10 m11 m12 m13
+         m20 m21 m22 m23
+         m30 m31 m32 m33])))
 
   Message
   (msg->vecmath [_pb v] v)
