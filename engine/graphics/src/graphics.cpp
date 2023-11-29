@@ -1020,6 +1020,10 @@ namespace dmGraphics
     {
         return g_functions.m_EnableVertexBuffer(context, vertex_buffer, binding_index);
     }
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
+    {
+        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
+    }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);

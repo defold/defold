@@ -332,8 +332,18 @@ def transform_render(task, msg):
     return msg
 
 def transform_sprite(task, msg):
-    msg.tile_set = transform_tilesource_name(msg.tile_set)
+    import sprite_ddf_pb2
+
     msg.material = msg.material.replace('.material', '.materialc')
+    if msg.tile_set:
+        st = sprite_ddf_pb2.SpriteTexture()
+        st.sampler = ""
+        st.texture = msg.tile_set
+        msg.textures.append(st)
+        msg.tile_set = ""
+
+    for st in msg.textures:
+        st.texture = transform_tilesource_name(st.texture)
     return msg
 
 def transform_tilegrid(task, msg):

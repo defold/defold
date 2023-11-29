@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -314,7 +314,6 @@ namespace dmGameSystem
 
         dmArray<uint8_t> &vertex_buffer = pfx_world->m_VertexBufferData;
         uint8_t* vb_begin = vertex_buffer.End();
-        uint8_t* vb_end = vb_begin;
 
         // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
         const uint32_t vb_buffer_offset = vertex_buffer.Size();
@@ -323,7 +322,6 @@ namespace dmGameSystem
         if (vb_buffer_offset % vx_stride != 0)
         {
             vb_begin += vx_stride - vb_buffer_offset % vx_stride;
-            vb_end    = vb_begin;
             vertex_offset++;
             pfx_world->m_VerticesWritten++;
         }
