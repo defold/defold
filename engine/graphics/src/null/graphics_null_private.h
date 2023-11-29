@@ -109,6 +109,7 @@ namespace dmGraphics
         PipelineState               m_PipelineState;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
+        HVertexBuffer               m_VertexBuffer;
         uint32_t                    m_Width;
         uint32_t                    m_Height;
         uint32_t                    m_WindowWidth;

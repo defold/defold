@@ -578,12 +578,11 @@ namespace dmGraphics
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
-    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
-
+    bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
+    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
+    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+    void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);

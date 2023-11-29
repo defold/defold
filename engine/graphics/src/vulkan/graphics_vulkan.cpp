@@ -1879,56 +1879,59 @@ bail:
         delete (VertexDeclaration*) vertex_declaration;
     }
 
-    static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void VulkanEnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
-        VulkanContext* context                 = (VulkanContext*) _context;
-        context->m_CurrentVertexBuffer[0]      = (DeviceBuffer*) vertex_buffer;
-        context->m_CurrentVertexDeclaration[0] = (VertexDeclaration*) vertex_declaration;
+        VulkanContext* context                        = (VulkanContext*) _context;
+        context->m_CurrentVertexBuffer[binding_index] = (DeviceBuffer*) vertex_buffer;
     }
 
-    static void VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         VulkanContext* context      = (VulkanContext*) _context;
         Program* program_ptr        = (Program*) program;
         ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration[0], vertex_buffer);
+        uint32_t num_inputs = vertex_shader->m_Inputs.Size();
 
-        // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
-        //     Basically we create fake bindings if a stream isn't defined in the vertex declaration, because otherwise
-        //     the MVK driver will complain that we haven't defined all bindings in the shader.
-        //     This means that we might get side-effects since we are basically binding the first data buffer
-        //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
-        context->m_MainVertexDeclaration[0] = {0};
-        context->m_MainVertexDeclaration[0].m_StreamCount  = vertex_shader->m_Inputs.Size();
-        context->m_MainVertexDeclaration[0].m_Stride       = vertex_declaration->m_Stride;
-        context->m_MainVertexDeclaration[0].m_StepFunction = vertex_declaration->m_StepFunction;
-        context->m_MainVertexDeclaration[0].m_Hash         = vertex_declaration->m_Hash;
+        context->m_MainVertexDeclaration[binding_index]                = {0};
+        context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
+        context->m_MainVertexDeclaration[binding_index].m_Hash         = vertex_declaration->m_Hash;
 
-        for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
+        context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
+
+        uint32_t stream_ix = 0;
+
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
-            ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
-            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[0].m_Streams[i];
-
-            stream.m_NameHash = input.m_NameHash;
-            stream.m_Location = input.m_Binding;
-            stream.m_Format   = VK_FORMAT_R8_UNORM;
-
-            for (int j = 0; j < vertex_declaration->m_StreamCount; ++j)
+            for (int j = 0; j < vertex_shader->m_Inputs.Size(); ++j)
             {
-                if (vertex_declaration->m_Streams[j].m_NameHash == input.m_NameHash)
+                ShaderResourceBinding& input = vertex_shader->m_Inputs[j];
+
+                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
                 {
-                    stream.m_Offset = vertex_declaration->m_Streams[j].m_Offset;
-                    stream.m_Format = vertex_declaration->m_Streams[j].m_Format;
+                    VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding_index].m_Streams[stream_ix];
+                    stream.m_NameHash = input.m_NameHash;
+                    stream.m_Location = input.m_Binding;
+                    stream.m_Format   = vertex_declaration->m_Streams[i].m_Format;
+                    stream.m_Offset   = vertex_declaration->m_Streams[i].m_Offset;
+                    stream_ix++;
+
+                    context->m_MainVertexDeclaration[binding_index].m_StreamCount++;
                     break;
                 }
             }
         }
     }
 
-    static void VulkanDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void VulkanDisableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration)
     {
-        memset(((VulkanContext*) context)->m_CurrentVertexDeclaration, 0, sizeof(VertexDeclaration*) * MAX_VERTEX_BUFFERS);
+        VulkanContext* context = (VulkanContext*) _context;
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+                context->m_CurrentVertexDeclaration[i] = 0;
+        }
     }
 
     static uint32_t VulkanGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)

@@ -1702,34 +1702,6 @@ static void LogFrameBufferError(GLenum status)
         delete vertex_declaration;
     }
 
-    static void OpenGLEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
-    {
-        assert(context);
-        assert(vertex_buffer);
-        assert(vertex_declaration);
-        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR;
-
-        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
-        {
-            glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_LogicalIndex);
-            CHECK_GL_ERROR;
-            glVertexAttribPointer(
-                    vertex_declaration->m_Streams[i].m_LogicalIndex,
-                    vertex_declaration->m_Streams[i].m_Size,
-                    GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
-                    vertex_declaration->m_Streams[i].m_Normalize,
-                    vertex_declaration->m_Stride,
-            BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
-
-            CHECK_GL_ERROR;
-        }
-
-        #undef BUFFER_OFFSET
-    }
-
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
@@ -1764,10 +1736,15 @@ static void LogFrameBufferError(GLenum status)
         vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        CHECK_GL_ERROR;
+    }
+
+    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         assert(_context);
-        assert(vertex_buffer);
         assert(vertex_declaration);
 
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1778,9 +1755,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
