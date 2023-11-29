@@ -935,8 +935,6 @@ namespace dmRig
 
     static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const AttributeInfo* attributes, uint32_t attributes_count, uint32_t vertex_stride, uint8_t* out_write_ptr)
     {
-        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
-
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
         const float* colors = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
@@ -967,68 +965,52 @@ namespace dmRig
 
                 uint8_t* write_ptr = out_write_ptr;
 
+                uint32_t num_texcoords = 0;
+
                 for (int a = 0; a < attributes_count; ++a)
                 {
                     const dmGraphics::VertexAttribute* attr = attributes[a].m_Attribute;
+                    const size_t data_size = attributes[a].m_ValueByteSize;
 
-                    size_t data_size = attributes[a].m_ValueByteSize;
+                    switch(attr->m_SemanticType)
+                    {
+                        case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
+                        {
+                            memcpy(write_ptr, &positions[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                        } break;
+                        case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                        {
+                            uint32_t src_copy_size = dmMath::Min(2 * sizeof(float), data_size);
+                            const float* uv = num_texcoords == 0 ? uv0 :
+                                              num_texcoords == 1 ? uv1 :
+                                              0;
+                            if (uv)
+                                memcpy(write_ptr, &uv[idx*2], src_copy_size);
+                            else
+                                memset(write_ptr, 0, src_copy_size);
 
-                    if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_POSITION)
-                    {
-                        assert(positions);
-                        memcpy(write_ptr, &positions[idx*3], dmMath::Min(3 * sizeof(float), data_size));
-                    }
-                    else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_TEXCOORD0)
-                    {
-                        uint32_t src_copy_size = dmMath::Min(2 * sizeof(float), data_size);
-
-                        if (uv0)
+                            num_texcoords++;
+                        } break;
+                        case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
                         {
-                            memcpy(write_ptr, &uv0[idx*2], src_copy_size);
-                        }
-                        else
+                            uint32_t src_copy_size = dmMath::Min(4 * sizeof(float), data_size);
+                            if (colors)
+                                memcpy(write_ptr, &colors[idx*4], src_copy_size);
+                            else
+                                memset(write_ptr, 0, src_copy_size);
+                        } break;
+                        case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
                         {
-                            memset(write_ptr, 0, src_copy_size);
-                        }
-                    }
-                    else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_TEXCOORD1)
-                    {
-                        uint32_t src_copy_size = dmMath::Min(2 * sizeof(float), data_size);
-
-                        if (uv1)
+                            memcpy(write_ptr, &normals[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                        } break;
+                        case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
                         {
-                            memcpy(write_ptr, &uv1[idx*2], src_copy_size);
-                        }
-                        else
+                            memcpy(write_ptr, &tangents[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                        } break;
+                        default:
                         {
-                            memset(write_ptr, 0, src_copy_size);
-                        }
-                    }
-                    else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_NORMAL)
-                    {
-                        assert(normals);
-                        memcpy(write_ptr, &normals[idx*3], dmMath::Min(3 * sizeof(float), data_size));
-                    }
-                    else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_TANGENT)
-                    {
-                        assert(tangents);
-                        memcpy(write_ptr, &tangents[idx*3], dmMath::Min(3 * sizeof(float), data_size));
-                    }
-                    else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_COLOR)
-                    {
-                        uint32_t src_copy_size = dmMath::Min(4 * sizeof(float), data_size);
-                        if (colors)
-                        {
-                            memcpy(write_ptr, &colors[idx*4], src_copy_size);
-                        }
-                        else
-                        {
-                            memset(write_ptr, 0, src_copy_size);
-                        }
-                    }
-                    else
-                    {
-                        memcpy(write_ptr, attributes[a].m_ValuePtr, data_size);
+                            memcpy(write_ptr, attributes[a].m_ValuePtr, data_size);
+                        } break;
                     }
 
                     write_ptr += data_size;
@@ -1149,8 +1131,8 @@ namespace dmRig
         for (int i = 0; i < attributes_count; ++i)
         {
             const dmGraphics::VertexAttribute* attr = attributes[i].m_Attribute;
-            stream_position |= attr->m_NameHash == dmGraphics::VERTEX_STREAM_POSITION;
-            stream_normal   |= attr->m_NameHash == dmGraphics::VERTEX_STREAM_NORMAL;
+            stream_position |= attr->m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+            stream_normal   |= attr->m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
         }
 
         pose_matrices.SetSize(0);

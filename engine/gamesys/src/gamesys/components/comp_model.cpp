@@ -286,12 +286,12 @@ namespace dmGameSystem
 
     static inline bool IsDefaultStream(dmhash_t name_hash)
     {
-        return name_hash == dmGraphics::VERTEX_STREAM_POSITION  ||
-               name_hash == dmGraphics::VERTEX_STREAM_NORMAL    ||
-               name_hash == dmGraphics::VERTEX_STREAM_TANGENT   ||
-               name_hash == dmGraphics::VERTEX_STREAM_COLOR     ||
-               name_hash == dmGraphics::VERTEX_STREAM_TEXCOORD0 ||
-               name_hash == dmGraphics::VERTEX_STREAM_TEXCOORD1;
+        return name_hash == dmRender::VERTEX_STREAM_POSITION  ||
+               name_hash == dmRender::VERTEX_STREAM_NORMAL    ||
+               name_hash == dmRender::VERTEX_STREAM_TANGENT   ||
+               name_hash == dmRender::VERTEX_STREAM_COLOR     ||
+               name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 ||
+               name_hash == dmRender::VERTEX_STREAM_TEXCOORD1;
     }
 
     static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
@@ -958,13 +958,12 @@ namespace dmGameSystem
 
         // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
         const uint32_t vb_buffer_offset = vertex_buffer.Size();
-        uint32_t vertex_offset = vb_buffer_offset / vertex_stride;
+        uint32_t vb_buffer_padding      = 0;
 
         if (vb_buffer_offset % vertex_stride != 0)
         {
-            // vertices      += vertex_stride - vb_buffer_offset % vertex_stride;
-            // vertex_offset += 1;
             required_vertex_memory_count += vertex_stride;
+            vb_buffer_padding             = vertex_stride - vb_buffer_offset % vertex_stride;
         }
 
         if (vertex_buffer.Remaining() < required_vertex_memory_count)
@@ -975,13 +974,7 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
         // Fill in vertex buffer
-        uint8_t* vb_begin = vertex_buffer.End();
-
-        if (vb_buffer_offset % vertex_stride != 0)
-        {
-            vb_begin += vertex_stride - vb_buffer_offset % vertex_stride;
-        }
-
+        uint8_t* vb_begin = vertex_buffer.End() + vb_buffer_padding;
         uint8_t* vb_end = vb_begin;
 
         for (uint32_t *i=begin;i!=end;i++)
