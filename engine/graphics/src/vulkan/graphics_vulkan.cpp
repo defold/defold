@@ -1885,6 +1885,16 @@ bail:
         context->m_CurrentVertexBuffer[binding_index] = (DeviceBuffer*) vertex_buffer;
     }
 
+    static void VulkanDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexBuffer[i] == (DeviceBuffer*) vertex_buffer)
+                context->m_CurrentVertexBuffer[i] = 0;
+        }
+    }
+
     static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         VulkanContext* context      = (VulkanContext*) _context;

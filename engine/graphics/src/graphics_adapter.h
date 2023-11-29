@@ -97,9 +97,11 @@ namespace dmGraphics
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
     typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
-    typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
     typedef uint32_t (*GetVertexDeclarationStrideFn)(HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexStreamOffsetFn)(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
+
+    typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
 
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
@@ -227,6 +229,7 @@ namespace dmGraphics
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
         HashVertexDeclarationFn m_HashVertexDeclaration;
         EnableVertexBufferFn m_EnableVertexBuffer;
+        DisableVertexBufferFn m_DisableVertexBuffer;
         GetVertexDeclarationStrideFn m_GetVertexDeclarationStride;
         GetVertexStreamOffsetFn m_GetVertexStreamOffset;
         DrawElementsFn m_DrawElements;
@@ -358,6 +361,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexDeclarationStride); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexStreamOffset); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \

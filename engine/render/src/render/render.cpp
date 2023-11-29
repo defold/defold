@@ -892,6 +892,11 @@ namespace dmRender
 
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::DisableVertexBuffer(context, ro->m_VertexBuffers[i]);
+                }
+
                 if (ro->m_VertexDeclarations[i])
                 {
                     dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclarations[i]);

@@ -490,7 +490,53 @@ namespace dmGameSystem
         return false;
     }
 
-    static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, MeshAttributeRenderData* rd)
+    static inline int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
+    {
+        for (int i = 0; i < attributes_count; ++i)
+        {
+            if (attributes[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static void FillAttributeInfos(dmRig::AttributeInfo* material_infos, uint32_t material_infos_count, const dmGraphics::VertexAttribute* attributes, uint32_t attribute_count, dmRig::AttributeInfo* attribute_infos)
+    {
+        for (int i = 0; i < material_infos_count; ++i)
+        {
+            int attribute_index        = FindAttributeIndex(attributes, attribute_count, material_infos[i].m_Attribute->m_NameHash);
+            dmRig::AttributeInfo& info = attribute_infos[i];
+            info.m_Attribute           = material_infos[i].m_Attribute;
+            info.m_ValuePtr            = material_infos[i].m_ValuePtr;
+            info.m_ValueByteSize       = material_infos[i].m_ValueByteSize;
+
+            if (attribute_index >= 0)
+            {
+                info.m_Attribute = attributes + attribute_index;
+                dmGraphics::GetAttributeValues(attributes[attribute_index], &info.m_ValuePtr, &info.m_ValueByteSize);
+            }
+        }
+    }
+
+    static uint32_t FillMaterialAttributeInfos(dmRender::HMaterial material, dmRig::AttributeInfo* infos)
+    {
+        const dmGraphics::VertexAttribute* attributes = 0;
+        uint32_t attributes_count                     = 0;
+        dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
+        attributes_count = dmMath::Min(attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+
+        for (int i = 0; i < attributes_count; ++i)
+        {
+            dmRig::AttributeInfo& info = infos[i];
+            info.m_Attribute = attributes + i;
+            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+        }
+        return attributes_count;
+    }
+
+    static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
         assert(!rd->m_VertexBuffer);
         assert(!rd->m_VertexDeclaration);
@@ -499,6 +545,55 @@ namespace dmGameSystem
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
         dmGraphics::HVertexDeclaration material_vx_decl         = dmRender::GetVertexDeclaration(material);
 
+        dmRig::AttributeInfo material_attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        uint32_t material_attributes_count = FillMaterialAttributeInfos(material, material_attributes);
+
+        dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        FillAttributeInfos(material_attributes, material_attributes_count, model_attributes, model_attribute_count, attributes);
+
+        uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(material_vx_decl));
+        uint32_t custom_vertex_size       = 0;
+
+        for (int i = 0; i < material_attributes_count; ++i)
+        {
+            const dmGraphics::VertexAttribute* attr = attributes[i].m_Attribute;
+            const dmGraphics::VertexAttribute* attr_material = material_attributes[i].m_Attribute;
+
+            if (!IsDefaultStream(attr->m_NameHash))
+            {
+                assert(attr->m_NameHash == attr_material->m_NameHash);
+                dmGraphics::AddVertexStream(stream_declaration,
+                    attr->m_NameHash,
+                    attr_material->m_ElementCount, // Need the material attribute here to get the _actual_ element count
+                    dmGraphics::GetGraphicsType(attr->m_DataType),
+                    attr->m_Normalize);
+
+                uint8_t* data_write_ptr = scratch_attribute_vertex + custom_vertex_size;
+                memcpy(data_write_ptr, attributes[i].m_ValuePtr, attributes[i].m_ValueByteSize);
+                custom_vertex_size += attributes[i].m_ValueByteSize;
+            }
+        }
+
+        uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
+        uint32_t vertex_data_size = custom_vertex_size * vertex_count;
+        void* attribute_data      = malloc(vertex_data_size);
+        uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
+
+        for (int i = 0; i < vertex_count; ++i)
+        {
+            memcpy(vertex_write_ptr, scratch_attribute_vertex, custom_vertex_size);
+            vertex_write_ptr += custom_vertex_size;
+        }
+
+        rd->m_VertexBuffer      = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        rd->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
+        free(attribute_data);
+        free(scratch_attribute_vertex);
+
+        /*
         uint8_t* scratch_attribute_vertex             = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(material_vx_decl));
         uint32_t custom_vertex_size                   = 0;
         const dmGraphics::VertexAttribute* attributes = 0;
@@ -541,6 +636,7 @@ namespace dmGameSystem
 
         free(attribute_data);
         free(scratch_attribute_vertex);
+        */
     }
 
     static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
@@ -724,52 +820,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
-    {
-        for (int i = 0; i < attributes_count; ++i)
-        {
-            if (attributes[i].m_NameHash == name_hash)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    static void FillAttributeInfos(dmRig::AttributeInfo* material_infos, uint32_t material_infos_count, const dmGraphics::VertexAttribute* attributes, uint32_t attribute_count, dmRig::AttributeInfo* attribute_infos)
-    {
-        for (int i = 0; i < material_infos_count; ++i)
-        {
-            int attribute_index        = FindAttributeIndex(attributes, attribute_count, material_infos[i].m_Attribute->m_NameHash);
-            dmRig::AttributeInfo& info = attribute_infos[i];
-            info.m_Attribute           = material_infos[i].m_Attribute;
-            info.m_ValuePtr            = material_infos[i].m_ValuePtr;
-            info.m_ValueByteSize       = material_infos[i].m_ValueByteSize;
-
-            if (attribute_index >= 0)
-            {
-                info.m_Attribute = attributes + attribute_index;
-                dmGraphics::GetAttributeValues(attributes[attribute_index], &info.m_ValuePtr, &info.m_ValueByteSize);
-            }
-        }
-    }
-
-    static uint32_t FillMaterialAttributeInfos(dmRender::HMaterial material, dmRig::AttributeInfo* infos)
-    {
-        const dmGraphics::VertexAttribute* attributes = 0;
-        uint32_t attributes_count                     = 0;
-        dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
-        attributes_count = dmMath::Min(attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
-
-        for (int i = 0; i < attributes_count; ++i)
-        {
-            dmRig::AttributeInfo& info = infos[i];
-            info.m_Attribute = attributes + i;
-            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
-        }
-        return attributes_count;
-    }
-
     static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("RenderBatchLocal");
@@ -797,7 +847,12 @@ namespace dmGameSystem
 
                 if (!attribute_rd->m_VertexDeclaration)
                 {
-                    SetupMeshAttributeRenderData(render_context, ro.m_Material, render_item, attribute_rd);
+                    SetupMeshAttributeRenderData(render_context,
+                        ro.m_Material,
+                        render_item,
+                        component->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
+                        component->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
+                        attribute_rd);
                 }
 
                 ro.m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
@@ -822,7 +877,8 @@ namespace dmGameSystem
                 ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
             }
 
-            if (component->m_RenderConstants) {
+            if (component->m_RenderConstants)
+            {
                 dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
             }
 
@@ -889,9 +945,28 @@ namespace dmGameSystem
         world->m_VertexBufferVertexCounts[batchIndex] = required_vertex_count;
 
         uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
+        if (!HasCustomVertexAttributes(material))
+        {
+            vertex_stride = sizeof(dmRig::RigModelVertex);
+            vx_decl       = world->m_VertexDeclaration;
+        }
+
         uint32_t required_vertex_memory_count = required_vertex_count * vertex_stride;
 
         dmArray<uint8_t>& vertex_buffer = world->m_VertexBufferData[batchIndex];
+
+        // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
+        const uint32_t vb_buffer_offset = vertex_buffer.Size();
+        uint32_t vertex_offset = vb_buffer_offset / vertex_stride;
+
+        if (vb_buffer_offset % vertex_stride != 0)
+        {
+            // vertices      += vertex_stride - vb_buffer_offset % vertex_stride;
+            // vertex_offset += 1;
+            required_vertex_memory_count += vertex_stride;
+        }
+
         if (vertex_buffer.Remaining() < required_vertex_memory_count)
         {
             vertex_buffer.OffsetCapacity(required_vertex_memory_count - vertex_buffer.Remaining());
@@ -901,7 +976,13 @@ namespace dmGameSystem
 
         // Fill in vertex buffer
         uint8_t* vb_begin = vertex_buffer.End();
-        uint8_t* vb_end   = vb_begin;
+
+        if (vb_buffer_offset % vertex_stride != 0)
+        {
+            vb_begin += vertex_stride - vb_buffer_offset % vertex_stride;
+        }
+
+        uint8_t* vb_end = vb_begin;
 
         for (uint32_t *i=begin;i!=end;i++)
         {

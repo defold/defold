@@ -965,6 +965,8 @@ namespace dmRig
             {
                 uint32_t idx = indices32?indices32[i]:indices16[i];
 
+                uint8_t* write_ptr = out_write_ptr;
+
                 for (int a = 0; a < attributes_count; ++a)
                 {
                     const dmGraphics::VertexAttribute* attr = attributes[a].m_Attribute;
@@ -974,7 +976,7 @@ namespace dmRig
                     if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_POSITION)
                     {
                         assert(positions);
-                        memcpy(out_write_ptr, &positions[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                        memcpy(write_ptr, &positions[idx*3], dmMath::Min(3 * sizeof(float), data_size));
                     }
                     else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_TEXCOORD0)
                     {
@@ -982,11 +984,11 @@ namespace dmRig
 
                         if (uv0)
                         {
-                            memcpy(out_write_ptr, &uv0[idx*2], src_copy_size);
+                            memcpy(write_ptr, &uv0[idx*2], src_copy_size);
                         }
                         else
                         {
-                            memset(out_write_ptr, 0, src_copy_size);
+                            memset(write_ptr, 0, src_copy_size);
                         }
                     }
                     else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_TEXCOORD1)
@@ -995,42 +997,44 @@ namespace dmRig
 
                         if (uv1)
                         {
-                            memcpy(out_write_ptr, &uv1[idx*2], src_copy_size);
+                            memcpy(write_ptr, &uv1[idx*2], src_copy_size);
                         }
                         else
                         {
-                            memset(out_write_ptr, 0, src_copy_size);
+                            memset(write_ptr, 0, src_copy_size);
                         }
                     }
                     else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_NORMAL)
                     {
                         assert(normals);
-                        memcpy(out_write_ptr, &normals[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                        memcpy(write_ptr, &normals[idx*3], dmMath::Min(3 * sizeof(float), data_size));
                     }
                     else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_TANGENT)
                     {
                         assert(tangents);
-                        memcpy(out_write_ptr, &tangents[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                        memcpy(write_ptr, &tangents[idx*3], dmMath::Min(3 * sizeof(float), data_size));
                     }
                     else if (attr->m_NameHash == dmGraphics::VERTEX_STREAM_COLOR)
                     {
                         uint32_t src_copy_size = dmMath::Min(4 * sizeof(float), data_size);
                         if (colors)
                         {
-                            memcpy(out_write_ptr, &colors[idx*4], src_copy_size);
+                            memcpy(write_ptr, &colors[idx*4], src_copy_size);
                         }
                         else
                         {
-                            memset(out_write_ptr, 0, src_copy_size);
+                            memset(write_ptr, 0, src_copy_size);
                         }
                     }
                     else
                     {
-                        memcpy(out_write_ptr, attributes[a].m_ValuePtr, data_size);
+                        memcpy(write_ptr, attributes[a].m_ValuePtr, data_size);
                     }
 
-                    out_write_ptr += data_size;
+                    write_ptr += data_size;
                 }
+
+                out_write_ptr += vertex_stride;
             }
         }
 

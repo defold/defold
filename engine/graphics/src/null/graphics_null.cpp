@@ -538,6 +538,12 @@ namespace dmGraphics
         context->m_VertexBuffer = vertex_buffer;
     }
 
+    static void NullDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
+    {
+        NullContext* context = (NullContext*) _context;
+        context->m_VertexBuffer = 0;
+    }
+
     static void NullEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index)
     {
         assert(_context);

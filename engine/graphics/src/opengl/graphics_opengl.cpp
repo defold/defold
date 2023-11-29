@@ -1742,6 +1742,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static void OpenGLDisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
+    {
+        // Not sure
+    }
+
     static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         assert(_context);
