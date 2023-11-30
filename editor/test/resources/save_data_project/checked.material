@@ -83,7 +83,7 @@ attributes {
   name: "texcoord0"
   semantic_type: SEMANTIC_TYPE_TEXCOORD
   element_count: 2
-  normalize: false
+  normalize: true
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL
   double_values {

@@ -32,7 +32,7 @@
             [util.diff :as diff]
             [util.text-util :as text-util])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
-           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Message]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]
            [java.io StringReader]))
 
 ;; Note: We use symbol or string representations of protobuf types and values
@@ -77,7 +77,6 @@
     ["html5" "set_custom_heap_size"] :deprecated
     ["shader" "output_spirv"] :deprecated}})
 
-;; TODO(save-data-test): Add type fields from all union protobuf types.
 (def ^:private pb-type-field-names
   "This structure is used to declare type-distinguishing fields in union-style
   protobuf types. Without this, we will consider a protobuf field covered if it
@@ -85,12 +84,24 @@
   you declare a type field name for a protobuf type, we will distinguish between
   field coverage based on the type value. The field name is expected to refer to
   an enum field in the specified protobuf type."
-  {'dmGuiDDF.NodeDesc "type"})
+  {'dmBufferDDF.StreamDesc "value_type"
+   'dmGameObjectDDF.PropertyDesc "type"
+   'dmGameSystemDDF.LightDesc "type"
+   #_#_ 'dmGraphics.VertexAttribute "data_type" ; This is a union-style protobuf type, but it is kind of annoying to override every variant everywhere. Simple field presence goes a long way.
+   'dmGuiDDF.NodeDesc "type"
+   'dmInputDDF.GamepadMapEntry "type"
+   'dmParticleDDF.Emitter "type"
+   'dmParticleDDF.Modifier "type"
+   'dmPhysicsDDF.CollisionShape.Shape "shape_type"
+   'dmPhysicsDDF.ConvexShape "shape_type"})
 
 (def ^:private pb-enum-ignored-values
   "This structure is used in conjunction with `pb-type-field-names` above to
   exclude certain enum values from consideration when determining coverage."
-  {'dmGuiDDF.NodeDesc.Type
+  {'dmPhysicsDDF.CollisionShape.Type
+   {"[TYPE_HULL]" :unimplemented}
+
+   'dmGuiDDF.NodeDesc.Type
    {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
 (def ^:private pb-ignored-fields
@@ -140,6 +151,13 @@
    'dmGameSystemDDF.LabelDesc
    {:default
     {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
+
+   ['dmGameSystemDDF.LightDesc "[POINT]"]
+   {:default
+    {"type" :allowed-default
+     "cone_angle" :unused
+     "drop_off" :unused
+     "penumbra_angle" :unused}}
 
    'dmGameSystemDDF.SpineSceneDesc
    {:default
@@ -384,9 +402,19 @@
    {:default
     {"spine_scenes" :deprecated}} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
-   'dmInputDDF.GamepadMapEntry
+   ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
-    {"hat_mask" :runtime-only}}
+    {"hat_mask" :unused
+     "type" :allowed-default}}
+
+   ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_BUTTON]"]
+   {:default
+    {"hat_mask" :unused
+     "mod" :unused}}
+
+   ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_HAT]"]
+   {:default
+    {"hat_mask" :unimplemented}}
 
    'dmMath.Point3
    {:default
@@ -421,6 +449,18 @@
    {:default
     {"materials" :unimplemented}} ; Multiple materials not supported yet.
 
+   'dmPhysicsDDF.CollisionShape.Shape
+   {:default
+    {"index" :allowed-default}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_SPHERE]"]
+   {:default
+    {"shape_type" :allowed-default}}
+
+   ['dmPhysicsDDF.ConvexShape "[TYPE_SPHERE]"]
+   {:default
+    {"shape_type" :allowed-default}}
+
    'dmRenderDDF.MaterialDesc
    {:default
     {"textures" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
@@ -432,18 +472,20 @@
      "texture" :unimplemented}}}) ; Default texture resources not supported yet.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
-  `(symbol (.getFullName ~pb-desc)))
-
-(defn- pb-ignore-key [^Descriptors$Descriptor pb-desc type-token]
-  {:pre [(or (nil? type-token) (s/valid? ::pb-type-token type-token))]}
-  (let [pb-desc-key (pb-descriptor-key pb-desc)]
-    (if type-token
-      [pb-desc-key type-token]
-      pb-desc-key)))
+  `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
 
 (defn- pb-field-ignore-reasons [pb-desc type-token pb-path]
-  (let [pb-ignore-key (pb-ignore-key pb-desc type-token)
-        pb-filter->pb-field->ignore-reason (get pb-ignored-fields pb-ignore-key)
+  {:pre [(or (nil? type-token) (s/valid? ::pb-type-token type-token))]}
+  (let [pb-desc-key (pb-descriptor-key pb-desc)
+
+        pb-filter->pb-field->ignore-reason
+        (if (nil? type-token)
+          (get pb-ignored-fields pb-desc-key)
+          (merge-with
+            merge
+            (get pb-ignored-fields pb-desc-key)
+            (get pb-ignored-fields [pb-desc-key type-token])))
+
         matched (filterv (fn [[pb-filter]]
                            (and (not= :default pb-filter)
                                 (some #(= pb-path %) pb-filter)))
