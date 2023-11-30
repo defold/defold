@@ -2874,8 +2874,6 @@ bail:
         Program* program_ptr = (Program*) prog;
         HUniformLocation loc = INVALID_UNIFORM_LOCATION;
         dmhash_t name_hash   = dmHashString64(name);
-        uint64_t loc0        = UNIFORM_LOCATION_MAX;
-        uint64_t loc0_member = UNIFORM_LOCATION_MAX;
 
         for (int set = 0; set < program_ptr->m_MaxSet; ++set)
         {

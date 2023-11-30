@@ -118,6 +118,7 @@ namespace dmGraphics
 
     // Test only functions:
     uint64_t GetDrawCount();
+    void     EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
 
     // Both experimental + tests only:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);

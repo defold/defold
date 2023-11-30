@@ -315,7 +315,8 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::AddVertexStream(stream_declaration, "uv",       2, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
 
-    dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, vertex_buffer);
+    dmGraphics::EnableVertexBuffer(m_Context, vertex_buffer, 0);
+    dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, 0);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
     ASSERT_EQ(sizeof(p) / 2, m_NullContext->m_VertexStreams[0].m_Size);
@@ -347,17 +348,21 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::HVertexBuffer vb = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(m_Context, sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-    dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
+    dmGraphics::EnableVertexBuffer(m_Context, vb, 0);
+
+    dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
     dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
-    dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
+    dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
     dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
-    dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
+    dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
     dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
+
+    dmGraphics::DisableVertexBuffer(m_Context, vb);
 
     dmGraphics::DeleteIndexBuffer(ib);
     dmGraphics::DeleteVertexBuffer(vb);
