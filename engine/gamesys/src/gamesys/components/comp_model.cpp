@@ -323,7 +323,7 @@ namespace dmGameSystem
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
-        dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*DM_ARRAY_SIZE(material->m_Textures));
+        dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
     }
 
     static void ReHash(ModelComponent* component)

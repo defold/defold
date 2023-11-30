@@ -372,7 +372,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_UVEC2:   return 16;
             case ShaderDesc::SHADER_TYPE_UVEC3:   return 36;
             case ShaderDesc::SHADER_TYPE_UVEC4:   return 64;
-            default: return 0;
+            default: break;
         }
         return 0;
     }
@@ -1013,6 +1013,10 @@ namespace dmGraphics
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
         return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
+    {
+        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {

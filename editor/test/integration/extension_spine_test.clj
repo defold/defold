@@ -33,7 +33,7 @@
 
 (defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
 
-(def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
+(def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
 (defn- save-data-content-by-proj-path [project]
   (into {}
