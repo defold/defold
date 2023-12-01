@@ -340,7 +340,7 @@ public class ProtoBuilders {
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
-            if (messageBuilder.getTexturesList().isEmpty()) {
+            if (messageBuilder.hasTileSet()) {
                 String texture = messageBuilder.getTileSet();
 
                 SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
@@ -348,6 +348,7 @@ public class ProtoBuilders {
                 textureBuilder.setSampler("");
                 messageBuilder.clearTextures();
                 messageBuilder.addTextures(textureBuilder.build());
+                messageBuilder.clearTileSet();
             }
 
             MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));

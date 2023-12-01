@@ -25,6 +25,12 @@
 
 #include <dmsdk/hid/hid.h>
 
+namespace dmPlatform
+{
+    struct Window;
+    typedef Window* HWindow;
+};
+
 namespace dmHID
 {
     /// Constant that defines invalid context handles
@@ -110,6 +116,8 @@ namespace dmHID
      * @params callback_ctx [type: void*] userdata that will be passed to the callback
      */
     void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
+
+    void SetWindow(HContext context, dmPlatform::HWindow window);
 
     /**
      * Initializes a hid context.
@@ -335,23 +343,9 @@ namespace dmHID
     void ClearTouches(HTouchDevice device);
 
     /**
-     * Get the name of a keyboard key.
-     * @param key Keyboard key
-     * @return The name of the key
-     */
-    const char* GetKeyName(Key key);
-
-    /**
-     * Get the name of a mouse button.
-     * @param button Mouse button
-     * @return The name of the button
-     */
-    const char* GetMouseButtonName(MouseButton button);
-
-    /**
      * Enables the accelerometer (if available)
      */
-    void EnableAccelerometer();
+    void EnableAccelerometer(HContext context);
 }
 
 #endif // DM_HID_H

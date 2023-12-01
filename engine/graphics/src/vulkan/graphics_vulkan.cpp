@@ -33,7 +33,7 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static const int8_t    g_vulkan_adapter_priority = 0;
-    static GraphicsAdapter g_vulkan_adapter("vulkan");
+    static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
 
@@ -104,12 +104,17 @@ namespace dmGraphics
     {
         memset(this, 0, sizeof(*this));
         m_Instance                = vk_instance;
+        m_NumFramesInFlight       = DM_MAX_FRAMES_IN_FLIGHT;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_UseValidationLayers     = params.m_UseValidationLayers;
         m_RenderDocSupport        = params.m_RenderDocSupport;
-        m_NumFramesInFlight       = DM_MAX_FRAMES_IN_FLIGHT;
+        m_Window                  = params.m_Window;
+        m_Width                   = params.m_Width;
+        m_Height                  = params.m_Height;
+
+        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -695,6 +700,12 @@ namespace dmGraphics
     void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        if (vk_device == VK_NULL_HANDLE)
+        {
+            return;
+        }
+
         // Flush all current commands
         SynchronizeDevice(vk_device);
 
@@ -902,10 +913,10 @@ namespace dmGraphics
         }
     }
 
-    bool InitializeVulkan(HContext _context, const WindowParams* params)
+    bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
+        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -994,8 +1005,8 @@ namespace dmGraphics
         }
 
         LogicalDevice logical_device;
-        uint32_t created_width  = params->m_Width;
-        uint32_t created_height = params->m_Height;
+        uint32_t created_width  = context->m_Width;
+        uint32_t created_height = context->m_Height;
         const bool want_vsync   = true;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
@@ -1051,7 +1062,7 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
@@ -1152,7 +1163,10 @@ bail:
 
             g_VulkanContext = new VulkanContext(params, vk_instance);
 
-            return (HContext) g_VulkanContext;
+            if (NativeInitializeContext(g_VulkanContext))
+            {
+                return (HContext) g_VulkanContext;
+            }
         }
         return 0x0;
     }
@@ -1171,11 +1185,6 @@ bail:
             delete context;
             g_VulkanContext = 0x0;
         }
-    }
-
-    static bool VulkanInitialize()
-    {
-        return true;
     }
 
     static void VulkanFinalize()
@@ -1210,7 +1219,7 @@ bail:
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
                 uint32_t width, height;
-                VulkanGetNativeWindowSize(&width, &height);
+                VulkanGetNativeWindowSize(context, &width, &height);
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
@@ -1325,9 +1334,6 @@ bail:
 
         NativeSwapBuffers(context);
     }
-
-    static void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
-    {}
 
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -2327,7 +2333,6 @@ bail:
             shader->m_Uniforms.SetSize(ddf->m_Resources.m_Count);
             memset(shader->m_Uniforms.Begin(), 0, sizeof(ShaderResourceBinding) * ddf->m_Resources.m_Count);
 
-            uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
             uint32_t uniform_buffer_count      = 0;
             uint32_t total_uniform_count       = 0;
@@ -2366,7 +2371,6 @@ bail:
 
                     res.m_UniformDataIndex = uniform_buffer_count;
                     res.m_DataSize         = uniform_size;
-                    uniform_data_size_aligned += DM_ALIGN(uniform_size, dynamicAlignment);
                     uniform_buffer_count++;
                 }
 
@@ -2821,9 +2825,7 @@ bail:
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         assert(prog);
-        Program* program     = (Program*) prog;
-        ShaderModule* module = 0;
-
+        Program* program      = (Program*) prog;
         uint32_t search_index = 0;
 
         for (int set = 0; set < program->m_MaxSet; ++set)
@@ -2872,7 +2874,6 @@ bail:
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
-        HUniformLocation loc = INVALID_UNIFORM_LOCATION;
         dmhash_t name_hash   = dmHashString64(name);
 
         for (int set = 0; set < program_ptr->m_MaxSet; ++set)
@@ -2959,7 +2960,6 @@ bail:
         Program* program_ptr = (Program*) context->m_CurrentProgram;
         uint32_t set         = UNIFORM_LOCATION_GET_VS(location);
         uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         // TODO: Compute shaders does not have samplers, but does support texture storage
@@ -4545,7 +4545,6 @@ bail:
         Program* program_ptr = (Program*) context->m_CurrentProgram;
         uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
         uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
