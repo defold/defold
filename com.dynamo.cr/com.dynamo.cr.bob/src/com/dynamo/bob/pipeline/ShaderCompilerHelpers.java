@@ -163,7 +163,12 @@ public class ShaderCompilerHelpers {
     static public String getResultString(Result r)
     {
         if (r.ret != 0 ) {
-            return new String(r.stdOutErr);
+            String[] tokenizedResult = new String(r.stdOutErr).split(":", 2);
+            String message = tokenizedResult[0];
+            if(tokenizedResult.length != 1) {
+                message = tokenizedResult[1];
+            }
+            return message;
         }
         return null;
     }
